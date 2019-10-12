@@ -13,7 +13,7 @@ new Vue({
           name: "0.61.0 with Congressman Warren Davidson",
           artist: "Noded Bitcoin Podcast",
           cover: "img/1.jpg",
-          source: "music_player/mp3/0.61.0 with Rep Warren Davidson.mp3",
+          source: "https://raw.githubusercontent.com/Z-Corbett/Master_List/music_player/mp3/0.61.0_noded.mp3",
           url: "https://soundcloud.com/noded-bitcoin-podcast/0610-with-rep-warren-davidson",
           favorited: false
         },
