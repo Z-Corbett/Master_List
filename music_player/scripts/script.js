@@ -10,11 +10,11 @@ new Vue({
       isTimerPlaying: false,
       tracks: [
         {
-          name: "Mekanın Sahibi",
-          artist: "Norm Ender",
+          name: "0.61.0 with Congressman Warren Davidson",
+          artist: "Noded Bitcoin Podcast",
           cover: "img/1.jpg",
-          source: "https://raw.githubusercontent.com/muhammederdem/mini-player/master/mp3/1.mp3",
-          url: "https://www.youtube.com/watch?v=z3wAjJXbYzA",
+          source: "music_player/mp3/0.61.0 with Rep Warren Davidson.mp3",
+          url: "https://soundcloud.com/noded-bitcoin-podcast/0610-with-rep-warren-davidson",
           favorited: false
         },
         {
