@@ -259,22 +259,24 @@
     ['', ''],
     ['hl', `  ${totalTests * 2} passed`],
   ];
+  // Follow the output like a real terminal, so the final "passed" line is never clipped.
+  const paint = (html) => { term.innerHTML = html; term.scrollTop = term.scrollHeight; };
   const lineHTML = ([cls, text]) => (cls ? `<span class="${cls}">${esc(text)}</span>` : esc(text));
   if (reduceMotion || !lab.length) {
-    term.innerHTML = lines.map(lineHTML).join('\n');
+    paint(lines.map(lineHTML).join('\n'));
   } else {
     let i = 0, ch = 0, out = [];
     const step = () => {
-      if (i >= lines.length) { term.innerHTML = out.join('\n') + '\n<span class="cursor"></span>'; return; }
+      if (i >= lines.length) { paint(out.join('\n') + '\n<span class="cursor"></span>'); return; }
       const [cls, text] = lines[i];
       const typed = cls === 'p';
       if (typed && ch < text.length) {
         ch += 2;
-        term.innerHTML = [...out, lineHTML([cls, text.slice(0, ch)])].join('\n') + '<span class="cursor"></span>';
+        paint([...out, lineHTML([cls, text.slice(0, ch)])].join('\n') + '<span class="cursor"></span>');
         return setTimeout(step, 18);
       }
       out.push(lineHTML(lines[i])); i++; ch = 0;
-      term.innerHTML = out.join('\n') + '<span class="cursor"></span>';
+      paint(out.join('\n') + '<span class="cursor"></span>');
       setTimeout(step, typed ? 380 : cls === 'ok' ? 110 : 220);
     };
     new IntersectionObserver((entries, obs) => { if (entries[0].isIntersecting) { obs.disconnect(); step(); } }).observe(term);

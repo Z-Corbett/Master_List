@@ -196,6 +196,20 @@ test('renders the gallery even when Google Fonts never responds', async ({ page 
   await expect(page.getByTestId('wotd-title')).not.toBeEmpty();
 });
 
+test('hero terminal ends on a visible "passed" line', async ({ page }) => {
+  // Regression: the replay outgrew its fixed-height box and clipped the final line.
+  await page.emulateMedia({ reducedMotion: 'reduce' }); // renders the final frame immediately
+  await page.goto('/');
+  const term = page.getByTestId('terminal');
+  await expect(term).toContainText(/\d+ passed/);
+  const clipped = await term.evaluate((el) => {
+    const last = el.lastElementChild!.getBoundingClientRect();
+    const box = el.getBoundingClientRect();
+    return last.bottom > box.bottom + 1 || last.top < box.top - 1;
+  });
+  expect(clipped).toBe(false);
+});
+
 test('homepage has no horizontal scroll', async ({ page }) => {
   await page.goto('/');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
