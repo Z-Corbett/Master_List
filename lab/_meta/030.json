@@ -1,0 +1,35 @@
+{
+  "id": "030",
+  "slug": "030-halving-clock",
+  "file": "lab/030-halving-clock.html",
+  "title": "Halving Clock — Bitcoin's issuance, exactly",
+  "category": "Data Viz",
+  "tags": ["bigint", "svg-chart", "bitcoin", "page-clock", "data-table"],
+  "description": "An exact, BigInt-computed visualization of Bitcoin's issuance: a 50 BTC subsidy halving every 210,000 blocks with integer-satoshi truncation, a railway-clock dial showing progress through the current epoch, a staircase subsidy chart (linear or log2), a supply curve approaching 20,999,999.9769 BTC and a 34-row epoch table. You can jump to any block height to see its subsidy, epoch, cumulative supply and the next halving, with future dates clearly marked as ~10-minute estimates.",
+  "prompt": "I've been into Bitcoin a long time and I want an accurate visualization of the issuance schedule, not a hand-wavy one. 50 BTC initial subsidy, halving every 210,000 blocks, truncated to whole satoshis, so the supply tops out just under 21 million; compute it exactly and show 20,999,999.9769 BTC. Give me a staircase subsidy chart, the supply curve, an epoch table with block ranges, and an input to jump to any block height and see its subsidy, epoch and cumulative supply. Any future halving dates must be labelled as estimates based on ten-minute blocks. No network calls, one HTML file.",
+  "qa": {
+    "methodology": [
+      "Independent BigInt oracle in the spec (shift 50 BTC right until zero, times 210,000) for the maximum supply and epoch count; the page's own number must match to the satoshi.",
+      "Boundary-value lookups at the edges that matter: blocks 0, 209,999, 210,000, 840,000, 1,050,000, the last subsidy block 6,929,999 and the first zero block 6,930,000, compared on exact satoshi attributes rather than formatted text.",
+      "Truncation check: epoch 10 must show 0.04882812 (9,765,625 sats halved and rounded down) and be flagged, while epoch 9 is not.",
+      "Fact labelling: halvings 1–4 show their historical dates and are not marked as estimates; the 2028 halving and later are always '~' estimates.",
+      "The estimated current height is tested with page.clock (install plus pauseAt) against the documented formula, since it's derived from the date.",
+      "Screenshot review at 1280px and 390px found the clock hands covering the dial text and a wrapped headline figure; both were fixed."
+    ],
+    "risks": [
+      "Floating point creeping into satoshi maths; everything is BigInt until the final formatting step.",
+      "Users reading the estimated current height as live chain data; it's labelled as an estimate everywhere it appears.",
+      "Real block times drifting from ten minutes, which makes future dates wrong by months. That's why they're marked as approximate.",
+      "Wide epoch table on phones; it scrolls inside its own container."
+    ],
+    "playwright": "This was a correctness-first spec: the page stores exact satoshi values in data-sats attributes and on a small window.__halving hook, so assertions compare BigInt strings instead of parsing locale-formatted numbers. The only time-dependent value, the estimated current height, is pinned with page.clock.install followed by pauseAt so it can be checked against the formula. Chart interaction uses a click with a relative position on the SVG, and the test asserts the resulting lookup (past the last subsidy block), not pixels. The dial's decorative second hand is a CSS animation that reduced motion turns off; it was left out of the assertions on purpose.",
+    "coverage": [
+      "Maximum supply, epoch count and last subsidy block against a BigInt oracle",
+      "Subsidy, epoch and cumulative supply at seven boundary heights",
+      "Epoch table size, truncation flags, historical vs estimated dates",
+      "Clock-derived current height, dial epoch and quick-jump to the next halving",
+      "Input validation, log/linear scale toggle and click-to-jump on the supply chart"
+    ]
+  },
+  "a11y": "The lookup is a labelled input with an Enter shortcut, errors use role=alert, and results update an aria-live grid. Both charts have text alternatives, and every value on them also appears in the epoch table and the result panel."
+}

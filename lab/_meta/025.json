@@ -1,0 +1,36 @@
+{
+  "id": "025",
+  "slug": "025-bluebonnet-season",
+  "file": "lab/025-bluebonnet-season.html",
+  "title": "Bluebonnet Season — a Texas wildflower field guide",
+  "category": "Landing Pages",
+  "tags": ["canvas", "scrollytelling", "seeded-prng", "localstorage", "filtering"],
+  "description": "A spring landing page for Petal & Pike, a fictional Texas wildflower tour outfit, whose generated canvas meadow of bluebonnets, paintbrush and firewheels fills in as you scroll. Below it you can filter a nine-species field guide by month and colour, jump months from a bloom calendar, tick off a trip checklist that saves locally, and price a small-van tour.",
+  "prompt": "I grew up with bluebonnets in every Texas median, so I want a lush landing page and field guide for Texas spring wildflowers, branded as a made-up tour company. The hero should be a generative canvas meadow that literally grows as you scroll, with bluebonnets, Indian paintbrush, Indian blanket and friends drawn in code and seeded with ?seed=. Under it: a few accurate facts, a what's-blooming filter by month and colour, a twelve-month bloom calendar that drives the filter, a trip-planning checklist that persists in localStorage, and a tour quote with a group discount. Keep the botanical facts general and correct, respect reduced motion by showing the meadow fully grown, and keep it one self-contained HTML file.",
+  "qa": {
+    "methodology": [
+      "Scroll-driven behaviour tested through state, not pixels: a window.__meadow hook exposes progress, flowers grown and total, and the spec asserts growth is monotonic from top, middle and end of the scrolly section.",
+      "Determinism: the same ?seed= must reproduce the identical species layout of the meadow.",
+      "Filter oracle: the expected species per month and colour are hand-derived from the published bloom windows and compared as sorted id lists, including the empty state.",
+      "Cross-component consistency: clicking a calendar month must update the select, the aria-live count and the number of 'on' cells in that column.",
+      "Persistence: checklist state survives a reload and is cleared by the reset button; the tour quote is checked against hand-computed totals with the 10% group rule.",
+      "Responsive review by screenshot at 1280px and 390px, plus a check of the mobile layout viewport width (window.innerWidth), which caught a real overflow bug."
+    ],
+    "risks": [
+      "Absolutely positioned screen-reader text inside the scrolling calendar escaping its overflow container and widening the mobile layout viewport.",
+      "Scroll progress maths depending on 100vh vs 100svh on mobile browsers with collapsing toolbars.",
+      "Canvas redraw cost with 250+ flowers on low-end phones; the loop pauses when the hero is off screen.",
+      "Bloom windows drifting out of sync between the guide cards and the calendar if edited in one place."
+    ],
+    "playwright": "Everything except the canvas itself was easy to target with data-testid locators and native selects, checkboxes and radios. The meadow is asserted through a read-only window.__meadow hook after scrolling with window.scrollTo and expect.poll, rather than with toHaveScreenshot, because the flowers sway continuously. emulateMedia({ reducedMotion: 'reduce' }) is used to check the static, fully grown fallback. The most useful find came from mobile: Playwright refused to click a button because other elements intercepted it, which turned out to be a layout viewport silently widened to 640px by visually hidden spans escaping an overflow:auto table; scrollWidth checks alone had missed it.",
+    "coverage": [
+      "Meadow grows with scroll and reaches full bloom",
+      "Seeded meadow layout is reproducible; reduced motion renders it fully grown",
+      "Month and colour filtering, including the empty state",
+      "Calendar month buttons drive the filter and match the grid",
+      "Checklist progress, persistence across reload and reset",
+      "Tour quote with group discount, stepper clamping and seat hold"
+    ]
+  },
+  "a11y": "Filters are native select and toggle buttons with aria-pressed, results are announced in a polite live region, and each calendar cell carries hidden text (in bloom, peak, not blooming) so the grid reads meaningfully to screen readers. The meadow canvas has an image role and label, and the checklist uses real labelled checkboxes."
+}

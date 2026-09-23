@@ -1,0 +1,34 @@
+{
+  "id": "018",
+  "slug": "018-a11y-lens",
+  "file": "lab/018-a11y-lens.html",
+  "title": "a11y Lens — Inspect a Page Through Accessibility Lenses",
+  "category": "QA & Testing",
+  "tags": ["accessibility", "wcag", "svg-filters", "contrast", "focus-order", "game"],
+  "description": "A fictional outdoor-gear shop page with nine deliberate accessibility bugs, inspected through four lenses: colour-vision simulations built from SVG colour matrices, a numbered tab-order overlay, an accessible-name inspector, and a contrast checker that computes real WCAG 2 ratios from the rendered colours. Select any element, report what is wrong with it, and fill the found-N-of-9 tracker with the matching WCAG success criteria.",
+  "prompt": "Build 'a11y Lens': a small mock web page for a made-up brand that you inspect through lenses. I want colour-vision simulations using SVG filters (protanopia, deuteranopia, tritanopia, achromatopsia), a tab-order overlay that numbers every focus stop and draws the path between them, an accessible-name inspector where hovering or tapping an element shows its role and computed name, and a contrast checker that lists failing text pairs with real WCAG ratios computed from the actual colours, not hard-coded. Hide a handful of genuine bugs in the page — missing alt, an icon button with no name, placeholder-as-label, positive tabindex, a clickable div, 'click here', low contrast, colour-only status — and add a 'found N of M' tracker where you select an element and say what's wrong with it. Everything must be keyboard usable, including a way to pick elements without a mouse.",
+  "qa": {
+    "methodology": [
+      "Independent oracle for contrast: the two failing ratios (2.09:1 and 2.25:1) were computed outside the page with a separate script and asserted exactly, and the page's own ratio function is checked against the known 21:1 black-on-white value.",
+      "Real-browser oracle for focus order: the spec presses Tab on a fresh page and asserts the browser actually focuses the tabindex=1 button, which is also what the overlay numbers as stop 1.",
+      "Negative checks: the clickable div must be absent from the tab order, and 'show passing pairs' must not add any new failures.",
+      "Name computation checked per element type: icon button (no name), input (placeholder fallback), img (no alt attribute), div (not focusable), CTA (failing contrast).",
+      "Game logic: wrong issue type, an element with no issue, all nine found, completion banner and reset.",
+      "Visual review of CVD filters at 1280px and 390px to confirm the red and green stock dots really converge under deuteranopia."
+    ],
+    "risks": [
+      "Overlay badges drifting from their elements after a resize or when the hero image loads late and shifts the layout.",
+      "Contrast walking up to the wrong ancestor background (for example a transparent card over a tinted section).",
+      "The capture-phase click interceptor swallowing interactions in the instrument panel instead of only inside the mock page."
+    ],
+    "playwright": "Most of this page is plain DOM, so role and testid locators did the work; the harder parts were proving the analysis is correct rather than just rendered. For focus order the browser is the oracle: one keyboard.press('Tab') on a fresh page, then toBeFocused on the positive-tabindex button — it has to happen before any click, because Chrome continues Tab navigation from the last clicked point. The SVG colour filters cannot be asserted meaningfully through pixels in a stable way, so the spec checks the applied computed filter with toHaveCSS and that each filter primitive exists, and the actual visual effect was reviewed by screenshot. Screenshot comparisons were not used; exact contrast ratios are a far more precise oracle than a pixel diff.",
+    "coverage": [
+      "Failing contrast pairs and exact ratios; show-all mode",
+      "Tab order: 11 stops, positive tabindex first, div button excluded, real Tab key",
+      "Role / name / name-source / focusable / contrast for five element types",
+      "Issue reporting: wrong type, no issue, all nine found, reset",
+      "All four colour-vision filters apply and clear"
+    ]
+  },
+  "a11y": "Every lens and simulation is a real toggle button with aria-pressed, and a labelled element picker lets keyboard and screen-reader users inspect anything in the mock page without pointing. The inspector facts, verdicts, contrast list and found counter are live regions; the mock page's own bugs are deliberate and confined to the specimen."
+}

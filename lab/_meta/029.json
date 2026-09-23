@@ -1,0 +1,35 @@
+{
+  "id": "029",
+  "slug": "029-sats-stacker",
+  "file": "lab/029-sats-stacker.html",
+  "title": "Sats Stacker — DCA vs lump sum, simulated",
+  "category": "Data Viz",
+  "tags": ["svg-chart", "simulation", "seeded-prng", "bitcoin", "page-clock"],
+  "description": "A dollar-cost-averaging versus lump-sum simulator running on a seeded, clearly fictional random-walk price series: set the buy amount, frequency, duration, volatility and trend, and both strategies are replayed on an animated chart of value against money invested. A side-by-side comparison shows sats stacked in whole satoshis, average cost, return, maximum drawdown, worst point versus cost basis and days underwater.",
+  "prompt": "I've stacked sats for years and I want an honest visual answer to the DCA versus lump-sum question, without pretending to be real market data. Build a simulator on a seeded fictional price series (geometric Brownian motion is fine), labelled everywhere as a simulation and not financial advice. Let me choose the amount, frequency, duration and a volatility preset, show an animated chart of holdings versus cost basis, the sats accumulated, drawdown stats, and a side-by-side comparison of the two strategies. Deterministic with ?seed=, one HTML file, no network.",
+  "qa": {
+    "methodology": [
+      "Independent oracles in the spec: DCA sats are recomputed as the sum of floor(amount / price × 100,000,000) over the exposed price series and buy days, and the lump sum as one floor at day one.",
+      "Maximum drawdown for both strategies is recomputed from the exposed value series and compared to 5 decimal places; the declared winner must match the final values.",
+      "Schedule arithmetic: weekly, 30-day and daily buy counts over 365 days (53, 13, 365) are checked through the invested totals.",
+      "Determinism: the same ?seed= reproduces the identical price series after reload; a new seed changes it.",
+      "Animation driven by page.clock (install, pauseAt, runFor) to catch a mid-animation frame and the finished state; other tests use reduced motion so results appear at once.",
+      "Responsive check at 360px caught control rows overflowing the viewport; the chart also switches to a narrower viewBox on small screens so its labels stay readable."
+    ],
+    "risks": [
+      "Floating-point rounding in satoshi conversion (always floor, never round) drifting from the oracle.",
+      "Downsampled chart paths hiding the true extreme values, so the stats are computed on the full series, not the plotted one.",
+      "Users mistaking the simulation for real prices; the disclaimer is persistent and in the verdict context.",
+      "Long durations (8 years daily = 2,920 buys) slowing SVG rendering on phones."
+    ],
+    "playwright": "The page exposes read-only getters on window.__sats for prices, buy days and value series, which turned financial assertions into plain arithmetic in the spec rather than scraping formatted currency. Randomness is pinned with ?seed= and a mulberry32 generator feeding Box-Muller normals. The reveal animation is a requestAnimationFrame loop, so one test installs and pauses a fake clock and steps it with runFor to see a partly drawn chart and then the finished one, while every other test emulates reduced motion to skip it. Keyboard scrubbing (Home, End, arrows) gives a deterministic way to test the tooltip without pointer coordinates. Chart pixels are never asserted.",
+    "coverage": [
+      "Simulation labelling and seeded determinism",
+      "Whole-satoshi oracle for DCA and lump sum, invested totals and average cost",
+      "Buy schedules for weekly, 30-day and daily frequencies and duration changes",
+      "Drawdowns and winner recomputed in bear and bull trends",
+      "Clock-driven animation and keyboard scrubbing of the readout"
+    ]
+  },
+  "a11y": "Controls are native inputs, selects and toggle buttons with aria-pressed. The chart is focusable with a label explaining arrow-key scrubbing, the readout gives every value as text, and the verdict is an aria-live region so changes in settings are announced."
+}

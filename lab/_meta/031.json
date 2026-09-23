@@ -1,0 +1,35 @@
+{
+  "id": "031",
+  "slug": "031-porch-light",
+  "file": "lab/031-porch-light.html",
+  "title": "Porch Light — a Texas summer night",
+  "category": "Audio",
+  "tags": ["web-audio", "canvas", "simulation", "seeded-prng", "page-clock"],
+  "description": "A generative Texas summer night on canvas: moths orbit a warm porch bulb, fireflies flash in the yard (and go quiet near the light), and heat lightning flickers on the horizon. Press play for a Web Audio chorus of synchronized crickets and a cicada drone; the temperature slider sets the chirp rate by Dolbear's law, and you can mute the sound or switch the porch light off.",
+  "prompt": "Make me a generative Texas summer night like the ones I grew up with: a porch with a warm bulb attracting moths (a flocking-style sim), fireflies, heat lightning on the horizon, and a cicada and cricket chorus synthesized with Web Audio that only starts after a click. The chorus should follow a temperature slider, and the cricket chirp rate must use Dolbear's law correctly. Add a mute control, respect reduced motion, make it deterministic with ?seed=, and expose a window.__porch hook so it can be tested.",
+  "qa": {
+    "methodology": [
+      "Formula oracle: Dolbear's law (N = 4T − 160) is checked at the slider ends and middle, including the '15-second count + 40' round trip shown in the UI and the Celsius conversion.",
+      "Rate over time: a visual chirp clock that runs on elapsed time, not frames, lets a paused fake clock fast-forward exactly 60 seconds and expect 140 ± 1 chirps at 75°F.",
+      "Behavioural simulation checks with page.clock.runFor: the average moth distance to the bulb must grow by at least 50% after the light is switched off.",
+      "Seeded event schedules: heat lightning and firefly flashes must keep occurring across a minute of fake time for ?seed=42.",
+      "Audio contract: no AudioContext before a user gesture; after the click chirps are scheduled on the audio clock, and mute drives the master gain to 0 and back.",
+      "Screenshot review at 1280px and 390px, which caught a CSS selector shrinking the main chirp-rate number."
+    ],
+    "risks": [
+      "Frame-coupled counters: if chirps were counted per animation frame, background tabs and fake clocks would lose or double chirps.",
+      "Audio scheduling drift or bursts after a tab is suspended; the lookahead scheduler resyncs when it falls behind.",
+      "Canvas cost of radial gradients for every firefly flash on low-end phones.",
+      "Autoplay policies differing between browsers; audio only ever starts from the button click."
+    ],
+    "playwright": "Audio can't be listened to in CI, so the spec asserts what can be observed: whether the AudioContext exists, how many chirps have been scheduled on the audio clock, and the master gain value, all read from window.__porch. Timing is split in two. The chirp counter integrates real elapsed time, so fastForward in a single frame gives an exact count, while the moth physics caps its time step, so that test uses runFor to step real frames (slower, and it has an explicit timeout). Everything random comes from ?seed= through mulberry32, with a separate stream for visual flutter so animation never shifts the event schedule. Pixels are never asserted.",
+    "coverage": [
+      "Dolbear's law at 55, 75, 84 and 100°F plus the 15-second rule",
+      "One simulated minute of chirps on a fake clock",
+      "Seeded heat lightning and firefly flashes over time",
+      "Moths dispersing when the porch light is switched off",
+      "Gesture-gated audio start, chirp scheduling, mute and unmute"
+    ]
+  },
+  "a11y": "All controls are native: a labelled range slider with a live output in °F and °C, and toggle buttons with aria-pressed for the light and mute. The chirp rate and counters are in an aria-live region, the canvas has an image role with a description, and reduced motion slows the drift and removes flicker and twinkle."
+}

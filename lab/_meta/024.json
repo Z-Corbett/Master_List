@@ -1,0 +1,33 @@
+{
+  "id": "024",
+  "slug": "024-agent-brief",
+  "file": "lab/024-agent-brief.html",
+  "title": "Agent Brief Builder — Write Better Tasks for Coding Agents",
+  "category": "AI & Agents",
+  "tags": ["prompting", "agentic-coding", "markdown", "heuristics", "localstorage"],
+  "description": "A guided form that turns a vague request into a strong brief for a coding agent: goal, background and relevant files, constraints, acceptance criteria as a checklist, test plan, out-of-scope and deliverables. A live Markdown preview and a transparent quality meter flag specific problems (vague words like \"nice\" or \"fast\", untestable criteria, test plans without a command), with bug-fix, feature and refactor templates plus copy and download as .md.",
+  "prompt": "Build an 'Agent Brief Builder': a guided form that turns a vague request into a strong brief for a coding agent. Sections for goal, context and relevant files, constraints, acceptance criteria as a checklist, test plan, out-of-scope and deliverables. Show a live preview of the assembled brief as Markdown, and a quality meter that gives specific suggestions — 'no acceptance criteria', 'ambiguous: make it nice', criteria nobody could test, a test plan with no actual command. Add templates for a bug fix, a feature and a refactor (plus a deliberately vague starting point), each with a 'Fix' jump to the right field, and let me copy or download the result as a .md file. Keep the scoring rules transparent heuristics, not fake AI. Engineering-paper look: cobalt ink, red-pencil stamp.",
+  "qa": {
+    "methodology": [
+      "Rule-by-rule checks on the heuristic scorer: each suggestion has a stable id, so the spec asserts the exact rule that fires (vague-goal, untestable, no-criteria…) and that it clears when the input is fixed.",
+      "Specificity oracle: vague-word suggestions must quote the offending words back (\"nice\", \"fast\", \"fix the bugs\"), because a generic 'be clearer' message is the failure mode this page exists to avoid.",
+      "Monotonicity: filling sections by hand must raise the score substantially; all three reference templates must score 100 with no suggestions while the vague template stays 'Vague'.",
+      "Output contract: the preview renders checklists and inline code, and the downloaded Markdown file is read from disk and matched section by section.",
+      "Persistence and focus: the draft survives a reload, and each suggestion's Fix button moves focus to the right input."
+    ],
+    "risks": [
+      "Heuristic drift: widening the vague-word list or the 'measurable' verb list silently changes scores for existing templates (the templates-score-100 test guards this).",
+      "Markdown escaping: user text containing backticks, asterisks or HTML must render safely in the preview (everything is escaped before inline formatting).",
+      "Clipboard access differs by browser and permission state, so Copy has a select-the-text fallback."
+    ],
+    "playwright": "Downloads were the interesting part: page.waitForEvent('download') paired with the click, then download.path() to read the actual file and assert its Markdown, which catches blob or filename bugs a DOM check would miss. The clipboard was deliberately not asserted because permission behaviour differs between projects and the fallback path is what matters for users. The meter's suggestions carry data-testids named after their rule ids, which keeps assertions readable and resilient to copy edits. Local storage is bypassed with ?fresh at the start of each test, then the persistence test navigates without it to prove the draft reloads.",
+    "coverage": [
+      "Empty brief: score 0, key suggestions, Fix focuses the field",
+      "Vague goal words quoted; untestable criterion flagged and cleared",
+      "Hand-built brief raises score; rendered and raw Markdown preview",
+      "Three templates score 100; vague template stays Vague",
+      "Download .md contents and filename; draft survives reload"
+    ]
+  },
+  "a11y": "All fields have visible labels, list items are added with Enter and removed with labelled buttons, and each suggestion's Fix button moves keyboard focus to the relevant field. The score, grade and suggestions are announced via live regions, and the preview can be switched to raw Markdown for screen-reader-friendly reading."
+}

@@ -1,0 +1,517 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Liturgical Year — a Roman Catholic calendar wheel</title>
+<meta name="description" content="An interactive wheel of the Roman Catholic liturgical year for any year from 1970 to 2299: seasons in their liturgical colours, Easter by the Gregorian computus, every movable feast computed, a today marker and day-by-day details.">
+<style>
+  :root {
+    --stone: #eceef2;
+    --stone-2: #e2e5eb;
+    --card: #f8f9fb;
+    --ink: #14213d;
+    --ink-2: #4c5670;
+    --ink-3: #7b849a;
+    --rule: #cfd4de;
+    --gold: #a8842f;
+    --violet: #5e3a8c;
+    --white: #fbf6e6;
+    --white-edge: #c9ac5f;
+    --green: #2f7a4a;
+    --red: #b3261e;
+    --rose: #d68aa5;
+    --serif: "Baskerville", "Baskerville Old Face", "Hoefler Text", Garamond, "Times New Roman", serif;
+    --sans: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--stone); color: var(--ink); font: 16px/1.55 var(--sans); overflow-x: hidden;
+    background-image: linear-gradient(90deg, rgba(20, 33, 61, .035) 1px, transparent 1px); background-size: 48px 100%; }
+  :focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+  a.back { position: fixed; top: 12px; left: 12px; z-index: 30; font: 600 12px/1 var(--sans); letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink); text-decoration: none; background: var(--card); border: 1px solid var(--rule); padding: 9px 12px; border-radius: 3px; }
+  a.back:hover { border-color: var(--ink); }
+
+  header { max-width: 1180px; margin: 0 auto; padding: 64px 20px 10px; display: grid; grid-template-columns: 1fr auto; gap: 18px 30px; align-items: end; }
+  .over { font: 700 11px/1 var(--sans); letter-spacing: .3em; text-transform: uppercase; color: var(--gold); margin: 0 0 12px; }
+  h1 { margin: 0; font: 400 clamp(40px, 6.4vw, 78px)/.95 var(--serif); letter-spacing: -.01em; }
+  h1 i { color: var(--violet); }
+  .intro { margin: 14px 0 0; max-width: 58ch; color: var(--ink-2); }
+
+  .picker { display: flex; align-items: stretch; gap: 0; border: 1.5px solid var(--ink); border-radius: 4px; background: var(--card); }
+  .picker button { width: 46px; min-height: 48px; border: 0; background: transparent; font: 700 18px/1 var(--sans); color: var(--ink); cursor: pointer; }
+  .picker button:hover { background: var(--stone-2); }
+  .picker label { display: flex; flex-direction: column; justify-content: center; padding: 4px 10px; border-left: 1px solid var(--rule); border-right: 1px solid var(--rule); }
+  .picker label span { font: 700 9.5px/1 var(--sans); letter-spacing: .18em; text-transform: uppercase; color: var(--ink-3); }
+  .picker input { width: 76px; border: 0; background: transparent; font: 400 26px/1.1 var(--serif); color: var(--ink); padding: 0; -moz-appearance: textfield; }
+  .picker input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .today-btn { font: 700 12px/1 var(--sans); letter-spacing: .12em; text-transform: uppercase; border: 1.5px solid var(--ink); background: var(--ink); color: var(--stone); border-radius: 4px; padding: 0 14px; min-height: 48px; cursor: pointer; }
+  .today-btn:hover { background: var(--violet); border-color: var(--violet); }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: flex-end; }
+  .yr-note { grid-column: 1 / -1; font-size: 13px; color: var(--ink-3); margin: 0; }
+
+  .layout { max-width: 1180px; margin: 0 auto; padding: 10px 20px 60px; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); gap: 34px; align-items: start; }
+  .wheel-wrap { position: relative; }
+  svg.wheel { width: 100%; height: auto; display: block; max-width: 640px; margin: 0 auto; touch-action: manipulation; }
+  .wheel .seg { cursor: pointer; transition: opacity .2s; }
+  .wheel .seg:focus { outline: none; }
+  .wheel .seg:focus-visible path, .wheel .seg.sel path { stroke: var(--ink); stroke-width: 2.5; }
+  .wheel.has-sel .seg:not(.sel) { opacity: .55; }
+  .wheel .day { stroke: var(--stone); stroke-width: .35; }
+  .wheel .seg-label { font: 700 11px/1 var(--sans); letter-spacing: .22em; text-transform: uppercase; pointer-events: none; }
+  .wheel .month { font: 600 10px/1 var(--sans); letter-spacing: .14em; fill: var(--ink-3); text-transform: uppercase; }
+  .wheel .centre-yr { font: 400 44px/1 var(--serif); fill: var(--ink); }
+  .wheel .centre-sm { font: 700 9.5px/1 var(--sans); letter-spacing: .2em; text-transform: uppercase; fill: var(--ink-3); }
+  .wheel .centre-md { font: 400 17px/1 var(--serif); fill: var(--ink); }
+  .wheel .cursor { fill: none; stroke: var(--ink); stroke-width: 2; pointer-events: none; }
+  .wheel .needle { stroke: var(--gold); stroke-width: 2.5; stroke-linecap: round; }
+  .wheel .dot { stroke: var(--card); stroke-width: 1.5; }
+  .wheel-hint { text-align: center; font-size: 12.5px; color: var(--ink-3); margin: 6px 0 0; }
+
+  .panel { background: var(--card); border: 1px solid var(--rule); border-radius: 6px; padding: 20px 22px; margin-bottom: 18px; }
+  .panel h2 { font: 700 11px/1 var(--sans); letter-spacing: .24em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 12px; }
+  .today-card { border-left: 6px solid var(--c, var(--green)); }
+  .big { font: 400 26px/1.2 var(--serif); margin: 0; }
+  .meta-line { margin: 6px 0 0; color: var(--ink-2); font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+  .swatch { display: inline-flex; align-items: center; gap: 6px; font: 700 11px/1 var(--sans); letter-spacing: .12em; text-transform: uppercase; }
+  .swatch i { width: 14px; height: 14px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 1px rgba(20, 33, 61, .25); }
+  .detail p.desc { margin: 10px 0 0; font-size: 14.5px; color: var(--ink-2); }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--rule); border: 1px solid var(--rule); margin-top: 14px; }
+  .stats div { background: var(--card); padding: 10px 12px; }
+  .stats b { display: block; font: 400 22px/1.1 var(--serif); }
+  .stats span { font: 700 9.5px/1 var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); }
+
+  .seasons { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .seasons button { font: 600 12.5px/1 var(--sans); min-height: 38px; padding: 8px 11px; border-radius: 3px; border: 1px solid var(--rule); background: var(--card); color: var(--ink); cursor: pointer; display: inline-flex; gap: 7px; align-items: center; }
+  .seasons button i { width: 10px; height: 10px; border-radius: 2px; background: var(--c); box-shadow: 0 0 0 1px rgba(20, 33, 61, .25); }
+  .seasons button[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--stone); }
+
+  table.feasts { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .feasts th { text-align: left; font: 700 10px/1 var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); padding: 0 0 8px; border-bottom: 1.5px solid var(--ink); }
+  .feasts td { padding: 7px 0; border-bottom: 1px solid var(--stone-2); vertical-align: top; }
+  .feasts td:first-child { width: 14px; padding-right: 8px; }
+  .feasts td.d { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--ink-2); padding-left: 10px; }
+  .feasts button { all: unset; cursor: pointer; }
+  .feasts button:hover { text-decoration: underline; }
+  .feasts button:focus-visible { outline: 2px solid var(--gold); }
+  .feasts tr.past td { color: var(--ink-3); }
+  .feasts .dotc { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 1px rgba(20, 33, 61, .3); }
+  .fine { font-size: 12.5px; color: var(--ink-3); margin: 12px 0 0; }
+  footer { max-width: 1180px; margin: 0 auto; padding: 0 20px 44px; font-size: 13px; color: var(--ink-3); }
+
+  @media (max-width: 900px) {
+    header { grid-template-columns: 1fr; }
+    .controls { justify-content: flex-start; }
+    .layout { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 420px) {
+    header { padding-top: 58px; }
+    .panel { padding: 16px; }
+    .stats b { font-size: 19px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .wheel .seg { transition: none; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+
+<header>
+  <div>
+    <p class="over">Roman Catholic · General Roman Calendar, US norms</p>
+    <h1>The Liturgical <i>Year</i></h1>
+    <p class="intro">One turn of the Church's calendar, from the First Sunday of Advent round to the eve of the next. Easter is worked out by the Gregorian computus and every movable feast hangs from it. Tap any day or season.</p>
+  </div>
+  <div class="controls">
+    <div class="picker" role="group" aria-label="Choose the year">
+      <button type="button" id="prev" data-testid="year-prev" aria-label="Previous year">‹</button>
+      <label for="year"><span>Easter of</span><input id="year" data-testid="year-input" type="number" min="1970" max="2299" inputmode="numeric"></label>
+      <button type="button" id="next" data-testid="year-next" aria-label="Next year">›</button>
+    </div>
+    <button type="button" class="today-btn" id="todayBtn" data-testid="go-today">Today</button>
+  </div>
+  <p class="yr-note" id="yrNote" data-testid="year-label" aria-live="polite"></p>
+</header>
+
+<div class="layout">
+  <div class="wheel-wrap">
+    <svg class="wheel" id="wheel" viewBox="0 0 600 600" data-testid="wheel" role="group" aria-label="Liturgical year wheel">
+      <g id="days"></g>
+      <g id="segs"></g>
+      <g id="months"></g>
+      <g id="feastDots"></g>
+      <path id="cursor" class="cursor" d="" />
+      <g id="needle" data-testid="today-marker"></g>
+      <g id="centre"></g>
+    </svg>
+    <p class="wheel-hint">Tap a day on the ring for its name. With the wheel focused, ← and → step one day.</p>
+  </div>
+
+  <div>
+    <section class="panel today-card" id="dayCard" data-testid="day-card" aria-live="polite">
+      <h2 id="dayHead">Today</h2>
+      <p class="big" data-testid="day-name" id="dayName"></p>
+      <p class="meta-line"><span data-testid="day-date" id="dayDate"></span><span class="swatch" id="daySwatch" data-testid="day-colour"><i></i><span></span></span></p>
+    </section>
+
+    <section class="panel detail" aria-labelledby="sd-h">
+      <h2 id="sd-h">Seasons</h2>
+      <div class="seasons" id="seasonBtns"></div>
+      <div id="seasonDetail" data-testid="season-detail" aria-live="polite">
+        <p class="big" id="sdName">Choose a season</p>
+        <p class="meta-line" id="sdDates"></p>
+        <p class="desc" id="sdDesc">Every season on the wheel is also a button here.</p>
+        <div class="stats" id="sdStats" hidden>
+          <div><b id="sdDays" data-testid="season-days"></b><span>days</span></div>
+          <div><b id="sdSundays"></b><span>Sundays</span></div>
+          <div><b id="sdColour"></b><span>colour</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="f-h">
+      <h2 id="f-h">Movable &amp; major feasts</h2>
+      <table class="feasts" data-testid="feast-table">
+        <thead><tr><th></th><th>Celebration</th><th style="text-align:right">Date</th></tr></thead>
+        <tbody id="feastBody"></tbody>
+      </table>
+      <p class="fine">US practice is shown where it differs: Epiphany on the Sunday between 2 and 8 January, Corpus Christi on Sunday. Many US provinces also move the Ascension to the following Sunday. Local calendars, patronal feasts and optional memorials are not included.</p>
+    </section>
+  </div>
+</div>
+<footer>Built by Zac as a calendar-maths exercise. It follows the general norms of the post-1969 Roman calendar; for your parish, the diocesan ordo is the authority.</footer>
+
+<script>
+(() => {
+  'use strict';
+  const DAY = 864e5;
+  const NS = 'http://www.w3.org/2000/svg';
+  const dn = (y, m, d) => Math.floor(Date.UTC(y, m - 1, d) / DAY);             // day number
+  const toDate = n => new Date(n * DAY);
+  const dow = n => toDate(n).getUTCDay();                                         // 0 = Sunday
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const DOWS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const ORD = n => { const s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
+  const WORDS = ['', 'First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth', 'Seventh'];
+  const iso = n => toDate(n).toISOString().slice(0, 10);
+  const pretty = n => { const d = toDate(n); return `${DOWS[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
+  const short = n => { const d = toDate(n); return `${DOWS[d.getUTCDay()].slice(0, 3)} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()].slice(0, 3)}`; };
+
+  const COLOURS = {
+    violet: { hex: '#5e3a8c', name: 'Violet' }, white: { hex: '#fbf6e6', name: 'White' }, green: { hex: '#2f7a4a', name: 'Green' },
+    red: { hex: '#b3261e', name: 'Red' }, rose: { hex: '#d68aa5', name: 'Rose' }
+  };
+
+  /* ---------- Gregorian computus (anonymous algorithm, Meeus/Jones/Butcher) ---------- */
+  function easter(y) {
+    const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4;
+    const f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31), day = ((h + l - 7 * m + 114) % 31) + 1;
+    return dn(y, month, day);
+  }
+  // Fourth Sunday before Christmas = Sunday falling 27 Nov – 3 Dec
+  function advent1(y) { const xmas = dn(y, 12, 25); const w = dow(xmas); return xmas - (w === 0 ? 7 : w) - 21; }
+
+  /* ---------- Build the liturgical year whose Easter falls in year Y ---------- */
+  function compute(Y) {
+    const E = easter(Y);
+    const start = advent1(Y - 1), end = advent1(Y) - 1;
+    const xmas = dn(Y - 1, 12, 25);
+    const hfSunday = (() => { for (let n = xmas + 1; n <= xmas + 6; n++) if (dow(n) === 0) return n; return dn(Y - 1, 12, 30); })();
+    let epiphany = dn(Y, 1, 2); while (dow(epiphany) !== 0) epiphany++;            // US: Sunday 2–8 Jan
+    const epDay = toDate(epiphany).getUTCDate();
+    const baptism = epDay >= 7 ? epiphany + 1 : epiphany + 7;                     // Monday if Epiphany is 7 or 8 Jan
+    const ash = E - 46, palm = E - 7, thu = E - 3, fri = E - 2, sat = E - 1;
+    const pentecost = E + 49, ck = advent1(Y) - 7;
+    const F = {
+      ash, palm, thu, fri, sat, E, mercy: E + 7, ascension: E + 39, pentecost, trinity: E + 56, corpus: E + 63, heart: E + 68, ck,
+      advent1: start, gaudete: start + 14, laetare: ash + 25, xmas, holyFamily: hfSunday, mary: dn(Y, 1, 1), epiphany, baptism
+    };
+    // Fixed solemnities/feasts with the common transfer rules
+    let joseph = dn(Y, 3, 19);
+    if (joseph >= palm && joseph <= E) joseph = palm - 1;                          // in Holy Week -> Saturday before Palm Sunday
+    else if (dow(joseph) === 0) joseph += 1;                                       // Sunday of Lent -> Monday
+    let annunciation = dn(Y, 3, 25);
+    if (annunciation >= palm && annunciation <= E + 7) annunciation = E + 8;       // Holy Week / Octave -> Monday after Divine Mercy
+    else if (dow(annunciation) === 0 && annunciation < palm) annunciation += 1;   // Sunday of Lent -> Monday
+    let baptist = dn(Y, 6, 24); if (baptist === F.heart) baptist -= 1;             // yields to the Sacred Heart
+    let immaculate = dn(Y - 1, 12, 8); if (dow(immaculate) === 0) immaculate += 1;   // Sunday of Advent -> Monday
+    const FEASTS = [
+      ['advent1', 'First Sunday of Advent', F.advent1, 'violet'],
+      ['immaculate', 'Immaculate Conception', immaculate, 'white'],
+      ['gaudete', 'Gaudete Sunday (3rd of Advent)', F.gaudete, 'rose'],
+      ['christmas', 'Nativity of the Lord', xmas, 'white'],
+      ['holyfamily', 'Holy Family', hfSunday, 'white'],
+      ['mary', 'Mary, Mother of God', F.mary, 'white'],
+      ['epiphany', 'Epiphany of the Lord', epiphany, 'white'],
+      ['baptism', 'Baptism of the Lord', baptism, 'white'],
+      ['presentation', 'Presentation of the Lord', dn(Y, 2, 2), 'white'],
+      ['ash', 'Ash Wednesday', ash, 'violet'],
+      ['joseph', 'St Joseph', joseph, 'white'],
+      ['laetare', 'Laetare Sunday (4th of Lent)', F.laetare, 'rose'],
+      ['annunciation', 'Annunciation of the Lord', annunciation, 'white'],
+      ['palm', 'Palm Sunday', palm, 'red'],
+      ['holythursday', 'Holy Thursday', thu, 'white'],
+      ['goodfriday', 'Good Friday', fri, 'red'],
+      ['vigil', 'Holy Saturday · Easter Vigil', sat, 'white'],
+      ['easter', 'Easter Sunday', E, 'white'],
+      ['mercy', 'Second Sunday of Easter (Divine Mercy)', F.mercy, 'white'],
+      ['ascension', 'Ascension (Thursday)', F.ascension, 'white'],
+      ['pentecost', 'Pentecost', pentecost, 'red'],
+      ['trinity', 'Most Holy Trinity', F.trinity, 'white'],
+      ['corpus', 'Corpus Christi (US, Sunday)', F.corpus, 'white'],
+      ['heart', 'Sacred Heart of Jesus', F.heart, 'white'],
+      ['baptist', 'Nativity of St John the Baptist', baptist, 'white'],
+      ['peterpaul', 'Sts Peter & Paul', dn(Y, 6, 29), 'red'],
+      ['transfiguration', 'Transfiguration', dn(Y, 8, 6), 'white'],
+      ['assumption', 'Assumption of Mary', dn(Y, 8, 15), 'white'],
+      ['cross', 'Exaltation of the Holy Cross', dn(Y, 9, 14), 'red'],
+      ['allsaints', 'All Saints', dn(Y, 11, 1), 'white'],
+      ['allsouls', 'All Souls', dn(Y, 11, 2), 'violet'],
+      ['christking', 'Christ the King', ck, 'white']
+    ].map(([id, name, n, colour]) => ({ id, name, n, colour })).sort((a, b) => a.n - b.n);
+
+    const SEASONS = [
+      { id: 'advent', name: 'Advent', from: start, to: xmas - 1, colour: 'violet',
+        desc: 'Four Sundays of expectation, beginning on the Sunday nearest 30 November. Rose may be worn on Gaudete Sunday.' },
+      { id: 'christmas', name: 'Christmas Time', from: xmas, to: baptism, colour: 'white',
+        desc: 'From the Nativity of the Lord to the Baptism of the Lord, with the Holy Family, Mary Mother of God and the Epiphany along the way.' },
+      { id: 'ot1', name: 'Ordinary Time I', from: baptism + 1, to: ash - 1, colour: 'green',
+        desc: 'The weeks between Christmas Time and Lent. "Ordinary" comes from ordinal: the Sundays are counted.' },
+      { id: 'lent', name: 'Lent', from: ash, to: thu - 1, colour: 'violet',
+        desc: 'Forty days of prayer, fasting and almsgiving from Ash Wednesday until the Mass of the Lord\'s Supper on Holy Thursday. Rose may be worn on Laetare Sunday, red on Palm Sunday.' },
+      { id: 'triduum', name: 'Paschal Triduum', from: thu, to: sat, colour: 'white', mixed: true,
+        desc: 'The summit of the year: from the evening Mass of the Lord\'s Supper on Holy Thursday, through Good Friday (red) and the Easter Vigil, to Evening Prayer on Easter Sunday.' },
+      { id: 'easter', name: 'Easter Time', from: E, to: pentecost - 1, colour: 'white',
+        desc: 'Fifty days kept as one great Sunday, from Easter Sunday to Pentecost (the fiftieth day, shown on its own segment).' },
+      { id: 'pentecost', name: 'Pentecost', from: pentecost, to: pentecost, colour: 'red',
+        desc: 'The fiftieth day and the close of Easter Time, celebrating the coming of the Holy Spirit.' },
+      { id: 'ot2', name: 'Ordinary Time II', from: pentecost + 1, to: end, colour: 'green',
+        desc: 'Resumes the day after Pentecost and runs to the 34th week, crowned by Christ the King.' }
+    ];
+    const sundayCycle = ['C', 'A', 'B'][Y % 3];
+    const weekdayCycle = Y % 2 ? 'I' : 'II';
+    return { Y, start, end, E, F, FEASTS, SEASONS, baptism, sundayCycle, weekdayCycle };
+  }
+
+  function seasonOf(L, n) { return L.SEASONS.find(s => n >= s.from && n <= s.to); }
+  function describe(L, n) {
+    const s = seasonOf(L, n), w = dow(n), F = L.F, Dn = DOWS[w];
+    const feast = L.FEASTS.find(f => f.n === n && !['gaudete', 'laetare', 'advent1'].includes(f.id));
+    let name = '', colour = s.colour;
+    const sundayOf = n - w;
+    if (s.id === 'advent') {
+      const k = Math.floor((sundayOf - L.start) / 7) + 1;
+      name = w === 0 ? `${WORDS[k]} Sunday of Advent` : `${Dn} of the ${WORDS[k]} Week of Advent`;
+      if (n === F.gaudete) colour = 'rose';
+    } else if (s.id === 'christmas') {
+      name = n <= L.F.xmas + 7 && n > L.F.xmas ? `${Dn} within the Octave of Christmas` : w === 0 ? 'Sunday in Christmas Time' : `${Dn} in Christmas Time`;
+    } else if (s.id === 'ot1' || s.id === 'ot2') {
+      let k;
+      if (s.id === 'ot1') { const b = L.baptism - dow(L.baptism); k = Math.floor((sundayOf - b) / 7) + 1; }
+      else k = 34 - Math.round((F.ck - sundayOf) / 7);
+      name = w === 0 ? `${ORD(k)} Sunday in Ordinary Time` : `${Dn} of the ${ORD(k)} Week in Ordinary Time`;
+    } else if (s.id === 'lent') {
+      if (n < F.ash + 4) name = n === F.ash ? 'Ash Wednesday' : `${Dn} after Ash Wednesday`;
+      else if (n >= F.palm) { name = n === F.palm ? 'Palm Sunday of the Passion of the Lord' : `${Dn} of Holy Week`; if (n === F.palm) colour = 'red'; }
+      else { const k = Math.floor((sundayOf - (F.ash + 4)) / 7) + 1; name = w === 0 ? `${WORDS[k]} Sunday of Lent` : `${Dn} of the ${WORDS[k]} Week of Lent`; }
+      if (n === F.laetare) colour = 'rose';
+    } else if (s.id === 'triduum') {
+      name = n === F.thu ? 'Holy Thursday · Evening Mass of the Lord\'s Supper' : n === F.fri ? 'Good Friday of the Passion of the Lord' : 'Holy Saturday · Easter Vigil after nightfall';
+      colour = n === F.fri ? 'red' : 'white';
+    } else if (s.id === 'easter') {
+      const k = Math.floor((sundayOf - L.E) / 7) + 1;
+      if (n <= L.E + 7 && n > L.E && w !== 0) name = `${Dn} within the Octave of Easter`;
+      else name = n === L.E ? 'Easter Sunday of the Resurrection of the Lord' : w === 0 ? `${WORDS[k]} Sunday of Easter` : `${Dn} of the ${WORDS[k]} Week of Easter`;
+    } else if (s.id === 'pentecost') { name = 'Pentecost Sunday'; }
+    if (feast && !['ash', 'palm', 'easter', 'pentecost', 'holythursday', 'goodfriday', 'vigil'].includes(feast.id)) { name = feast.name; colour = feast.colour; }
+    return { n, name, colour, season: s };
+  }
+
+  /* ---------- Wheel geometry ---------- */
+  const C = 300;
+  const ang = (L, n) => ((n - L.start) / (L.end - L.start + 1)) * Math.PI * 2 - Math.PI / 2;
+  const pt = (r, a) => [C + r * Math.cos(a), C + r * Math.sin(a)];
+  function arc(r0, r1, a0, a1) {
+    const large = a1 - a0 > Math.PI ? 1 : 0;
+    const [x0, y0] = pt(r1, a0), [x1, y1] = pt(r1, a1), [x2, y2] = pt(r0, a1), [x3, y3] = pt(r0, a0);
+    return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${r1} ${r1} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}L${x2.toFixed(2)} ${y2.toFixed(2)}A${r0} ${r0} 0 ${large} 0 ${x3.toFixed(2)} ${y3.toFixed(2)}Z`;
+  }
+  const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+
+  const svg = document.getElementById('wheel');
+  const gDays = document.getElementById('days'), gSegs = document.getElementById('segs'), gMonths = document.getElementById('months');
+  const gDots = document.getElementById('feastDots'), gNeedle = document.getElementById('needle'), gCentre = document.getElementById('centre');
+  const cursor = document.getElementById('cursor');
+
+  const now = new Date();
+  const TODAY = dn(now.getFullYear(), now.getMonth() + 1, now.getDate());
+  function yearFor(n) { const y = toDate(n).getUTCFullYear(); return n >= advent1(y) ? y + 1 : y; }
+
+  let L = null, selDay = null, selSeason = null;
+  function render(Y) {
+    L = compute(Y);
+    const N = L.end - L.start + 1;
+    [gDays, gSegs, gMonths, gDots, gNeedle, gCentre].forEach(g => { g.textContent = ''; });
+    // day ring
+    for (let n = L.start; n <= L.end; n++) {
+      const d = describe(L, n);
+      el('path', { d: arc(206, 244, ang(L, n), ang(L, n + 1)), fill: COLOURS[d.colour].hex, class: 'day', 'data-n': n }, gDays);
+    }
+    // season ring
+    L.SEASONS.forEach(s => {
+      const g = el('g', { class: 'seg', tabindex: '0', role: 'button', 'data-testid': 'seg-' + s.id, 'data-season': s.id,
+        'aria-label': `${s.name}, ${short(s.from)} to ${short(s.to)}` }, gSegs);
+      const a0 = ang(L, s.from), a1 = ang(L, s.to + 1);
+      const fill = s.mixed ? 'url(#triduumGrad)' : COLOURS[s.colour].hex;
+      el('path', { d: arc(250, 292, a0, a1), fill, stroke: s.colour === 'white' ? '#c9ac5f' : 'none', 'stroke-width': s.colour === 'white' ? 1 : 0 }, g);
+      const span = (a1 - a0) * 271;
+      if (span > s.name.length * 9.5) {
+        const mid = (a0 + a1) / 2, flip = mid > 0 && mid < Math.PI;           // bottom half: read left-to-right
+        const r = flip ? 275 : 266, pid = 'lbl-' + s.id;
+        const [sx, sy] = pt(r, flip ? a1 : a0), [ex, ey] = pt(r, flip ? a0 : a1);
+        el('path', { id: pid, d: `M${sx} ${sy}A${r} ${r} 0 ${a1 - a0 > Math.PI ? 1 : 0} ${flip ? 0 : 1} ${ex} ${ey}`, fill: 'none' }, g);
+        const t = el('text', { class: 'seg-label', fill: s.colour === 'white' ? '#6e5a24' : '#fff' }, g);
+        const tp = el('textPath', { href: '#' + pid, startOffset: '50%', 'text-anchor': 'middle' }, t);
+        tp.textContent = s.name.replace(/ I+$/, '');
+      }
+      g.addEventListener('click', () => selectSeason(s.id));
+      g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectSeason(s.id); } });
+    });
+    // gradient for the Triduum (white · red · white)
+    const defs = el('defs', {}, gSegs);
+    const lg = el('linearGradient', { id: 'triduumGrad', x1: 0, x2: 1, y1: 0, y2: 0 }, defs);
+    [['0', '#fbf6e6'], ['.34', '#fbf6e6'], ['.34', '#b3261e'], ['.66', '#b3261e'], ['.66', '#fbf6e6'], ['1', '#fbf6e6']].forEach(([o, c]) => el('stop', { offset: o, 'stop-color': c }, lg));
+    // month ticks
+    for (let n = L.start; n <= L.end; n++) {
+      const d = toDate(n);
+      if (d.getUTCDate() === 1) {
+        const a = ang(L, n); const [x0, y0] = pt(188, a), [x1, y1] = pt(204, a);
+        el('line', { x1: x0, y1: y0, x2: x1, y2: y1, stroke: '#9aa3b6', 'stroke-width': 1 }, gMonths);
+        const am = ang(L, n + 15), [tx, ty] = pt(178, am);
+        const t = el('text', { x: tx, y: ty, class: 'month', 'text-anchor': 'middle', 'dominant-baseline': 'middle' }, gMonths);
+        t.textContent = MONTHS[d.getUTCMonth()].slice(0, 3);
+      }
+    }
+    // feast dots
+    L.FEASTS.forEach(f => {
+      if (f.n < L.start || f.n > L.end) return;
+      const [x, y] = pt(198, ang(L, f.n + .5));
+      const c = el('circle', { cx: x, cy: y, r: 3.2, fill: COLOURS[f.colour].hex, class: 'dot' }, gDots);
+      if (f.colour === 'white') c.setAttribute('stroke', '#b19545');
+      el('title', {}, c).textContent = f.name;
+    });
+    // centre
+    el('circle', { cx: C, cy: C, r: 150, fill: '#f8f9fb', stroke: '#cfd4de' }, gCentre);
+    const txt = (y, cls, s, tid) => { const t = el('text', { x: C, y, class: cls, 'text-anchor': 'middle' }, gCentre); t.textContent = s; if (tid) t.setAttribute('data-testid', tid); return t; };
+    txt(248, 'centre-sm', 'Liturgical year');
+    txt(292, 'centre-yr', `${Y - 1}–${String(Y).slice(2)}`);
+    txt(322, 'centre-sm', 'Easter Sunday');
+    txt(346, 'centre-md', short(L.E) + ' ' + Y, 'centre-easter');
+    txt(380, 'centre-sm', `Sunday cycle ${L.sundayCycle} · Weekday ${L.weekdayCycle}`, 'cycle');
+    // today needle
+    if (TODAY >= L.start && TODAY <= L.end) {
+      const a = ang(L, TODAY + .5); const [x0, y0] = pt(152, a), [x1, y1] = pt(298, a);
+      el('line', { x1: x0, y1: y0, x2: x1, y2: y1, class: 'needle' }, gNeedle);
+      const [cx, cy] = pt(298, a); el('circle', { cx, cy, r: 5, fill: '#a8842f' }, gNeedle);
+      gNeedle.setAttribute('data-date', iso(TODAY));
+    } else gNeedle.removeAttribute('data-date');
+
+    document.getElementById('year').value = Y;
+    document.getElementById('yrNote').textContent = `Liturgical year ${Y - 1}–${Y}: ${pretty(L.start)} to ${pretty(L.end)} · ${L.end - L.start + 1} days · Easter ${pretty(L.E)}`;
+    renderFeasts(); renderSeasonButtons();
+    selDay = TODAY >= L.start && TODAY <= L.end ? TODAY : L.E;
+    showDay(selDay, selDay === TODAY);
+    if (selSeason) selectSeason(selSeason); else clearSeason();
+    api.data = { Y, start: iso(L.start), end: iso(L.end), feasts: Object.fromEntries(L.FEASTS.map(f => [f.id, iso(f.n)])) };
+  }
+
+  function renderFeasts() {
+    const tb = document.getElementById('feastBody'); tb.textContent = '';
+    L.FEASTS.forEach(f => {
+      const tr = document.createElement('tr'); tr.setAttribute('data-testid', 'feast-' + f.id);
+      if (f.n < TODAY) tr.className = 'past';
+      tr.innerHTML = `<td><span class="dotc" style="--c:${COLOURS[f.colour].hex}" title="${COLOURS[f.colour].name}"></span></td><td><button type="button">${f.name}</button></td><td class="d" data-iso="${iso(f.n)}">${short(f.n)} ${toDate(f.n).getUTCFullYear()}</td>`;
+      tr.querySelector('button').addEventListener('click', () => { showDay(f.n, false); });
+      tb.appendChild(tr);
+    });
+  }
+
+  function renderSeasonButtons() {
+    const w = document.getElementById('seasonBtns'); w.textContent = '';
+    L.SEASONS.forEach(s => {
+      const b = document.createElement('button'); b.type = 'button'; b.setAttribute('data-testid', 'season-btn-' + s.id);
+      b.setAttribute('aria-pressed', String(selSeason === s.id));
+      b.innerHTML = `<i style="--c:${s.mixed ? 'linear-gradient(90deg,#fbf6e6 33%,#b3261e 0 66%,#fbf6e6 0)' : COLOURS[s.colour].hex}"></i>${s.name}`;
+      b.addEventListener('click', () => selectSeason(selSeason === s.id ? null : s.id));
+      w.appendChild(b);
+    });
+  }
+
+  function selectSeason(id) {
+    selSeason = id;
+    if (!id) return clearSeason();
+    const s = L.SEASONS.find(x => x.id === id);
+    svg.classList.add('has-sel');
+    gSegs.querySelectorAll('.seg').forEach(g => g.classList.toggle('sel', g.dataset.season === id));
+    document.querySelectorAll('#seasonBtns button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.testid === 'season-btn-' + id)));
+    document.getElementById('sdName').textContent = s.name;
+    document.getElementById('sdDates').textContent = s.from === s.to ? pretty(s.from) : `${pretty(s.from)} – ${pretty(s.to)}`;
+    document.getElementById('sdDesc').textContent = s.desc;
+    let sundays = 0; for (let n = s.from; n <= s.to; n++) if (dow(n) === 0) sundays++;
+    document.getElementById('sdDays').textContent = s.to - s.from + 1;
+    document.getElementById('sdSundays').textContent = sundays;
+    document.getElementById('sdColour').textContent = s.mixed ? 'Mixed' : COLOURS[s.colour].name;
+    document.getElementById('sdStats').hidden = false;
+  }
+  function clearSeason() {
+    selSeason = null; svg.classList.remove('has-sel');
+    gSegs.querySelectorAll('.seg').forEach(g => g.classList.remove('sel'));
+    document.querySelectorAll('#seasonBtns button').forEach(b => b.setAttribute('aria-pressed', 'false'));
+    document.getElementById('sdName').textContent = 'Choose a season';
+    document.getElementById('sdDates').textContent = '';
+    document.getElementById('sdDesc').textContent = 'Every season on the wheel is also a button here.';
+    document.getElementById('sdStats').hidden = true;
+  }
+
+  function showDay(n, isToday) {
+    selDay = n;
+    const d = describe(L, n);
+    document.getElementById('dayHead').textContent = n === TODAY ? 'Today' : 'Selected day';
+    document.getElementById('dayName').textContent = d.name;
+    document.getElementById('dayDate').textContent = `${pretty(n)} · ${d.season.name}`;
+    const sw = document.getElementById('daySwatch');
+    sw.style.setProperty('--c', COLOURS[d.colour].hex); sw.querySelector('span').textContent = COLOURS[d.colour].name;
+    sw.dataset.colour = d.colour;
+    document.getElementById('dayCard').style.setProperty('--c', d.colour === 'white' ? '#c9ac5f' : COLOURS[d.colour].hex);
+    cursor.setAttribute('d', arc(203, 247, ang(L, n), ang(L, n + 1)));
+  }
+
+  /* ---------- Interaction ---------- */
+  gDays.addEventListener('click', e => { const n = Number(e.target.getAttribute('data-n')); if (n) { showDay(n, false); svg.focus && svg.focus(); } });
+  svg.setAttribute('tabindex', '0');
+  svg.addEventListener('keydown', e => {
+    if (e.target !== svg) return;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      e.preventDefault();
+      const n = Math.min(L.end, Math.max(L.start, selDay + (e.key === 'ArrowRight' ? 1 : -1)));
+      showDay(n, false);
+    }
+  });
+  const yearInput = document.getElementById('year');
+  const clampY = y => Math.min(2299, Math.max(1970, y));
+  function go(Y) { render(clampY(Y)); }
+  document.getElementById('prev').addEventListener('click', () => go(L.Y - 1));
+  document.getElementById('next').addEventListener('click', () => go(L.Y + 1));
+  yearInput.addEventListener('change', () => { const y = parseInt(yearInput.value, 10); if (Number.isFinite(y)) go(y); else yearInput.value = L.Y; });
+  document.getElementById('todayBtn').addEventListener('click', () => { go(yearFor(TODAY)); });
+
+  const api = { easter: y => iso(easter(y)), advent1: y => iso(advent1(y)), describe: s => { const [y, m, d] = s.split('-').map(Number); const n = dn(y, m, d); return describe(compute(yearFor(n)), n); }, data: null };
+  window.__litcal = api;
+  render(yearFor(TODAY));
+})();
+</script>
+</body>
+</html>

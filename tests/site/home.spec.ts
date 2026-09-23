@@ -93,15 +93,22 @@ test.describe('Website of the day', () => {
   });
 
   test('rotates through every eligible project without repeats', async ({ page }) => {
-    test.setTimeout(120_000); // one reload per day in the rotation; grows with the collection
+    test.setTimeout(90_000);
+    // No reloads: jump the paused clock a day at a time and let the page's own 30s tick roll the pick over,
+    // exactly as it would for a visitor who leaves the tab open past midnight.
+    const start = new Date('2026-10-01T12:00:00').getTime();
+    await page.clock.install({ time: start });
+    await page.clock.pauseAt(start);
     await page.goto('/');
     const poolSize = await page.evaluate(() => (window as any).PROJECTS.filter((p: any) => p.thumb).length);
-    const seen = new Set<string>();
-    const start = new Date('2026-10-01T12:00:00').getTime();
-    for (let d = 0; d < poolSize; d++) {
-      await page.clock.setFixedTime(new Date(start + d * 86_400_000));
-      await page.reload();
-      seen.add((await page.getByTestId('wotd').getAttribute('data-id'))!);
+    const wotd = page.getByTestId('wotd');
+    const seen = new Set<string>([(await wotd.getAttribute('data-id'))!]);
+    for (let d = 1; d < poolSize; d++) {
+      const before = await wotd.getAttribute('data-id');
+      await page.clock.setSystemTime(start + d * 86_400_000);
+      await page.clock.runFor(30_000);
+      await expect(wotd).not.toHaveAttribute('data-id', before!);
+      seen.add((await wotd.getAttribute('data-id'))!);
     }
     expect(seen.size).toBe(poolSize);
   });

@@ -1,0 +1,36 @@
+{
+  "id": "032",
+  "slug": "032-pixel-press",
+  "file": "lab/032-pixel-press.html",
+  "title": "Pixel Press — a pixel-art editor",
+  "category": "Tools",
+  "tags": ["canvas", "pointer-events", "undo-redo", "file-io", "localstorage"],
+  "description": "A touch-friendly pixel-art editor with 16, 32 and 64 pixel canvases, pencil, eraser, flood fill, eyedropper, Bresenham lines and mirror mode, four palettes including retro ones, and undo/redo by button or Ctrl+Z / Ctrl+Y. It animates four onion-skinned frames with a live preview, exports a scaled PNG or sprite sheet, imports images back in, and autosaves to localStorage.",
+  "prompt": "Build me a proper pixel-art editor in a single HTML file. Grid sizes 16, 32 and 64; pencil, eraser, flood fill, eyedropper, line and a mirror mode; several palettes including a retro one; undo and redo with Ctrl+Z / Ctrl+Y and buttons. Add a 4-frame animation strip with onion skinning and a preview, export to a scaled PNG and import an image back, and autosave to localStorage. It has to work with touch as well as a mouse, and be keyboard accessible.",
+  "qa": {
+    "methodology": [
+      "State oracle through a read-only window.__pixel hook (pixel colour, pixel count, size, frame, preview frame) so drawing tests assert on data, not canvas pixels.",
+      "Geometric oracles: four line-tool drags must produce exactly the 26-pixel outline of an 8 × 7 box, and a flood fill inside it must report and colour exactly the 30 interior pixels while leaving outside cells empty.",
+      "History tests: undo and redo by button and by keyboard, including undoing a canvas size change back to the earlier drawing.",
+      "Round-trip file test: export a ×4 PNG, check its IHDR width and height bytes (64 × 64 for a 16 px canvas), clear, import the same file and expect the same pixels back.",
+      "Animation preview stepped with a paused fake clock (runFor) until all four frames have been seen.",
+      "Persistence across reload, and ?blank=1 as a deterministic empty start instead of the first-visit starter sprite."
+    ],
+    "risks": [
+      "Pointer-to-cell mapping drifting when the canvas is scaled by CSS or devicePixelRatio.",
+      "Flood fill recursion blowing the stack on 64 × 64; it uses an explicit stack instead.",
+      "Import colour fidelity: semi-transparent or smoothed pixels; smoothing is off and alpha under 50% becomes transparent.",
+      "localStorage quota or blocked storage; saves are wrapped and the status line reports failures."
+    ],
+    "playwright": "The editor reads cells from pointer events, so the spec works out each cell's centre from the canvas bounding box and the grid size, then uses locator.click with a position, or page.mouse down/move/up for line drags. This works the same on the Pixel 7 profile because Playwright's mouse sends pointer events. Downloads were easy to test with waitForEvent('download'), and reading the PNG header from the saved file checks the real output size without an image library. Feeding that same file to setInputFiles made a real round trip. The one timing-dependent feature, the preview player, runs on setInterval under a paused fake clock. toHaveScreenshot was avoided in favour of the pixel hook.",
+    "coverage": [
+      "Starter sprite on first visit and the blank start",
+      "Pencil, eraser, undo/redo by button and keyboard, tool shortcuts",
+      "Line outline, exact flood fill count, eyedropper",
+      "Mirror mode and undoable size change",
+      "Independent frames, copy to next, preview animation on the clock",
+      "Scaled PNG export, import round trip and autosave"
+    ]
+  },
+  "a11y": "Every tool, swatch and frame is a real button with aria-pressed and a label that includes its keyboard shortcut. The canvas is focusable: arrow keys move a visible cursor and Space or Enter applies the current tool, so you can draw without a pointer. Status messages go to a live region."
+}

@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Test Pyramid Builder — Spend a Testing Budget</title>
+<meta name="description" content="Drag or tap unit, component, integration, API, end-to-end and manual tests into a budgeted test pyramid and watch a live model estimate suite runtime, flake exposure, maintenance cost and confidence. Compare the healthy pyramid, the ice-cream cone, the testing trophy and the hourglass.">
+<style>
+  :root {
+    --sand: #f4ead6;
+    --sand-2: #ecdfc4;
+    --sand-3: #e2d1ae;
+    --ink: #2c2216;
+    --ink-2: #5d4c37;
+    --ink-3: #8a7659;
+    --line: #d2bf98;
+    --terra: #b8472f;
+    --sky-1: #f9dcb0;
+    --sky-2: #f6c68c;
+    --ok: #3f7a4a;
+    --warn: #b06a12;
+    --bad: #a8321f;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SFMono-Regular", "Cascadia Code", Menlo, Consolas, monospace;
+    --c-unit: #d7a13c;
+    --c-component: #b77c4e;
+    --c-integration: #7f9150;
+    --c-api: #4f8584;
+    --c-e2e: #b8472f;
+    --c-manual: #735a86;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body {
+    background: var(--sand); color: var(--ink); font-family: var(--sans); line-height: 1.5; overflow-x: hidden;
+    background-image: radial-gradient(rgba(140,110,60,.08) 1px, transparent 1px);
+    background-size: 18px 18px;
+  }
+  :focus-visible { outline: 3px solid var(--terra); outline-offset: 2px; }
+  button { font: inherit; cursor: pointer; color: inherit; }
+  .back {
+    position: fixed; top: 12px; left: 12px; z-index: 50; text-decoration: none;
+    font: 600 12px/1 var(--sans); color: var(--ink-2); background: rgba(244,234,214,.92);
+    border: 1px solid var(--line); border-radius: 4px; padding: 7px 11px;
+  }
+  .back:hover { color: var(--terra); }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 58px 20px 48px; }
+  header.top { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 18px; align-items: end; border-bottom: 2px solid var(--ink); padding-bottom: 14px; }
+  .kicker { font: 700 11px var(--mono); letter-spacing: .2em; text-transform: uppercase; color: var(--terra); }
+  h1 { font: 700 clamp(32px, 5.4vw, 58px)/1 var(--serif); margin: 6px 0 8px; letter-spacing: -.01em; }
+  h1 i { color: var(--terra); }
+  .lede { margin: 0; color: var(--ink-2); max-width: 62ch; }
+  .budget-box { text-align: right; font-family: var(--mono); font-size: 12px; color: var(--ink-2); }
+  .budget-box label { display: block; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; }
+  .budget-box input { width: 180px; accent-color: var(--terra); }
+  .budget-box .spent { font: 700 26px/1.1 var(--serif); color: var(--ink); }
+  .budget-box .spent.over { color: var(--bad); }
+
+  .presets { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 18px; align-items: center; }
+  .presets .lbl { font: 700 11px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); margin-right: 4px; }
+  .chip-btn { border: 1.5px solid var(--ink); background: transparent; border-radius: 999px; padding: 6px 14px; font-weight: 650; font-size: 14px; }
+  .chip-btn:hover { background: var(--sand-2); }
+  .chip-btn[aria-pressed="true"] { background: var(--ink); color: var(--sand); }
+  .chip-btn.plain { border-color: var(--line); color: var(--ink-2); }
+
+  .layout { display: grid; grid-template-columns: 220px minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
+  .card { background: #faf3e4; border: 1px solid var(--line); border-radius: 6px; padding: 14px; box-shadow: 0 1px 0 var(--sand-3); }
+  .card h2 { font: 700 13px var(--mono); letter-spacing: .14em; text-transform: uppercase; margin: 0 0 10px; color: var(--ink-2); }
+
+  /* palette */
+  .palette { display: grid; gap: 8px; }
+  .brick-btn {
+    display: grid; grid-template-columns: 22px minmax(0,1fr); gap: 2px 10px; align-items: center; text-align: left;
+    border: 1px solid var(--line); background: var(--sand); border-radius: 5px; padding: 8px 10px; touch-action: none; user-select: none;
+  }
+  .brick-btn:hover { border-color: var(--ink-3); background: #fff8ea; }
+  .brick-btn .sw { grid-row: span 2; width: 22px; height: 22px; border-radius: 3px; box-shadow: inset 0 -4px 0 rgba(0,0,0,.18); }
+  .brick-btn b { font-size: 14px; }
+  .brick-btn small { font: 11px var(--mono); color: var(--ink-3); }
+  .hint { font-size: 12px; color: var(--ink-3); margin: 10px 0 0; }
+
+  /* stage */
+  .stage {
+    position: relative; border: 1px solid var(--line); border-radius: 6px; overflow: hidden;
+    background: linear-gradient(180deg, var(--sky-1) 0%, var(--sky-2) 62%, #e7c48f 62%, #dcb57c 100%);
+    min-height: 420px; padding: 18px 12px 26px; display: flex; flex-direction: column; justify-content: flex-end;
+  }
+  .stage.drop { outline: 3px dashed var(--terra); outline-offset: -8px; }
+  .sun { position: absolute; top: 22px; right: 28px; width: 64px; height: 64px; border-radius: 50%; background: radial-gradient(circle, #fff3cf 0 40%, #fbd98b 70%, transparent 71%); }
+  .shape-tag { position: absolute; top: 14px; left: 14px; background: rgba(250,243,228,.9); border: 1px solid var(--line); border-radius: 4px; padding: 6px 10px; max-width: calc(100% - 120px); }
+  .shape-tag .k { font: 700 10px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+  .shape-tag .v { font: 700 20px/1.1 var(--serif); }
+  .rows { display: flex; flex-direction: column; gap: 3px; margin-top: 90px; }
+  .row { display: grid; grid-template-columns: 30px minmax(0, 1fr) 30px; align-items: center; gap: 6px; }
+  .row button.adj { width: 28px; height: 28px; border-radius: 50%; border: 1px solid rgba(44,34,22,.35); background: rgba(250,243,228,.75); font-weight: 800; line-height: 1; padding: 0; }
+  .row button.adj:disabled { opacity: .35; cursor: not-allowed; }
+  .bricks { display: flex; justify-content: center; gap: 2px; min-height: 30px; align-items: stretch; position: relative; }
+  .brick { flex: 0 1 34px; height: 30px; border-radius: 2px; box-shadow: inset 0 -5px 0 rgba(0,0,0,.18), inset 0 2px 0 rgba(255,255,255,.25); }
+  .brick.new { animation: drop .35s cubic-bezier(.3,1.4,.6,1); }
+  @keyframes drop { from { transform: translateY(-40px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .row .name { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); font: 700 11px var(--mono); color: rgba(44,34,22,.65); white-space: nowrap; pointer-events: none; letter-spacing: .04em; }
+  .row .name.on { color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.45); }
+  .ground { height: 6px; background: var(--ink); margin: 6px -12px 0; opacity: .75; }
+  .stage-note { font: 11px var(--mono); color: var(--ink-2); text-align: center; margin-top: 8px; }
+
+  .explain { margin-top: 14px; }
+  .explain h3 { font: 700 20px var(--serif); margin: 0 0 6px; }
+  .explain p { margin: 0 0 8px; color: var(--ink-2); }
+  .explain ul { margin: 0; padding-left: 18px; color: var(--ink-2); font-size: 14px; }
+
+  /* metrics */
+  .metric { padding: 10px 0; border-top: 1px dashed var(--line); }
+  .metric:first-of-type { border-top: 0; padding-top: 0; }
+  .metric .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .metric .lbl { font-weight: 650; font-size: 14px; }
+  .metric .val { font: 700 22px var(--serif); white-space: nowrap; }
+  .metric .sub { font: 11.5px var(--mono); color: var(--ink-3); }
+  .gauge { height: 8px; background: var(--sand-3); border-radius: 4px; overflow: hidden; margin: 6px 0 4px; }
+  .gauge i { display: block; height: 100%; width: 0; border-radius: 4px; transition: width .4s ease, background .4s; }
+  .cats { display: grid; grid-template-columns: auto minmax(0,1fr) 36px; gap: 3px 8px; font: 11.5px var(--mono); color: var(--ink-2); margin-top: 6px; align-items: center; }
+  .cats .mini { height: 5px; background: var(--sand-3); border-radius: 3px; overflow: hidden; }
+  .cats .mini i { display: block; height: 100%; background: var(--ok); }
+  .insights { margin: 10px 0 0; padding: 0; list-style: none; font-size: 13px; color: var(--ink-2); }
+  .insights li { padding: 6px 0 6px 18px; position: relative; border-top: 1px dotted var(--line); }
+  .insights li::before { content: "▲"; position: absolute; left: 0; top: 7px; font-size: 9px; color: var(--terra); }
+  .toast { margin-top: 10px; font-size: 13px; color: var(--bad); min-height: 1.4em; font-weight: 600; }
+  .fine { font-size: 12px; color: var(--ink-3); margin-top: 22px; border-top: 1px solid var(--line); padding-top: 10px; }
+
+  .ghost { position: fixed; z-index: 100; pointer-events: none; width: 44px; height: 30px; border-radius: 3px; transform: translate(-50%, -50%) rotate(-4deg); box-shadow: 0 8px 18px rgba(0,0,0,.25), inset 0 -5px 0 rgba(0,0,0,.18); }
+
+  @media (max-width: 1080px) {
+    .layout { grid-template-columns: 200px minmax(0,1fr); }
+    .metrics-col { grid-column: 1 / -1; }
+  }
+  @media (max-width: 720px) {
+    header.top { grid-template-columns: 1fr; }
+    .budget-box { text-align: left; }
+    .layout { grid-template-columns: 1fr; }
+    .palette { grid-template-columns: 1fr 1fr; }
+    .brick-btn { padding: 7px 8px; }
+    .stage { min-height: 360px; }
+    .rows { margin-top: 78px; }
+    .sun { width: 44px; height: 44px; right: 16px; }
+    .brick { height: 26px; }
+    .bricks { min-height: 26px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .brick.new { animation: none; }
+    .gauge i { transition: none; }
+  }
+</style>
+</head>
+<body>
+<a href="../index.html#lab" class="back" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="kicker">QA strategy · budget simulator</div>
+      <h1>Test <i>Pyramid</i> Builder</h1>
+      <p class="lede">You have a fixed number of engineering hours to spend on tests. Drag (or tap) test bundles onto the site and watch what your shape costs: how long CI takes, how often a flaky test turns it red, how much upkeep it needs, and how much it actually tells you.</p>
+    </div>
+    <div class="budget-box">
+      <label for="budget">Authoring budget</label>
+      <input id="budget" type="range" min="80" max="300" step="10" value="180" data-testid="budget-slider">
+      <div class="spent" data-testid="budget-spent" aria-live="polite"><span id="spent">0</span> / <span id="budgetVal">180</span> h</div>
+    </div>
+  </header>
+
+  <div class="presets" role="group" aria-label="Presets">
+    <span class="lbl">Presets</span>
+    <button class="chip-btn" data-preset="pyramid" data-testid="preset-pyramid" aria-pressed="false">Healthy pyramid</button>
+    <button class="chip-btn" data-preset="cone" data-testid="preset-cone" aria-pressed="false">Ice-cream cone</button>
+    <button class="chip-btn" data-preset="trophy" data-testid="preset-trophy" aria-pressed="false">Testing trophy</button>
+    <button class="chip-btn" data-preset="hourglass" data-testid="preset-hourglass" aria-pressed="false">Hourglass</button>
+    <button class="chip-btn plain" id="clear" data-testid="clear">Clear site</button>
+  </div>
+
+  <div class="layout">
+    <section class="card" aria-labelledby="pal-h">
+      <h2 id="pal-h">Test bundles</h2>
+      <div class="palette" id="palette"></div>
+      <p class="hint">Drag a bundle onto the site, or tap it to add one. Each bundle is a batch of tests plus the hours to write them.</p>
+    </section>
+
+    <section aria-labelledby="stage-h">
+      <h2 id="stage-h" class="sr" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Your test suite shape</h2>
+      <div class="stage" id="stage" data-testid="stage">
+        <div class="sun" aria-hidden="true"></div>
+        <div class="shape-tag"><div class="k">Shape</div><div class="v" data-testid="shape" id="shape" aria-live="polite">Empty site</div></div>
+        <div class="rows" id="rows"></div>
+        <div class="ground" aria-hidden="true"></div>
+      </div>
+      <div class="stage-note" id="stageNote" data-testid="stage-note">0 automated tests · 0 manual checks</div>
+      <div class="card explain" data-testid="explain" aria-live="polite">
+        <h3 id="exTitle">Start building</h3>
+        <p id="exBody">Pick a preset to compare the classic shapes, or place bundles yourself. The shape name updates from the proportions you build, not from the preset you picked.</p>
+        <ul id="exList"></ul>
+      </div>
+    </section>
+
+    <section class="card metrics-col" aria-labelledby="met-h">
+      <h2 id="met-h">Live model</h2>
+      <div class="metric">
+        <div class="top"><span class="lbl">Suite runtime</span><span class="val" data-testid="m-runtime">0.0 min</span></div>
+        <div class="gauge"><i id="g-runtime"></i></div>
+        <div class="sub" data-testid="m-runtime-sub">automated, 4 CI workers · 0 h manual per release</div>
+      </div>
+      <div class="metric">
+        <div class="top"><span class="lbl">Flake exposure</span><span class="val" data-testid="m-flake">0%</span></div>
+        <div class="gauge"><i id="g-flake"></i></div>
+        <div class="sub">chance a green build goes red for no reason</div>
+      </div>
+      <div class="metric">
+        <div class="top"><span class="lbl">Maintenance</span><span class="val" data-testid="m-maint">0 h/mo</span></div>
+        <div class="gauge"><i id="g-maint"></i></div>
+        <div class="sub">upkeep from UI churn, fixtures and reruns</div>
+      </div>
+      <div class="metric">
+        <div class="top"><span class="lbl">Confidence</span><span class="val" data-testid="m-conf">0%</span></div>
+        <div class="gauge"><i id="g-conf"></i></div>
+        <div class="cats" id="cats" aria-label="Confidence by risk area"></div>
+      </div>
+      <ul class="insights" id="insights" data-testid="insights" aria-live="polite"></ul>
+      <div class="toast" id="toast" role="status" data-testid="toast"></div>
+    </section>
+  </div>
+
+  <p class="fine">Illustrative model, not a benchmark. Per-test runtimes, flake rates and upkeep figures are rough, deliberately round assumptions chosen to show the trade-offs between layers; your own suite's numbers will differ. Flake exposure is 1 − ∏(1 − p)<sup>n</sup> across every automated test.</p>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  // bottom → top of the pyramid
+  const TYPES = [
+    { id: 'unit', name: 'Unit', per: 100, cost: 4, secs: 0.01, flake: 0.00002, maint: 0.01,
+      cover: { logic: 1, ui: 0.1, contract: 0.05, wiring: 0.05, journey: 0, ux: 0 } },
+    { id: 'component', name: 'Component', per: 40, cost: 6, secs: 0.4, flake: 0.0002, maint: 0.03,
+      cover: { logic: 0.4, ui: 1, contract: 0, wiring: 0.2, journey: 0.05, ux: 0.05 } },
+    { id: 'integration', name: 'Integration', per: 25, cost: 8, secs: 2, flake: 0.001, maint: 0.06,
+      cover: { logic: 0.4, ui: 0.3, contract: 0.4, wiring: 1, journey: 0.3, ux: 0 } },
+    { id: 'api', name: 'API', per: 25, cost: 6, secs: 0.8, flake: 0.0005, maint: 0.04,
+      cover: { logic: 0.3, ui: 0, contract: 1, wiring: 0.5, journey: 0.2, ux: 0 } },
+    { id: 'e2e', name: 'E2E', per: 10, cost: 12, secs: 30, flake: 0.02, maint: 0.35,
+      cover: { logic: 0.2, ui: 0.5, contract: 0.4, wiring: 0.8, journey: 1, ux: 0.2 } },
+    { id: 'manual', name: 'Manual', per: 5, cost: 5, secs: 600, flake: 0, maint: 0.4, manual: true,
+      cover: { logic: 0, ui: 0.4, contract: 0, wiring: 0.1, journey: 0.6, ux: 1 } },
+  ];
+  const CATS = [
+    { id: 'logic', name: 'Business logic', w: 0.25 },
+    { id: 'ui', name: 'UI rendering', w: 0.15 },
+    { id: 'contract', name: 'API contracts', w: 0.15 },
+    { id: 'wiring', name: 'Wiring', w: 0.2 },
+    { id: 'journey', name: 'User journeys', w: 0.15 },
+    { id: 'ux', name: 'UX / exploratory', w: 0.1 },
+  ];
+  const MAX = 16, WORKERS = 4;
+  const PRESETS = {
+    pyramid: { counts: [12, 5, 4, 3, 2, 1], title: 'The healthy pyramid',
+      body: 'Popularised by Mike Cohn: lots of fast, isolated tests at the base, fewer and broader tests as you climb, and a thin cap of slow end-to-end and manual checks.',
+      points: ['Most failures point straight at a function, so they are cheap to diagnose.', 'CI stays fast because the expensive layers are small.', 'Weak spot: easy to over-mock, so wiring bugs can slip between the layers.'] },
+    cone: { counts: [2, 1, 1, 1, 7, 8], title: 'The ice-cream cone (anti-pattern)',
+      body: 'The pyramid upside down: a big scoop of manual testing on top of a wide band of UI-driven end-to-end tests, balanced on a thin base of unit tests.',
+      points: ['It often feels safe because every journey is "covered", but each failure takes a human or a 30-second browser run to reproduce.', 'Flake exposure and upkeep grow with every E2E test, so teams start ignoring red builds.', 'Usual fix: push checks down a layer — assert the rule in a unit test and keep one journey test.'] },
+    trophy: { counts: [5, 6, 8, 3, 2, 0], title: 'The testing trophy',
+      body: 'Kent C. Dodds\' alternative shape for front-end apps: static analysis at the foot (types and linting, not modelled here), a modest base of unit tests, a wide middle of integration tests, and a small E2E cap.',
+      points: ['Integration tests exercise real components together, which catches wiring bugs a mock-heavy base misses.', 'Slower than a pure pyramid, but each test buys more confidence.', 'Works best when integration tests stay deterministic: fake the network edge, not your own modules.'] },
+    hourglass: { counts: [12, 1, 1, 0, 6, 2], title: 'The hourglass',
+      body: 'A strong unit base and a heavy E2E top with almost nothing between them — common when a team adds UI tests to cover gaps instead of testing services directly.',
+      points: ['E2E tests end up checking things an API or integration test could prove in milliseconds.', 'Failures in the top half are hard to localise because nothing narrower sits underneath.', 'Fill the waist: move contract and wiring checks into API and integration tests.'] },
+  };
+
+  const state = { counts: [0, 0, 0, 0, 0, 0], budget: 180, preset: null, lastAdded: -1 };
+  try {
+    const saved = JSON.parse(localStorage.getItem('zlab-017') || 'null');
+    if (saved && Array.isArray(saved.counts) && saved.counts.length === 6) { state.counts = saved.counts.map(n => Math.max(0, Math.min(MAX, n | 0))); state.budget = saved.budget || 180; }
+  } catch (e) { /* storage unavailable */ }
+  if (new URLSearchParams(location.search).has('fresh')) state.counts = [0, 0, 0, 0, 0, 0];
+
+  const $ = id => document.getElementById(id);
+  const palette = $('palette'), rows = $('rows'), stage = $('stage');
+  const color = t => `var(--c-${t.id})`;
+
+  // palette
+  TYPES.forEach((t, i) => {
+    const b = document.createElement('button');
+    b.className = 'brick-btn'; b.type = 'button';
+    b.dataset.testid = 'add-' + t.id; b.setAttribute('data-testid', 'add-' + t.id);
+    b.setAttribute('aria-label', `Add ${t.name} bundle: ${t.per} ${t.manual ? 'checks' : 'tests'}, ${t.cost} hours`);
+    b.innerHTML = `<span class="sw" style="background:${color(t)}"></span><b>${t.name}</b><small>${t.per} ${t.manual ? 'checks' : 'tests'} · ${t.cost}h</small>`;
+    attachDrag(b, i);
+    palette.appendChild(b);
+  });
+
+  // rows (render top → bottom visually)
+  const rowEls = [];
+  for (let i = TYPES.length - 1; i >= 0; i--) {
+    const t = TYPES[i];
+    const r = document.createElement('div');
+    r.className = 'row'; r.setAttribute('data-testid', 'row-' + t.id);
+    r.innerHTML = `<button class="adj" type="button" aria-label="Remove one ${t.name} bundle" data-testid="minus-${t.id}">−</button>
+      <div class="bricks"><span class="name"></span></div>
+      <button class="adj" type="button" aria-label="Add one ${t.name} bundle" data-testid="plus-${t.id}">+</button>`;
+    r.children[0].addEventListener('click', () => change(i, -1));
+    r.children[2].addEventListener('click', () => change(i, +1));
+    rows.appendChild(r);
+    rowEls[i] = r;
+  }
+
+  const spent = counts => counts.reduce((s, n, i) => s + n * TYPES[i].cost, 0);
+
+  function change(i, d) {
+    const next = state.counts.slice();
+    next[i] = Math.max(0, Math.min(MAX, next[i] + d));
+    if (next[i] === state.counts[i]) { if (d > 0) toast(`${TYPES[i].name} layer is full (${MAX} bundles).`); return; }
+    if (d > 0 && spent(next) > state.budget) { toast(`Over budget: a ${TYPES[i].name} bundle costs ${TYPES[i].cost}h and only ${state.budget - spent(state.counts)}h are left.`); return; }
+    state.counts = next; state.preset = null; state.lastAdded = d > 0 ? i : -1;
+    toast('');
+    render();
+  }
+
+  function applyPreset(key) {
+    const p = PRESETS[key];
+    const need = spent(p.counts);
+    if (need > state.budget) { state.budget = Math.ceil(need / 10) * 10; $('budget').value = state.budget; }
+    state.counts = p.counts.slice(); state.preset = key; state.lastAdded = -1;
+    toast('');
+    render();
+  }
+
+  let toastTimer;
+  function toast(msg) { $('toast').textContent = msg; clearTimeout(toastTimer); if (msg) toastTimer = setTimeout(() => { $('toast').textContent = ''; }, 5000); }
+
+  // model
+  function model(c) {
+    let autoSecs = 0, manualSecs = 0, lambdaLog = 0, maint = 0, autoTests = 0, manualChecks = 0;
+    const layerSecs = [];
+    const sums = Object.fromEntries(CATS.map(k => [k.id, 0]));
+    TYPES.forEach((t, i) => {
+      const n = c[i] * t.per;
+      const s = n * t.secs;
+      layerSecs[i] = t.manual ? 0 : s;
+      if (t.manual) { manualSecs += s; manualChecks += n; } else { autoSecs += s; autoTests += n; lambdaLog += n * Math.log(1 - t.flake); }
+      maint += n * t.maint;
+      CATS.forEach(k => { sums[k.id] += c[i] * t.cover[k.id]; });
+    });
+    const cat = {};
+    let conf = 0;
+    CATS.forEach(k => { cat[k.id] = 1 - Math.exp(-0.35 * sums[k.id]); conf += k.w * cat[k.id]; });
+    return {
+      runtimeMin: autoSecs / WORKERS / 60, manualHours: manualSecs / 3600, flake: 1 - Math.exp(lambdaLog),
+      maint, conf, cat, layerSecs, autoSecs, autoTests, manualChecks,
+    };
+  }
+
+  function classify(c) {
+    const total = c.reduce((a, b) => a + b, 0);
+    if (!total) return { key: 'empty', name: 'Empty site' };
+    const base = c[0] + c[1], top = c[4] + c[5], mid = c[1] + c[2] + c[3];
+    if (top > base) return { key: 'cone', name: 'Ice-cream cone' };
+    if (c[2] === Math.max(...c) && c[2] > c[0]) return { key: 'trophy', name: 'Testing trophy' };
+    if (top >= 3 && mid < Math.min(base, top) && c[0] >= top) return { key: 'hourglass', name: 'Hourglass' };
+    let mono = true;
+    for (let i = 1; i < c.length; i++) if (c[i] > c[i - 1]) mono = false;
+    if (mono) return { key: 'pyramid', name: 'Pyramid' };
+    return { key: 'lopsided', name: 'Lopsided pile' };
+  }
+
+  const fmtPct = v => (v * 100 < 1 && v > 0 ? '<1' : Math.round(v * 100)) + '%';
+
+  function setGauge(id, frac, good) {
+    const el = $(id);
+    el.style.width = Math.max(0, Math.min(1, frac)) * 100 + '%';
+    el.style.background = good ? 'var(--ok)' : frac > 0.66 ? 'var(--bad)' : frac > 0.33 ? 'var(--warn)' : 'var(--ok)';
+  }
+
+  function render() {
+    const c = state.counts;
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    TYPES.forEach((t, i) => {
+      const r = rowEls[i], bricks = r.querySelector('.bricks'), label = r.querySelector('.name');
+      bricks.querySelectorAll('.brick').forEach(b => b.remove());
+      for (let k = 0; k < c[i]; k++) {
+        const b = document.createElement('span');
+        b.className = 'brick' + (!reduce && i === state.lastAdded && k === c[i] - 1 ? ' new' : '');
+        b.style.background = color(t);
+        bricks.insertBefore(b, label);
+      }
+      label.textContent = c[i] ? `${t.name} ×${c[i] * t.per}` : t.name;
+      label.classList.toggle('on', c[i] >= 2);
+      r.setAttribute('data-count', c[i]);
+      r.setAttribute('aria-label', `${t.name}: ${c[i]} bundles`);
+      r.children[0].disabled = c[i] === 0;
+      r.children[2].disabled = c[i] >= MAX || spent(c) + t.cost > state.budget;
+    });
+    const s = spent(c);
+    $('spent').textContent = s; $('budgetVal').textContent = state.budget;
+    document.querySelector('.spent').classList.toggle('over', s > state.budget);
+
+    const m = model(c);
+    $('stageNote').textContent = `${m.autoTests.toLocaleString('en-US')} automated tests · ${m.manualChecks} manual checks`;
+    document.querySelector('[data-testid="m-runtime"]').textContent = m.runtimeMin.toFixed(1) + ' min';
+    document.querySelector('[data-testid="m-runtime-sub"]').textContent = `automated, ${WORKERS} CI workers · ${m.manualHours.toFixed(1)} h manual per release`;
+    document.querySelector('[data-testid="m-flake"]').textContent = fmtPct(m.flake);
+    document.querySelector('[data-testid="m-maint"]').textContent = Math.round(m.maint) + ' h/mo';
+    document.querySelector('[data-testid="m-conf"]').textContent = Math.round(m.conf * 100) + '%';
+    setGauge('g-runtime', m.runtimeMin / 10);
+    setGauge('g-flake', m.flake);
+    setGauge('g-maint', m.maint / 120);
+    setGauge('g-conf', m.conf, true);
+    $('cats').innerHTML = CATS.map(k => `<span>${k.name}</span><span class="mini"><i style="width:${Math.round(m.cat[k.id] * 100)}%"></i></span><span data-testid="cat-${k.id}">${Math.round(m.cat[k.id] * 100)}%</span>`).join('');
+
+    const shape = classify(c);
+    $('shape').textContent = shape.name;
+    stage.dataset.shape = shape.key;
+    document.querySelectorAll('[data-preset]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.preset === state.preset)));
+
+    // explanation
+    const ex = PRESETS[shape.key];
+    if (ex) {
+      $('exTitle').textContent = ex.title; $('exBody').textContent = ex.body;
+      $('exList').innerHTML = ex.points.map(p => `<li>${p}</li>`).join('');
+    } else if (shape.key === 'empty') {
+      $('exTitle').textContent = 'Start building';
+      $('exBody').textContent = 'Pick a preset to compare the classic shapes, or place bundles yourself. The shape name updates from the proportions you build, not from the preset you picked.';
+      $('exList').innerHTML = '';
+    } else {
+      $('exTitle').textContent = 'A lopsided pile';
+      $('exBody').textContent = 'No classic shape yet: some upper layer is wider than the one beneath it, but not enough to call it a cone or a trophy. That is not automatically wrong — the shape should follow where your risks are.';
+      $('exList').innerHTML = '<li>Ask of each wide upper layer: could a narrower, faster test prove the same thing?</li>';
+    }
+
+    // insights
+    const ins = [];
+    if (m.autoSecs > 0) {
+      const e2eShare = m.layerSecs[4] / m.autoSecs;
+      if (e2eShare > 0.5) ins.push(`E2E tests are ${Math.round(e2eShare * 100)}% of CI time but ${Math.round(c[4] * 10 / Math.max(1, m.autoTests) * 100)}% of the test count.`);
+    }
+    if (m.flake > 0.5) ins.push('More than half of builds will see at least one flaky failure. Expect retries — and people rerunning red builds without reading them.');
+    const weakest = CATS.slice().sort((a, b) => m.cat[a.id] - m.cat[b.id])[0];
+    if (m.conf > 0 && m.cat[weakest.id] < 0.5) ins.push(`Blind spot: ${weakest.name.toLowerCase()} (${Math.round(m.cat[weakest.id] * 100)}%).`);
+    if (m.manualHours > 2) ins.push(`${m.manualHours.toFixed(1)} person-hours of manual checking per release; weekly releases cost ~${Math.round(m.manualHours * 52)} h a year.`);
+    if (c[0] === 0 && m.autoTests > 0) ins.push('No unit tests: every failure has to be traced through several layers.');
+    if (s > 0 && state.budget - s >= 20) ins.push(`${state.budget - s}h of budget unspent.`);
+    $('insights').innerHTML = ins.map(t => `<li>${t}</li>`).join('');
+
+    try { localStorage.setItem('zlab-017', JSON.stringify({ counts: c, budget: state.budget })); } catch (e) { /* ignore */ }
+    window.__pyramid = { counts: c.slice(), model: m, shape: shape.key, spent: s, budget: state.budget };
+  }
+
+  // drag with pointer events (works for mouse, pen and touch); a short press is a tap = add
+  let suppressClick = false;
+  function attachDrag(btn, i) {
+    let start = null, ghost = null;
+    btn.addEventListener('pointerdown', e => {
+      if (e.button !== 0) return;
+      start = { x: e.clientX, y: e.clientY, id: e.pointerId };
+    });
+    window.addEventListener('pointermove', e => {
+      if (!start || e.pointerId !== start.id) return;
+      if (!ghost && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 8) {
+        ghost = document.createElement('div');
+        ghost.className = 'ghost'; ghost.style.background = color(TYPES[i]);
+        document.body.appendChild(ghost);
+        try { btn.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+      }
+      if (ghost) {
+        ghost.style.left = e.clientX + 'px'; ghost.style.top = e.clientY + 'px';
+        stage.classList.toggle('drop', overStage(e));
+      }
+    });
+    const end = e => {
+      if (!start) return;
+      if (ghost) {
+        if (e.type === 'pointerup' && overStage(e)) change(i, +1);
+        ghost.remove(); ghost = null; stage.classList.remove('drop');
+        suppressClick = true; setTimeout(() => { suppressClick = false; }, 50);
+      }
+      start = null;
+    };
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+    btn.addEventListener('click', () => { if (!suppressClick) change(i, +1); });
+  }
+  function overStage(e) {
+    const r = stage.getBoundingClientRect();
+    return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+  }
+
+  document.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', () => applyPreset(b.dataset.preset)));
+  $('clear').addEventListener('click', () => { state.counts = [0, 0, 0, 0, 0, 0]; state.preset = null; toast(''); render(); });
+  $('budget').value = state.budget;
+  $('budget').addEventListener('input', e => {
+    state.budget = +e.target.value;
+    if (spent(state.counts) > state.budget) toast('Budget is below what is already built — remove bundles or raise it.');
+    render();
+  });
+  render();
+})();
+</script>
+</body>
+</html>

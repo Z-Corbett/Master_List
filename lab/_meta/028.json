@@ -1,0 +1,34 @@
+{
+  "id": "028",
+  "slug": "028-merge-conflict",
+  "file": "lab/028-merge-conflict.html",
+  "title": "Merge Conflict — a git puzzle game",
+  "category": "Games",
+  "tags": ["game", "git", "code-eval", "page-clock", "localstorage"],
+  "description": "A puzzle game where each level is a short conflicted JavaScript file with realistic markers (including a diff3 level that shows the common ancestor): accept ours, theirs, both in either order, or hand-edit a hunk. When you commit, the resolved file is actually evaluated and a hidden test suite runs against it, with a timer, failed-commit penalties, eight levels and saved progress.",
+  "prompt": "As a QA engineer I want a game about the thing everyone dreads: git merge conflicts. Show short fictional code files with conflict markers rendered realistically, and let me resolve each hunk by choosing ours, theirs, both, or editing it by hand. When I commit, a hidden test suite for that level should run against my resolution and tell me which tests passed, so I can't just make the markers disappear. Give it 8 or more levels of rising difficulty (ordering, duplicate declarations, a diff3 level, one that needs a hand edit), a timer, a score and a terminal-style output. One self-contained HTML file.",
+  "qa": {
+    "methodology": [
+      "The hidden tests are the product, so each level's intended solution is played through end to end in a single long test, asserting every level ends with all tests passing.",
+      "Negative paths per mechanic: committing with unresolved hunks (git's own error text), the wrong side, both in the wrong order (runtime TypeError), both with a duplicate const (SyntaxError, remaining tests skipped), and the non-editing answer on the hand-edit level.",
+      "Scoring checked arithmetically with a paused fake clock: 65 simulated seconds and one failed commit must give exactly +265, and the timer must stop once merged.",
+      "State set-up through addInitScript seeding localStorage, so deep levels can be tested without replaying earlier ones; progress persistence is checked with a reload.",
+      "Resolved source read through a small window.__merge.source() hook to assert exact line order after 'both (theirs first)'."
+    ],
+    "risks": [
+      "Evaluating user-edited code: an infinite loop in a hand edit would hang the tab (accepted for a local, single-user game).",
+      "Level test suites that are accidentally satisfiable by the wrong resolution. Every level has at least one negative test for that.",
+      "Locale-dependent formatting (toLocaleString) in the sats level; the code pins 'en-US'.",
+      "Hunk indices shifting in the DOM after an edit or undo re-render."
+    ],
+    "playwright": "The game has no randomness, so determinism came from state rather than seeds: addInitScript writes solved levels into localStorage before the page loads, which lets each test jump straight to the level it cares about. The timer is driven by Date.now, so page.clock.install followed by pauseAt and fastForward gives an exact elapsed time and an exact score. Asserting on code layout through textContent was a trap, because line-number gutters and missing newlines merged everything together; the fix was to assert against the resolved source string instead. Writing the playthrough test caught a real bug in my own level design: a hidden test expected five pipeline steps when the correct merge has four.",
+    "coverage": [
+      "Unresolved commit rejection and a wrong-side failure, then success and unlock",
+      "Timer, time bonus, failed-commit penalty and timer stop on merge",
+      "Order-sensitive 'both' resolutions",
+      "Duplicate-declaration load failure and a hand-edited resolution",
+      "A full eight-level playthrough with the final score"
+    ]
+  },
+  "a11y": "Every resolution action is a real button labelled by hunk, the hand edit uses a labelled textarea, and the unresolved count and terminal output are aria-live so test results are announced. Colour is never the only cue: markers keep their ours, theirs and base text labels."
+}

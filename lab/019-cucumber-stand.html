@@ -1,0 +1,593 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cucumber Stand — Gherkin Editor and Step Matcher</title>
+<meta name="description" content="A Gherkin editor with syntax highlighting that matches every step against a panel of cucumber-expression step definitions as you type, flags undefined and ambiguous steps, expands Scenario Outlines, and generates a readable Playwright test skeleton.">
+<style>
+  :root {
+    --cream: #fbf7ea;
+    --cream-2: #f3edd8;
+    --paper: #fffdf6;
+    --ink: #1c2b20;
+    --ink-2: #4c5d4f;
+    --ink-3: #82907f;
+    --line: #e1d9bd;
+    --cuke: #1f4d2b;
+    --cuke-2: #2e6b3d;
+    --fresh: #6db33f;
+    --tomato: #d9472f;
+    --amber: #c98a12;
+    --ed-bg: #10231a;
+    --ed-bg-2: #0b1a13;
+    --ed-ink: #dbe8dc;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --display: "Rockwell", "Roboto Slab", "Arvo", "Georgia", serif;
+    --mono: ui-monospace, "SFMono-Regular", "Cascadia Code", Menlo, Consolas, monospace;
+    --lh: 21px;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--cream); color: var(--ink); font-family: var(--sans); line-height: 1.45; overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--fresh); outline-offset: 2px; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  .back {
+    position: fixed; top: 12px; left: 12px; z-index: 60; text-decoration: none;
+    font: 700 12px/1 var(--sans); color: var(--cuke); background: var(--paper);
+    border: 2px solid var(--cuke); border-radius: 6px; padding: 6px 10px;
+  }
+  .back:hover { background: var(--cuke); color: var(--paper); }
+
+  .awning { height: 34px; background: repeating-linear-gradient(90deg, var(--cuke) 0 44px, var(--paper) 44px 88px); position: relative; }
+  .awning::after { content: ""; position: absolute; left: 0; right: 0; bottom: -14px; height: 14px;
+    background: radial-gradient(circle at 22px 0, var(--cuke) 21px, transparent 22px) 0 0 / 88px 14px repeat-x,
+                radial-gradient(circle at 66px 0, var(--paper) 21px, transparent 22px) 0 0 / 88px 14px repeat-x; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 34px 20px 40px; }
+  header.top { display: flex; flex-wrap: wrap; gap: 12px 28px; align-items: end; justify-content: space-between; margin-bottom: 18px; }
+  .sign { display: flex; gap: 14px; align-items: center; }
+  .sign svg { width: 60px; height: 60px; flex: none; }
+  h1 { font: 800 clamp(32px, 5vw, 52px)/1 var(--display); margin: 0; color: var(--cuke); letter-spacing: -.01em; }
+  .tag { margin: 6px 0 0; color: var(--ink-2); max-width: 60ch; }
+  .tally { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pill { border-radius: 999px; padding: 6px 12px; font: 700 13px var(--mono); border: 2px solid; background: var(--paper); white-space: nowrap; }
+  .pill.ok { border-color: var(--cuke-2); color: var(--cuke-2); }
+  .pill.und { border-color: var(--tomato); color: var(--tomato); }
+  .pill.amb { border-color: var(--amber); color: #8a5c05; }
+  .pill.sc { border-color: var(--ink-3); color: var(--ink-2); }
+
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; align-items: start; }
+  .card { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 14px; box-shadow: 0 2px 0 var(--line); }
+  .card h2 { margin: 0 0 10px; font: 700 18px var(--display); color: var(--cuke); display: flex; align-items: center; gap: 8px; justify-content: space-between; flex-wrap: wrap; }
+  .card h2 small { font: 600 12px var(--sans); color: var(--ink-3); }
+
+  /* editor */
+  .editor { border-radius: 10px; background: var(--ed-bg); overflow: hidden; border: 1px solid #0a1510; }
+  .ed-bar { display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: var(--ed-bg-2); color: #9fb9a6; font: 12px var(--mono); flex-wrap: wrap; }
+  .ed-bar .file { margin-right: auto; }
+  .ed-bar button { background: #1e3a2a; border: 1px solid #2d5440; color: #cfe3d4; border-radius: 6px; padding: 3px 9px; font: 12px var(--mono); }
+  .ed-body { display: grid; grid-template-columns: 50px minmax(0, 1fr); }
+  .gutter { background: var(--ed-bg-2); padding: 10px 0; font: 12px/var(--lh) var(--mono); color: #4f6d5a; user-select: none; }
+  .gutter div { height: var(--lh); display: flex; align-items: center; justify-content: flex-end; gap: 5px; padding-right: 7px; }
+  .gutter i { width: 12px; height: 12px; border-radius: 50%; font: 800 9px/12px var(--sans); text-align: center; font-style: normal; color: #0b1a13; }
+  .gutter i.ok { background: var(--fresh); }
+  .gutter i.und { background: #ff7a61; }
+  .gutter i.amb { background: #f2b93b; }
+  .code { position: relative; overflow: hidden; }
+  .code pre, .code textarea {
+    margin: 0; padding: 10px 12px; font: 13.5px/var(--lh) var(--mono); white-space: pre; tab-size: 2; letter-spacing: 0; border: 0;
+  }
+  .code pre { position: absolute; top: 0; left: 0; pointer-events: none; color: var(--ed-ink); min-width: 100%; }
+  .code textarea { position: relative; display: block; width: 100%; resize: none; background: transparent; color: transparent; caret-color: #fff; overflow-x: auto; overflow-y: hidden; outline: none; }
+  .code textarea::selection { background: rgba(182,227,106,.3); color: transparent; }
+  .editor:focus-within { box-shadow: 0 0 0 3px var(--fresh); }
+  .t-kw { color: #b6e36a; font-weight: 700; }
+  .t-step { color: #7fd1b9; font-weight: 700; }
+  .t-str { color: #f3c77a; }
+  .t-num { color: #f39a6b; }
+  .t-ph { color: #d9a6ff; }
+  .t-com { color: #6c8a78; font-style: italic; }
+  .t-tag { color: #ff9fb2; }
+  .t-pipe { color: #5f7f6e; }
+  .t-title { color: #ffffff; }
+  .t-desc { color: #a9bfae; }
+  .problems { margin: 10px 0 0; padding: 0; list-style: none; font-size: 13px; }
+  .problems li { padding: 5px 8px; border-left: 3px solid var(--tomato); background: #fdeee9; border-radius: 0 6px 6px 0; margin-bottom: 4px; color: #7c2415; }
+
+  /* report */
+  .report { margin-top: 14px; }
+  .rep { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .rep th { text-align: left; font: 700 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); padding: 6px; border-bottom: 2px solid var(--line); }
+  .rep td { padding: 7px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .rep td:first-child { font: 12px var(--mono); color: var(--ink-3); width: 36px; }
+  .rep .st { font: 700 11px var(--mono); padding: 2px 7px; border-radius: 4px; white-space: nowrap; }
+  .st.ok { background: #e3f2d6; color: #24561a; }
+  .st.und { background: #fde2dc; color: #8f2a19; }
+  .st.amb { background: #fbeccc; color: #7a5104; }
+  .rep code { font: 12px var(--mono); background: var(--cream-2); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+  .args { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px; }
+  .args span { font: 11.5px var(--mono); background: #efe7fb; color: #4d2b87; border-radius: 4px; padding: 1px 6px; }
+  .snip { margin-top: 4px; font-size: 12px; }
+  .snip button { border: 1px dashed var(--tomato); background: transparent; color: var(--tomato); border-radius: 5px; padding: 2px 8px; font: 600 12px var(--sans); }
+  .step-text { overflow-wrap: anywhere; }
+  .table-wrap { overflow-x: auto; }
+
+  /* defs */
+  .defs { list-style: none; margin: 0; padding: 0; }
+  .defs li { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 2px 8px; padding: 8px 0; border-bottom: 1px dashed var(--line); }
+  .defs li > div { grid-row: span 2; }
+  .defs .expr { font: 12.5px var(--mono); overflow-wrap: anywhere; }
+  .defs .expr b { color: #6a2fb8; font-weight: 700; }
+  .defs .fn { font: 11.5px var(--mono); color: var(--ink-3); }
+  .defs .uses { font: 700 11px var(--mono); border-radius: 999px; padding: 1px 8px; align-self: center; background: var(--cream-2); color: var(--ink-2); }
+  .defs .uses.hot { background: var(--cuke-2); color: #fff; }
+  .defs .del { grid-column: 2; justify-self: end; border: 0; background: none; color: var(--ink-3); font-size: 12px; text-decoration: underline; padding: 0; }
+  .add-def { display: grid; gap: 6px; margin-top: 12px; }
+  .add-def label { font: 700 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+  .add-def input { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: #fff; font: 13px var(--mono); min-width: 0; }
+  .btn { border: 0; background: var(--cuke); color: #fff; border-radius: 8px; padding: 8px 14px; font-weight: 700; }
+  .btn.alt { background: var(--fresh); color: #10240f; }
+  .btn.ghost { background: transparent; color: var(--cuke); border: 1.5px solid var(--cuke); }
+  .legend { font-size: 12px; color: var(--ink-3); margin: 10px 0 0; }
+  .legend code { font-family: var(--mono); color: #6a2fb8; }
+  .msg { font-size: 12.5px; min-height: 1.3em; margin: 4px 0 0; color: var(--tomato); }
+
+  .gen { margin-top: 18px; }
+  .gen pre { margin: 0; background: #14171c; color: #e6e6e6; border-radius: 10px; padding: 14px; font: 12.5px/1.55 var(--mono); overflow: auto; max-height: 520px; white-space: pre; }
+  .gen .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .gen .note { font-size: 13px; color: var(--ink-2); flex: 1 1 260px; }
+  .j-k { color: #c792ea; } .j-s { color: #c3e88d; } .j-c { color: #7f8c98; font-style: italic; } .j-f { color: #82aaff; }
+
+  @media (max-width: 980px) { .grid { grid-template-columns: minmax(0,1fr); } }
+  @media (max-width: 560px) {
+    .ed-body { grid-template-columns: 38px minmax(0,1fr); }
+    .gutter span.ln { display: none; }
+    .code pre, .code textarea { font-size: 12.5px; padding: 10px 8px; }
+    .rep th:nth-child(4), .rep td:nth-child(4) { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<a href="../index.html#lab" class="back" data-testid="back-link">← Zac's Lab</a>
+<div class="awning" aria-hidden="true"></div>
+<div class="wrap">
+  <header class="top">
+    <div class="sign">
+      <svg viewBox="0 0 60 60" aria-hidden="true"><ellipse cx="30" cy="30" rx="12" ry="26" transform="rotate(35 30 30)" fill="#2e6b3d"/><ellipse cx="30" cy="30" rx="8" ry="21" transform="rotate(35 30 30)" fill="#6db33f"/><g fill="#d8efc0"><circle cx="24" cy="22" r="1.6"/><circle cx="31" cy="30" r="1.6"/><circle cx="37" cy="38" r="1.6"/><circle cx="28" cy="36" r="1.2"/><circle cx="33" cy="24" r="1.2"/></g></svg>
+      <div>
+        <h1>Cucumber Stand</h1>
+        <p class="tag">Write Gherkin on the left; every step is matched live against the step definitions on the right. Undefined and ambiguous steps light up, and one button turns it all into a Playwright skeleton.</p>
+      </div>
+    </div>
+    <div class="tally" id="tally" aria-live="polite" data-testid="tally">
+      <span class="pill sc" data-testid="n-scenarios">0 scenarios</span>
+      <span class="pill ok" data-testid="n-ok">0 matched</span>
+      <span class="pill amb" data-testid="n-amb">0 ambiguous</span>
+      <span class="pill und" data-testid="n-und">0 undefined</span>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div>
+      <section class="card" aria-labelledby="ed-h">
+        <h2 id="ed-h">basket.feature <small>Gherkin · edits are saved in this browser</small></h2>
+        <div class="editor">
+          <div class="ed-bar"><span class="file">features/basket.feature</span>
+            <button type="button" id="resetFeature" data-testid="reset-feature">Reset example</button>
+          </div>
+          <div class="ed-body">
+            <div class="gutter" id="gutter" aria-hidden="true"></div>
+            <div class="code">
+              <pre id="hl" aria-hidden="true"></pre>
+              <label for="src" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Gherkin feature file</label>
+              <textarea id="src" data-testid="editor" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off"></textarea>
+            </div>
+          </div>
+        </div>
+        <ul class="problems" id="problems" data-testid="problems" aria-live="polite"></ul>
+      </section>
+
+      <section class="card report" aria-labelledby="rep-h">
+        <h2 id="rep-h">Step report <small>one row per step line; outlines checked against every example row</small></h2>
+        <div class="table-wrap">
+          <table class="rep" data-testid="report">
+            <thead><tr><th scope="col">Line</th><th scope="col">Step</th><th scope="col">Status</th><th scope="col">Definition</th></tr></thead>
+            <tbody id="repBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <aside class="card" aria-labelledby="defs-h">
+      <h2 id="defs-h">Step definitions <small id="defCount">0</small></h2>
+      <ul class="defs" id="defs" data-testid="defs"></ul>
+      <form class="add-def" id="addForm">
+        <label for="newExpr">New cucumber expression</label>
+        <input id="newExpr" data-testid="new-expr" placeholder='e.g. I remove {int} {string}' autocomplete="off">
+        <button class="btn" type="submit" data-testid="add-def">Add definition</button>
+        <p class="msg" id="defMsg" role="status"></p>
+      </form>
+      <p class="legend">Parameters: <code>{string}</code> quoted text, <code>{int}</code>, <code>{float}</code>, <code>{word}</code> one word. <code>item(s)</code> is optional text, <code>click/press</code> is an alternative.</p>
+    </aside>
+  </div>
+
+  <section class="card gen" aria-labelledby="gen-h">
+    <h2 id="gen-h">Playwright skeleton</h2>
+    <div class="row">
+      <button class="btn alt" type="button" id="genBtn" data-testid="generate">Generate Playwright test</button>
+      <button class="btn ghost" type="button" id="copyBtn" data-testid="copy" disabled>Copy</button>
+      <span class="note" id="genNote" role="status">Background becomes <code>beforeEach</code>, outlines become a loop over their examples, and undefined steps mark the test <code>fixme</code>.</span>
+    </div>
+    <pre id="genOut" data-testid="gen-out" tabindex="0" aria-label="Generated Playwright test" hidden></pre>
+  </section>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  const EXAMPLE = `@smoke
+Feature: Basket at the Cucumber Stand
+  Shoppers at a (fictional) farm stand can fill a basket and check out.
+
+  Background:
+    Given I am on the "market" page
+
+  Scenario: Add cucumbers to the basket
+    When I add 3 "cucumbers" to my basket
+    Then the basket should contain 3 items
+    And the basket total should be 4.50
+
+  Scenario Outline: Search the stand
+    When I search for "<term>"
+    Then I should see <count> results
+
+    Examples:
+      | term    | count |
+      | pickle  | 2     |
+      | gherkin | 1     |
+
+  # a step nobody has written yet
+  Scenario: Pay at the till
+    Given I am logged in as "sam@example.com"
+    When I press "Checkout"
+    Then I should get a receipt by email
+`;
+
+  const DEFAULT_DEFS = [
+    { expr: 'I am on the {string} page', fn: 'gotoPage' },
+    { expr: 'I add {int} {string} to my basket', fn: 'addToBasket' },
+    { expr: 'the basket should contain {int} item(s)', fn: 'expectBasketCount' },
+    { expr: 'the basket should contain {int} {word}', fn: 'expectBasketOf' },
+    { expr: 'the basket total should be {float}', fn: 'expectTotal' },
+    { expr: 'I search for {string}', fn: 'search' },
+    { expr: 'I should see {int} result(s)', fn: 'expectResults' },
+    { expr: 'I am logged in as {string}', fn: 'loginAs' },
+    { expr: 'I click/press {string}', fn: 'clickButton' },
+  ];
+
+  /* ---------- cucumber expressions → RegExp ---------- */
+  const PARAMS = {
+    int: { re: '(-?\\d+)', ts: 'number', conv: s => String(parseInt(s, 10)) },
+    float: { re: '(-?\\d*\\.?\\d+)', ts: 'number', conv: s => String(parseFloat(s)) },
+    word: { re: '([^\\s]+)', ts: 'string', conv: s => `'${s}'` },
+    string: { re: '(?:"([^"]*)"|\'([^\']*)\')', ts: 'string', conv: s => `'${s.replace(/'/g, "\\'")}'`, two: true },
+  };
+  const reEsc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  function compile(expr) {
+    let out = '';
+    const types = [];
+    // tokenise: {param}, (optional), alt/ernation, text
+    const tokens = expr.match(/\{\w*\}|\([^)]*\)|\s+|[^\s{(]+/g) || [];
+    for (const t of tokens) {
+      if (/^\{\w*\}$/.test(t)) {
+        const name = t.slice(1, -1) || 'any';
+        const p = PARAMS[name];
+        if (!p) throw new Error(`Unknown parameter type {${name}}`);
+        out += p.re; types.push(name);
+      } else if (/^\(.*\)$/.test(t)) {
+        out += '(?:' + reEsc(t.slice(1, -1)) + ')?';
+      } else if (/^\s+$/.test(t)) {
+        out += '\\s+';
+      } else if (t.includes('/') && !/^\/|\/$/.test(t)) {
+        // alternation may be glued to optional text, e.g. click/press or item(s)/things
+        out += '(?:' + t.split('/').map(reEsc).join('|') + ')';
+      } else {
+        out += reEsc(t);
+      }
+    }
+    return { re: new RegExp('^' + out + '$'), types };
+  }
+  function matchDef(def, text) {
+    const m = def.compiled.re.exec(text);
+    if (!m) return null;
+    const args = []; let g = 1;
+    def.compiled.types.forEach(t => {
+      if (PARAMS[t].two) { args.push({ type: t, value: m[g] !== undefined ? m[g] : m[g + 1] }); g += 2; }
+      else { args.push({ type: t, value: m[g] }); g += 1; }
+    });
+    return args;
+  }
+  // snippet suggestion like Cucumber's: quoted text → {string}, numbers → {int}/{float}
+  function suggest(text) {
+    return text.replace(/"[^"]*"|'[^']*'/g, '{string}').replace(/(^|\s)-?\d+\.\d+(?=\s|$)/g, '$1{float}').replace(/(^|\s)-?\d+(?=\s|$)/g, '$1{int}');
+  }
+  const camel = text => {
+    const w = text.replace(/\{[^}]*\}|\([^)]*\)/g, ' ').replace(/[^A-Za-z0-9 ]/g, ' ').trim().split(/\s+/).filter(Boolean).slice(0, 5);
+    return w.map((x, i) => i ? x[0].toUpperCase() + x.slice(1).toLowerCase() : x.toLowerCase()).join('') || 'step';
+  };
+
+  /* ---------- state ---------- */
+  let defs = DEFAULT_DEFS.map(d => ({ ...d }));
+  let text = EXAMPLE;
+  const fresh = new URLSearchParams(location.search).has('fresh');
+  if (!fresh) {
+    try {
+      const s = JSON.parse(localStorage.getItem('zlab-019') || 'null');
+      if (s && typeof s.text === 'string' && Array.isArray(s.defs)) { text = s.text; defs = s.defs.filter(d => d && d.expr && d.fn); }
+    } catch (e) { /* ignore */ }
+  }
+  defs.forEach(d => { try { d.compiled = compile(d.expr); } catch (e) { d.compiled = { re: /$^/, types: [] }; } });
+  const save = () => { try { localStorage.setItem('zlab-019', JSON.stringify({ text, defs: defs.map(({ expr, fn }) => ({ expr, fn })) })); } catch (e) { /* ignore */ } };
+
+  /* ---------- Gherkin parsing ---------- */
+  const STEP_RE = /^(\s*)(Given|When|Then|And|But|\*)(\s+)(.*)$/;
+  const BLOCK_RE = /^(\s*)(Feature|Rule|Background|Scenario Outline|Scenario Template|Scenario|Example|Examples|Scenarios)(:)(.*)$/;
+  function parse(src) {
+    const lines = src.split('\n');
+    const doc = { feature: null, tags: [], background: null, scenarios: [], problems: [], steps: [] };
+    let cur = null, pendingTags = [], exTarget = null, header = null;
+    lines.forEach((raw, i) => {
+      const line = raw.replace(/\s+$/, ''), t = line.trim(), ln = i + 1;
+      if (!t || t.startsWith('#')) return;
+      if (t.startsWith('@')) { pendingTags.push(...t.split(/\s+/).filter(x => x.startsWith('@'))); return; }
+      const b = BLOCK_RE.exec(line);
+      if (b) {
+        const kw = b[2], title = b[4].trim();
+        header = null; exTarget = null;
+        if (kw === 'Feature') { doc.feature = { title, line: ln }; doc.tags = pendingTags; }
+        else if (kw === 'Background') { cur = doc.background = { kind: 'background', title, steps: [], line: ln }; }
+        else if (kw === 'Examples' || kw === 'Scenarios') {
+          if (!cur || cur.kind !== 'outline') doc.problems.push(`Line ${ln}: "Examples" only belongs under a Scenario Outline.`);
+          else { exTarget = cur; }
+        } else if (kw === 'Rule') { /* rules group scenarios; treated as transparent */ }
+        else {
+          const outline = /Outline|Template/.test(kw);
+          cur = { kind: outline ? 'outline' : 'scenario', title, steps: [], line: ln, tags: pendingTags, examples: [], header: null };
+          doc.scenarios.push(cur);
+        }
+        pendingTags = [];
+        if (!doc.feature && kw !== 'Feature') doc.problems.push(`Line ${ln}: "${kw}" appears before any Feature.`);
+        return;
+      }
+      const s = STEP_RE.exec(line);
+      if (s) {
+        if (!cur) { doc.problems.push(`Line ${ln}: step "${t}" is not inside a Scenario or Background.`); return; }
+        const step = { kw: s[2], text: s[4].trim(), line: ln, owner: cur };
+        cur.steps.push(step); doc.steps.push(step);
+        return;
+      }
+      if (t.startsWith('|')) {
+        const cells = t.replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+        if (exTarget) {
+          if (!exTarget.header) exTarget.header = cells;
+          else {
+            if (cells.length !== exTarget.header.length) doc.problems.push(`Line ${ln}: example row has ${cells.length} cells but the header has ${exTarget.header.length}.`);
+            exTarget.examples.push({ cells, line: ln });
+          }
+        }
+        return;
+      }
+      // free-form description lines are fine directly under Feature/Scenario
+    });
+    if (!doc.feature) doc.problems.push('No "Feature:" line found.');
+    doc.scenarios.filter(s => s.kind === 'outline').forEach(o => {
+      if (!o.header) doc.problems.push(`Line ${o.line}: Scenario Outline "${o.title}" has no Examples table.`);
+      else o.steps.forEach(st => (st.text.match(/<([^>]+)>/g) || []).forEach(ph => { if (!o.header.includes(ph.slice(1, -1))) doc.problems.push(`Line ${st.line}: placeholder ${ph} is not a column in Examples.`); }));
+    });
+    return doc;
+  }
+  const expand = (step, row, header) => step.text.replace(/<([^>]+)>/g, (m, k) => { const i = header.indexOf(k); return i >= 0 && row.cells[i] !== undefined ? row.cells[i] : m; });
+
+  function evaluate(doc) {
+    const results = [];
+    doc.steps.forEach(step => {
+      const o = step.owner;
+      const variants = (o.kind === 'outline' && o.header && o.examples.length) ? o.examples.map(r => expand(step, r, o.header)) : [step.text];
+      let worst = 'ok', matches = [], args = null, badVariant = null;
+      variants.forEach((v, vi) => {
+        const ms = defs.map((d, di) => ({ d, di, args: matchDef(d, v) })).filter(x => x.args);
+        let st = ms.length === 1 ? 'ok' : ms.length === 0 ? 'und' : 'amb';
+        if (st !== 'ok' && (worst === 'ok' || st === 'und')) { worst = st; badVariant = v; }
+        if (vi === 0) { matches = ms; args = ms[0] ? ms[0].args : null; }
+      });
+      results.push({ step, status: worst, matches, args, variants, badVariant });
+    });
+    return results;
+  }
+
+  /* ---------- highlighting ---------- */
+  function hlInline(s) {
+    return esc(s)
+      .replace(/&quot;(.*?)&quot;/g, '<span class="t-str">&quot;$1&quot;</span>')
+      .replace(/&lt;([^&]+?)&gt;/g, '<span class="t-ph">&lt;$1&gt;</span>')
+      .replace(/(^|\s)(-?\d+(?:\.\d+)?)(?=\s|$)/g, '$1<span class="t-num">$2</span>');
+  }
+  function highlight(src) {
+    return src.split('\n').map(line => {
+      const t = line.trim();
+      if (!t) return esc(line);
+      if (t.startsWith('#')) return `<span class="t-com">${esc(line)}</span>`;
+      if (t.startsWith('@')) return `<span class="t-tag">${esc(line)}</span>`;
+      let m = BLOCK_RE.exec(line);
+      if (m) return `${m[1]}<span class="t-kw">${m[2]}:</span><span class="t-title">${esc(m[4])}</span>`;
+      m = STEP_RE.exec(line);
+      if (m) return `${m[1]}<span class="t-step">${m[2]}</span>${m[3]}${hlInline(m[4])}`;
+      if (t.startsWith('|')) return esc(line).replace(/\|/g, '<span class="t-pipe">|</span>');
+      return `<span class="t-desc">${esc(line)}</span>`;
+    }).join('\n') + '\n';
+  }
+
+  /* ---------- rendering ---------- */
+  const src = $('src'), hl = $('hl'), gutter = $('gutter');
+  let lastDoc = null, lastRes = [];
+  function refresh() {
+    text = src.value;
+    hl.innerHTML = highlight(text);
+    const nLines = text.split('\n').length;
+    src.style.height = (nLines * 21 + 20 + 14) + 'px';
+    const doc = parse(text), res = evaluate(doc);
+    lastDoc = doc; lastRes = res;
+    const byLine = {}; res.forEach(r => { byLine[r.step.line] = r.status; });
+    let g = '';
+    for (let i = 1; i <= nLines; i++) {
+      const st = byLine[i];
+      g += `<div><span class="ln">${i}</span>${st ? `<i class="${st}" data-line="${i}" data-status="${st}">${st === 'ok' ? '✓' : st === 'und' ? '?' : '!'}</i>` : '<i></i>'}</div>`;
+    }
+    gutter.innerHTML = g;
+
+    const count = k => res.filter(r => r.status === k).length;
+    const nSc = doc.scenarios.reduce((s, sc) => s + (sc.kind === 'outline' ? Math.max(1, sc.examples.length) : 1), 0);
+    $('tally').querySelector('[data-testid="n-scenarios"]').textContent = `${nSc} scenario${nSc === 1 ? '' : 's'}`;
+    $('tally').querySelector('[data-testid="n-ok"]').textContent = `${count('ok')} matched`;
+    $('tally').querySelector('[data-testid="n-amb"]').textContent = `${count('amb')} ambiguous`;
+    $('tally').querySelector('[data-testid="n-und"]').textContent = `${count('und')} undefined`;
+    $('problems').innerHTML = doc.problems.map(p => `<li>${esc(p)}</li>`).join('');
+
+    $('repBody').innerHTML = res.map((r, i) => {
+      const label = r.status === 'ok' ? 'matched' : r.status === 'und' ? 'undefined' : 'ambiguous';
+      let def = '';
+      if (r.status === 'ok' && r.matches.length) def = `<code>${esc(r.matches[0].d.fn)}</code>`;
+      if (r.status === 'amb') def = (r.matches.length > 1 ? r.matches : defs.map(d => ({ d })).filter(x => matchDef(x.d, r.badVariant))).map(m => `<code>${esc(m.d.fn)}</code>`).join(' ');
+      const argHtml = r.status === 'ok' && r.args && r.args.length ? `<div class="args">${r.args.map(a => `<span>{${a.type}} ${esc(a.value)}</span>`).join('')}</div>` : '';
+      const outlineNote = r.variants.length > 1 && r.status !== 'ok' ? `<div class="snip">fails for: <code>${esc(r.badVariant)}</code></div>` : '';
+      const snip = r.status === 'und' ? `<div class="snip"><button type="button" data-snip="${esc(suggest(r.badVariant || r.step.text))}" data-testid="snippet-${r.step.line}">Use snippet: ${esc(suggest(r.badVariant || r.step.text))}</button></div>` : '';
+      return `<tr data-testid="rep-${r.step.line}" data-status="${r.status}"><td>${r.step.line}</td><td><div class="step-text"><b>${esc(r.step.kw)}</b> ${esc(r.step.text)}</div>${argHtml}${outlineNote}${snip}</td><td><span class="st ${r.status}">${label}</span></td><td>${def}</td></tr>`;
+    }).join('') || '<tr><td></td><td colspan="3">No steps yet.</td></tr>';
+    $('repBody').querySelectorAll('[data-snip]').forEach(b => b.addEventListener('click', () => { $('newExpr').value = b.dataset.snip; $('newExpr').focus(); }));
+
+    renderDefs(res);
+    save();
+  }
+  function renderDefs(res) {
+    const uses = defs.map(() => 0);
+    res.forEach(r => r.matches.forEach(m => { uses[m.di]++; }));
+    $('defCount').textContent = defs.length;
+    $('defs').innerHTML = defs.map((d, i) => `<li data-testid="def-${i}">
+      <div><div class="expr">${esc(d.expr).replace(/\{(\w*)\}/g, '<b>{$1}</b>')}</div><div class="fn">${esc(d.fn)}()</div></div>
+      <span class="uses ${uses[i] ? 'hot' : ''}" data-testid="uses-${i}" title="steps using it">${uses[i]}</span>
+      <button class="del" type="button" data-del="${i}" data-testid="del-${i}" aria-label="Delete definition ${esc(d.expr)}">delete</button></li>`).join('');
+    $('defs').querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => { defs.splice(+b.dataset.del, 1); refresh(); }));
+  }
+
+  $('addForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const expr = $('newExpr').value.trim(), msg = $('defMsg');
+    if (!expr) { msg.textContent = 'Type an expression first.'; return; }
+    if (defs.some(d => d.expr === expr)) { msg.textContent = 'That definition already exists.'; return; }
+    let compiled;
+    try { compiled = compile(expr); } catch (err) { msg.textContent = err.message; return; }
+    let fn = camel(expr), n = 2; const base = fn;
+    while (defs.some(d => d.fn === fn)) fn = base + n++;
+    defs.push({ expr, fn, compiled });
+    $('newExpr').value = ''; msg.textContent = '';
+    refresh();
+  });
+
+  src.addEventListener('input', refresh);
+  src.addEventListener('scroll', () => { hl.style.transform = `translateX(${-src.scrollLeft}px)`; });
+  $('resetFeature').addEventListener('click', () => { src.value = EXAMPLE; defs = DEFAULT_DEFS.map(d => ({ ...d, compiled: compile(d.expr) })); refresh(); $('genOut').hidden = true; $('copyBtn').disabled = true; });
+
+  /* ---------- Playwright generation ---------- */
+  function generate() {
+    const doc = lastDoc, byStep = new Map(lastRes.map(r => [r.step, r]));
+    const used = new Set();
+    const q = s => `'${String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+    const callFor = (step, outline) => {
+      const r = byStep.get(step);
+      const lines = [`// ${step.kw} ${step.text}`];
+      if (!r || r.status === 'und') { lines.push(`// TODO: undefined step — add a definition matching "${step.text}"`); return { lines, bad: true }; }
+      if (r.status === 'amb') { lines.push(`// AMBIGUOUS: several definitions match; make one expression more specific`); return { lines, bad: true }; }
+      const d = r.matches[0].d; used.add(d.fn);
+      const firstRow = outline && outline.examples[0];
+      const args = r.args.map(a => {
+        if (firstRow) {
+          const col = outline.header.find((h, i) => step.text.includes(`<${h}>`) && firstRow.cells[i] === a.value);
+          if (col) return PARAMS[a.type].ts === 'number' ? `Number(ex.${ident(col)})` : `ex.${ident(col)}`;
+        }
+        return PARAMS[a.type].ts === 'number' ? PARAMS[a.type].conv(a.value) : q(a.value);
+      });
+      lines.push(`await ${d.fn}(${['page'].concat(args).join(', ')});`);
+      return { lines, bad: false };
+    };
+    const ident = s => /^[A-Za-z_$][\w$]*$/.test(s) ? s : s.replace(/\W+/g, '_');
+    const body = [];
+    const title = doc.feature ? doc.feature.title : 'Untitled feature';
+    const tagOpt = doc.tags.length ? `{ tag: [${doc.tags.map(q).join(', ')}] }, ` : '';
+    body.push(`test.describe(${q(title)}, ${tagOpt}() => {`);
+    if (doc.background && doc.background.steps.length) {
+      body.push(`  test.beforeEach(async ({ page }) => {`);
+      doc.background.steps.forEach(s => callFor(s).lines.forEach(l => body.push('    ' + l)));
+      body.push('  });', '');
+    }
+    doc.scenarios.forEach(sc => {
+      const calls = sc.steps.map(s => callFor(s, sc.kind === 'outline' ? sc : null));
+      const bad = calls.some(c => c.bad);
+      const tags = sc.tags && sc.tags.length ? `{ tag: [${sc.tags.map(q).join(', ')}] }, ` : '';
+      const inner = [];
+      if (bad) inner.push(`test.fixme(true, 'has undefined or ambiguous steps');`);
+      calls.forEach(c => inner.push(...c.lines));
+      if (sc.kind === 'outline' && sc.header) {
+        const rows = sc.examples.map(r => '    { ' + sc.header.map((h, i) => `${ident(h)}: ${q(r.cells[i] ?? '')}`).join(', ') + ' },');
+        body.push(`  const ${camel(sc.title)}Examples = [`, ...rows, '  ];');
+        body.push(`  for (const ex of ${camel(sc.title)}Examples) {`);
+        body.push(`    test(\`${sc.title.replace(/`/g, '\\`')} (${sc.header.map(h => `${h}=\${ex.${ident(h)}}`).join(', ')})\`, ${tags}async ({ page }) => {`);
+        inner.forEach(l => body.push('      ' + l));
+        body.push('    });', '  }', '');
+      } else {
+        body.push(`  test(${q(sc.title)}, ${tags}async ({ page }) => {`);
+        inner.forEach(l => body.push('    ' + l));
+        body.push('  });', '');
+      }
+    });
+    if (body[body.length - 1] === '') body.pop();
+    body.push('});');
+    const head = [`import { test, expect } from '@playwright/test';`];
+    if (used.size) head.push(`import { ${[...used].join(', ')} } from './steps/basket.steps';`);
+    head.push('', `// Generated from features/basket.feature by Cucumber Stand. Each helper wraps one step definition.`, '');
+    return head.concat(body).join('\n') + '\n';
+  }
+  function hlTs(code) {
+    return esc(code).split('\n').map(l => {
+      if (/^\s*\/\//.test(l)) return `<span class="j-c">${l}</span>`;
+      return l.replace(/('(?:[^'\\]|\\.)*'|`[^`]*`)/g, '<span class="j-s">$1</span>')
+        .replace(/\b(import|from|const|for|of|async|await|true)\b/g, '<span class="j-k">$1</span>')
+        .replace(/\b(test(?:\.describe|\.beforeEach|\.fixme)?)(?=\()/g, '<span class="j-f">$1</span>');
+    }).join('\n');
+  }
+  let generated = '';
+  $('genBtn').addEventListener('click', () => {
+    generated = generate();
+    $('genOut').innerHTML = hlTs(generated);
+    $('genOut').hidden = false;
+    $('copyBtn').disabled = false;
+    const bad = lastRes.filter(r => r.status !== 'ok').length;
+    $('genNote').textContent = bad ? `Generated with ${bad} step${bad === 1 ? '' : 's'} still needing attention (marked fixme).` : 'Generated. Every step maps to a helper.';
+  });
+  $('copyBtn').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(generated); $('genNote').textContent = 'Copied to clipboard.'; }
+    catch (e) { const r = document.createRange(); r.selectNodeContents($('genOut')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); $('genNote').textContent = 'Clipboard unavailable — the code is selected, press Ctrl+C.'; }
+  });
+
+  src.value = text;
+  refresh();
+  window.__cucumber = { compile: e => compile(e).re.source, suggest };
+})();
+</script>
+</body>
+</html>

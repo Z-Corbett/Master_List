@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>a11y Lens — Inspect a Page Through Accessibility Lenses</title>
+<meta name="description" content="Inspect a small fictional shop page through accessibility lenses: colour-vision simulations, a numbered tab-order overlay, an accessible-name inspector and a WCAG contrast checker with real ratios. Nine deliberate bugs are hidden in the page; find and report them all.">
+<style>
+  :root {
+    --bg: #eceef6;
+    --panel: #ffffff;
+    --panel-2: #f5f6fb;
+    --ink: #161a33;
+    --ink-2: #4a5073;
+    --ink-3: #7a7f9e;
+    --line: #d9dcea;
+    --violet: #5b3df5;
+    --violet-2: #efeafe;
+    --signal: #ffcf33;
+    --pass: #1d7f4e;
+    --fail: #c22f3f;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SFMono-Regular", "Cascadia Code", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.45; overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--violet); outline-offset: 2px; }
+  button, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  .back {
+    position: fixed; top: 12px; left: 12px; z-index: 60; text-decoration: none;
+    font: 600 12px/1 var(--sans); color: var(--ink); background: #fff; border: 1px solid var(--line);
+    border-radius: 8px; padding: 7px 11px; box-shadow: 0 2px 8px rgba(22,26,51,.08);
+  }
+  .back:hover { color: var(--violet); }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 56px 20px 40px; }
+  .hero { display: flex; flex-wrap: wrap; gap: 14px 30px; align-items: flex-end; justify-content: space-between; margin-bottom: 18px; }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .lens-icon { width: 54px; height: 54px; flex: none; }
+  h1 { margin: 0; font: 800 clamp(30px, 5vw, 48px)/1 var(--sans); letter-spacing: -.03em; }
+  h1 span { color: var(--violet); }
+  .sub { margin: 6px 0 0; color: var(--ink-2); max-width: 60ch; }
+  .score {
+    display: flex; align-items: center; gap: 12px; background: var(--ink); color: #fff; border-radius: 14px; padding: 10px 16px;
+  }
+  .score .n { font: 800 30px/1 var(--mono); color: var(--signal); }
+  .score .t { font-size: 13px; line-height: 1.3; }
+  .score .bar { width: 120px; height: 6px; background: rgba(255,255,255,.18); border-radius: 3px; overflow: hidden; margin-top: 5px; }
+  .score .bar i { display: block; height: 100%; background: var(--signal); width: 0; transition: width .4s; }
+
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; grid-template-rows: auto 1fr; grid-template-areas: "frame lenses" "frame side"; gap: 18px; align-items: start; }
+  .grid > .frame { grid-area: frame; } .grid > .lenses-panel { grid-area: lenses; } .grid > .side { grid-area: side; }
+  .frame { background: #fff; border-radius: 14px; border: 1px solid var(--line); box-shadow: 0 10px 30px rgba(22,26,51,.08); overflow: hidden; }
+  .chrome { display: flex; align-items: center; gap: 8px; padding: 9px 12px; background: var(--panel-2); border-bottom: 1px solid var(--line); }
+  .chrome i { width: 10px; height: 10px; border-radius: 50%; background: #d4d7e6; }
+  .chrome .url { flex: 1; min-width: 0; font: 12px var(--mono); color: var(--ink-3); background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .viewport { position: relative; }
+  .overlay { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+  .overlay svg { width: 100%; height: 100%; display: block; overflow: visible; }
+  .tip { position: absolute; z-index: 8; pointer-events: none; background: var(--ink); color: #fff; font: 12px/1.35 var(--mono); padding: 6px 9px; border-radius: 6px; max-width: 260px; box-shadow: 0 6px 16px rgba(0,0,0,.2); }
+  .tip b { color: var(--signal); font-weight: 700; }
+  .sel-box { position: absolute; z-index: 6; pointer-events: none; border: 2px solid var(--violet); border-radius: 4px; box-shadow: 0 0 0 4px rgba(91,61,245,.18); }
+
+  /* ---------- the mock page (fictional shop) ---------- */
+  .mock { background: #fbfaf6; color: #2b3a33; font-family: Georgia, "Times New Roman", serif; }
+  .mock a { color: #2f5d46; }
+  .m-nav { display: flex; align-items: center; gap: 18px; padding: 14px 22px; border-bottom: 1px solid #e3e0d4; flex-wrap: wrap; }
+  .m-logo { font: 700 19px Georgia, serif; color: #2f5d46; text-decoration: none; margin-right: auto; display: flex; align-items: center; gap: 8px; }
+  .m-nav .lnk { font: 15px var(--sans); text-decoration: none; color: #2b3a33; }
+  .m-search { width: 34px; height: 34px; border-radius: 50%; border: 1px solid #d5d1c2; background: #fff; display: grid; place-items: center; padding: 0; }
+  .m-hero { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 20px; padding: 26px 22px; align-items: center; background: #e9efe6; }
+  .m-hero h2 { font: 700 clamp(26px, 3.4vw, 38px)/1.05 Georgia, serif; margin: 0 0 10px; color: #2b3a33; }
+  .m-hero p { margin: 0 0 16px; font: 15px/1.5 var(--sans); color: #2b3a33; }
+  .m-cta { background: #f2a15e; color: #ffffff; border: 0; border-radius: 999px; padding: 11px 20px; font: 700 15px var(--sans); }
+  .m-hero img { width: 100%; height: auto; display: block; border-radius: 10px; }
+  .m-sec { padding: 22px; }
+  .m-sec h3 { font: 700 21px Georgia, serif; margin: 0 0 4px; }
+  .m-legend { font: 13px var(--sans); color: #5b6b62; margin: 0 0 12px; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; }
+  .m-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .m-card { border: 1px solid #e3e0d4; border-radius: 10px; padding: 12px; background: #fff; display: flex; flex-direction: column; gap: 6px; }
+  .m-card .art { height: 70px; border-radius: 6px; }
+  .m-card h4 { margin: 0; font: 700 16px Georgia, serif; display: flex; align-items: center; gap: 7px; }
+  .m-card .price { font: 14px var(--sans); color: #5b6b62; }
+  .m-add { margin-top: auto; background: #2f5d46; color: #ffffff; border: 0; border-radius: 6px; padding: 8px 10px; font: 600 14px var(--sans); text-align: center; cursor: pointer; }
+  .m-journal { font: 15px/1.5 var(--sans); margin: 0; }
+  .m-news { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .m-news input { flex: 1 1 180px; min-width: 0; border: 1px solid #b9b5a6; border-radius: 6px; padding: 9px 10px; font: 15px var(--sans); background: #fff; color: #2b3a33; }
+  .m-news button { background: #2f5d46; color: #fff; border: 0; border-radius: 6px; padding: 9px 16px; font: 600 15px var(--sans); }
+  .m-foot { background: #f3f1ea; padding: 14px 22px; font: 13px var(--sans); color: #a3a39a; }
+  .mock.inspecting [data-x] { cursor: crosshair; }
+  .mock.inspecting [data-x]:hover { outline: 2px dashed rgba(91,61,245,.7); outline-offset: 2px; }
+
+  /* ---------- instrument panel ---------- */
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
+  .panel + .panel { margin-top: 14px; }
+  .panel h2 { font: 700 12px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 10px; }
+  .lenses { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
+  .lens-btn { border: 1px solid var(--line); background: var(--panel-2); border-radius: 10px; padding: 8px 4px 7px; font-size: 12px; font-weight: 650; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .lens-btn svg { width: 22px; height: 22px; }
+  .lens-btn[aria-pressed="true"] { background: var(--violet); color: #fff; border-color: var(--violet); }
+  .lens-body { border-top: 1px solid var(--line); padding-top: 12px; }
+  .seg { display: flex; flex-wrap: wrap; gap: 6px; }
+  .seg button { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 5px 11px; font-size: 13px; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .note { font-size: 12.5px; color: var(--ink-2); margin: 10px 0 0; }
+  .order-list { margin: 8px 0 0; padding-left: 22px; font-size: 13px; color: var(--ink-2); max-height: 280px; overflow: auto; }
+  .order-list li.jump { color: var(--fail); font-weight: 650; }
+  .clist { list-style: none; margin: 8px 0 0; padding: 0; max-height: 260px; overflow: auto; }
+  .clist li { display: grid; grid-template-columns: 54px minmax(0,1fr) auto; gap: 8px; align-items: center; padding: 6px 4px; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .clist .sw { height: 26px; border-radius: 5px; display: grid; place-items: center; font: 700 12px var(--sans); border: 1px solid rgba(0,0,0,.08); }
+  .clist .ratio { font: 700 13px var(--mono); }
+  .clist .ratio.bad { color: var(--fail); }
+  .clist .ratio.ok { color: var(--pass); }
+  .clist button { border: 0; background: none; text-align: left; padding: 0; font-size: 13px; color: var(--ink); text-decoration: underline dotted; text-underline-offset: 3px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  label.chk { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-2); margin-top: 8px; }
+
+  .insp-pick { display: flex; gap: 8px; align-items: center; }
+  .insp-pick label { font-size: 12.5px; color: var(--ink-2); white-space: nowrap; }
+  .insp-pick select { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; background: #fff; }
+  dl.facts { display: grid; grid-template-columns: 110px minmax(0,1fr); gap: 5px 10px; margin: 12px 0 0; font-size: 13px; }
+  dl.facts dt { color: var(--ink-3); font: 12px var(--mono); padding-top: 2px; }
+  dl.facts dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+  .none { color: var(--fail); }
+  .report { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .report select { flex: 1 1 170px; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; background: #fff; }
+  .btn { border: 0; background: var(--violet); color: #fff; font-weight: 700; border-radius: 8px; padding: 8px 14px; }
+  .btn.ghost { background: transparent; color: var(--ink-2); border: 1px solid var(--line); }
+  .verdict { font-size: 13px; margin: 8px 0 0; min-height: 1.3em; font-weight: 600; }
+  .verdict.ok { color: var(--pass); } .verdict.no { color: var(--fail); }
+  .issues { list-style: none; margin: 0; padding: 0; counter-reset: iss; }
+  .issues li { display: grid; grid-template-columns: 26px minmax(0,1fr); gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .issues li::before { counter-increment: iss; content: counter(iss); width: 22px; height: 22px; border-radius: 50%; background: var(--panel-2); border: 1px solid var(--line); display: grid; place-items: center; font: 700 11px var(--mono); color: var(--ink-3); }
+  .issues li.found::before { content: "✓"; background: var(--pass); color: #fff; border-color: var(--pass); }
+  .issues .sc { font: 11.5px var(--mono); color: var(--ink-3); }
+  .issues li:not(.found) .t { color: var(--ink-3); }
+  .done { background: var(--violet-2); border-radius: 10px; padding: 10px 12px; font-size: 13.5px; margin-bottom: 10px; color: #33208f; font-weight: 600; }
+  .fine { font-size: 12px; color: var(--ink-3); margin-top: 18px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  @media (max-width: 1000px) { .grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; grid-template-areas: "lenses" "frame" "side"; } }
+  @media (max-width: 620px) {
+    .m-hero { grid-template-columns: 1fr; }
+    .m-cards { grid-template-columns: 1fr; }
+    .m-nav { gap: 10px 14px; padding: 12px 14px; }
+    .m-logo { width: 100%; margin-right: 0; }
+    .m-hero, .m-sec { padding: 18px 14px; }
+    .m-foot { padding: 12px 14px; }
+    .lenses { grid-template-columns: repeat(2, 1fr); }
+    .score .bar { width: 80px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .score .bar i { transition: none; } }
+</style>
+</head>
+<body>
+<a href="../index.html#lab" class="back" data-testid="back-link">← Zac's Lab</a>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <!-- Machado, Oliveira & Fernandes (2009) matrices at full severity; achromatopsia uses Rec. 709 luma weights -->
+    <filter id="cvd-protanopia" color-interpolation-filters="linearRGB"><feColorMatrix type="matrix" values="0.152286 1.052583 -0.204868 0 0  0.114503 0.786281 0.099216 0 0  -0.003882 -0.048116 1.051998 0 0  0 0 0 1 0"/></filter>
+    <filter id="cvd-deuteranopia" color-interpolation-filters="linearRGB"><feColorMatrix type="matrix" values="0.367322 0.860646 -0.227968 0 0  0.280085 0.672501 0.047413 0 0  -0.011820 0.042940 0.968881 0 0  0 0 0 1 0"/></filter>
+    <filter id="cvd-tritanopia" color-interpolation-filters="linearRGB"><feColorMatrix type="matrix" values="1.255528 -0.076749 -0.178779 0 0  -0.078411 0.930809 0.147602 0 0  0.004733 0.691367 0.303900 0 0  0 0 0 1 0"/></filter>
+    <filter id="cvd-achromatopsia" color-interpolation-filters="linearRGB"><feColorMatrix type="matrix" values="0.2126 0.7152 0.0722 0 0  0.2126 0.7152 0.0722 0 0  0.2126 0.7152 0.0722 0 0  0 0 0 1 0"/></filter>
+  </defs>
+</svg>
+
+<div class="wrap">
+  <header class="hero">
+    <div class="brand">
+      <svg class="lens-icon" viewBox="0 0 54 54" aria-hidden="true"><circle cx="23" cy="23" r="17" fill="#fff" stroke="#161a33" stroke-width="4"/><path d="M23 6a17 17 0 0 1 0 34z" fill="#5b3df5" opacity=".85"/><path d="M36 36l12 12" stroke="#161a33" stroke-width="6" stroke-linecap="round"/><circle cx="17" cy="17" r="4" fill="#ffcf33"/></svg>
+      <div>
+        <h1>a11y <span>Lens</span></h1>
+        <p class="sub">A small shop page with nine accessibility bugs baked in. Look at it through each lens, inspect elements, and report what's wrong.</p>
+      </div>
+    </div>
+    <div class="score" role="status" aria-live="polite">
+      <div class="n" data-testid="found-count">0/9</div>
+      <div class="t">issues found<div class="bar"><i id="scoreBar"></i></div></div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <section class="frame" aria-label="Page under inspection">
+      <div class="chrome" aria-hidden="true"><i></i><i></i><i></i><div class="url">pebble-and-pine.example/</div></div>
+      <div class="viewport" id="viewport">
+        <div class="mock inspecting" id="mock" data-testid="mock">
+          <nav class="m-nav" aria-label="Shop">
+            <a class="m-logo" href="#" data-x="Logo link"><svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><path d="M13 2l9 14H4z" fill="#2f5d46"/><path d="M13 9l6 10H7z" fill="#6f9a7a"/><rect x="11.5" y="19" width="3" height="5" fill="#7a5a3a"/></svg>Pebble &amp; Pine</a>
+            <a class="lnk" href="#" data-x="Nav: Tents">Tents</a>
+            <a class="lnk" href="#" data-x="Nav: Packs">Packs</a>
+            <a class="lnk" href="#" data-x="Nav: Journal">Journal</a>
+            <button class="m-search" type="button" data-x="Search button (icon)" data-issue="name" data-testid="mock-search"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="none" stroke="#2b3a33" stroke-width="2"/><path d="M11 11l4 4" stroke="#2b3a33" stroke-width="2"/></svg></button>
+          </nav>
+          <div class="m-hero">
+            <div>
+              <h2 data-x="Hero heading">Pack light. Walk far.</h2>
+              <p data-x="Hero paragraph">Trail-tested kit for three-season hiking, from a small (and entirely fictional) outfitter.</p>
+              <button class="m-cta" type="button" data-x="Hero button: Shop the sale" data-issue="contrast" data-testid="mock-cta">Shop the sale</button>
+            </div>
+            <img id="heroImg" data-x="Hero image" data-issue="alt" data-testid="mock-img" width="360" height="200" src="">
+          </div>
+          <section class="m-sec" aria-labelledby="picks-h">
+            <h3 id="picks-h" data-x="Section heading: This week's picks">This week's picks</h3>
+            <p class="m-legend" data-x="Stock legend"><span class="dot" style="background:#3aa655"></span> in stock &nbsp; <span class="dot" style="background:#d9534f"></span> sold out</p>
+            <div class="m-cards">
+              <article class="m-card"><div class="art" style="background:#cfdcc9"></div><h4 data-x="Card: Ridge 2 Tent"><span class="dot" style="background:#3aa655" data-x="Stock dot (Ridge 2 Tent)"></span>Ridge 2 Tent</h4><div class="price" data-x="Price: Ridge 2">$289</div><button class="m-add" type="button" data-x="Add to pack (Ridge 2)">Add to pack</button></article>
+              <article class="m-card"><div class="art" style="background:#e6d6bf"></div><h4 data-x="Card: Kestrel 40 Pack"><span class="dot" style="background:#d9534f" data-x="Stock dot (Kestrel 40)" data-issue="color" data-testid="mock-dot"></span>Kestrel 40 Pack</h4><div class="price" data-x="Price: Kestrel 40">$179</div><button class="m-add" type="button" data-x="Add to pack (Kestrel 40)">Add to pack</button></article>
+              <article class="m-card"><div class="art" style="background:#d6d3e4"></div><h4 data-x="Card: Ember Stove"><span class="dot" style="background:#3aa655" data-x="Stock dot (Ember Stove)"></span>Ember Stove</h4><div class="price" data-x="Price: Ember">$64</div><div class="m-add" data-x="Add to pack (Ember Stove)" data-issue="keyboard" data-testid="mock-divbtn" onclick="this.textContent='Added ✓'">Add to pack</div></article>
+            </div>
+          </section>
+          <section class="m-sec" style="padding-top:0" aria-label="Newsletter">
+            <p class="m-journal" data-x="Journal teaser">New on the journal: how to layer for a cold start. <a href="#" data-x="Link: click here" data-issue="link" data-testid="mock-link">Click here</a>.</p>
+            <div class="m-news">
+              <input type="email" placeholder="Email address" data-x="Newsletter email field" data-issue="label" data-testid="mock-email">
+              <button type="button" tabindex="1" data-x="Subscribe button" data-issue="order" data-testid="mock-subscribe">Subscribe</button>
+            </div>
+          </section>
+          <footer class="m-foot" data-x="Footer text" data-issue="contrast" data-testid="mock-foot">© Pebble &amp; Pine Outfitters — a fictional shop made for this demo.</footer>
+        </div>
+        <div class="overlay" id="overlay" aria-hidden="true"><svg id="ovSvg"></svg></div>
+        <div class="sel-box" id="selBox" hidden></div>
+        <div class="tip" id="tip" hidden></div>
+      </div>
+    </section>
+
+    <section class="panel lenses-panel" aria-labelledby="lens-h">
+        <h2 id="lens-h">Lenses</h2>
+        <div class="lenses" role="group" aria-label="Choose a lens">
+          <button class="lens-btn" data-lens="vision" data-testid="lens-vision" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.5" fill="currentColor"/></svg>Vision</button>
+          <button class="lens-btn" data-lens="order" data-testid="lens-order" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="6" r="3" fill="currentColor"/><circle cx="19" cy="12" r="3" fill="currentColor"/><circle cx="7" cy="19" r="3" fill="currentColor"/><path d="M7 7l10 4M17 13L9 18" stroke="currentColor" stroke-width="1.8" fill="none"/></svg>Tab order</button>
+          <button class="lens-btn" data-lens="names" data-testid="lens-names" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7 10h10M7 14h6" stroke="currentColor" stroke-width="2"/></svg>Names</button>
+          <button class="lens-btn" data-lens="contrast" data-testid="lens-contrast" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg>Contrast</button>
+        </div>
+        <div class="lens-body" id="lb-vision">
+          <div class="seg" role="group" aria-label="Colour vision simulation">
+            <button data-cvd="none" data-testid="cvd-none" aria-pressed="true">Typical</button>
+            <button data-cvd="protanopia" data-testid="cvd-protanopia" aria-pressed="false">Protanopia</button>
+            <button data-cvd="deuteranopia" data-testid="cvd-deuteranopia" aria-pressed="false">Deuteranopia</button>
+            <button data-cvd="tritanopia" data-testid="cvd-tritanopia" aria-pressed="false">Tritanopia</button>
+            <button data-cvd="achromatopsia" data-testid="cvd-achromatopsia" aria-pressed="false">Achromatopsia</button>
+          </div>
+          <p class="note" id="cvdNote" aria-live="polite">Typical colour vision. Try a simulation and look at anything that relies on colour to carry meaning.</p>
+        </div>
+        <div class="lens-body" id="lb-order" hidden>
+          <p class="note" style="margin-top:0">Numbered badges show where Tab goes, in order. Every interactive thing should get a number, in reading order.</p>
+          <ol class="order-list" id="orderList" data-testid="order-list"></ol>
+        </div>
+        <div class="lens-body" id="lb-names" hidden>
+          <p class="note" style="margin-top:0">Hover or tap anything in the page to see the role and accessible name a screen reader would announce (a simplified version of the accname algorithm).</p>
+        </div>
+        <div class="lens-body" id="lb-contrast" hidden>
+          <p class="note" style="margin-top:0">Text colour against its actual background, using the WCAG 2 relative-luminance formula. AA needs 4.5:1 for normal text, 3:1 for large text.</p>
+          <label class="chk"><input type="checkbox" id="showAll" data-testid="show-all"> show passing pairs too</label>
+          <ul class="clist" id="clist" data-testid="contrast-list" aria-live="polite"></ul>
+        </div>
+      </section>
+
+    <aside class="side">
+      <section class="panel" aria-labelledby="insp-h">
+        <h2 id="insp-h">Inspector</h2>
+        <div class="insp-pick">
+          <label for="picker">Element</label>
+          <select id="picker" data-testid="picker"><option value="">— tap the page or choose —</option></select>
+        </div>
+        <div id="facts" aria-live="polite">
+          <dl class="facts" data-testid="facts">
+            <dt>role</dt><dd data-testid="f-role">—</dd>
+            <dt>name</dt><dd data-testid="f-name">—</dd>
+            <dt>name from</dt><dd data-testid="f-source">—</dd>
+            <dt>keyboard</dt><dd data-testid="f-focus">—</dd>
+            <dt>contrast</dt><dd data-testid="f-contrast">—</dd>
+          </dl>
+        </div>
+        <div class="report">
+          <label class="sr" for="issueType">Issue type</label>
+          <select id="issueType" data-testid="issue-type">
+            <option value="">What's wrong here?</option>
+            <option value="alt">Missing text alternative</option>
+            <option value="name">No accessible name</option>
+            <option value="label">Missing form label</option>
+            <option value="order">Illogical focus order</option>
+            <option value="keyboard">Not keyboard operable</option>
+            <option value="link">Vague link text</option>
+            <option value="contrast">Insufficient contrast</option>
+            <option value="color">Colour alone conveys meaning</option>
+          </select>
+          <button class="btn" id="reportBtn" data-testid="report">Report</button>
+        </div>
+        <p class="verdict" id="verdict" data-testid="verdict" role="status"></p>
+      </section>
+
+      <section class="panel" aria-labelledby="iss-h">
+        <h2 id="iss-h">Issue tracker</h2>
+        <div class="done" id="done" data-testid="done" hidden>All nine found. This page would now fail far fewer automated and manual checks — though tools like this only catch part of what real users hit.</div>
+        <ol class="issues" id="issues" data-testid="issues"></ol>
+        <button class="btn ghost" id="reset" data-testid="reset" style="margin-top:10px">Reset progress</button>
+      </section>
+    </aside>
+  </div>
+  <p class="fine">Pebble &amp; Pine is fictional. Colour-vision lenses are approximate simulations (Machado et al. 2009 matrices at full severity; achromatopsia shown as luminance only) and cannot show exactly what any individual sees. The name inspector implements a simplified subset of the accessible-name computation.</p>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const mock = $('mock'), viewport = $('viewport'), ovSvg = $('ovSvg'), tip = $('tip'), selBox = $('selBox');
+
+  // hero illustration as an inline data URI (no network)
+  const heroSvg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 360 200'><rect width='360' height='200' fill='#bcd3c4'/><circle cx='280' cy='52' r='26' fill='#f6e3b4'/><path d='M0 150 L80 70 L140 130 L210 50 L300 140 L360 100 V200 H0z' fill='#6f9a7a'/><path d='M0 180 L100 120 L190 170 L270 120 L360 170 V200 H0z' fill='#2f5d46'/><path d='M210 50 L230 70 L220 72 L210 62 L198 74 L190 70z' fill='#fff'/></svg>`;
+  $('heroImg').src = 'data:image/svg+xml,' + encodeURIComponent(heroSvg);
+
+  const ISSUES = [
+    { type: 'alt', el: 'Hero image', title: 'Hero image has no alt attribute', sc: 'WCAG 1.1.1 Non-text Content', hint: 'Names lens' },
+    { type: 'name', el: 'Search button (icon)', title: 'Icon-only search button has no accessible name', sc: 'WCAG 4.1.2 Name, Role, Value', hint: 'Names lens' },
+    { type: 'contrast', el: 'Hero button: Shop the sale', title: 'White on orange CTA is about 2.1:1', sc: 'WCAG 1.4.3 Contrast (Minimum)', hint: 'Contrast lens' },
+    { type: 'color', el: 'Stock dot (Kestrel 40)', title: 'Stock status shown by dot colour only', sc: 'WCAG 1.4.1 Use of Color', hint: 'Vision lens' },
+    { type: 'keyboard', el: 'Add to pack (Ember Stove)', title: '"Add to pack" is a clickable div — no focus, no keyboard', sc: 'WCAG 2.1.1 Keyboard', hint: 'Tab order lens' },
+    { type: 'link', el: 'Link: click here', title: '"Click here" says nothing about the destination', sc: 'WCAG 2.4.4 Link Purpose (In Context)', hint: 'Names lens' },
+    { type: 'label', el: 'Newsletter email field', title: 'Email field relies on placeholder instead of a label', sc: 'WCAG 3.3.2 Labels or Instructions', hint: 'Names lens' },
+    { type: 'order', el: 'Subscribe button', title: 'tabindex="1" makes Subscribe the first Tab stop', sc: 'WCAG 2.4.3 Focus Order', hint: 'Tab order lens' },
+    { type: 'contrast', el: 'Footer text', title: 'Grey footer text on cream is about 2.3:1', sc: 'WCAG 1.4.3 Contrast (Minimum)', hint: 'Contrast lens' },
+  ];
+  const found = new Set();
+  try { (JSON.parse(localStorage.getItem('zlab-018') || '[]') || []).forEach(i => { if (ISSUES[i]) found.add(i); }); } catch (e) { /* ignore */ }
+  if (new URLSearchParams(location.search).has('fresh')) found.clear();
+
+  const els = [...mock.querySelectorAll('[data-x]')];
+  const picker = $('picker');
+  els.forEach((el, i) => { el.dataset.idx = i; const o = document.createElement('option'); o.value = i; o.textContent = el.dataset.x; picker.appendChild(o); });
+
+  /* ---------- colour maths (WCAG 2.x) ---------- */
+  const parseRGB = s => { const m = s.match(/rgba?\(([^)]+)\)/); if (!m) return null; const p = m[1].split(/[ ,\/]+/).filter(Boolean).map(Number); return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 }; };
+  const lin = v => { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+  const lum = c => 0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b);
+  const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  const hex = c => '#' + [c.r, c.g, c.b].map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+  function bgOf(el) {
+    for (let n = el; n && n !== document.documentElement; n = n.parentElement) {
+      const c = parseRGB(getComputedStyle(n).backgroundColor);
+      if (c && c.a > 0) return c;
+    }
+    return { r: 255, g: 255, b: 255, a: 1 };
+  }
+  const ownText = el => [...el.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').replace(/\s+/g, ' ').trim();
+  function contrastOf(el) {
+    const t = ownText(el);
+    if (!t) return null;
+    const cs = getComputedStyle(el);
+    const fg = parseRGB(cs.color), bg = bgOf(el);
+    const size = parseFloat(cs.fontSize), bold = parseInt(cs.fontWeight, 10) >= 700;
+    const large = size >= 24 || (bold && size >= 18.66);
+    const r = ratio(fg, bg);
+    return { fg, bg, r, large, need: large ? 3 : 4.5, pass: r >= (large ? 3 : 4.5), text: t };
+  }
+
+  /* ---------- simplified accessible name ---------- */
+  const IMPLICIT = { A: 'link', BUTTON: 'button', IMG: 'img', H1: 'heading', H2: 'heading', H3: 'heading', H4: 'heading', NAV: 'navigation', FOOTER: 'contentinfo', P: 'paragraph', INPUT: 'textbox' };
+  function roleOf(el) {
+    if (el.getAttribute('role')) return el.getAttribute('role');
+    if (el.tagName === 'A' && !el.hasAttribute('href')) return 'generic';
+    return IMPLICIT[el.tagName] || 'generic';
+  }
+  const visibleText = el => {
+    let s = '';
+    el.childNodes.forEach(n => {
+      if (n.nodeType === 3) s += n.textContent;
+      else if (n.nodeType === 1 && n.getAttribute('aria-hidden') !== 'true') s += visibleText(n);
+    });
+    return s.replace(/\s+/g, ' ').trim();
+  };
+  function accName(el) {
+    const lb = el.getAttribute('aria-labelledby');
+    if (lb) return { name: lb.split(/\s+/).map(id => document.getElementById(id)).filter(Boolean).map(visibleText).join(' '), source: 'aria-labelledby' };
+    if (el.getAttribute('aria-label')) return { name: el.getAttribute('aria-label'), source: 'aria-label' };
+    if (el.tagName === 'IMG') {
+      if (el.hasAttribute('alt')) return { name: el.getAttribute('alt'), source: el.getAttribute('alt') ? 'alt' : 'alt="" (decorative)' };
+      return { name: '', source: 'nothing — no alt attribute' };
+    }
+    if (el.tagName === 'INPUT') {
+      if (el.id) { const l = document.querySelector(`label[for="${el.id}"]`); if (l) return { name: visibleText(l), source: '<label>' }; }
+      if (el.closest('label')) return { name: visibleText(el.closest('label')), source: 'wrapping <label>' };
+      if (el.title) return { name: el.title, source: 'title' };
+      if (el.placeholder) return { name: el.placeholder, source: 'placeholder (fallback — disappears on input)' };
+      return { name: '', source: 'nothing' };
+    }
+    const role = roleOf(el);
+    if (['link', 'button', 'heading'].includes(role)) {
+      const t = visibleText(el);
+      if (t) return { name: t, source: 'content' };
+    }
+    if (el.title) return { name: el.title, source: 'title' };
+    if (role === 'generic' || role === 'paragraph' || role === 'contentinfo') return { name: '', source: 'not named (role does not take a name from content)' };
+    return { name: '', source: 'nothing' };
+  }
+  const isFocusable = el => el.tabIndex >= 0 && (el.matches('a[href],button,input,select,textarea') || el.hasAttribute('tabindex'));
+
+  /* ---------- lenses ---------- */
+  let lens = 'vision', cvd = 'none', selected = null;
+  document.querySelectorAll('[data-lens]').forEach(b => b.addEventListener('click', () => setLens(b.dataset.lens)));
+  function setLens(l) {
+    lens = l;
+    document.querySelectorAll('[data-lens]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.lens === l)));
+    ['vision', 'order', 'names', 'contrast'].forEach(k => { $('lb-' + k).hidden = k !== l; });
+    drawOverlay();
+    if (l === 'contrast') renderContrast();
+  }
+  const CVD_NOTES = {
+    none: 'Typical colour vision. Try a simulation and look at anything that relies on colour to carry meaning.',
+    protanopia: 'Protanopia (no functioning long-wavelength cones): reds darken and shift toward olive; red vs green gets hard.',
+    deuteranopia: 'Deuteranopia (no functioning medium-wavelength cones): red and green collapse toward similar yellow-browns.',
+    tritanopia: 'Tritanopia (no functioning short-wavelength cones, rare): blues and greens merge, yellows shift pink.',
+    achromatopsia: 'Achromatopsia (complete colour blindness, very rare): luminance only. Anything that differs only in hue disappears.',
+  };
+  document.querySelectorAll('[data-cvd]').forEach(b => b.addEventListener('click', () => {
+    cvd = b.dataset.cvd;
+    document.querySelectorAll('[data-cvd]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    mock.style.filter = cvd === 'none' ? '' : `url(#cvd-${cvd})`;
+    $('cvdNote').textContent = CVD_NOTES[cvd];
+  }));
+
+  function tabOrder() {
+    const f = [...mock.querySelectorAll('a[href],button,input,select,textarea,[tabindex]')].filter(el => el.tabIndex >= 0 && !el.disabled);
+    const pos = f.filter(el => el.tabIndex > 0).sort((a, b) => a.tabIndex - b.tabIndex);
+    return pos.concat(f.filter(el => el.tabIndex === 0));
+  }
+  const relRect = el => { const v = viewport.getBoundingClientRect(), r = el.getBoundingClientRect(); return { x: r.left - v.left, y: r.top - v.top, w: r.width, h: r.height }; };
+  const NS = 'http://www.w3.org/2000/svg';
+  function drawOverlay() {
+    ovSvg.innerHTML = '';
+    if (lens !== 'order') return;
+    const order = tabOrder();
+    const pts = order.map(el => { const r = relRect(el); return [r.x + r.w / 2, r.y + r.h / 2, r]; });
+    const pl = document.createElementNS(NS, 'polyline');
+    pl.setAttribute('points', pts.map(p => p[0] + ',' + p[1]).join(' '));
+    pl.setAttribute('fill', 'none'); pl.setAttribute('stroke', '#5b3df5'); pl.setAttribute('stroke-width', '2'); pl.setAttribute('stroke-dasharray', '5 4'); pl.setAttribute('opacity', '.75');
+    ovSvg.appendChild(pl);
+    pts.forEach((p, i) => {
+      const [, , r] = p; const el = order[i];
+      const box = document.createElementNS(NS, 'rect');
+      Object.entries({ x: r.x - 2, y: r.y - 2, width: r.w + 4, height: r.h + 4, rx: 4, fill: 'none', stroke: el.tabIndex > 0 ? '#c22f3f' : '#5b3df5', 'stroke-width': 1.5 }).forEach(([k, v]) => box.setAttribute(k, v));
+      ovSvg.appendChild(box);
+      const g = document.createElementNS(NS, 'g');
+      g.setAttribute('data-stop', i + 1); g.setAttribute('data-for', el.dataset.x);
+      const c = document.createElementNS(NS, 'circle');
+      Object.entries({ cx: r.x, cy: r.y, r: 11, fill: el.tabIndex > 0 ? '#c22f3f' : '#161a33', stroke: '#ffcf33', 'stroke-width': 2 }).forEach(([k, v]) => c.setAttribute(k, v));
+      const t = document.createElementNS(NS, 'text');
+      Object.entries({ x: r.x, y: r.y + 4, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 700, fill: '#fff', 'font-family': 'system-ui, sans-serif' }).forEach(([k, v]) => t.setAttribute(k, v));
+      t.textContent = i + 1;
+      g.append(c, t); ovSvg.appendChild(g);
+    });
+    $('orderList').innerHTML = order.map(el => `<li class="${el.tabIndex > 0 ? 'jump' : ''}">${el.dataset.x}${el.tabIndex > 0 ? ` — tabindex="${el.tabIndex}" jumps the queue` : ''}</li>`).join('');
+    $('orderList').dataset.count = order.length;
+  }
+
+  function renderContrast() {
+    const all = $('showAll').checked;
+    const rows = els.map(el => ({ el, c: contrastOf(el) })).filter(x => x.c && (all || !x.c.pass)).sort((a, b) => a.c.r - b.c.r);
+    $('clist').innerHTML = rows.length ? rows.map(({ el, c }) => `<li data-testid="pair" data-pass="${c.pass}">
+      <span class="sw" style="background:${hex(c.bg)};color:${hex(c.fg)}">Aa</span>
+      <button type="button" data-pick="${el.dataset.idx}" title="${el.dataset.x}">${el.dataset.x}</button>
+      <span class="ratio ${c.pass ? 'ok' : 'bad'}" data-testid="ratio">${c.r.toFixed(2)}:1</span></li>`).join('') : '<li>No failing text pairs.</li>';
+    $('clist').querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => select(els[+b.dataset.pick])));
+  }
+  $('showAll').addEventListener('change', renderContrast);
+
+  /* ---------- inspector ---------- */
+  function describe(el) {
+    const role = roleOf(el), n = accName(el), c = contrastOf(el);
+    const foc = isFocusable(el);
+    const clickable = el.hasAttribute('onclick');
+    return {
+      role, name: n.name, source: n.source,
+      focus: foc ? (el.tabIndex > 0 ? `focusable, tabindex=${el.tabIndex} (positive!)` : 'focusable') : (clickable ? 'NOT focusable — but has a click handler' : 'not focusable'),
+      contrast: c ? `${c.r.toFixed(2)}:1 ${c.pass ? 'passes' : 'fails'} AA (${c.large ? 'large' : 'normal'} text, needs ${c.need}:1)` : 'no text of its own',
+    };
+  }
+  function select(el) {
+    selected = el;
+    picker.value = el ? el.dataset.idx : '';
+    $('verdict').textContent = ''; $('verdict').className = 'verdict';
+    if (!el) { selBox.hidden = true; ['role', 'name', 'source', 'focus', 'contrast'].forEach(k => { document.querySelector(`[data-testid="f-${k}"]`).textContent = '—'; }); return; }
+    const d = describe(el);
+    const set = (k, v, bad) => { const n = document.querySelector(`[data-testid="f-${k}"]`); n.textContent = v; n.classList.toggle('none', !!bad); };
+    set('role', d.role);
+    set('name', d.name ? `"${d.name}"` : '(no accessible name)', !d.name && ['button', 'link', 'img', 'textbox'].includes(d.role));
+    set('source', d.source);
+    set('focus', d.focus, /NOT|positive/.test(d.focus));
+    set('contrast', d.contrast, /fails/.test(d.contrast));
+    placeSel();
+  }
+  function placeSel() {
+    if (!selected) return;
+    const r = relRect(selected);
+    Object.assign(selBox.style, { left: r.x - 4 + 'px', top: r.y - 4 + 'px', width: r.w + 8 + 'px', height: r.h + 8 + 'px' });
+    selBox.hidden = false;
+  }
+  picker.addEventListener('change', () => select(picker.value === '' ? null : els[+picker.value]));
+
+  // clicks inside the mock select instead of acting
+  mock.addEventListener('click', e => {
+    const el = e.target.closest('[data-x]');
+    e.preventDefault(); e.stopPropagation();
+    if (el) select(el);
+  }, true);
+  mock.addEventListener('focusin', e => { const el = e.target.closest('[data-x]'); if (el) select(el); });
+  mock.addEventListener('pointermove', e => {
+    if (lens !== 'names' || e.pointerType === 'touch') { tip.hidden = true; return; }
+    const el = e.target.closest('[data-x]');
+    if (!el) { tip.hidden = true; return; }
+    const d = describe(el), v = viewport.getBoundingClientRect();
+    tip.innerHTML = `<b>${d.role}</b> ${d.name ? '"' + d.name.replace(/</g, '&lt;') + '"' : '<i>(no name)</i>'}`;
+    tip.hidden = false;
+    const x = Math.min(e.clientX - v.left + 14, v.width - 270);
+    tip.style.left = Math.max(4, x) + 'px'; tip.style.top = (e.clientY - v.top + 16) + 'px';
+  });
+  mock.addEventListener('pointerleave', () => { tip.hidden = true; });
+
+  /* ---------- reporting ---------- */
+  $('reportBtn').addEventListener('click', () => {
+    const v = $('verdict'), type = $('issueType').value;
+    if (!selected) { v.textContent = 'Select an element in the page first.'; v.className = 'verdict no'; return; }
+    if (!type) { v.textContent = 'Choose what is wrong with it.'; v.className = 'verdict no'; return; }
+    const idx = ISSUES.findIndex(i => i.el === selected.dataset.x);
+    if (idx < 0) { v.textContent = `Nothing wrong with "${selected.dataset.x}" of that kind — look elsewhere.`; v.className = 'verdict no'; return; }
+    if (ISSUES[idx].type !== type) { v.textContent = 'This element does have a problem, but not that one. Try another lens.'; v.className = 'verdict no'; return; }
+    if (found.has(idx)) { v.textContent = 'Already reported.'; v.className = 'verdict ok'; return; }
+    found.add(idx);
+    v.textContent = `Found: ${ISSUES[idx].title}.`; v.className = 'verdict ok';
+    renderIssues();
+  });
+  $('reset').addEventListener('click', () => { found.clear(); renderIssues(); $('verdict').textContent = ''; });
+
+  function renderIssues() {
+    $('issues').innerHTML = ISSUES.map((iss, i) => found.has(i)
+      ? `<li class="found" data-testid="issue-${i}"><div><div class="t">${iss.title}</div><div class="sc">${iss.sc}</div></div></li>`
+      : `<li data-testid="issue-${i}"><div><div class="t">Undiscovered</div><div class="sc">hint: ${iss.hint}</div></div></li>`).join('');
+    $('issues').querySelectorAll('li').forEach(li => li.setAttribute('aria-label', li.textContent.trim()));
+    document.querySelector('[data-testid="found-count"]').textContent = `${found.size}/${ISSUES.length}`;
+    $('scoreBar').style.width = (found.size / ISSUES.length * 100) + '%';
+    $('done').hidden = found.size !== ISSUES.length;
+    try { localStorage.setItem('zlab-018', JSON.stringify([...found])); } catch (e) { /* ignore */ }
+  }
+
+  let rz;
+  addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { drawOverlay(); placeSel(); }, 80); });
+  $('heroImg').addEventListener('load', () => { drawOverlay(); placeSel(); });
+  renderIssues();
+  setLens('vision');
+  window.__a11yLens = { ratio: (a, b) => ratio(parseRGB(a), parseRGB(b)), tabOrder: () => tabOrder().map(e => e.dataset.x) };
+})();
+</script>
+</body>
+</html>

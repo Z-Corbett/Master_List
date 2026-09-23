@@ -1,0 +1,35 @@
+{
+  "id": "020",
+  "slug": "020-api-playground",
+  "file": "lab/020-api-playground.html",
+  "title": "Mock API Playground — Marginalia Books API",
+  "category": "QA & Testing",
+  "tags": ["api-testing", "rest", "http", "assertions", "localstorage", "seeded-prng"],
+  "description": "A Postman-style request builder (method, URL, toggleable headers, JSON body) wired to an in-memory REST API for a fictional bookshop that runs inside the page: paginated /books with Link and X-Total-Count headers, bearer-token auth, and realistic 400/401/404/405/422/429 responses with rate-limit headers. Inspect status, timing, size, headers and pretty-printed JSON, write assertions (status, JSON path, header exists, response time) that run on every response, and save requests to a local collection.",
+  "prompt": "Build a 'Mock API Playground' — a Postman-style request builder with method, URL, headers and a JSON body, talking to a fictional bookshop REST API that lives in memory in the page. Support GET/POST/PUT/DELETE on /books, bearer-token auth, pagination, and real error responses: 401 without a token, 404 for missing books, 422 with field-level validation errors, 429 when you send too fast (with Retry-After). Show status, timing, headers and pretty JSON. Add an assertions tab (status equals, JSON path equals, header exists, response time under N ms) with pass/fail after every send, and a saved collection in localStorage plus some ready-made example requests. Absolutely no network: intercept everything in JS and refuse any other host. Dark 'late-night library' look with brass accents.",
+  "qa": {
+    "methodology": [
+      "Contract-style checks on the mock server: status line, body shape and the headers a client relies on (X-Total-Count, Link rel=next/prev, Location, Allow, Retry-After, X-RateLimit-Remaining).",
+      "State transitions through the UI only: create → fetch by new id; delete → 404; validation errors listed per field in a deterministic order.",
+      "Negative paths: missing token, malformed JSON, method not allowed, and a foreign host that must be blocked rather than fetched.",
+      "Assertion engine tested both ways: all four defaults pass on a known response, then edited assertions fail with a precise explanation.",
+      "Time-dependent behaviour (latency and the 10-requests-per-10-seconds window) driven by Playwright's fake clock so the 429 appears exactly on the 11th call and clears after the window.",
+      "Persistence: saved requests survive a reload and can be loaded and deleted."
+    ],
+    "risks": [
+      "Rate-limit state leaking between flows, so an unrelated test suddenly gets a 429 after enough requests.",
+      "Header name case: users type 'authorization' or 'Authorization' and both must work, while response header lookups in assertions must also be case-insensitive.",
+      "Tabs hiding inputs: a hidden tab panel makes controls unreachable, which is exactly what the first spec draft tripped over."
+    ],
+    "playwright": "Because the 'network' is a JavaScript function, Playwright's route() interception is irrelevant here; the spec treats the UI as the client and parses the rendered JSON body back with JSON.parse for structural assertions. Simulated latency uses setTimeout and the rate limiter uses Date.now(), so the rate-limit test installs page.clock, reloads, pauses, and advances with runFor(300) per request and fastForward(10_000) to clear the window — no real waiting. The first draft failed because the helper ticked the Authorization checkbox while the Body tab was selected (the input was hidden); the fix was to select the Headers tab in the helper, which mirrors what a user must do. Screenshots were not compared: every value on screen has a testid and is asserted as text.",
+    "coverage": [
+      "Pagination body and Link / X-Total-Count headers",
+      "401 → 422 (field errors) → 400 (bad JSON) → 201 + Location → GET new book",
+      "DELETE then 404, PATCH 405 with Allow, foreign host blocked",
+      "Assertions all-pass, then targeted failures with messages",
+      "429 with Retry-After on the 11th request, recovery after 10 s (fake clock)",
+      "Saved collection persists across reload, load and delete"
+    ]
+  },
+  "a11y": "Request and response panels use proper ARIA tabs with arrow-key navigation, every header, body and assertion field is labelled, and Ctrl+Enter sends from anywhere. The status line is a live region and assertion results are announced as passed/failed text, not just ticks and colours."
+}

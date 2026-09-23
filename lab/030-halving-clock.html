@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Halving Clock — Bitcoin's issuance schedule</title>
+<meta name="description" content="An exact visualization of Bitcoin's issuance schedule: a 50 BTC starting subsidy that halves every 210,000 blocks with integer-satoshi truncation, a staircase subsidy chart, the supply curve approaching 20,999,999.9769 BTC, an epoch table and a block-height lookup.">
+<style>
+  :root {
+    --face: #ffffff;
+    --bg: #f3f3f1;
+    --ink: #121212;
+    --ink-2: #4d4d4d;
+    --ink-3: #8a8a8a;
+    --rule: #dcdcd8;
+    --red: #e2231a;
+    --red-bg: #fde9e7;
+    --steel: #6b7077;
+    --sans: "Helvetica Neue", Helvetica, Arial, "Segoe UI", system-ui, sans-serif;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--sans); overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--red); outline-offset: 2px; }
+  button, input { font-family: inherit; }
+  a.back { position: fixed; top: 12px; left: 12px; z-index: 30; font: 700 12.5px/1 var(--sans); color: var(--ink); text-decoration: none;
+    background: var(--face); border: 1.5px solid var(--ink); padding: 8px 12px; border-radius: 999px; }
+  a.back:hover { background: var(--red); color: #fff; border-color: var(--red); }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px; }
+  .hero { display: grid; grid-template-columns: 1.05fr .95fr; gap: 30px; align-items: center; padding: 66px 0 30px; }
+  .kicker { font: 700 12px/1 var(--sans); letter-spacing: .24em; text-transform: uppercase; color: var(--red); margin: 0 0 12px; }
+  h1 { margin: 0; font: 700 clamp(48px, 8vw, 100px)/.9 var(--sans); letter-spacing: -.045em; }
+  .lede { margin: 16px 0 0; max-width: 50ch; color: var(--ink-2); font-size: 16.5px; }
+  .figures { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 0; margin-top: 24px; border-top: 2px solid var(--ink); }
+  .figures div { padding: 12px 12px 0 0; }
+  .figures div + div { padding-left: 12px; border-left: 1px solid var(--rule); }
+  .figures b { display: block; font: 700 clamp(17px, 1.9vw, 22px)/1.1 var(--mono); letter-spacing: -.03em; word-break: break-word; }
+  .figures span { font-size: 12px; color: var(--ink-3); }
+  .dial-wrap { position: relative; max-width: 460px; width: 100%; justify-self: center; }
+  svg.dial { width: 100%; height: auto; display: block; filter: drop-shadow(0 18px 30px rgba(0, 0, 0, .12)); }
+  .dial-cap { text-align: center; font-size: 13px; color: var(--ink-2); margin: 10px 0 0; }
+  .dial-cap b { font-family: var(--mono); color: var(--ink); }
+
+  section { padding: 34px 0; border-top: 2px solid var(--ink); }
+  h2 { font: 700 clamp(26px, 3.6vw, 38px)/1.05 var(--sans); letter-spacing: -.02em; margin: 0 0 6px; }
+  .sub { color: var(--ink-2); margin: 0 0 18px; max-width: 70ch; }
+
+  .lookup { display: grid; grid-template-columns: 340px 1fr; gap: 20px; align-items: start; }
+  .panel { background: var(--face); border: 1.5px solid var(--ink); border-radius: 16px; padding: 18px; }
+  .panel label { display: block; font: 700 11px/1 var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 8px; }
+  .h-row { display: flex; gap: 8px; }
+  .h-row input { flex: 1; min-width: 0; font: 700 22px/1 var(--mono); padding: 10px 12px; border: 1.5px solid var(--ink); border-radius: 10px; }
+  .btn { font: 700 13px/1 var(--sans); min-height: 44px; padding: 0 14px; border-radius: 10px; border: 1.5px solid var(--ink); background: var(--ink); color: #fff; cursor: pointer; }
+  .btn:hover { background: var(--red); border-color: var(--red); }
+  .btn.ghost { background: transparent; color: var(--ink); }
+  .btn.ghost:hover { color: #fff; }
+  .quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .quick button { font: 600 12.5px/1 var(--mono); min-height: 34px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--rule); background: var(--bg); cursor: pointer; }
+  .quick button:hover { border-color: var(--ink); }
+  .err { color: var(--red); font-size: 13px; min-height: 18px; margin: 8px 0 0; }
+  .result { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--rule); border: 1.5px solid var(--ink); border-radius: 16px; overflow: hidden; }
+  .result div { background: var(--face); padding: 14px 16px; }
+  .result span { display: block; font: 700 10.5px/1 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 6px; }
+  .result b { font: 700 19px/1.2 var(--mono); word-break: break-word; }
+  .result small { display: block; color: var(--ink-3); font-size: 12px; margin-top: 3px; }
+  .result .accent b { color: var(--red); }
+
+  .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .chart { background: var(--face); border: 1.5px solid var(--ink); border-radius: 16px; padding: 14px 14px 8px; }
+  .chart header { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+  .chart h3 { margin: 0; font: 700 15px/1.2 var(--sans); }
+  .seg { display: inline-flex; border: 1.5px solid var(--ink); border-radius: 999px; overflow: hidden; }
+  .seg button { font: 700 12px/1 var(--sans); padding: 7px 12px; min-height: 32px; border: 0; background: transparent; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+  svg.plot { width: 100%; height: auto; display: block; touch-action: pan-y; cursor: crosshair; }
+  .plot text { font: 11px var(--mono); fill: var(--ink-3); }
+  .plot .gl { stroke: #eeeeea; }
+  .plot .lbl { font: 700 11px var(--sans); fill: var(--red); }
+  .chart .note { font-size: 12px; color: var(--ink-3); margin: 4px 2px 6px; }
+
+  .table-wrap { overflow-x: auto; background: var(--face); border: 1.5px solid var(--ink); border-radius: 16px; }
+  table { border-collapse: collapse; width: 100%; min-width: 860px; font-size: 13.5px; }
+  th, td { padding: 8px 12px; text-align: right; white-space: nowrap; }
+  th { font: 700 10.5px/1.2 var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); border-bottom: 2px solid var(--ink); position: sticky; top: 0; background: var(--face); }
+  td { font-family: var(--mono); border-bottom: 1px solid #efefeb; }
+  th:first-child, td:first-child { text-align: left; }
+  tr.cur td { background: var(--red-bg); }
+  tr.cur td:first-child { box-shadow: inset 4px 0 0 var(--red); }
+  td.trunc { color: var(--red); }
+  td .est { color: var(--ink-3); }
+  .fine { font-size: 12.5px; color: var(--ink-3); margin: 10px 0 0; }
+  footer { padding: 26px 0 46px; border-top: 2px solid var(--ink); color: var(--ink-3); font-size: 13px; }
+
+  @media (max-width: 920px) {
+    .hero, .lookup, .charts { grid-template-columns: minmax(0, 1fr); }
+    .dial-wrap { max-width: 380px; }
+  }
+  @media (max-width: 520px) {
+    .result { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .figures { grid-template-columns: 1fr; }
+    .figures div + div { padding-left: 0; border-left: 0; border-top: 1px solid var(--rule); }
+  }
+  @media (prefers-reduced-motion: reduce) { .sweep { animation: none !important; } }
+  .sweep { transform-origin: 200px 200px; animation: sweep 60s linear infinite; }
+  @keyframes sweep { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <div class="hero">
+    <div>
+      <p class="kicker">Bitcoin issuance, to the satoshi</p>
+      <h1>Halving<br>Clock</h1>
+      <p class="lede">Every 210,000 blocks the new-coin subsidy is cut in half, rounded down to a whole satoshi. Add it all up and the total is not quite 21 million. Pick any block height to see where it sits.</p>
+      <div class="figures">
+        <div><b data-testid="max-supply" id="maxSupply"></b><span>BTC maximum ever issued</span></div>
+        <div><b data-testid="epoch-count" id="epochCount"></b><span>epochs with a subsidy</span></div>
+        <div><b data-testid="last-block" id="lastBlock"></b><span>last block with a subsidy</span></div>
+      </div>
+    </div>
+    <div class="dial-wrap">
+      <svg class="dial" id="dial" viewBox="0 0 400 400" data-testid="dial" role="img" aria-label="Clock face showing progress through the current halving epoch"></svg>
+      <p class="dial-cap" id="dialCap" data-testid="dial-caption"></p>
+    </div>
+  </div>
+
+  <section aria-labelledby="look-h">
+    <h2 id="look-h">Jump to a block</h2>
+    <p class="sub">Enter any height. Supply counts every subsidy from block 0 to that block, inclusive. Dates after block 840,000 are estimates assuming exactly 10-minute blocks.</p>
+    <div class="lookup">
+      <div class="panel">
+        <label for="height">Block height</label>
+        <div class="h-row">
+          <input id="height" data-testid="height-input" inputmode="numeric" autocomplete="off" spellcheck="false">
+          <button class="btn" type="button" id="go" data-testid="go">Go</button>
+        </div>
+        <p class="err" id="err" data-testid="height-error" role="alert"></p>
+        <div class="quick" id="quick" aria-label="Quick picks"></div>
+      </div>
+      <div class="result" data-testid="result" aria-live="polite">
+        <div class="accent"><span>Subsidy</span><b data-testid="r-subsidy" id="rSubsidy"></b><small id="rSubsidySats"></small></div>
+        <div><span>Epoch</span><b data-testid="r-epoch" id="rEpoch"></b><small id="rRange"></small></div>
+        <div><span>Supply after block</span><b data-testid="r-supply" id="rSupply"></b><small id="rPct"></small></div>
+        <div><span>Next halving</span><b data-testid="r-next" id="rNext"></b><small id="rLeft"></small></div>
+        <div><span>Next halving date</span><b data-testid="r-date" id="rDate"></b><small id="rDateNote"></small></div>
+        <div><span>Still to be issued</span><b data-testid="r-remaining" id="rRemaining"></b><small>BTC after this block</small></div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="ch-h">
+    <h2 id="ch-h">The staircase and the curve</h2>
+    <p class="sub">Tap either chart to jump to that height. The red marker follows the selected block.</p>
+    <div class="charts">
+      <div class="chart">
+        <header><h3>Block subsidy (BTC)</h3>
+          <div class="seg" role="group" aria-label="Subsidy scale"><button type="button" data-scale="lin" aria-pressed="true" data-testid="scale-lin">Linear</button><button type="button" data-scale="log" aria-pressed="false" data-testid="scale-log">Log₂</button></div></header>
+        <svg class="plot" id="subsidyPlot" viewBox="0 0 560 300" data-testid="subsidy-chart" role="img" aria-label="Staircase chart of block subsidy by height"></svg>
+        <p class="note">Each step is one epoch of 210,000 blocks.</p>
+      </div>
+      <div class="chart">
+        <header><h3>Total supply (BTC)</h3></header>
+        <svg class="plot" id="supplyPlot" viewBox="0 0 560 300" data-testid="supply-chart" role="img" aria-label="Supply curve approaching the maximum"></svg>
+        <p class="note">Dashed line: 20,999,999.9769 BTC, which the curve reaches at block 6,929,999 and never exceeds.</p>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="ep-h">
+    <h2 id="ep-h">Every epoch</h2>
+    <p class="sub">Red subsidies are where halving an odd number of satoshis dropped a half-satoshi. Past dates are when the halving block was actually mined; later ones are ~10-minute estimates.</p>
+    <div class="table-wrap">
+      <table data-testid="epoch-table">
+        <thead><tr><th>Epoch</th><th>Blocks</th><th>Subsidy (BTC)</th><th>Subsidy (sats)</th><th>Issued in epoch</th><th>Supply at end</th><th>% of max</th><th>Starts</th></tr></thead>
+        <tbody id="epochBody"></tbody>
+      </table>
+    </div>
+    <p class="fine">The protocol maximum is shown. Actual spendable supply is a little lower: the genesis block's 50 BTC can't be spent, and some early miners claimed less than the full subsidy.</p>
+  </section>
+  <footer>Built by Zac, a long-time Bitcoin enthusiast, with BigInt arithmetic so no floating point touches a satoshi. No network calls: the current height is estimated from block 840,000 (20 April 2024) at ten minutes per block.</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const NS = 'http://www.w3.org/2000/svg';
+  const HALVING = 210000n, INITIAL = 5000000000n, COIN = 100000000n;
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Actual dates (UTC) the halving blocks were mined; everything later is an estimate.
+  const HISTORY = { 0: '2009-01-03', 1: '2012-11-28', 2: '2016-07-09', 3: '2020-05-11', 4: '2024-04-20' };
+  const ANCHOR_H = 840000, ANCHOR_T = Date.UTC(2024, 3, 20, 0, 9, 27), BLOCK_MS = 600000;
+
+  const epochOf = h => h / HALVING;
+  const subsidy = h => { const e = epochOf(h); return e >= 64n ? 0n : INITIAL >> e; };
+  const epochSubsidy = e => e >= 64n ? 0n : INITIAL >> e;
+  function supplyThrough(h) { // sats issued by blocks 0..h inclusive
+    const e = epochOf(h); let s = 0n;
+    for (let i = 0n; i < e && i < 64n; i++) s += HALVING * epochSubsidy(i);
+    return s + (h - e * HALVING + 1n) * epochSubsidy(e);
+  }
+  let MAX = 0n, LAST_EPOCH = 0n;
+  for (let e = 0n; epochSubsidy(e) > 0n; e++) { MAX += HALVING * epochSubsidy(e); LAST_EPOCH = e; }
+  const LAST_BLOCK = (LAST_EPOCH + 1n) * HALVING - 1n;
+
+  const btc = (sats, trim) => {
+    const neg = sats < 0n; if (neg) sats = -sats;
+    const whole = sats / COIN, frac = (sats % COIN).toString().padStart(8, '0');
+    let f = trim ? frac.replace(/0+$/, '') : frac;
+    return (neg ? '−' : '') + whole.toLocaleString('en-US') + (f ? '.' + f : '');
+  };
+  const group = n => BigInt(n).toLocaleString('en-US');
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const fmtDate = t => { const d = new Date(t); return `${d.getUTCDate()} ${MON[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
+  const fmtMonth = t => { const d = new Date(t); return `${MON[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
+  const estTime = h => ANCHOR_T + (Number(h) - ANCHOR_H) * BLOCK_MS;
+  function epochStartLabel(e) {
+    const n = Number(e);
+    if (HISTORY[n]) return { text: fmtDate(Date.parse(HISTORY[n] + 'T00:00:00Z')), est: false };
+    return { text: '~' + fmtMonth(estTime(e * HALVING)), est: true };
+  }
+  const $ = id => document.getElementById(id);
+  const el = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+
+  /* ---------- Estimated "now" ---------- */
+  const NOW_H = BigInt(Math.max(0, ANCHOR_H + Math.floor((Date.now() - ANCHOR_T) / BLOCK_MS)));
+
+  /* ---------- Headline figures ---------- */
+  $('maxSupply').textContent = btc(MAX, true);
+  $('epochCount').textContent = String(LAST_EPOCH + 1n);
+  $('lastBlock').textContent = group(LAST_BLOCK);
+
+  /* ---------- Dial ---------- */
+  const dial = $('dial');
+  function drawDial(h) {
+    dial.textContent = '';
+    const C = 200, e = epochOf(h), pos = Number(h - e * HALVING) / 210000;
+    el('circle', { cx: C, cy: C, r: 188, fill: '#fff', stroke: '#121212', 'stroke-width': 10 }, dial);
+    for (let i = 0; i < 60; i++) {
+      const a = i / 60 * Math.PI * 2, big = i % 5 === 0;
+      const r0 = big ? 150 : 166, r1 = 176;
+      el('line', { x1: C + r0 * Math.sin(a), y1: C - r0 * Math.cos(a), x2: C + r1 * Math.sin(a), y2: C - r1 * Math.cos(a), stroke: '#121212', 'stroke-width': big ? 9 : 3 }, dial);
+    }
+    // progress arc through this epoch
+    const a1 = pos * Math.PI * 2, R = 132, large = pos > .5 ? 1 : 0;
+    if (pos > 0.0005) el('path', { d: `M${C} ${C - R}A${R} ${R} 0 ${large} 1 ${C + R * Math.sin(a1)} ${C - R * Math.cos(a1)}`, fill: 'none', stroke: '#fde9e7', 'stroke-width': 18 }, dial);
+    // hour hand = epoch progress, minute hand = progress through the current 2016-block difficulty period
+    const hand = (frac, len, w, col) => { const a = frac * Math.PI * 2; el('line', { x1: C - 18 * Math.sin(a), y1: C + 18 * Math.cos(a), x2: C + len * Math.sin(a), y2: C - len * Math.cos(a), stroke: col, 'stroke-width': w, 'stroke-linecap': 'butt' }, dial); };
+    hand(pos, 110, 12, '#121212');
+    hand(Number(h % 2016n) / 2016, 160, 7, '#121212');
+    const sw = el('g', { class: 'sweep' }, dial);
+    el('line', { x1: C, y1: C + 40, x2: C, y2: C - 128, stroke: '#e2231a', 'stroke-width': 3 }, sw);
+    el('circle', { cx: C, cy: C - 128, r: 13, fill: '#e2231a' }, sw);
+    el('circle', { cx: C, cy: C, r: 6, fill: '#e2231a' }, dial);
+    const t1 = el('text', { x: C, y: 128, 'text-anchor': 'middle', 'paint-order': 'stroke', stroke: '#fff', 'stroke-width': 7, 'stroke-linejoin': 'round', style: 'font:700 11px Helvetica,Arial,sans-serif;letter-spacing:.2em;fill:#8a8a8a' }, dial); t1.textContent = 'EPOCH ' + e;
+    const t2 = el('text', { x: C, y: 262, 'text-anchor': 'middle', 'paint-order': 'stroke', stroke: '#fff', 'stroke-width': 7, 'stroke-linejoin': 'round', style: 'font:700 22px ui-monospace,Menlo,Consolas,monospace;fill:#121212' }, dial); t2.textContent = btc(subsidy(h), true) + ' BTC';
+    const t3 = el('text', { x: C, y: 284, 'text-anchor': 'middle', 'paint-order': 'stroke', stroke: '#fff', 'stroke-width': 7, 'stroke-linejoin': 'round', style: 'font:600 11px Helvetica,Arial,sans-serif;fill:#8a8a8a' }, dial); t3.textContent = 'per block';
+    dial.dataset.epoch = String(e); dial.dataset.progress = pos.toFixed(4);
+    $('dialCap').innerHTML = `Hour hand: <b>${(pos * 100).toFixed(1)}%</b> through epoch ${e} · minute hand: difficulty period · block <b>${group(h)}</b>${h === NOW_H ? ' (estimated now)' : ''}`;
+  }
+
+  /* ---------- Charts ---------- */
+  const EPOCHS = Number(LAST_EPOCH) + 2; // show one zero epoch after the end
+  const PW = 560, PH = 300, pm = { l: 58, r: 14, t: 14, b: 30 };
+  const xH = h => pm.l + (h / (EPOCHS * 210000)) * (PW - pm.l - pm.r);
+  let scale = 'lin';
+  function axisX(svg) {
+    for (let m = 0; m <= 7; m++) {
+      const x = xH(m * 1e6); if (x > PW - pm.r + 1) break;
+      el('line', { x1: x, x2: x, y1: pm.t, y2: PH - pm.b, class: 'gl' }, svg);
+      const t = el('text', { x, y: PH - 10, 'text-anchor': m === 0 ? 'start' : 'middle' }, svg); t.textContent = m === 0 ? '0' : m + 'M';
+    }
+  }
+  function marker(svg, h, y) {
+    const x = xH(Number(h));
+    el('line', { x1: x, x2: x, y1: pm.t, y2: PH - pm.b, stroke: '#e2231a', 'stroke-width': 1.5, 'stroke-dasharray': '4 3' }, svg);
+    el('circle', { cx: x, cy: y, r: 5.5, fill: '#e2231a', stroke: '#fff', 'stroke-width': 2, 'data-testid': 'chart-marker' }, svg);
+  }
+  function drawSubsidy(h) {
+    const svg = $('subsidyPlot'); svg.textContent = '';
+    const yLin = v => PH - pm.b - (v / 50) * (PH - pm.t - pm.b);
+    const yLog = v => v <= 0 ? PH - pm.b : PH - pm.b - ((Math.log2(v) + 27) / (Math.log2(50) + 27)) * (PH - pm.t - pm.b); // 1 sat = 2^-26.6 BTC
+    const y = scale === 'lin' ? yLin : yLog;
+    const ticks = scale === 'lin' ? [0, 12.5, 25, 37.5, 50] : [50, 1, 0.01, 0.0001, 0.000001, 0.00000001];
+    ticks.forEach(v => { const yy = y(v); el('line', { x1: pm.l, x2: PW - pm.r, y1: yy, y2: yy, class: 'gl' }, svg); const t = el('text', { x: pm.l - 6, y: yy + 4, 'text-anchor': 'end' }, svg); t.textContent = scale === 'lin' ? v : (v >= 1 ? v : v.toExponential(0).replace('e', 'e')); });
+    axisX(svg);
+    let d = '';
+    for (let e = 0; e < EPOCHS; e++) {
+      const v = Number(epochSubsidy(BigInt(e))) / 1e8, x0 = xH(e * 210000), x1 = xH((e + 1) * 210000);
+      d += (e === 0 ? `M${x0} ${y(v)}` : `L${x0} ${y(v)}`) + `L${x1} ${y(v)}`;
+    }
+    el('path', { d, fill: 'none', stroke: '#121212', 'stroke-width': 2.2, 'stroke-linejoin': 'miter' }, svg);
+    marker(svg, h, y(Number(subsidy(h)) / 1e8));
+    svg.dataset.scale = scale;
+  }
+  function drawSupply(h) {
+    const svg = $('supplyPlot'); svg.textContent = '';
+    const y = v => PH - pm.b - (v / 21e6) * (PH - pm.t - pm.b);
+    [0, 5e6, 10e6, 15e6, 21e6].forEach(v => { const yy = y(v); el('line', { x1: pm.l, x2: PW - pm.r, y1: yy, y2: yy, class: 'gl' }, svg); const t = el('text', { x: pm.l - 6, y: yy + 4, 'text-anchor': 'end' }, svg); t.textContent = v / 1e6 + 'M'; });
+    axisX(svg);
+    const cap = y(Number(MAX) / 1e8);
+    el('line', { x1: pm.l, x2: PW - pm.r, y1: cap, y2: cap, stroke: '#e2231a', 'stroke-width': 1.2, 'stroke-dasharray': '6 4' }, svg);
+    let d = `M${xH(0)} ${y(0)}`;
+    for (let e = 0; e < EPOCHS; e++) { const end = BigInt((e + 1) * 210000 - 1); d += `L${xH((e + 1) * 210000)} ${y(Number(supplyThrough(end)) / 1e8)}`; }
+    el('path', { d, fill: 'none', stroke: '#121212', 'stroke-width': 2.2 }, svg);
+    marker(svg, h, y(Number(supplyThrough(h)) / 1e8));
+  }
+  function plotClick(e) {
+    const svg = e.currentTarget, r = svg.getBoundingClientRect(), vx = (e.clientX - r.left) / r.width * PW;
+    const h = Math.round((vx - pm.l) / (PW - pm.l - pm.r) * EPOCHS * 210000);
+    if (h >= 0) select(BigInt(Math.min(h, EPOCHS * 210000 - 1)));
+  }
+  $('subsidyPlot').addEventListener('click', plotClick);
+  $('supplyPlot').addEventListener('click', plotClick);
+  document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => {
+    scale = b.dataset.scale; document.querySelectorAll('.seg button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); drawSubsidy(current);
+  }));
+
+  /* ---------- Epoch table ---------- */
+  function drawTable(h) {
+    const body = $('epochBody'); body.textContent = '';
+    const cur = epochOf(h);
+    for (let e = 0n; e <= LAST_EPOCH + 1n; e++) {
+      const s = epochSubsidy(e), prev = e > 0n ? epochSubsidy(e - 1n) : null;
+      const truncated = prev !== null && prev % 2n === 1n;
+      const start = e * HALVING, end = start + HALVING - 1n;
+      const issued = e > LAST_EPOCH ? 0n : HALVING * s;
+      const supplyEnd = supplyThrough(end > LAST_BLOCK ? LAST_BLOCK : end);
+      const tr = document.createElement('tr'); tr.setAttribute('data-testid', 'epoch-row'); tr.dataset.epoch = String(e);
+      if (e === cur || (cur > LAST_EPOCH + 1n && e === LAST_EPOCH + 1n)) tr.className = 'cur';
+      const d = epochStartLabel(e);
+      tr.innerHTML = `<td>${e}${e > LAST_EPOCH ? '+' : ''}</td><td>${group(start)} – ${e > LAST_EPOCH ? '∞' : group(end)}</td>` +
+        `<td class="${truncated ? 'trunc' : ''}" title="${truncated ? 'Half of ' + prev + ' sats rounded down' : ''}">${btc(s)}</td><td>${group(s)}</td>` +
+        `<td>${btc(issued, true)}</td><td>${btc(supplyEnd, true)}</td><td>${(Number(supplyEnd * 1000000n / MAX) / 10000).toFixed(4)}%</td>` +
+        `<td>${d.est ? `<span class="est">${d.text} (est.)</span>` : d.text}</td>`;
+      body.appendChild(tr);
+    }
+  }
+
+  /* ---------- Lookup ---------- */
+  let current = NOW_H;
+  function select(h) {
+    current = h; const e = epochOf(h), s = subsidy(h), sup = supplyThrough(h);
+    $('height').value = group(h);
+    $('rSubsidy').textContent = btc(s, true) + ' BTC';
+    $('rSubsidySats').textContent = group(s) + ' sats';
+    $('rEpoch').textContent = String(e);
+    $('rRange').textContent = `blocks ${group(e * HALVING)} – ${group(e * HALVING + HALVING - 1n)}`;
+    $('rSupply').textContent = btc(sup, true) + ' BTC';
+    $('rSupply').dataset.sats = String(sup);
+    $('rPct').textContent = (Number(sup * 100000000n / MAX) / 1e6).toFixed(6) + '% of the maximum';
+    const next = (e + 1n) * HALVING;
+    if (s === 0n) { $('rNext').textContent = 'none'; $('rLeft').textContent = 'issuance has ended; miners earn fees only'; $('rDate').textContent = '—'; $('rDateNote').textContent = ''; }
+    else {
+      $('rNext').textContent = 'block ' + group(next); $('rLeft').textContent = `${group(next - h)} blocks away · subsidy → ${btc(epochSubsidy(e + 1n), true)} BTC`;
+      const n = Number(e + 1n);
+      if (HISTORY[n]) { $('rDate').textContent = fmtDate(Date.parse(HISTORY[n] + 'T00:00:00Z')); $('rDateNote').textContent = 'historical'; }
+      else { $('rDate').textContent = '~' + fmtMonth(estTime(next)); $('rDateNote').textContent = 'estimate · 10-minute blocks'; }
+    }
+    $('rDate').dataset.estimate = String(!HISTORY[Number(e + 1n)]);
+    $('rRemaining').textContent = btc(MAX - sup, true);
+    $('err').textContent = '';
+    drawDial(h); drawSubsidy(h); drawSupply(h); drawTable(h);
+    api.current = String(h);
+  }
+  function go() {
+    const raw = $('height').value.replace(/[,\s_]/g, '');
+    if (!/^\d{1,12}$/.test(raw)) { $('err').textContent = 'Enter a whole block height, like 840000.'; return; }
+    select(BigInt(raw));
+  }
+  $('go').addEventListener('click', go);
+  $('height').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+  const QUICK = [['Genesis', 0n], ['1st halving', 210000n], ['2024 halving', 840000n], ['Now (est.)', NOW_H], ['Next halving', (epochOf(NOW_H) + 1n) * HALVING], ['Last sat', LAST_BLOCK], ['After', LAST_BLOCK + 1n]];
+  QUICK.forEach(([label, h]) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.setAttribute('data-testid', 'quick-' + label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-$/, '')); b.addEventListener('click', () => select(h)); $('quick').appendChild(b); });
+
+  const api = { current: '', nowHeight: String(NOW_H), max: String(MAX), lastBlock: String(LAST_BLOCK), subsidy: h => String(subsidy(BigInt(h))), supply: h => String(supplyThrough(BigInt(h))) };
+  window.__halving = api;
+  if (reduced) dial.classList.add('still');
+  select(NOW_H);
+})();
+</script>
+</body>
+</html>

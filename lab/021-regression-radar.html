@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Regression Radar — Visual Diff Workbench</title>
+<meta name="description" content="A visual-regression workbench in the spirit of toHaveScreenshot: compare a baseline and a candidate rendering pixel by pixel, tune the colour threshold and maxDiffPixelRatio, mask noisy regions by dragging, and get a pass/fail verdict. Works with the built-in canvas mock UI or two local images.">
+<style>
+  :root {
+    --paper: #f1f0ec;
+    --paper-2: #e7e5de;
+    --card: #fbfaf7;
+    --ink: #121212;
+    --ink-2: #4a4a48;
+    --ink-3: #85847f;
+    --line: #d3d0c6;
+    --magenta: #e0007a;
+    --cyan: #0098d8;
+    --yellow: #f7d000;
+    --pass: #0d7a4a;
+    --sans: "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif;
+    --mono: ui-monospace, "SFMono-Regular", "Cascadia Code", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--paper); color: var(--ink); font-family: var(--sans); line-height: 1.45; overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  .back { position: fixed; top: 12px; left: 12px; z-index: 60; text-decoration: none; font: 700 12px/1 var(--sans); color: var(--ink);
+    background: var(--card); border: 1.5px solid var(--ink); padding: 6px 10px; letter-spacing: .02em; }
+  .back:hover { background: var(--ink); color: var(--card); }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 58px 20px 40px; }
+
+  header.top { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; align-items: end; padding-bottom: 16px; border-bottom: 3px solid var(--ink); position: relative; }
+  .reg { position: absolute; width: 22px; height: 22px; top: -30px; right: 0; }
+  .kicker { font: 700 11px var(--mono); letter-spacing: .22em; text-transform: uppercase; color: var(--magenta); }
+  h1 { margin: 4px 0 6px; font: 900 clamp(34px, 6vw, 64px)/.92 var(--sans); letter-spacing: -.035em; text-transform: uppercase; }
+  h1 span { color: transparent; -webkit-text-stroke: 1.5px var(--ink); }
+  .lede { margin: 0; color: var(--ink-2); max-width: 62ch; }
+  .swatches { display: flex; gap: 0; border: 1.5px solid var(--ink); justify-self: start; }
+  .swatches i { width: 26px; height: 26px; display: block; }
+
+  .controls { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin: 18px 0; }
+  .box { background: var(--card); border: 1.5px solid var(--ink); padding: 12px 14px; min-width: 0; }
+  .box h2 { margin: 0 0 8px; font: 800 12px var(--mono); letter-spacing: .14em; text-transform: uppercase; display: flex; justify-content: space-between; gap: 8px; }
+  .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
+  .checks label { display: flex; gap: 7px; align-items: center; font-size: 14px; cursor: pointer; }
+  .checks input { accent-color: var(--magenta); width: 16px; height: 16px; }
+  .slider { display: grid; gap: 2px; margin-bottom: 8px; }
+  .slider .row { display: flex; justify-content: space-between; font-size: 13.5px; }
+  .slider output { font: 700 13px var(--mono); }
+  .slider input { width: 100%; accent-color: var(--ink); }
+  .slider small { color: var(--ink-3); font-size: 11.5px; }
+  .src { display: grid; gap: 8px; }
+  .src label.file { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+  .src input[type=file] { font-size: 12px; min-width: 0; max-width: 100%; }
+  .btn { border: 1.5px solid var(--ink); background: var(--card); padding: 6px 12px; font-weight: 700; font-size: 13px; }
+  .btn:hover { background: var(--paper-2); }
+  .btn.on, .btn[aria-pressed="true"] { background: var(--ink); color: var(--card); }
+  .btn.mg { border-color: var(--magenta); color: var(--magenta); }
+  .btnrow { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  .stage { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  figure { margin: 0; background: var(--card); border: 1.5px solid var(--ink); min-width: 0; }
+  figcaption { display: flex; justify-content: space-between; gap: 8px; padding: 7px 10px; border-bottom: 1.5px solid var(--ink); font: 700 11.5px var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+  figcaption em { font-style: normal; color: var(--ink-3); letter-spacing: 0; text-transform: none; font-weight: 400; }
+  .cv { position: relative; padding: 10px; background:
+    linear-gradient(45deg, #e9e7e1 25%, transparent 25%, transparent 75%, #e9e7e1 75%) 0 0 / 16px 16px,
+    linear-gradient(45deg, #e9e7e1 25%, transparent 25%, transparent 75%, #e9e7e1 75%) 8px 8px / 16px 16px, #f6f5f1; }
+  canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+  .cv.masking canvas { cursor: crosshair; touch-action: none; }
+  .cv.masking { box-shadow: inset 0 0 0 3px var(--magenta); }
+
+  .verdict { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 20px; align-items: center; margin-top: 16px; background: var(--card); border: 1.5px solid var(--ink); padding: 14px 18px; }
+  .stamp { font: 900 44px/1 var(--sans); letter-spacing: .06em; padding: 8px 16px; border: 5px solid currentColor; transform: rotate(-4deg); text-transform: uppercase; }
+  .stamp.pass { color: var(--pass); } .stamp.fail { color: var(--magenta); }
+  .facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .fact .k { font: 700 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+  .fact .v { font: 800 22px var(--mono); }
+  .why { grid-column: 1 / -1; font-size: 14px; color: var(--ink-2); margin: 0; }
+  .regions { list-style: none; padding: 0; margin: 10px 0 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .regions li { font: 12px var(--mono); border: 1.5px solid var(--ink); padding: 3px 8px; background: #fff; }
+  .regions li b { color: var(--magenta); }
+  .masks { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .masks li { font: 12px var(--mono); background: #ffd6ec; border: 1px solid var(--magenta); padding: 2px 4px 2px 8px; display: flex; gap: 6px; align-items: center; }
+  .masks button { border: 0; background: none; color: var(--magenta); font-weight: 900; padding: 0 4px; }
+  .legend { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-3); margin-top: 6px; }
+  .legend i { width: 90px; height: 8px; background: linear-gradient(90deg, #f7d000, #ff5a00, #e0007a); display: inline-block; }
+  .fine { font-size: 12px; color: var(--ink-3); margin-top: 16px; }
+
+  @media (max-width: 980px) {
+    .controls { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+    .controls .box:first-child { grid-column: 1 / -1; }
+    .stage { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+    .stage figure:last-child { grid-column: 1 / -1; }
+  }
+  @media (max-width: 620px) {
+    header.top { grid-template-columns: 1fr; }
+    .controls, .stage { grid-template-columns: minmax(0,1fr); }
+    .stage figure:last-child { grid-column: auto; }
+    .verdict { grid-template-columns: 1fr; justify-items: start; }
+    .facts { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .stamp { font-size: 34px; }
+  }
+</style>
+</head>
+<body>
+<a href="../index.html#lab" class="back" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="top">
+    <svg class="reg" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="6" fill="none" stroke="#121212" stroke-width="1.5"/><path d="M11 0v22M0 11h22" stroke="#121212" stroke-width="1.5"/></svg>
+    <div>
+      <div class="kicker">Visual regression · proof sheet</div>
+      <h1>Regression <span>Radar</span></h1>
+      <p class="lede">Baseline on the left, candidate in the middle, pixel difference on the right. Tune the same knobs <code>toHaveScreenshot</code> gives you, mask what shouldn't count, and see whether the build would pass.</p>
+    </div>
+    <div class="swatches" aria-hidden="true"><i style="background:var(--cyan)"></i><i style="background:var(--magenta)"></i><i style="background:var(--yellow)"></i><i style="background:var(--ink)"></i></div>
+  </header>
+
+  <div class="controls">
+    <section class="box" aria-labelledby="reg-h">
+      <h2 id="reg-h">Seeded regressions <span style="color:var(--ink-3);font-weight:400">in the candidate</span></h2>
+      <div class="checks" data-testid="regressions">
+        <label><input type="checkbox" data-reg="padding" data-testid="reg-padding" checked> Button padding +3px</label>
+        <label><input type="checkbox" data-reg="colour" data-testid="reg-colour" checked> Subtle button colour drift</label>
+        <label><input type="checkbox" data-reg="icon" data-testid="reg-icon" checked> Missing truck icon</label>
+        <label><input type="checkbox" data-reg="weight" data-testid="reg-weight" checked> Heading weight 700→400</label>
+      </div>
+      <div class="btnrow" style="margin-top:10px">
+        <button class="btn" type="button" id="useMock" data-testid="use-mock" aria-pressed="true">Mock UI</button>
+        <span style="font-size:12.5px;color:var(--ink-3);align-self:center">or load your own images →</span>
+      </div>
+    </section>
+    <section class="box" aria-labelledby="cmp-h">
+      <h2 id="cmp-h">Comparator</h2>
+      <div class="slider">
+        <div class="row"><label for="thr">threshold</label><output id="thrOut" for="thr" data-testid="thr-out">0.20</output></div>
+        <input id="thr" type="range" min="0" max="1" step="0.01" value="0.2" data-testid="threshold">
+        <small>Per-pixel colour tolerance in YIQ space (Playwright's default is 0.2).</small>
+      </div>
+      <div class="slider">
+        <div class="row"><label for="ratio">maxDiffPixelRatio</label><output id="ratioOut" for="ratio" data-testid="ratio-out">0.0010</output></div>
+        <input id="ratio" type="range" min="0" max="0.05" step="0.0005" value="0.001" data-testid="max-ratio">
+        <small>Share of pixels allowed to differ before the check fails.</small>
+      </div>
+    </section>
+    <section class="box src" aria-labelledby="src-h">
+      <h2 id="src-h">Masks &amp; images</h2>
+      <div class="btnrow">
+        <button class="btn mg" type="button" id="maskMode" data-testid="mask-mode" aria-pressed="false">Draw mask</button>
+        <button class="btn" type="button" id="maskRegions" data-testid="mask-regions">Mask changed regions</button>
+        <button class="btn" type="button" id="clearMasks" data-testid="clear-masks">Clear</button>
+      </div>
+      <ul class="masks" id="masks" data-testid="masks" aria-label="Masks"></ul>
+      <label class="file">Baseline <input type="file" accept="image/*" id="fileA" data-testid="file-baseline"></label>
+      <label class="file">Candidate <input type="file" accept="image/*" id="fileB" data-testid="file-candidate"></label>
+    </section>
+  </div>
+
+  <div class="stage">
+    <figure><figcaption>Baseline <em id="dimA">360 × 240</em></figcaption><div class="cv"><canvas id="cA" width="360" height="240" data-testid="canvas-baseline" aria-label="Baseline rendering"></canvas></div></figure>
+    <figure><figcaption>Candidate <em id="dimB">360 × 240</em></figcaption><div class="cv" id="cvB"><canvas id="cB" width="360" height="240" data-testid="canvas-candidate" aria-label="Candidate rendering"></canvas></div></figure>
+    <figure><figcaption>Diff <em>changed pixels highlighted</em></figcaption><div class="cv" id="cvD"><canvas id="cD" width="360" height="240" data-testid="canvas-diff" aria-label="Pixel difference heatmap"></canvas></div>
+      <div class="legend" style="padding:0 10px 8px"><span>small</span><i></i><span>large</span><span style="margin-left:auto"><span style="display:inline-block;width:10px;height:10px;background:#ff00ff;vertical-align:middle"></span> mask</span></div></figure>
+  </div>
+
+  <section class="verdict" aria-live="polite" data-testid="verdict-card">
+    <div class="stamp fail" id="stamp" data-testid="verdict">Fail</div>
+    <div>
+      <div class="facts">
+        <div class="fact"><div class="k">diff pixels</div><div class="v" data-testid="diff-pixels">0</div></div>
+        <div class="fact"><div class="k">ratio</div><div class="v" data-testid="diff-ratio">0</div></div>
+        <div class="fact"><div class="k">allowed</div><div class="v" data-testid="allowed">0</div></div>
+        <div class="fact"><div class="k">regions</div><div class="v" data-testid="region-count">0</div></div>
+      </div>
+      <p class="why" id="why" data-testid="why"></p>
+      <ul class="regions" id="regions" data-testid="regions-list"></ul>
+    </div>
+  </section>
+  <p class="fine">The comparator is pixelmatch-style: a YIQ colour delta per pixel against threshold², without anti-aliasing detection. The mock UI is a fictional parcel-tracking card drawn on canvas; both versions come from the same drawing code in the same browser, so only the seeded regressions differ. Uploaded images stay on your device.</p>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const cA = $('cA'), cB = $('cB'), cD = $('cD');
+  const W = 360, H = 240;
+  const regs = { padding: true, colour: true, icon: true, weight: true };
+  let masks = [];
+  let mode = 'mock';
+  let imgA = null, imgB = null;
+  let lastRegions = [];
+
+  /* ---------- the mock UI (fictional parcel-tracking card) ---------- */
+  function roundRect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+  function drawUI(ctx, r) {
+    ctx.save();
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+    // top bar
+    ctx.fillStyle = '#1d2b4f'; ctx.fillRect(0, 0, W, 44);
+    ctx.fillStyle = '#ffc93c'; ctx.beginPath(); ctx.arc(24, 22, 9, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#1d2b4f'; ctx.fillRect(20, 18, 8, 8);
+    ctx.fillStyle = '#ffffff'; ctx.font = '700 14px Arial, sans-serif'; ctx.textBaseline = 'middle';
+    ctx.fillText('Shipwright · Order #4821', 42, 23);
+    // heading
+    ctx.fillStyle = '#16203a';
+    ctx.font = `${r.weight ? 400 : 700} 20px Arial, sans-serif`;
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText('Arriving Thursday', 20, 76);
+    ctx.fillStyle = '#6a7390'; ctx.font = '400 12px Arial, sans-serif';
+    ctx.fillText('Between 10:00 and 14:00', 20, 94);
+    // progress rows
+    const rows = [['Packed', '#1fa971', 'check'], ['Out for delivery', '#2f6fed', 'truck'], ['Delivered', '#b7bdcc', 'house']];
+    rows.forEach(([label, col, icon], i) => {
+      const y = 118 + i * 24;
+      if (!(r.icon && icon === 'truck')) drawIcon(ctx, icon, 28, y, col);
+      ctx.fillStyle = i === 2 ? '#8a91a6' : '#16203a'; ctx.font = '400 13px Arial, sans-serif';
+      ctx.fillText(label, 44, y + 4);
+      if (i < 2) { ctx.fillStyle = '#e3e6ee'; ctx.fillRect(27, y + 9, 2, 8); }
+    });
+    // button
+    const bx = 20, by = 190 + (r.padding ? 3 : 0), bw = 150 + (r.padding ? 6 : 0), bh = 34;
+    ctx.fillStyle = r.colour ? '#5b8ff7' : '#2f6fed';
+    roundRect(ctx, bx, by, bw, bh, 8); ctx.fill();
+    ctx.fillStyle = '#ffffff'; ctx.font = '700 13px Arial, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('Track parcel', bx + bw / 2, by + bh / 2 + 1);
+    ctx.textAlign = 'left';
+    // secondary
+    ctx.strokeStyle = '#c9cedb'; ctx.lineWidth = 1.5; roundRect(ctx, 190.75, 190.75, 148.5, 32.5, 8); ctx.stroke();
+    ctx.fillStyle = '#1d2b4f'; ctx.textAlign = 'center'; ctx.fillText('Change address', 265, 208); ctx.textAlign = 'left';
+    // parcel illustration
+    ctx.fillStyle = '#f3e3c3'; ctx.fillRect(262, 62, 70, 52); ctx.fillStyle = '#e2c58f'; ctx.fillRect(262, 62, 70, 12); ctx.fillStyle = '#c99a4b'; ctx.fillRect(292, 62, 10, 52);
+    ctx.restore();
+  }
+  function drawIcon(ctx, kind, x, y, col) {
+    ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6; ctx.fillStyle = '#fff';
+    if (kind === 'check') { ctx.beginPath(); ctx.moveTo(x - 4, y); ctx.lineTo(x - 1, y + 3); ctx.lineTo(x + 4, y - 3); ctx.stroke(); }
+    if (kind === 'truck') { ctx.fillRect(x - 5, y - 3, 6, 5); ctx.fillRect(x + 1, y - 1, 3, 3); }
+    if (kind === 'house') { ctx.beginPath(); ctx.moveTo(x - 4, y); ctx.lineTo(x, y - 4); ctx.lineTo(x + 4, y); ctx.lineTo(x + 4, y + 4); ctx.lineTo(x - 4, y + 4); ctx.closePath(); ctx.fill(); }
+  }
+
+  /* ---------- pixelmatch-style comparison ---------- */
+  const MAX_DELTA = 35215;
+  function blend(c, a) { return 255 + (c - 255) * a; }
+  function colorDelta(a, b, i) {
+    const aa = a[i + 3] / 255, ba = b[i + 3] / 255;
+    const r1 = blend(a[i], aa), g1 = blend(a[i + 1], aa), b1 = blend(a[i + 2], aa);
+    const r2 = blend(b[i], ba), g2 = blend(b[i + 1], ba), b2 = blend(b[i + 2], ba);
+    const y = (r1 - r2) * 0.29889531 + (g1 - g2) * 0.58662247 + (b1 - b2) * 0.11448223;
+    const ii = (r1 - r2) * 0.59597799 - (g1 - g2) * 0.27417610 - (b1 - b2) * 0.32180189;
+    const q = (r1 - r2) * 0.21147017 - (g1 - g2) * 0.52261711 + (b1 - b2) * 0.31114694;
+    return 0.5053 * y * y + 0.299 * ii * ii + 0.1957 * q * q;
+  }
+  const inMask = (x, y) => masks.some(m => x >= m.x && x < m.x + m.w && y >= m.y && y < m.y + m.h);
+
+  function compare() {
+    const threshold = +$('thr').value, maxRatio = +$('ratio').value;
+    $('thrOut').textContent = threshold.toFixed(2);
+    $('ratioOut').textContent = maxRatio.toFixed(4);
+    const wA = cA.width, hA = cA.height, wB = cB.width, hB = cB.height;
+    const dctx = cD.getContext('2d');
+    if (wA !== wB || hA !== hB) {
+      cD.width = Math.max(wA, wB); cD.height = Math.max(hA, hB);
+      dctx.fillStyle = '#ffd6ec'; dctx.fillRect(0, 0, cD.width, cD.height);
+      dctx.fillStyle = '#e0007a'; dctx.font = '700 16px Arial'; dctx.textAlign = 'center';
+      dctx.fillText('Size mismatch', cD.width / 2, cD.height / 2);
+      return verdict({ pass: false, diff: null, total: 0, maxRatio, regions: [], why: `Size mismatch: expected ${wA}×${hA} px, received ${wB}×${hB} px. A screenshot assertion fails before comparing any pixels.` });
+    }
+    cD.width = wA; cD.height = hA;
+    const a = cA.getContext('2d').getImageData(0, 0, wA, hA).data;
+    const b = cB.getContext('2d').getImageData(0, 0, wB, hB).data;
+    const out = dctx.createImageData(wA, hA), o = out.data;
+    const lim = MAX_DELTA * threshold * threshold;
+    const G = 8, gw = Math.ceil(wA / G), gh = Math.ceil(hA / G), grid = new Uint8Array(gw * gh);
+    let diff = 0;
+    for (let y = 0; y < hA; y++) for (let x = 0; x < wA; x++) {
+      const i = (y * wA + x) * 4;
+      if (masks.length && inMask(x, y)) { o[i] = 255; o[i + 1] = 0; o[i + 2] = 255; o[i + 3] = 255; continue; }
+      const d = colorDelta(a, b, i);
+      if (d > lim) {
+        diff++; grid[((y / G) | 0) * gw + ((x / G) | 0)] = 1;
+        const t = Math.min(1, Math.sqrt(d / MAX_DELTA) * 1.6);
+        // yellow → orange → magenta
+        o[i] = t < .5 ? 247 + (255 - 247) * t * 2 : 255 - (255 - 224) * (t - .5) * 2;
+        o[i + 1] = t < .5 ? 208 - (208 - 90) * t * 2 : 90 - 90 * (t - .5) * 2;
+        o[i + 2] = t < .5 ? 0 : 122 * (t - .5) * 2;
+        o[i + 3] = 255;
+      } else {
+        const l = 0.299 * a[i] + 0.587 * a[i + 1] + 0.114 * a[i + 2];
+        const v = 255 - (255 - l) * 0.12; // faded baseline for context
+        o[i] = o[i + 1] = o[i + 2] = v; o[i + 3] = 255;
+      }
+    }
+    dctx.putImageData(out, 0, 0);
+    // connected regions on the coarse grid
+    const seen = new Uint8Array(gw * gh), regions = [];
+    for (let s = 0; s < grid.length; s++) {
+      if (!grid[s] || seen[s]) continue;
+      let minx = 1e9, miny = 1e9, maxx = -1, maxy = -1; const st = [s]; seen[s] = 1;
+      while (st.length) {
+        const c = st.pop(), cx = c % gw, cy = (c / gw) | 0;
+        minx = Math.min(minx, cx); maxx = Math.max(maxx, cx); miny = Math.min(miny, cy); maxy = Math.max(maxy, cy);
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const nx = cx + dx, ny = cy + dy; if (nx < 0 || ny < 0 || nx >= gw || ny >= gh) continue;
+          const n = ny * gw + nx; if (grid[n] && !seen[n]) { seen[n] = 1; st.push(n); }
+        }
+      }
+      regions.push({ x: minx * G, y: miny * G, w: Math.min(wA, (maxx + 1) * G) - minx * G, h: Math.min(hA, (maxy + 1) * G) - miny * G });
+    }
+    dctx.strokeStyle = '#0098d8'; dctx.lineWidth = 1; dctx.setLineDash([3, 2]);
+    regions.forEach(r => dctx.strokeRect(r.x + .5, r.y + .5, r.w - 1, r.h - 1));
+    dctx.setLineDash([]);
+    const total = wA * hA, ratio = diff / total;
+    const pass = ratio <= maxRatio;
+    let why;
+    if (!diff) why = masks.length ? 'Identical outside the masked areas.' : 'The images are identical at this threshold.';
+    else if (pass) why = `${diff} pixels differ, which is within the allowed ${Math.floor(maxRatio * total)}. This regression would ship unnoticed.`;
+    else why = `${diff} pixels differ; only ${Math.floor(maxRatio * total)} are allowed. Look at the highlighted regions.`;
+    verdict({ pass, diff, total, maxRatio, regions, why });
+  }
+  function verdict(v) {
+    lastRegions = v.regions;
+    const st = $('stamp');
+    st.textContent = v.pass ? 'Pass' : 'Fail'; st.className = 'stamp ' + (v.pass ? 'pass' : 'fail');
+    document.querySelector('[data-testid="diff-pixels"]').textContent = v.diff === null ? '—' : v.diff;
+    document.querySelector('[data-testid="diff-ratio"]').textContent = v.diff === null ? '—' : (v.diff / v.total).toFixed(4);
+    document.querySelector('[data-testid="allowed"]').textContent = v.diff === null ? '—' : Math.floor(v.maxRatio * v.total);
+    document.querySelector('[data-testid="region-count"]').textContent = v.regions.length;
+    $('why').textContent = v.why;
+    $('regions').innerHTML = v.regions.map((r, i) => `<li data-testid="region-${i}"><b>#${i + 1}</b> x${r.x} y${r.y} · ${r.w}×${r.h}</li>`).join('');
+    window.__radar = { pass: v.pass, diff: v.diff, regions: v.regions.length };
+  }
+
+  function renderAll() {
+    if (mode === 'mock') {
+      [cA, cB].forEach(c => { c.width = W; c.height = H; });
+      drawUI(cA.getContext('2d'), {});
+      drawUI(cB.getContext('2d'), regs);
+      $('dimA').textContent = $('dimB').textContent = `${W} × ${H}`;
+    } else {
+      drawImg(cA, imgA, $('dimA')); drawImg(cB, imgB, $('dimB'));
+    }
+    compare();
+  }
+  function drawImg(c, img, lab) {
+    if (!img) { c.width = W; c.height = H; const x = c.getContext('2d'); x.fillStyle = '#eee'; x.fillRect(0, 0, W, H); x.fillStyle = '#888'; x.font = '14px Arial'; x.textAlign = 'center'; x.fillText('Choose an image', W / 2, H / 2); lab.textContent = '—'; return; }
+    c.width = img.naturalWidth; c.height = img.naturalHeight;
+    const x = c.getContext('2d'); x.clearRect(0, 0, c.width, c.height); x.drawImage(img, 0, 0);
+    lab.textContent = `${c.width} × ${c.height}`;
+  }
+
+  /* ---------- controls ---------- */
+  document.querySelectorAll('[data-reg]').forEach(cb => cb.addEventListener('change', () => { regs[cb.dataset.reg] = cb.checked; if (mode === 'mock') renderAll(); }));
+  $('thr').addEventListener('input', compare);
+  $('ratio').addEventListener('input', compare);
+  $('useMock').addEventListener('click', () => { mode = 'mock'; $('useMock').setAttribute('aria-pressed', 'true'); masks = []; renderMasks(); renderAll(); document.querySelectorAll('[data-reg]').forEach(c => { c.disabled = false; }); });
+  function loadFile(input, which) {
+    const f = input.files && input.files[0];
+    if (!f) return;
+    const url = URL.createObjectURL(f);
+    const img = new Image();
+    img.onload = () => {
+      if (which === 'A') imgA = img; else imgB = img;
+      mode = 'files'; $('useMock').setAttribute('aria-pressed', 'false');
+      document.querySelectorAll('[data-reg]').forEach(c => { c.disabled = true; });
+      masks = []; renderMasks(); renderAll();
+    };
+    img.onerror = () => { $('why').textContent = 'That file could not be decoded as an image.'; };
+    img.src = url;
+  }
+  $('fileA').addEventListener('change', () => loadFile($('fileA'), 'A'));
+  $('fileB').addEventListener('change', () => loadFile($('fileB'), 'B'));
+
+  function renderMasks() {
+    $('masks').innerHTML = masks.map((m, i) => `<li data-testid="mask-${i}">${m.x},${m.y} ${m.w}×${m.h}<button type="button" data-rm="${i}" aria-label="Remove mask ${i + 1}">×</button></li>`).join('');
+  }
+  $('masks').addEventListener('click', e => { const b = e.target.closest('[data-rm]'); if (b) { masks.splice(+b.dataset.rm, 1); renderMasks(); compare(); } });
+  $('clearMasks').addEventListener('click', () => { masks = []; renderMasks(); compare(); });
+  $('maskRegions').addEventListener('click', () => {
+    lastRegions.forEach(r => masks.push({ x: Math.max(0, r.x - 2), y: Math.max(0, r.y - 2), w: r.w + 4, h: r.h + 4 }));
+    renderMasks(); compare();
+  });
+  let masking = false;
+  $('maskMode').addEventListener('click', () => {
+    masking = !masking;
+    $('maskMode').setAttribute('aria-pressed', String(masking));
+    $('cvB').classList.toggle('masking', masking); $('cvD').classList.toggle('masking', masking);
+  });
+  // drag a rectangle on candidate or diff canvas
+  [cB, cD].forEach(cv => {
+    let start = null, preview = null;
+    const toCanvas = e => { const r = cv.getBoundingClientRect(); return { x: Math.round((e.clientX - r.left) / r.width * cv.width), y: Math.round((e.clientY - r.top) / r.height * cv.height) }; };
+    cv.addEventListener('pointerdown', e => {
+      if (!masking) return;
+      e.preventDefault();
+      start = toCanvas(e);
+      try { cv.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    });
+    cv.addEventListener('pointermove', e => {
+      if (!start) return;
+      const p = toCanvas(e);
+      preview = { x: Math.max(0, Math.min(start.x, p.x)), y: Math.max(0, Math.min(start.y, p.y)), w: Math.abs(p.x - start.x), h: Math.abs(p.y - start.y) };
+      compare();
+      const d = cD.getContext('2d'); d.fillStyle = 'rgba(255,0,255,.45)'; d.fillRect(preview.x, preview.y, preview.w, preview.h);
+    });
+    const end = () => {
+      if (!start) return;
+      if (preview && preview.w >= 3 && preview.h >= 3) {
+        preview.w = Math.min(preview.w, cv.width - preview.x); preview.h = Math.min(preview.h, cv.height - preview.y);
+        masks.push(preview); renderMasks();
+      }
+      start = null; preview = null; compare();
+    };
+    cv.addEventListener('pointerup', end);
+    cv.addEventListener('pointercancel', end);
+  });
+
+  renderAll();
+})();
+</script>
+</body>
+</html>

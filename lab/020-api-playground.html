@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mock API Playground — Marginalia Books API</title>
+<meta name="description" content="A Postman-style request builder against an in-memory, in-page REST API for a fictional bookshop: CRUD on /books, bearer auth, pagination, 401/404/405/422/429 responses, pretty JSON, response assertions and a saved request collection. No network requests are ever made.">
+<style>
+  :root {
+    --bg: #1b1720;
+    --bg-2: #241f2b;
+    --bg-3: #2e2836;
+    --bg-4: #3a3244;
+    --line: #3d3548;
+    --ink: #efe8dc;
+    --ink-2: #bfb4c6;
+    --ink-3: #8a7f93;
+    --brass: #d9a94e;
+    --brass-2: #f0c877;
+    --teal: #5cc8b0;
+    --rose: #ef6f7c;
+    --blue: #7fa8ff;
+    --violet: #c49bff;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --mono: ui-monospace, "SFMono-Regular", "Cascadia Code", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.45; overflow-x: hidden;
+    background-image: linear-gradient(180deg, rgba(217,169,78,.06), transparent 320px); }
+  :focus-visible { outline: 2px solid var(--brass-2); outline-offset: 2px; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  .back { position: fixed; top: 12px; left: 12px; z-index: 60; text-decoration: none; font: 600 12px/1 var(--sans); color: var(--ink-2);
+    background: rgba(36,31,43,.92); border: 1px solid var(--line); border-radius: 6px; padding: 7px 11px; }
+  .back:hover { color: var(--brass-2); }
+  .wrap { max-width: 1320px; margin: 0 auto; padding: 54px 20px 40px; }
+  header.top { display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: end; justify-content: space-between; margin-bottom: 18px; }
+  .brand { display: flex; gap: 14px; align-items: center; }
+  .brand svg { width: 52px; height: 52px; flex: none; }
+  h1 { font: 700 clamp(28px, 4.4vw, 44px)/1.05 var(--serif); margin: 0; }
+  h1 em { color: var(--brass); font-style: italic; }
+  .lede { color: var(--ink-2); margin: 5px 0 0; max-width: 62ch; font-size: 15px; }
+  .offline { font: 12px var(--mono); color: var(--teal); border: 1px solid rgba(92,200,176,.4); border-radius: 999px; padding: 5px 11px; white-space: nowrap; }
+
+  .layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 16px; align-items: start; }
+  .side, .main > section { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; }
+  .side { padding: 12px; }
+  .side h2 { font: 700 11px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); margin: 6px 4px 8px; }
+  .coll { list-style: none; margin: 0 0 12px; padding: 0; }
+  .coll li { display: flex; align-items: center; gap: 4px; }
+  .coll .load { flex: 1; min-width: 0; display: flex; gap: 8px; align-items: center; text-align: left; border: 0; background: none; padding: 7px 6px; border-radius: 7px; font-size: 13.5px; }
+  .coll .load:hover { background: var(--bg-3); }
+  .coll .load span.nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .m { font: 700 10.5px var(--mono); width: 44px; flex: none; }
+  .m.GET { color: var(--teal); } .m.POST { color: var(--brass-2); } .m.PUT { color: var(--blue); } .m.DELETE { color: var(--rose); } .m.PATCH { color: var(--violet); }
+  .coll .rm { border: 0; background: none; color: var(--ink-3); font-size: 15px; padding: 2px 6px; border-radius: 5px; }
+  .coll .rm:hover { color: var(--rose); }
+  .empty { font-size: 12.5px; color: var(--ink-3); padding: 2px 6px 8px; }
+  .docs { font-size: 12.5px; color: var(--ink-2); border-top: 1px solid var(--line); padding-top: 8px; }
+  .docs code { font: 12px var(--mono); color: var(--brass-2); }
+  .docs ul { list-style: none; padding: 0; margin: 6px 0; }
+  .docs li { padding: 3px 0; display: flex; gap: 6px; flex-wrap: wrap; }
+  .side .reset { width: 100%; margin-top: 8px; }
+
+  .main { display: grid; gap: 14px; min-width: 0; }
+  .bar { display: flex; gap: 8px; padding: 10px; flex-wrap: wrap; }
+  .bar select, .bar input { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; }
+  .bar select { font: 700 13px var(--mono); width: 104px; }
+  .bar input { flex: 1 1 280px; min-width: 0; font: 13.5px var(--mono); }
+  .btn { border: 1px solid var(--line); background: var(--bg-3); border-radius: 8px; padding: 8px 14px; font-weight: 650; font-size: 14px; }
+  .btn:hover { border-color: var(--ink-3); }
+  .btn.send { background: var(--brass); color: #22170a; border-color: var(--brass); font-weight: 800; padding: 9px 22px; }
+  .btn.send:hover { background: var(--brass-2); }
+  .btn.small { padding: 5px 10px; font-size: 12.5px; }
+  .btn:disabled { opacity: .5; cursor: progress; }
+  .save-row { display: flex; gap: 6px; flex: 1 1 100%; }
+  .save-row input { flex: 1; }
+
+  .panes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+  .pane { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; min-width: 0; display: flex; flex-direction: column; }
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); padding: 0 8px; flex-wrap: wrap; align-items: end; }
+  .tabs [role="tab"] { border: 0; background: none; padding: 10px 12px 9px; font-size: 13.5px; color: var(--ink-3); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tabs [role="tab"][aria-selected="true"] { color: var(--ink); border-bottom-color: var(--brass); }
+  .tabs .cnt { font: 11px var(--mono); color: var(--ink-3); margin-left: 3px; }
+  .tabs .spacer { flex: 1; }
+  .panel { padding: 12px; min-height: 280px; }
+  .kv { display: grid; grid-template-columns: 22px minmax(0,1fr) minmax(0,1.4fr) 26px; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .kv input[type="text"] { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font: 12.5px var(--mono); min-width: 0; width: 100%; }
+  .kv input[type="checkbox"] { accent-color: var(--brass); width: 16px; height: 16px; }
+  .x { border: 0; background: none; color: var(--ink-3); font-size: 16px; padding: 0; }
+  .x:hover { color: var(--rose); }
+  textarea.body { width: 100%; min-height: 240px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: 12.5px/1.5 var(--mono); resize: vertical; }
+  .hint { font-size: 12px; color: var(--ink-3); margin: 6px 0 0; }
+  .asr { display: grid; grid-template-columns: minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr) 22px 22px; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .asr select, .asr input { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 7px; font: 12.5px var(--mono); min-width: 0; width: 100%; }
+  .asr input:disabled { opacity: .35; }
+  .asr .res { font: 800 13px var(--mono); text-align: center; }
+  .res.pass { color: var(--teal); } .res.fail { color: var(--rose); }
+
+  .status-line { display: flex; gap: 14px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; font: 12.5px var(--mono); color: var(--ink-3); min-height: 42px; }
+  .status { font-weight: 800; border-radius: 6px; padding: 3px 9px; color: #13100f; }
+  .status.s2 { background: var(--teal); } .status.s4 { background: var(--brass-2); } .status.s5, .status.s0 { background: var(--rose); } .status.s3 { background: var(--blue); }
+  .status-line b { color: var(--ink); font-weight: 700; }
+  pre.json { margin: 0; font: 12.5px/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 460px; overflow: auto; }
+  .j-key { color: var(--blue); } .j-str { color: #b7e08a; } .j-num { color: var(--brass-2); } .j-bool { color: var(--violet); } .j-null { color: var(--ink-3); }
+  table.hdrs { width: 100%; border-collapse: collapse; font: 12.5px var(--mono); }
+  table.hdrs td { padding: 5px 6px; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
+  table.hdrs td:first-child { color: var(--ink-3); width: 42%; }
+  .tres { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+  .tres li { display: flex; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .tres li b { font: 800 12px var(--mono); width: 40px; flex: none; }
+  .placeholder { color: var(--ink-3); font-size: 13.5px; text-align: center; padding: 60px 10px; }
+  .placeholder svg { display: block; margin: 0 auto 10px; opacity: .6; }
+  .spinner { width: 14px; height: 14px; border: 2px solid var(--ink-3); border-top-color: var(--brass); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .fine { font-size: 12px; color: var(--ink-3); margin-top: 16px; }
+
+  @media (max-width: 1100px) { .panes { grid-template-columns: minmax(0,1fr); } }
+  @media (max-width: 820px) { .layout { grid-template-columns: minmax(0,1fr); } .side { order: 2; } }
+  @media (max-width: 480px) {
+    .bar select { width: 92px; }
+    .bar .btn.send { flex: 1; }
+    .asr { grid-template-columns: minmax(0,1fr) minmax(0,1fr) 22px 22px; }
+    .asr select { grid-column: 1 / -1; }
+    .kv { grid-template-columns: 20px minmax(0,1fr) minmax(0,1.2fr) 22px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+</style>
+</head>
+<body>
+<a href="../index.html#lab" class="back" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg viewBox="0 0 52 52" aria-hidden="true"><rect x="6" y="8" width="18" height="36" rx="2" fill="#d9a94e"/><rect x="26" y="8" width="18" height="36" rx="2" fill="#8a4b5c"/><path d="M24 8v36M26 8v36" stroke="#1b1720" stroke-width="2"/><path d="M10 16h10M10 21h8M30 16h10M30 21h7" stroke="#1b1720" stroke-width="2" stroke-linecap="round"/><path d="M36 30l6 6-6 6" fill="none" stroke="#efe8dc" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div>
+        <h1>Mock API <em>Playground</em></h1>
+        <p class="lede">Build requests against the Marginalia Books API, a fictional bookshop that lives entirely inside this page. Real status codes, headers, auth, pagination and rate limits; zero network traffic.</p>
+      </div>
+    </div>
+    <span class="offline" title="Requests are intercepted in JavaScript">● offline · in-memory server</span>
+  </header>
+
+  <div class="layout">
+    <aside class="side" aria-label="Collection and API reference">
+      <h2>Examples</h2>
+      <ul class="coll" id="examples" data-testid="examples"></ul>
+      <h2>Saved requests</h2>
+      <ul class="coll" id="saved" data-testid="saved"></ul>
+      <div class="docs">
+        <h2 style="margin-left:0">Reference</h2>
+        <div>Base: <code>https://api.marginalia.test/v1</code></div>
+        <ul>
+          <li><code>GET /books?page&amp;limit&amp;q</code></li>
+          <li><code>GET /books/:id</code></li>
+          <li><code>POST /books</code> 🔒</li>
+          <li><code>PUT /books/:id</code> 🔒</li>
+          <li><code>DELETE /books/:id</code> 🔒</li>
+          <li><code>GET /health</code></li>
+        </ul>
+        <div>🔒 needs <code>Authorization: Bearer demo-token-123</code>. Limit: 10 requests per 10&nbsp;s.</div>
+        <button class="btn small reset" id="resetData" data-testid="reset-data">Reset server data</button>
+      </div>
+    </aside>
+
+    <div class="main">
+      <section aria-label="Request">
+        <form class="bar" id="reqForm">
+          <label for="method" class="sr" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Method</label>
+          <select id="method" data-testid="method">
+            <option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option><option>PATCH</option>
+          </select>
+          <label for="url" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Request URL</label>
+          <input id="url" data-testid="url" spellcheck="false" autocomplete="off" value="https://api.marginalia.test/v1/books?page=1&limit=5">
+          <button class="btn send" type="submit" id="send" data-testid="send">Send</button>
+          <div class="save-row">
+            <label for="saveName" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Name for saved request</label>
+            <input id="saveName" data-testid="save-name" placeholder="Name this request to save it…" style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px;min-width:0">
+            <button class="btn small" type="button" id="saveBtn" data-testid="save">Save</button>
+          </div>
+        </form>
+      </section>
+
+      <div class="panes">
+        <section class="pane" aria-label="Request details">
+          <div class="tabs" role="tablist" aria-label="Request details">
+            <button role="tab" id="t-headers" aria-controls="p-headers" aria-selected="true" data-testid="tab-headers">Headers<span class="cnt" id="hdrCnt"></span></button>
+            <button role="tab" id="t-body" aria-controls="p-body" aria-selected="false" tabindex="-1" data-testid="tab-body">Body</button>
+            <button role="tab" id="t-asserts" aria-controls="p-asserts" aria-selected="false" tabindex="-1" data-testid="tab-asserts">Assertions<span class="cnt" id="asrCnt"></span></button>
+          </div>
+          <div class="panel" role="tabpanel" id="p-headers" aria-labelledby="t-headers">
+            <div id="hdrRows"></div>
+            <button class="btn small" type="button" id="addHdr" data-testid="add-header">+ Header</button>
+            <p class="hint">Tick a row to send it. The Authorization row starts unticked, so you can see a 401 first.</p>
+          </div>
+          <div class="panel" role="tabpanel" id="p-body" aria-labelledby="t-body" hidden>
+            <label for="body" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">JSON body</label>
+            <textarea class="body" id="body" data-testid="body" spellcheck="false"></textarea>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
+              <button class="btn small" type="button" id="fmtBody" data-testid="format-body">Format JSON</button>
+              <span class="hint" id="bodyHint" style="margin:0" aria-live="polite">Sent with POST, PUT and PATCH only.</span>
+            </div>
+          </div>
+          <div class="panel" role="tabpanel" id="p-asserts" aria-labelledby="t-asserts" hidden>
+            <div id="asrRows"></div>
+            <button class="btn small" type="button" id="addAsr" data-testid="add-assertion">+ Assertion</button>
+            <p class="hint">JSON path uses <code>$.data[0].title</code> style. Assertions run after every response.</p>
+          </div>
+        </section>
+
+        <section class="pane" aria-label="Response">
+          <div class="status-line" id="statusLine" data-testid="status-line" aria-live="polite">
+            <span>No response yet</span>
+          </div>
+          <div class="tabs" role="tablist" aria-label="Response details">
+            <button role="tab" id="t-rbody" aria-controls="p-rbody" aria-selected="true" data-testid="tab-rbody">Body</button>
+            <button role="tab" id="t-rheaders" aria-controls="p-rheaders" aria-selected="false" tabindex="-1" data-testid="tab-rheaders">Headers<span class="cnt" id="rhCnt"></span></button>
+            <button role="tab" id="t-tests" aria-controls="p-tests" aria-selected="false" tabindex="-1" data-testid="tab-tests">Tests<span class="cnt" id="testCnt" data-testid="test-count"></span></button>
+          </div>
+          <div class="panel" role="tabpanel" id="p-rbody" aria-labelledby="t-rbody">
+            <div class="placeholder" id="rPlaceholder"><svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true"><path d="M8 12h32v24H8z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14 20h14M14 26h20" stroke="currentColor" stroke-width="2"/></svg>Press Send (or Ctrl+Enter) to call the mock API.</div>
+            <pre class="json" id="rBody" data-testid="response-body" tabindex="0" hidden></pre>
+          </div>
+          <div class="panel" role="tabpanel" id="p-rheaders" aria-labelledby="t-rheaders" hidden>
+            <table class="hdrs"><tbody id="rHeaders" data-testid="response-headers"></tbody></table>
+          </div>
+          <div class="panel" role="tabpanel" id="p-tests" aria-labelledby="t-tests" hidden>
+            <ul class="tres" id="tres" data-testid="test-results"></ul>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+  <p class="fine">Marginalia Books, its catalogue and its API are fictional. The server is a JavaScript function in this page; latency is simulated (seed it with <code>?seed=</code>) and nothing leaves your browser.</p>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const qs = new URLSearchParams(location.search);
+  function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const rand = mulberry32(parseInt(qs.get('seed') || '20', 10) || 20);
+
+  /* =================== the in-memory server =================== */
+  const HOST = 'api.marginalia.test', TOKEN = 'demo-token-123', LIMIT = 10, WINDOW = 10000;
+  const ADJ = ['Quiet', 'Lantern', 'Salt', 'Paper', 'Hollow', 'Copper', 'Winter', 'Borrowed', 'Glass', 'Northern', 'Last', 'Second'];
+  const NOUN = ['Orchard', 'Cartographer', 'Tide', 'Archive', 'Heron', 'Staircase', 'Harbour', 'Almanac', 'Garden', 'Signal', 'Ferry', 'Margin'];
+  const FIRST = ['Ines', 'Tomas', 'Priya', 'Odile', 'Kwame', 'Mara', 'Jonah', 'Sunniva', 'Felix', 'Rhea', 'Anselm', 'Lotte'];
+  const LAST = ['Varga', 'Okafor', 'Lindqvist', 'Moreau', 'Achterberg', 'Castell', 'Nakamura', 'Whitlow', 'Brandt', 'Ferreira', 'Holm', 'Quill'];
+  function seedBooks() {
+    const out = [];
+    for (let i = 0; i < 23; i++) {
+      out.push({ id: i + 1, title: `The ${ADJ[(i * 5) % 12]} ${NOUN[(i * 7 + 3) % 12]}`, author: `${FIRST[(i * 3) % 12]} ${LAST[(i * 11 + 2) % 12]}`, year: 1961 + ((i * 17) % 63), price: Math.round((8 + ((i * 37) % 23) + ((i * 13) % 100) / 100) * 100) / 100, inStock: i % 4 !== 2 });
+    }
+    return out;
+  }
+  let books = seedBooks(), nextId = 24, hits = [];
+
+  function json(status, body, headers = {}) { return { status, body, headers: Object.assign({ 'content-type': 'application/json; charset=utf-8' }, headers) }; }
+  const STATUS_TEXT = { 200: 'OK', 201: 'Created', 204: 'No Content', 400: 'Bad Request', 401: 'Unauthorized', 404: 'Not Found', 405: 'Method Not Allowed', 422: 'Unprocessable Content', 429: 'Too Many Requests', 0: 'Blocked' };
+  const err = (status, code, message, extra) => json(status, Object.assign({ error: { code, message } }, extra || {}));
+
+  function validate(b, partial) {
+    const errors = [];
+    const need = (f, ok, msg) => { if (!partial || b[f] !== undefined) if (!ok) errors.push({ field: f, message: msg }); };
+    need('title', typeof b.title === 'string' && b.title.trim().length > 0 && b.title.length <= 120, 'title is required (1–120 characters)');
+    need('author', typeof b.author === 'string' && b.author.trim().length > 0, 'author is required');
+    need('year', Number.isInteger(b.year) && b.year >= 1450 && b.year <= 2026, 'year must be an integer between 1450 and 2026');
+    need('price', typeof b.price === 'number' && isFinite(b.price) && b.price >= 0, 'price must be a number ≥ 0');
+    if (b.inStock !== undefined && typeof b.inStock !== 'boolean') errors.push({ field: 'inStock', message: 'inStock must be a boolean' });
+    return errors;
+  }
+
+  function server(req) {
+    const now = Date.now();
+    hits = hits.filter(t => now - t < WINDOW);
+    const rl = { 'x-ratelimit-limit': String(LIMIT) };
+    if (hits.length >= LIMIT) {
+      const retry = Math.ceil((WINDOW - (now - hits[0])) / 1000);
+      const res = err(429, 'rate_limited', `Slow down: ${LIMIT} requests per ${WINDOW / 1000} s.`);
+      Object.assign(res.headers, rl, { 'retry-after': String(retry), 'x-ratelimit-remaining': '0' });
+      return res;
+    }
+    hits.push(now);
+    const res = route(req);
+    Object.assign(res.headers, rl, { 'x-ratelimit-remaining': String(LIMIT - hits.length), 'x-request-id': 'req_' + Math.floor(rand() * 1e9).toString(36) });
+    return res;
+  }
+
+  function route(req) {
+    const path = req.url.pathname.replace(/\/+$/, '') || '/';
+    const m = path.match(/^\/v1\/books(?:\/([^/]+))?$/);
+    if (path === '/v1/health') {
+      if (req.method !== 'GET') return Object.assign(err(405, 'method_not_allowed', `${req.method} is not allowed here.`), { headers: { 'content-type': 'application/json; charset=utf-8', allow: 'GET' } });
+      return json(200, { status: 'ok', books: books.length });
+    }
+    if (!m) return err(404, 'not_found', `No route for ${path}. Try /v1/books.`);
+    const id = m[1];
+    const allowed = id ? ['GET', 'PUT', 'DELETE'] : ['GET', 'POST'];
+    if (!allowed.includes(req.method)) return Object.assign(err(405, 'method_not_allowed', `${req.method} is not allowed on ${path}.`), { headers: { 'content-type': 'application/json; charset=utf-8', allow: allowed.join(', ') } });
+
+    if (req.method !== 'GET') {
+      const auth = req.headers.authorization || '';
+      if (!auth) return Object.assign(err(401, 'unauthorized', 'Missing bearer token.'), { headers: { 'content-type': 'application/json; charset=utf-8', 'www-authenticate': 'Bearer realm="marginalia"' } });
+      if (auth !== 'Bearer ' + TOKEN) return Object.assign(err(401, 'invalid_token', 'The bearer token is not valid.'), { headers: { 'content-type': 'application/json; charset=utf-8', 'www-authenticate': 'Bearer realm="marginalia", error="invalid_token"' } });
+    }
+    let body;
+    if (req.method === 'POST' || req.method === 'PUT') {
+      if (!req.body || !req.body.trim()) return err(400, 'empty_body', 'A JSON body is required.');
+      try { body = JSON.parse(req.body); } catch (e) { return err(400, 'invalid_json', 'Body is not valid JSON: ' + e.message); }
+      if (!body || typeof body !== 'object' || Array.isArray(body)) return err(400, 'invalid_json', 'Body must be a JSON object.');
+    }
+
+    if (!id) {
+      if (req.method === 'GET') {
+        const p = req.url.searchParams;
+        const page = parseInt(p.get('page') || '1', 10), limit = parseInt(p.get('limit') || '10', 10);
+        if (!(page >= 1) || !(limit >= 1 && limit <= 50)) return err(422, 'invalid_query', 'page must be ≥ 1 and limit between 1 and 50.', { errors: [{ field: !(page >= 1) ? 'page' : 'limit', message: 'out of range' }] });
+        const q = (p.get('q') || '').toLowerCase();
+        const list = q ? books.filter(b => (b.title + ' ' + b.author).toLowerCase().includes(q)) : books;
+        const totalPages = Math.max(1, Math.ceil(list.length / limit));
+        const data = list.slice((page - 1) * limit, page * limit);
+        const link = [];
+        const mk = n => `<https://${HOST}/v1/books?page=${n}&limit=${limit}${q ? '&q=' + encodeURIComponent(q) : ''}>`;
+        if (page < totalPages) link.push(`${mk(page + 1)}; rel="next"`);
+        if (page > 1) link.push(`${mk(page - 1)}; rel="prev"`);
+        const h = { 'x-total-count': String(list.length) };
+        if (link.length) h.link = link.join(', ');
+        return json(200, { data, page, limit, total: list.length, totalPages }, h);
+      }
+      const errors = validate(body, false);
+      if (errors.length) return err(422, 'validation_failed', 'The book could not be created.', { errors });
+      const book = { id: nextId++, title: body.title.trim(), author: body.author.trim(), year: body.year, price: body.price, inStock: body.inStock !== undefined ? body.inStock : true };
+      books.push(book);
+      return json(201, book, { location: `/v1/books/${book.id}` });
+    }
+    const n = Number(id);
+    const idx = books.findIndex(b => b.id === n);
+    if (!Number.isInteger(n) || idx < 0) return err(404, 'not_found', `Book ${id} does not exist.`);
+    if (req.method === 'GET') return json(200, books[idx]);
+    if (req.method === 'DELETE') { books.splice(idx, 1); return { status: 204, body: null, headers: {} }; }
+    const errors = validate(body, false);
+    if (errors.length) return err(422, 'validation_failed', 'The book could not be updated.', { errors });
+    books[idx] = { id: n, title: body.title.trim(), author: body.author.trim(), year: body.year, price: body.price, inStock: body.inStock !== undefined ? body.inStock : books[idx].inStock };
+    return json(200, books[idx]);
+  }
+
+  /* =================== client UI =================== */
+  const DEFAULT_HEADERS = () => [
+    { on: true, k: 'Accept', v: 'application/json' },
+    { on: true, k: 'Content-Type', v: 'application/json' },
+    { on: false, k: 'Authorization', v: 'Bearer ' + TOKEN },
+  ];
+  const NEW_BOOK = JSON.stringify({ title: 'The Paper Heron', author: 'Rhea Castell', year: 2019, price: 14.5 }, null, 2);
+  const EXAMPLES = [
+    { name: 'List books, page 2', method: 'GET', url: 'https://api.marginalia.test/v1/books?page=2&limit=5', auth: false, body: '' },
+    { name: 'Search "harbour"', method: 'GET', url: 'https://api.marginalia.test/v1/books?q=harbour', auth: false, body: '' },
+    { name: 'Get a missing book', method: 'GET', url: 'https://api.marginalia.test/v1/books/999', auth: false, body: '' },
+    { name: 'Create book (no token)', method: 'POST', url: 'https://api.marginalia.test/v1/books', auth: false, body: NEW_BOOK },
+    { name: 'Create book (invalid)', method: 'POST', url: 'https://api.marginalia.test/v1/books', auth: true, body: JSON.stringify({ title: '', year: 'soon', price: -3 }, null, 2) },
+    { name: 'Create book', method: 'POST', url: 'https://api.marginalia.test/v1/books', auth: true, body: NEW_BOOK },
+    { name: 'Replace book 3', method: 'PUT', url: 'https://api.marginalia.test/v1/books/3', auth: true, body: JSON.stringify({ title: 'The Winter Almanac (2nd ed.)', author: 'Mara Holm', year: 2024, price: 21, inStock: true }, null, 2) },
+    { name: 'Delete book 5', method: 'DELETE', url: 'https://api.marginalia.test/v1/books/5', auth: true, body: '' },
+    { name: 'PATCH (not allowed)', method: 'PATCH', url: 'https://api.marginalia.test/v1/books/1', auth: true, body: '{ "price": 1 }' },
+  ];
+
+  let headers = DEFAULT_HEADERS();
+  let asserts = [
+    { type: 'status', a: '', b: '200' },
+    { type: 'jsonpath', a: '$.page', b: '1' },
+    { type: 'header', a: 'X-Total-Count', b: '' },
+    { type: 'time', a: '', b: '1000' },
+  ];
+  let saved = [];
+  try { const s = JSON.parse(localStorage.getItem('zlab-020') || '[]'); if (Array.isArray(s)) saved = s.filter(x => x && x.name && x.method && x.url); } catch (e) { /* ignore */ }
+  let lastRes = null;
+
+  // tabs
+  function wireTabs(list) {
+    const tabs = [...list.querySelectorAll('[role="tab"]')];
+    const select = t => tabs.forEach(x => { const on = x === t; x.setAttribute('aria-selected', String(on)); x.tabIndex = on ? 0 : -1; $(x.getAttribute('aria-controls')).hidden = !on; });
+    tabs.forEach((t, i) => {
+      t.addEventListener('click', () => select(t));
+      t.addEventListener('keydown', e => {
+        if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { const n = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length]; select(n); n.focus(); e.preventDefault(); }
+      });
+    });
+    return select;
+  }
+  const tablists = document.querySelectorAll('[role="tablist"]');
+  wireTabs(tablists[0]);
+  const selectResTab = wireTabs(tablists[1]);
+
+  function renderHeaders() {
+    $('hdrRows').innerHTML = headers.map((h, i) => `<div class="kv" data-testid="hdr-row-${i}">
+      <input type="checkbox" ${h.on ? 'checked' : ''} data-i="${i}" data-f="on" aria-label="Send header ${esc(h.k || 'row ' + (i + 1))}" data-testid="hdr-on-${i}">
+      <input type="text" value="${esc(h.k)}" data-i="${i}" data-f="k" aria-label="Header name" placeholder="Name" data-testid="hdr-k-${i}">
+      <input type="text" value="${esc(h.v)}" data-i="${i}" data-f="v" aria-label="Header value" placeholder="Value" data-testid="hdr-v-${i}">
+      <button class="x" type="button" data-rm="${i}" aria-label="Remove header ${esc(h.k)}">×</button></div>`).join('');
+    $('hdrCnt').textContent = headers.filter(h => h.on && h.k).length;
+  }
+  $('hdrRows').addEventListener('input', e => { const t = e.target, i = +t.dataset.i; if (!headers[i]) return; headers[i][t.dataset.f] = t.type === 'checkbox' ? t.checked : t.value; $('hdrCnt').textContent = headers.filter(h => h.on && h.k).length; });
+  $('hdrRows').addEventListener('change', e => { const t = e.target; if (t.type === 'checkbox') { headers[+t.dataset.i].on = t.checked; $('hdrCnt').textContent = headers.filter(h => h.on && h.k).length; } });
+  $('hdrRows').addEventListener('click', e => { const b = e.target.closest('[data-rm]'); if (b) { headers.splice(+b.dataset.rm, 1); renderHeaders(); } });
+  $('addHdr').addEventListener('click', () => { headers.push({ on: true, k: '', v: '' }); renderHeaders(); $('hdrRows').querySelector(`[data-testid="hdr-k-${headers.length - 1}"]`).focus(); });
+
+  const ATYPES = { status: 'Status equals', jsonpath: 'JSON path equals', header: 'Header exists', time: 'Response time <' };
+  function renderAsserts() {
+    $('asrRows').innerHTML = asserts.map((a, i) => {
+      const needA = a.type === 'jsonpath' || a.type === 'header', needB = a.type !== 'header';
+      const r = a.result;
+      return `<div class="asr" data-testid="asr-row-${i}">
+        <select data-i="${i}" data-f="type" aria-label="Assertion type" data-testid="asr-type-${i}">${Object.entries(ATYPES).map(([k, v]) => `<option value="${k}" ${k === a.type ? 'selected' : ''}>${v}</option>`).join('')}</select>
+        <input type="text" data-i="${i}" data-f="a" value="${esc(a.a)}" ${needA ? '' : 'disabled'} aria-label="${a.type === 'header' ? 'Header name' : 'JSON path'}" placeholder="${a.type === 'header' ? 'Header' : a.type === 'jsonpath' ? '$.path' : '—'}" data-testid="asr-a-${i}">
+        <input type="text" data-i="${i}" data-f="b" value="${esc(a.b)}" ${needB ? '' : 'disabled'} aria-label="${a.type === 'time' ? 'Milliseconds' : 'Expected value'}" placeholder="${a.type === 'time' ? 'ms' : needB ? 'expected' : '—'}" data-testid="asr-b-${i}">
+        <span class="res ${r ? (r.pass ? 'pass' : 'fail') : ''}" data-testid="asr-res-${i}" aria-label="${r ? (r.pass ? 'passed' : 'failed') : 'not run'}">${r ? (r.pass ? '✓' : '✗') : '·'}</span>
+        <button class="x" type="button" data-rm="${i}" aria-label="Remove assertion">×</button></div>`;
+    }).join('');
+    $('asrCnt').textContent = asserts.length;
+  }
+  $('asrRows').addEventListener('input', e => { const t = e.target, i = +t.dataset.i; if (!asserts[i] || t.tagName === 'SELECT') return; asserts[i][t.dataset.f] = t.value; });
+  $('asrRows').addEventListener('change', e => { const t = e.target; if (t.tagName === 'SELECT') { asserts[+t.dataset.i].type = t.value; runAsserts(); } });
+  $('asrRows').addEventListener('click', e => { const b = e.target.closest('[data-rm]'); if (b) { asserts.splice(+b.dataset.rm, 1); runAsserts(); } });
+  $('addAsr').addEventListener('click', () => { asserts.push({ type: 'status', a: '', b: '200' }); runAsserts(); });
+
+  function jsonPath(obj, path) {
+    const p = path.trim().replace(/^\$\.?/, '');
+    if (!p) return { found: true, value: obj };
+    const parts = p.match(/[^.[\]]+|\[\d+\]/g) || [];
+    let cur = obj;
+    for (const raw of parts) {
+      const k = raw.startsWith('[') ? +raw.slice(1, -1) : raw;
+      if (cur === null || typeof cur !== 'object' || !(k in cur)) return { found: false };
+      cur = cur[k];
+    }
+    return { found: true, value: cur };
+  }
+  function looseEq(actual, expected) {
+    const e = expected.trim();
+    let parsed; try { parsed = JSON.parse(e); } catch (x) { parsed = e; }
+    if (typeof actual === 'object' && actual !== null) return JSON.stringify(actual) === JSON.stringify(parsed);
+    return actual === parsed || String(actual) === e;
+  }
+  function runAsserts() {
+    if (lastRes) {
+      asserts.forEach(a => {
+        let pass = false, detail = '';
+        if (a.type === 'status') { pass = String(lastRes.status) === a.b.trim(); detail = `status ${lastRes.status} ${pass ? '=' : '≠'} ${a.b}`; }
+        else if (a.type === 'jsonpath') {
+          const r = lastRes.body && typeof lastRes.body === 'object' ? jsonPath(lastRes.body, a.a) : { found: false };
+          pass = r.found && looseEq(r.value, a.b);
+          detail = r.found ? `${a.a} is ${JSON.stringify(r.value)}${pass ? '' : `, expected ${a.b}`}` : `${a.a} not found in body`;
+        } else if (a.type === 'header') { pass = !!a.a.trim() && Object.prototype.hasOwnProperty.call(lastRes.headers, a.a.trim().toLowerCase()); detail = `header ${a.a} ${pass ? 'present' : 'missing'}`; }
+        else if (a.type === 'time') { const lim = parseFloat(a.b); pass = lastRes.time < lim; detail = `${lastRes.time} ms ${pass ? '<' : '≥'} ${a.b} ms`; }
+        a.result = { pass, detail };
+      });
+    }
+    renderAsserts();
+    const done = asserts.filter(a => a.result);
+    const passed = done.filter(a => a.result.pass).length;
+    $('testCnt').textContent = lastRes ? `${passed}/${asserts.length}` : '';
+    $('tres').innerHTML = lastRes ? asserts.map((a, i) => `<li data-testid="tres-${i}"><b class="res ${a.result.pass ? 'pass' : 'fail'}">${a.result.pass ? 'PASS' : 'FAIL'}</b><span>${esc(ATYPES[a.type])}: ${esc(a.result.detail)}</span></li>`).join('') || '<li>No assertions.</li>' : '<li>Send a request to run assertions.</li>';
+  }
+
+  function prettyJson(v) {
+    const s = JSON.stringify(v, null, 2);
+    return esc(s).replace(/(&quot;(?:[^&]|&(?!quot;))*?&quot;)(\s*:)?|\b(true|false)\b|\bnull\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g, (m, str, colon, bool) => {
+      if (str) return colon ? `<span class="j-key">${str}</span>${colon}` : `<span class="j-str">${str}</span>`;
+      if (bool) return `<span class="j-bool">${m}</span>`;
+      if (m === 'null') return `<span class="j-null">null</span>`;
+      return `<span class="j-num">${m}</span>`;
+    });
+  }
+
+  function currentRequest() {
+    return { method: $('method').value, url: $('url').value.trim(), headers: headers.map(h => ({ ...h })), body: $('body').value };
+  }
+
+  let inflight = false;
+  function send() {
+    if (inflight) return;
+    const req = currentRequest();
+    let url;
+    try { url = new URL(req.url, `https://${HOST}/v1/`); } catch (e) { return show({ status: 0, body: { error: { code: 'bad_url', message: 'That is not a valid URL.' } }, headers: {}, time: 0 }); }
+    if (url.hostname !== HOST) return show({ status: 0, body: { error: { code: 'blocked', message: `This playground never touches the network. Only https://${HOST} (the in-page mock) is reachable.` } }, headers: {}, time: 0 });
+    const hmap = {};
+    req.headers.filter(h => h.on && h.k.trim()).forEach(h => { hmap[h.k.trim().toLowerCase()] = h.v.trim(); });
+    const sendsBody = ['POST', 'PUT', 'PATCH'].includes(req.method);
+    const t0 = performance.now();
+    const latency = Math.round(40 + rand() * 140);
+    inflight = true;
+    $('send').disabled = true;
+    $('statusLine').innerHTML = '<span class="spinner" aria-hidden="true"></span><span>Sending…</span>';
+    setTimeout(() => {
+      const res = server({ method: req.method, url, headers: hmap, body: sendsBody ? req.body : '' });
+      res.time = Math.round(performance.now() - t0);
+      inflight = false;
+      $('send').disabled = false;
+      show(res);
+    }, latency);
+  }
+  function show(res) {
+    lastRes = res;
+    const cls = 's' + String(res.status)[0];
+    const bodyText = res.body === null ? '' : JSON.stringify(res.body);
+    const size = new TextEncoder().encode(bodyText).length;
+    $('statusLine').innerHTML = `<span class="status ${cls}" data-testid="status">${res.status} ${STATUS_TEXT[res.status] || ''}</span><span>time <b data-testid="time">${res.time} ms</b></span><span>size <b>${size} B</b></span>`;
+    $('rPlaceholder').hidden = true;
+    $('rBody').hidden = false;
+    $('rBody').innerHTML = res.body === null ? '<span class="j-null">(empty body)</span>' : prettyJson(res.body);
+    const hk = Object.keys(res.headers).sort();
+    $('rHeaders').innerHTML = hk.map(k => `<tr><td>${esc(k)}</td><td data-testid="rh-${esc(k)}">${esc(res.headers[k])}</td></tr>`).join('') || '<tr><td colspan="2">No headers</td></tr>';
+    $('rhCnt').textContent = hk.length;
+    runAsserts();
+    window.__api = { last: res, books: books.length };
+  }
+
+  $('reqForm').addEventListener('submit', e => { e.preventDefault(); send(); });
+  document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); send(); } });
+  $('fmtBody').addEventListener('click', () => {
+    try { $('body').value = JSON.stringify(JSON.parse($('body').value), null, 2); $('bodyHint').textContent = 'Formatted.'; }
+    catch (e) { $('bodyHint').textContent = 'Not valid JSON: ' + e.message; }
+  });
+  $('resetData').addEventListener('click', () => { books = seedBooks(); nextId = 24; hits = []; $('statusLine').innerHTML = '<span>Server data reset: 23 books.</span>'; });
+
+  function load(r) {
+    $('method').value = r.method; $('url').value = r.url; $('body').value = r.body || '';
+    if (r.headers) headers = r.headers.map(h => ({ ...h }));
+    else { headers = DEFAULT_HEADERS(); headers[2].on = !!r.auth; }
+    if (r.asserts) asserts = r.asserts.map(a => ({ type: a.type, a: a.a, b: a.b }));
+    renderHeaders(); asserts.forEach(a => { delete a.result; }); lastRes = null; runAsserts();
+    $('saveName').value = r.name && !EXAMPLES.includes(r) ? r.name : '';
+  }
+  function renderCollections() {
+    const row = (r, i, kind) => `<li><button class="load" type="button" data-kind="${kind}" data-i="${i}" data-testid="${kind}-${i}"><span class="m ${r.method}">${r.method}</span><span class="nm">${esc(r.name)}</span></button>${kind === 'saved' ? `<button class="rm" type="button" data-rm="${i}" aria-label="Delete saved request ${esc(r.name)}" data-testid="saved-rm-${i}">×</button>` : ''}</li>`;
+    $('examples').innerHTML = EXAMPLES.map((r, i) => row(r, i, 'ex')).join('');
+    $('saved').innerHTML = saved.length ? saved.map((r, i) => row(r, i, 'saved')).join('') : '<li class="empty">Nothing saved yet. Name a request above and press Save.</li>';
+  }
+  document.querySelector('.side').addEventListener('click', e => {
+    const b = e.target.closest('[data-kind]');
+    if (b) { load(b.dataset.kind === 'ex' ? EXAMPLES[+b.dataset.i] : saved[+b.dataset.i]); return; }
+    const rm = e.target.closest('[data-rm]');
+    if (rm && rm.closest('#saved')) { saved.splice(+rm.dataset.rm, 1); persist(); renderCollections(); }
+  });
+  function persist() { try { localStorage.setItem('zlab-020', JSON.stringify(saved)); } catch (e) { /* ignore */ } }
+  $('saveBtn').addEventListener('click', () => {
+    const name = $('saveName').value.trim() || `${$('method').value} ${$('url').value.replace(/^https?:\/\/[^/]+/, '')}`;
+    const r = Object.assign(currentRequest(), { name, asserts: asserts.map(a => ({ type: a.type, a: a.a, b: a.b })) });
+    const at = saved.findIndex(s => s.name === name);
+    if (at >= 0) saved[at] = r; else saved.push(r);
+    persist(); renderCollections();
+    $('saveName').value = name;
+  });
+
+  renderHeaders(); renderAsserts(); runAsserts(); renderCollections();
+})();
+</script>
+</body>
+</html>

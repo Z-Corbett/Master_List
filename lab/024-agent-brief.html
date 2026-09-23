@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Brief Builder — Write Better Tasks for Coding Agents</title>
+<meta name="description" content="A guided form that turns a vague request into a strong brief for a coding agent: goal, context and files, constraints, acceptance criteria, test plan, out-of-scope and deliverables, with a live Markdown preview, a quality meter with specific suggestions, templates, and copy or download as Markdown.">
+<style>
+  :root {
+    --paper: #fbfcff;
+    --grid: rgba(35,64,216,.07);
+    --card: #ffffff;
+    --ink: #10163a;
+    --ink-2: #454c73;
+    --ink-3: #8389a8;
+    --line: #dde1f0;
+    --cobalt: #2340d8;
+    --cobalt-2: #e9edff;
+    --red: #d93a2b;
+    --amber: #c07a00;
+    --green: #16845a;
+    --serif: Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SFMono-Regular", "Cascadia Code", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--paper); color: var(--ink); font-family: var(--sans); line-height: 1.5; overflow-x: hidden;
+    background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 24px 24px; }
+  :focus-visible { outline: 3px solid var(--cobalt); outline-offset: 2px; }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  .back { position: fixed; top: 12px; left: 12px; z-index: 60; text-decoration: none; font: 600 12px/1 var(--sans); color: var(--cobalt);
+    background: var(--card); border: 1.5px solid var(--cobalt); border-radius: 4px; padding: 6px 10px; }
+  .back:hover { background: var(--cobalt); color: #fff; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 58px 20px 40px; }
+  header.top { display: flex; flex-wrap: wrap; gap: 12px 30px; justify-content: space-between; align-items: flex-end; margin-bottom: 18px; }
+  .stamp { display: inline-block; font: 700 11px var(--mono); letter-spacing: .18em; color: var(--red); border: 1.5px solid var(--red); padding: 3px 8px; transform: rotate(-2deg); text-transform: uppercase; }
+  h1 { margin: 10px 0 6px; font: 700 clamp(32px, 5vw, 54px)/1 var(--serif); letter-spacing: -.02em; }
+  h1 em { color: var(--cobalt); }
+  .lede { margin: 0; color: var(--ink-2); max-width: 62ch; }
+  .templates { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .templates .lbl { font: 700 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); margin-right: 4px; width: 100%; }
+  .tbtn { border: 1.5px solid var(--ink); background: var(--card); border-radius: 4px; padding: 6px 12px; font-weight: 650; font-size: 14px; }
+  .tbtn:hover { background: var(--cobalt-2); }
+  .tbtn.vague { border-style: dashed; color: var(--red); border-color: var(--red); }
+  .tbtn.clear { border-color: var(--line); color: var(--ink-3); }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+  .form { display: grid; gap: 14px; }
+  fieldset { margin: 0; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px 14px; background: var(--card); min-width: 0; }
+  legend { font: 700 13px var(--mono); letter-spacing: .06em; padding: 0 6px; color: var(--cobalt); text-transform: uppercase; }
+  legend .n { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--cobalt); color: #fff; font-size: 11px; margin-right: 6px; }
+  .help { font-size: 12.5px; color: var(--ink-3); margin: 0 0 8px; }
+  label.fl { display: block; font-weight: 600; font-size: 13.5px; margin: 6px 0 4px; }
+  input[type=text], textarea { width: 100%; border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px; background: #fdfdff; font-size: 14px; }
+  textarea { min-height: 72px; resize: vertical; line-height: 1.45; }
+  input[type=text]:focus, textarea:focus { border-color: var(--cobalt); outline: none; box-shadow: 0 0 0 3px rgba(35,64,216,.15); }
+  .adder { display: flex; gap: 6px; }
+  .adder input { flex: 1; min-width: 0; }
+  .adder button { border: 0; background: var(--ink); color: #fff; border-radius: 7px; padding: 0 14px; font-weight: 700; }
+  ul.items { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+  ul.items li { display: grid; grid-template-columns: 18px minmax(0,1fr) 26px; gap: 8px; align-items: start; font-size: 14px; background: #f7f8fd; border-radius: 6px; padding: 5px 6px 5px 8px; }
+  ul.items li .mark { color: var(--ink-3); font: 13px var(--mono); padding-top: 1px; }
+  ul.items li span.t { overflow-wrap: anywhere; }
+  ul.items li code, .files li code { font: 12.5px var(--mono); }
+  ul.items li button { border: 0; background: none; color: var(--ink-3); font-size: 16px; line-height: 1; padding: 2px; border-radius: 4px; }
+  ul.items li button:hover { color: var(--red); }
+  .deliv { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
+  .deliv label { display: flex; gap: 7px; align-items: center; font-size: 14px; }
+  .deliv input { accent-color: var(--cobalt); width: 16px; height: 16px; }
+
+  .side { position: sticky; top: 16px; display: grid; gap: 14px; }
+  .meter { background: var(--ink); color: #fff; border-radius: 12px; padding: 14px 16px; }
+  .meter .top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .meter .score { font: 800 40px/1 var(--serif); }
+  .meter .score small { font-size: 16px; color: #9ea6d6; }
+  .meter .grade { font: 700 13px var(--mono); letter-spacing: .12em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; }
+  .grade.g0 { background: var(--red); } .grade.g1 { background: var(--amber); } .grade.g2 { background: #3b6cf0; } .grade.g3 { background: var(--green); }
+  .gauge { height: 8px; border-radius: 4px; background: rgba(255,255,255,.14); margin: 10px 0 12px; overflow: hidden; }
+  .gauge i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #d93a2b, #f2b33d 45%, #3b6cf0 70%, #19b37a); transition: width .4s ease; }
+  .sugs { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 260px; overflow: auto; }
+  .sugs li { display: grid; grid-template-columns: 8px minmax(0,1fr) auto; gap: 8px; align-items: start; font-size: 13.5px; background: rgba(255,255,255,.06); border-radius: 7px; padding: 7px 8px; }
+  .sugs li i { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; }
+  .sugs li.high i { background: #ff6b5b; } .sugs li.med i { background: #f2b33d; } .sugs li.low i { background: #8fa3ff; }
+  .sugs li button { border: 1px solid rgba(255,255,255,.3); background: transparent; color: #fff; border-radius: 5px; font-size: 12px; padding: 2px 8px; }
+  .sugs .none { grid-template-columns: 1fr; color: #9ff0cc; }
+
+  .preview { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .pv-bar { display: flex; gap: 6px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--line); background: #f5f7ff; flex-wrap: wrap; }
+  .pv-bar .t { font: 700 12px var(--mono); color: var(--ink-3); margin-right: auto; letter-spacing: .08em; text-transform: uppercase; }
+  .seg button { border: 1px solid var(--line); background: #fff; padding: 4px 10px; font-size: 12.5px; font-weight: 600; }
+  .seg button:first-child { border-radius: 6px 0 0 6px; } .seg button:last-child { border-radius: 0 6px 6px 0; border-left: 0; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .act { border: 0; background: var(--cobalt); color: #fff; border-radius: 6px; padding: 5px 12px; font-weight: 700; font-size: 13px; }
+  .act.alt { background: var(--ink); }
+  .doc { padding: 16px 20px; max-height: 620px; overflow: auto; font-family: var(--serif); font-size: 15px; }
+  .doc h1 { font: 700 22px/1.2 var(--serif); margin: 0 0 12px; }
+  .doc h2 { font: 700 13px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--cobalt); margin: 16px 0 6px; padding-bottom: 3px; border-bottom: 1px solid var(--line); }
+  .doc p { margin: 0 0 8px; white-space: pre-wrap; }
+  .doc ul { margin: 0 0 8px; padding-left: 20px; }
+  .doc ul.check { list-style: none; padding-left: 2px; }
+  .doc ul.check li { display: flex; gap: 8px; align-items: baseline; }
+  .doc ul.check input { accent-color: var(--green); }
+  .doc code { font: 13px var(--mono); background: #f1f3fb; padding: 1px 5px; border-radius: 4px; }
+  .doc .empty { color: var(--ink-3); font-style: italic; }
+  pre.raw { margin: 0; padding: 16px 18px; font: 12.5px/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 620px; overflow: auto; }
+  .status { font-size: 12.5px; color: var(--green); min-height: 1.2em; padding: 6px 12px; border-top: 1px solid var(--line); }
+  .fine { font-size: 12px; color: var(--ink-3); margin-top: 18px; }
+
+  @media (max-width: 980px) { .layout { grid-template-columns: minmax(0,1fr); } .side { position: static; } }
+  @media (max-width: 480px) { .deliv { grid-template-columns: 1fr; } .doc { padding: 14px; } }
+  @media (prefers-reduced-motion: reduce) { .gauge i { transition: none; } }
+</style>
+</head>
+<body>
+<a href="../index.html#lab" class="back" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <span class="stamp">Brief · v1</span>
+      <h1>Agent Brief <em>Builder</em></h1>
+      <p class="lede">A coding agent does what the brief says, not what you meant. Fill in the sections, watch the meter, and fix what it flags until the task is something an agent (or a new teammate) could finish without asking you anything.</p>
+    </div>
+    <div class="templates" role="group" aria-label="Start from a template">
+      <span class="lbl">Start from</span>
+      <button class="tbtn vague" type="button" data-tpl="vague" data-testid="tpl-vague">A vague request</button>
+      <button class="tbtn" type="button" data-tpl="bug" data-testid="tpl-bug">Bug fix</button>
+      <button class="tbtn" type="button" data-tpl="feature" data-testid="tpl-feature">Feature</button>
+      <button class="tbtn" type="button" data-tpl="refactor" data-testid="tpl-refactor">Refactor</button>
+      <button class="tbtn clear" type="button" data-tpl="blank" data-testid="tpl-blank">Clear</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <form class="form" id="form" autocomplete="off" onsubmit="return false">
+      <fieldset>
+        <legend><span class="n">1</span>Goal</legend>
+        <label class="fl" for="f-title">Title</label>
+        <input type="text" id="f-title" data-testid="f-title" placeholder="e.g. Fix double-charge on checkout retry">
+        <label class="fl" for="f-goal">What should be true when this is done?</label>
+        <textarea id="f-goal" data-testid="f-goal" placeholder="Describe the outcome, not the steps."></textarea>
+      </fieldset>
+      <fieldset>
+        <legend><span class="n">2</span>Context</legend>
+        <p class="help">Background the agent can't guess: why this matters, what you already know, links to issues.</p>
+        <label class="fl" for="f-context">Background</label>
+        <textarea id="f-context" data-testid="f-context"></textarea>
+        <label class="fl" for="add-files">Relevant files</label>
+        <div class="adder"><input type="text" id="add-files" data-list="files" data-testid="add-files" placeholder="src/checkout/pay.ts"><button type="button" data-add="files" data-testid="add-files-btn">Add</button></div>
+        <ul class="items" id="list-files" data-testid="list-files"></ul>
+      </fieldset>
+      <fieldset>
+        <legend><span class="n">3</span>Constraints</legend>
+        <p class="help">Rules the solution must respect: libraries, APIs that can't change, performance, style.</p>
+        <div class="adder"><input type="text" id="add-constraints" data-list="constraints" data-testid="add-constraints" aria-label="Add a constraint" placeholder="Don't change the public API of PaymentClient"><button type="button" data-add="constraints">Add</button></div>
+        <ul class="items" id="list-constraints" data-testid="list-constraints"></ul>
+      </fieldset>
+      <fieldset>
+        <legend><span class="n">4</span>Acceptance criteria</legend>
+        <p class="help">Observable, checkable statements. If you can't test it, the agent can't prove it.</p>
+        <div class="adder"><input type="text" id="add-criteria" data-list="criteria" data-testid="add-criteria" aria-label="Add an acceptance criterion" placeholder="Retrying a failed payment never creates a second charge"><button type="button" data-add="criteria" data-testid="add-criteria-btn">Add</button></div>
+        <ul class="items" id="list-criteria" data-testid="list-criteria"></ul>
+      </fieldset>
+      <fieldset>
+        <legend><span class="n">5</span>Test plan</legend>
+        <label class="fl" for="f-tests">How will the agent prove it works? Include the exact commands.</label>
+        <textarea id="f-tests" data-testid="f-tests"></textarea>
+      </fieldset>
+      <fieldset>
+        <legend><span class="n">6</span>Out of scope</legend>
+        <div class="adder"><input type="text" id="add-scope" data-list="scope" data-testid="add-scope" aria-label="Add an out-of-scope item" placeholder="Redesigning the checkout UI"><button type="button" data-add="scope">Add</button></div>
+        <ul class="items" id="list-scope" data-testid="list-scope"></ul>
+      </fieldset>
+      <fieldset>
+        <legend><span class="n">7</span>Deliverables</legend>
+        <div class="deliv" id="deliv">
+          <label><input type="checkbox" value="A branch with focused commits and a PR description" data-testid="d-pr"> Branch + PR description</label>
+          <label><input type="checkbox" value="New or updated automated tests" data-testid="d-tests"> Tests</label>
+          <label><input type="checkbox" value="A short summary of what changed and why" data-testid="d-summary"> Change summary</label>
+          <label><input type="checkbox" value="Updated docs / README where behaviour changed" data-testid="d-docs"> Docs</label>
+          <label><input type="checkbox" value="Before/after screenshots for UI changes" data-testid="d-shots"> Screenshots</label>
+          <label><input type="checkbox" value="A list of open questions or risks found" data-testid="d-risks"> Open questions</label>
+        </div>
+      </fieldset>
+    </form>
+
+    <div class="side">
+      <section class="meter" aria-labelledby="m-h">
+        <div class="top">
+          <div><div id="m-h" style="font:700 11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:#9ea6d6">Brief quality</div>
+          <div class="score"><span data-testid="score">0</span><small>/100</small></div></div>
+          <span class="grade g0" data-testid="grade">Vague</span>
+        </div>
+        <div class="gauge"><i id="gauge"></i></div>
+        <ul class="sugs" id="sugs" data-testid="suggestions" aria-live="polite"></ul>
+      </section>
+      <section class="preview" aria-labelledby="pv-h">
+        <div class="pv-bar">
+          <span class="t" id="pv-h">Preview</span>
+          <div class="seg" role="group" aria-label="Preview mode">
+            <button type="button" data-mode="doc" aria-pressed="true" data-testid="mode-doc">Rendered</button>
+            <button type="button" data-mode="raw" aria-pressed="false" data-testid="mode-raw">Markdown</button>
+          </div>
+          <button class="act" type="button" id="copyBtn" data-testid="copy">Copy</button>
+          <button class="act alt" type="button" id="dlBtn" data-testid="download">Download .md</button>
+        </div>
+        <div class="doc" id="doc" data-testid="preview"></div>
+        <pre class="raw" id="raw" data-testid="raw" hidden></pre>
+        <div class="status" id="status" role="status" data-testid="status"></div>
+      </section>
+    </div>
+  </div>
+  <p class="fine">Draft is saved in this browser only. The quality meter is a set of transparent heuristics, not an AI judge: it checks for missing sections, untestable or vague wording, and missing commands. Template content describes fictional projects.</p>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const LISTS = ['files', 'constraints', 'criteria', 'scope'];
+  const empty = () => ({ title: '', goal: '', context: '', tests: '', files: [], constraints: [], criteria: [], scope: [], deliverables: [] });
+
+  const TEMPLATES = {
+    blank: empty(),
+    vague: { ...empty(), title: 'Login page', goal: 'Make the login page nicer and fix the bugs, should be fast and modern etc.' },
+    bug: {
+      title: 'Fix double charge when a payment is retried',
+      goal: 'Retrying a payment after a gateway timeout must never charge the customer twice. Today, about 1 in 400 retried checkouts creates two charges (support ticket #2291, fictional).',
+      context: 'The retry happens in PaymentClient.charge(). When the gateway times out after accepting the charge, we retry with a new request and no idempotency key. The gateway (fictional "PayNorth") supports an Idempotency-Key header.',
+      files: ['src/payments/PaymentClient.ts', 'src/payments/retry.ts', 'tests/payments/PaymentClient.test.ts'],
+      constraints: ['Keep the public signature of PaymentClient.charge() unchanged', 'No new runtime dependencies', 'Retries stay at most 3 with the existing backoff'],
+      criteria: ['Every charge request carries an Idempotency-Key derived from the order id and attempt group', 'A retry after a timeout reuses the same key', 'A new unit test reproduces the double charge and passes after the fix', 'Existing payment tests still pass'],
+      tests: 'Run `npm test -- tests/payments` and add a test that simulates a gateway timeout after acceptance (mock returns 504 then 200 for the same key). Then run the full suite with `npm test`.',
+      scope: ['Refunding historical double charges', 'Changing the retry backoff policy', 'Any checkout UI changes'],
+      deliverables: ['A branch with focused commits and a PR description', 'New or updated automated tests', 'A short summary of what changed and why'],
+    },
+    feature: {
+      title: 'Add CSV export to the orders table',
+      goal: 'Admins can download the currently filtered orders table as a CSV file from the orders page.',
+      context: 'Admins currently copy rows by hand into spreadsheets. The table is already filtered server-side via GET /api/orders?status=&from=&to=. Up to 5,000 rows is the realistic maximum.',
+      files: ['src/pages/admin/Orders.tsx', 'src/api/orders.ts', 'server/routes/orders.ts'],
+      constraints: ['Export respects the active filters exactly', 'Stream the response on the server; do not build the whole file in memory', 'Follow the existing button styles in src/components/Button.tsx'],
+      criteria: ['An "Export CSV" button appears for admins only', 'The downloaded file has a header row and one row per filtered order', 'Values containing commas or quotes are escaped per RFC 4180', 'Exporting 5,000 rows completes in under 3 seconds locally', 'A Playwright test downloads the file and checks the row count'],
+      tests: 'Unit-test the CSV encoder (commas, quotes, newlines, empty values). Add an e2e test with `npx playwright test orders-export.spec.ts` that applies a filter, clicks Export and asserts the download. Run `npm test` and `npx playwright test` before opening the PR.',
+      scope: ['Excel (.xlsx) export', 'Scheduled or emailed exports', 'Exporting other tables'],
+      deliverables: ['A branch with focused commits and a PR description', 'New or updated automated tests', 'Before/after screenshots for UI changes', 'Updated docs / README where behaviour changed'],
+    },
+    refactor: {
+      title: 'Split the 1,200-line utils.ts into focused modules',
+      goal: 'utils.ts is split into small modules grouped by domain (dates, money, strings, validation) with no behaviour change.',
+      context: 'utils.ts has grown to ~1,200 lines and is imported in 140 places. It is the most common source of merge conflicts. There is decent test coverage (utils.test.ts).',
+      files: ['src/lib/utils.ts', 'src/lib/utils.test.ts'],
+      constraints: ['Zero behaviour change: no function bodies are edited except imports', 'Keep a temporary src/lib/utils.ts that re-exports everything, marked @deprecated', 'One commit per new module so the PR is reviewable'],
+      criteria: ['src/lib/utils.ts only contains re-exports', 'Each new module is under 300 lines', 'npm run typecheck reports 0 errors', 'All existing tests pass without edits to their assertions'],
+      tests: 'Run `npm run typecheck` and `npm test` after each module move. Compare the list of exported names before and after with `node scripts/list-exports.mjs src/lib/utils.ts`.',
+      scope: ['Renaming functions', 'Updating the 140 call sites to the new paths (follow-up task)', 'Fixing bugs found along the way (note them instead)'],
+      deliverables: ['A branch with focused commits and a PR description', 'A list of open questions or risks found'],
+    },
+  };
+
+  let S = empty();
+  const fresh = new URLSearchParams(location.search).has('fresh');
+  if (!fresh) { try { const s = JSON.parse(localStorage.getItem('zlab-024') || 'null'); if (s && typeof s === 'object') S = Object.assign(empty(), s); } catch (e) { /* ignore */ } }
+
+  /* ---------- form binding ---------- */
+  const FIELDS = { title: 'f-title', goal: 'f-goal', context: 'f-context', tests: 'f-tests' };
+  function fillForm() {
+    Object.entries(FIELDS).forEach(([k, id]) => { $(id).value = S[k]; });
+    LISTS.forEach(renderList);
+    document.querySelectorAll('#deliv input').forEach(c => { c.checked = S.deliverables.includes(c.value); });
+  }
+  Object.entries(FIELDS).forEach(([k, id]) => $(id).addEventListener('input', () => { S[k] = $(id).value; update(); }));
+  document.querySelectorAll('#deliv input').forEach(c => c.addEventListener('change', () => {
+    S.deliverables = [...document.querySelectorAll('#deliv input:checked')].map(x => x.value); update();
+  }));
+  function renderList(name) {
+    const ul = $('list-' + name);
+    ul.innerHTML = S[name].map((t, i) => `<li data-testid="${name}-item-${i}"><span class="mark">${name === 'criteria' ? '☐' : name === 'files' ? '▸' : '–'}</span><span class="t">${name === 'files' ? `<code>${esc(t)}</code>` : esc(t)}</span><button type="button" data-rm="${name}" data-i="${i}" aria-label="Remove: ${esc(t)}">×</button></li>`).join('');
+  }
+  function addItem(name) {
+    const inp = $('add-' + name), v = inp.value.trim();
+    if (!v) return;
+    if (!S[name].includes(v)) S[name].push(v);
+    inp.value = ''; renderList(name); update(); inp.focus();
+  }
+  document.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => addItem(b.dataset.add)));
+  document.querySelectorAll('[data-list]').forEach(inp => inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addItem(inp.dataset.list); } }));
+  $('form').addEventListener('click', e => {
+    const b = e.target.closest('[data-rm]'); if (!b) return;
+    S[b.dataset.rm].splice(+b.dataset.i, 1); renderList(b.dataset.rm); update();
+    $('add-' + b.dataset.rm).focus();
+  });
+  document.querySelectorAll('[data-tpl]').forEach(b => b.addEventListener('click', () => {
+    S = JSON.parse(JSON.stringify(TEMPLATES[b.dataset.tpl])); fillForm(); update();
+    $('status').textContent = b.dataset.tpl === 'blank' ? 'Cleared.' : `Loaded the "${b.textContent.trim()}" template.`;
+  }));
+
+  /* ---------- quality rules ---------- */
+  const VAGUE = ['nice', 'nicer', 'better', 'clean up', 'cleanup', 'improve', 'improved', 'fast', 'faster', 'modern', 'etc', 'stuff', 'some', 'properly', 'asap', 'user-friendly', 'intuitive', 'robust', 'good', 'simple', 'fix the bugs', 'optimize', 'optimise'];
+  const findVague = text => {
+    const low = ' ' + text.toLowerCase().replace(/[.,;:!?()"]/g, ' ') + ' ';
+    return VAGUE.filter(w => low.includes(' ' + w + ' '));
+  };
+  const hasCommand = t => /`[^`]+`/.test(t) || /\b(npm|npx|pnpm|yarn|pytest|go test|cargo|make|playwright|vitest|jest|mvn|gradle)\b/i.test(t);
+  // a criterion is checkable if it names a quantity or an observable behaviour
+  const measurable = t => /\d|\b(no|never|every|all|only|exactly|returns?|shows?|appears?|pass(es)?|fails?|contains?|under|within|at most|at least|equals?|reuses?|carr(y|ies)|creates?|reproduces?|has|have|includes?|reports?|completes?|downloads?|renders?|redirects?|logs?|stays?|remains?|keeps?|rejects?|accepts?|matches)\b/i.test(t);
+
+  function evaluate() {
+    const sug = []; let score = 0;
+    const add = (id, sev, text, field) => sug.push({ id, sev, text, field });
+    // goal (25)
+    const goal = S.goal.trim();
+    if (!goal) add('no-goal', 'high', 'No goal. Say what should be true when the task is done.', 'f-goal');
+    else {
+      score += goal.length >= 40 ? 18 : 8;
+      if (goal.length < 40) add('thin-goal', 'med', 'The goal is very short. Describe the outcome and who it is for.', 'f-goal');
+      const v = findVague(goal + ' ' + S.title);
+      if (v.length) add('vague-goal', 'high', `Ambiguous: ${v.map(w => `"${w}"`).join(', ')} — replace with something observable (e.g. a number, a behaviour, a before/after).`, 'f-goal');
+      else score += 7;
+      if (/\b(and also|as well as|plus)\b/i.test(goal) || (goal.match(/\band\b/gi) || []).length > 3) add('bundled', 'low', 'The goal may bundle several tasks. One brief per outcome keeps agents focused.', 'f-goal');
+      if (goal.length > 600) add('long-goal', 'low', 'The goal reads like a spec. Move details into acceptance criteria.', 'f-goal');
+    }
+    if (!S.title.trim()) add('no-title', 'low', 'Add a short title so the brief is easy to refer to.', 'f-title');
+    else score += 3;
+    // context (15)
+    if (S.context.trim().length >= 40) score += 8; else add('no-context', 'med', 'Little or no background. What does the agent need to know that the code won\'t tell it?', 'f-context');
+    if (S.files.length) score += 7; else add('no-files', 'med', 'No files listed. Point the agent at where to start reading.', 'add-files');
+    // constraints (8)
+    if (S.constraints.length) score += 8; else add('no-constraints', 'low', 'No constraints. Are there APIs, dependencies or styles it must not change?', 'add-constraints');
+    // acceptance criteria (27)
+    if (!S.criteria.length) add('no-criteria', 'high', 'No acceptance criteria. Without them the agent decides when it is "done".', 'add-criteria');
+    else {
+      score += Math.min(15, S.criteria.length * 5);
+      if (S.criteria.length < 2) add('few-criteria', 'med', 'Only one acceptance criterion. Cover the main behaviour and at least one edge case.', 'add-criteria');
+      const untestable = S.criteria.filter(c => !measurable(c) || findVague(c).length);
+      if (untestable.length) add('untestable', 'med', `Hard to verify: "${untestable[0]}". Rephrase as something a test could check.`, 'add-criteria');
+      else score += 12;
+    }
+    // tests (15)
+    const tp = S.tests.trim();
+    if (!tp) add('no-tests', 'high', 'No test plan. How will the agent prove it works?', 'f-tests');
+    else { score += 8; if (hasCommand(tp)) score += 7; else add('no-command', 'med', 'The test plan has no command. Give the exact one (e.g. `npm test -- path`).', 'f-tests'); }
+    // scope (5) deliverables (5)
+    if (S.scope.length) score += 5; else add('no-scope', 'low', 'Nothing marked out of scope. Agents tend to "helpfully" do more than asked.', 'add-scope');
+    if (S.deliverables.length) score += 5; else add('no-deliverables', 'low', 'No deliverables chosen. What should you get back: a PR, a summary, tests?', 'deliv');
+    score = Math.max(0, Math.min(100, score));
+    return { score, sug };
+  }
+
+  /* ---------- markdown ---------- */
+  function toMarkdown() {
+    const L = [];
+    L.push(`# Brief: ${S.title.trim() || 'Untitled task'}`, '');
+    L.push('## Goal', S.goal.trim() || '_Not specified._', '');
+    L.push('## Context', S.context.trim() || '_None given._');
+    if (S.files.length) { L.push('', '**Relevant files**'); S.files.forEach(f => L.push(`- \`${f}\``)); }
+    L.push('');
+    L.push('## Constraints'); (S.constraints.length ? S.constraints.map(c => `- ${c}`) : ['_None stated._']).forEach(x => L.push(x)); L.push('');
+    L.push('## Acceptance criteria'); (S.criteria.length ? S.criteria.map(c => `- [ ] ${c}`) : ['_None yet._']).forEach(x => L.push(x)); L.push('');
+    L.push('## Test plan', S.tests.trim() || '_Not specified._', '');
+    L.push('## Out of scope'); (S.scope.length ? S.scope.map(c => `- ${c}`) : ['_Nothing listed._']).forEach(x => L.push(x)); L.push('');
+    L.push('## Deliverables'); (S.deliverables.length ? S.deliverables.map(c => `- ${c}`) : ['_Not specified._']).forEach(x => L.push(x));
+    return L.join('\n') + '\n';
+  }
+  function inline(t) {
+    return esc(t).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/(^|\s)_([^_]+)_(?=\s|$)/g, '$1<span class="empty">$2</span>');
+  }
+  function renderMd(md) {
+    const out = []; let list = null;
+    const close = () => { if (list) { out.push(list === 'check' ? '</ul>' : '</ul>'); list = null; } };
+    md.split('\n').forEach(line => {
+      let m;
+      if ((m = line.match(/^# (.*)/))) { close(); out.push(`<h1>${inline(m[1])}</h1>`); }
+      else if ((m = line.match(/^## (.*)/))) { close(); out.push(`<h2>${inline(m[1])}</h2>`); }
+      else if ((m = line.match(/^- \[ \] (.*)/))) { if (list !== 'check') { close(); out.push('<ul class="check">'); list = 'check'; } out.push(`<li><input type="checkbox" disabled aria-label="not yet done"><span>${inline(m[1])}</span></li>`); }
+      else if ((m = line.match(/^- (.*)/))) { if (list !== 'ul') { close(); out.push('<ul>'); list = 'ul'; } out.push(`<li>${inline(m[1])}</li>`); }
+      else if (!line.trim()) close();
+      else { close(); out.push(`<p>${inline(line)}</p>`); }
+    });
+    close();
+    return out.join('');
+  }
+
+  /* ---------- update ---------- */
+  function update() {
+    const md = toMarkdown();
+    $('doc').innerHTML = renderMd(md);
+    $('raw').textContent = md;
+    const { score, sug } = evaluate();
+    document.querySelector('[data-testid="score"]').textContent = score;
+    const g = score >= 85 ? 3 : score >= 65 ? 2 : score >= 40 ? 1 : 0;
+    const gEl = document.querySelector('[data-testid="grade"]');
+    gEl.textContent = ['Vague', 'Workable', 'Strong', 'Excellent'][g]; gEl.className = 'grade g' + g;
+    $('gauge').style.width = score + '%';
+    const order = { high: 0, med: 1, low: 2 };
+    sug.sort((a, b) => order[a.sev] - order[b.sev]);
+    $('sugs').innerHTML = sug.length ? sug.map(s => `<li class="${s.sev}" data-testid="sug-${s.id}"><i aria-hidden="true"></i><span>${inline(s.text)}</span><button type="button" data-focus="${s.field}">Fix</button></li>`).join('') : '<li class="none" data-testid="sug-none">Nothing to flag. An agent could start on this without asking you a single question.</li>';
+    try { localStorage.setItem('zlab-024', JSON.stringify(S)); } catch (e) { /* ignore */ }
+    window.__brief = { score, suggestions: sug.map(s => s.id), md };
+  }
+  $('sugs').addEventListener('click', e => {
+    const b = e.target.closest('[data-focus]'); if (!b) return;
+    const el = $(b.dataset.focus);
+    const target = el.matches('input, textarea') ? el : el.querySelector('input');
+    target.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    target.focus({ preventScroll: true });
+  });
+
+  document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('[data-mode]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    $('doc').hidden = b.dataset.mode !== 'doc'; $('raw').hidden = b.dataset.mode !== 'raw';
+  }));
+  const slug = () => (S.title.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48) || 'untitled');
+  $('dlBtn').addEventListener('click', () => {
+    const blob = new Blob([toMarkdown()], { type: 'text/markdown;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = `brief-${slug()}.md`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    $('status').textContent = `Downloaded brief-${slug()}.md`;
+  });
+  $('copyBtn').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(toMarkdown()); $('status').textContent = 'Copied Markdown to the clipboard.'; }
+    catch (e) {
+      document.querySelector('[data-mode="raw"]').click();
+      const r = document.createRange(); r.selectNodeContents($('raw')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      $('status').textContent = 'Clipboard blocked — the Markdown is selected; press Ctrl+C.';
+    }
+  });
+
+  fillForm();
+  update();
+})();
+</script>
+</body>
+</html>

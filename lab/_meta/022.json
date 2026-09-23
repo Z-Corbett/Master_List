@@ -1,0 +1,34 @@
+{
+  "id": "022",
+  "slug": "022-context-window",
+  "file": "lab/022-context-window.html",
+  "title": "Context Window — Budgeting an LLM Prompt",
+  "category": "AI & Agents",
+  "tags": ["llm", "context-engineering", "prompt-caching", "drag-and-drop", "explainer"],
+  "description": "An interactive explainer for LLM context budgeting: drag or tap a system prompt, tool definitions, documents, conversation history and tool results into a fixed window (8K to 1M), reserve output headroom, and watch it overflow. Compare what the model actually sees under drop-oldest, summarise and retrieve strategies, pin a cache breakpoint after the stable prefix, and send turns to see prompt-cache writes, hits and misses.",
+  "prompt": "Make me 'Context Window', a visual tool for thinking about LLM context budgets. I want a palette of blocks — system prompt, tools, documents, history turns, tool results, the user message — with rough token sizes that are clearly labelled as estimates, which I can drag or tap into a fixed context bar. Make the window size configurable and reserve output tokens at the end so I can see headroom disappear. When it overflows, show the strategies agents actually use: drop the oldest turns, summarise older history, or retrieve only relevant chunks of big documents, and show the 'assembled' versus 'what the model sees' side by side. Add the prompt-caching idea: a breakpoint after a stable prefix, a 'send turn' button that shows cache writes, hits and misses, and a warning when something volatile sits inside the cached prefix. Keep it vendor-neutral and honest about being a teaching model.",
+  "qa": {
+    "methodology": [
+      "Hand-computed budget oracle: the default scenario is 56,400 input tokens + 8,000 reserved in a 64,000 window, so the spec expects an exact 400-token overflow and exact spare counts after changing window and reserve.",
+      "Each strategy is asserted by its specific, explainable change (which turn is dropped, 7.1K → 852 for the summary at 12%, 18K → 2.7K for retrieval capped at 15%) and by the resulting 'Fits' status.",
+      "Invariant: strategies never change the Assembled bar, only the Sent bar.",
+      "Stateful caching flow: write → hit → reorder above the breakpoint → miss, checking the turn log text each time.",
+      "Guard-rail check: pinning the breakpoint below history turns raises the volatile-prefix warning with the right block names and prefix size.",
+      "Input paths: tap-to-add insertion order (before the latest user message), the text estimator (400 chars ≈ 100 tokens), and a real mouse drag onto the bar on desktop."
+    ],
+    "risks": [
+      "Flex segments with padding forcing the bar wider than its container on phones (this happened: 16px of horizontal scroll at 390px until segments were allowed to shrink with zero padding).",
+      "Cache signature logic treating a strategy-produced replacement block as 'the same' prefix and reporting a false hit.",
+      "Drag-and-drop losing the gesture when the pointer leaves the source button before pointer capture is set."
+    ],
+    "playwright": "Everything is DOM, so the spec leans on data-testid text and exact numbers rather than bar widths. The drag test initially failed even though it looked right: Playwright's stepped mouse.move jumped off the palette button on the first step, so the button's own pointermove listener never fired and capture was never set. Moving the move/up listeners to window fixed a real bug that fast human flicks would also hit. The desktop drag also needed an explicit scroll so both the palette and the bar are inside the viewport, since mouse coordinates are viewport-relative. The drag test is skipped on the Pixel 7 project with test.skip(isMobile, ...) because tap-to-add covers touch users.",
+    "coverage": [
+      "400-token overflow; drop oldest, summarise and retrieve each fit",
+      "Window presets and output reserve change spare tokens exactly",
+      "Cache write, hit, and miss after a reorder above the breakpoint",
+      "Volatile content in the cached prefix warning",
+      "Tap-to-add order, text estimator, mouse drag insertion (desktop)"
+    ]
+  },
+  "a11y": "Every block, window size and strategy is a real button with aria-pressed where it toggles, and the order list gives keyboard users move up/down, pin and remove buttons with descriptive labels, so drag-and-drop is optional. Overflow status, strategy changes and the cache turn log are live regions; the bars are decorative duplicates of that text."
+}

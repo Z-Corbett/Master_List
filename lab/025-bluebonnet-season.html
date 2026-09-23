@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bluebonnet Season — Petal &amp; Pike Wildflower Tours</title>
+<meta name="description" content="A field-guide landing page for Texas spring wildflowers from Petal & Pike, a fictional tour outfit: a generative meadow that grows as you scroll, a bloom calendar, a what's-blooming filter and a trip-planning checklist.">
+<style>
+  :root {
+    --paper: #f5eedc;
+    --paper-2: #efe5cc;
+    --card: #fbf7ec;
+    --ink: #262436;
+    --ink-2: #57536a;
+    --rule: #d9cdae;
+    --blue: #3346a8;
+    --blue-2: #6177e0;
+    --sky: #cfdcf0;
+    --brush: #d9482b;
+    --gold: #e6a51f;
+    --leaf: #50703a;
+    --leaf-2: #83a35a;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--paper); color: var(--ink); font: 16px/1.6 var(--sans); overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; border-radius: 4px; }
+  a.back {
+    position: fixed; top: 12px; left: 12px; z-index: 60; text-decoration: none;
+    font: 600 13px/1 var(--sans); color: var(--ink); background: rgba(251, 247, 236, .88);
+    border: 1px solid var(--rule); padding: 8px 12px; border-radius: 999px; backdrop-filter: blur(6px);
+    box-shadow: 0 4px 14px -8px rgba(38, 36, 54, .5);
+  }
+  a.back:hover { border-color: var(--blue); color: var(--blue); }
+
+  /* ---------- Scrolly meadow hero ---------- */
+  .scrolly { position: relative; height: 190vh; }
+  .stage { position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden;
+    background: linear-gradient(180deg, #b9cdea 0%, #dfe6ec 38%, #f4ead2 62%, #efe0bd 100%); }
+  #meadow { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .hero-copy { position: absolute; left: 0; right: 0; top: 0; padding: 13vh 20px 0; text-align: center; pointer-events: none; }
+  .hero-copy > * { pointer-events: auto; }
+  .kicker { font: 700 12px/1 var(--sans); letter-spacing: .3em; text-transform: uppercase; color: var(--blue); margin: 0 0 14px; }
+  h1 { font: 400 clamp(46px, 9vw, 112px)/.92 var(--serif); margin: 0; letter-spacing: -.02em; color: var(--ink); }
+  h1 em { font-style: italic; color: var(--blue); }
+  .lede { max-width: 38ch; margin: 18px auto 0; font: 400 clamp(16px, 2vw, 19px)/1.5 var(--serif); color: var(--ink-2); }
+  .grow-meter { position: absolute; right: 16px; bottom: 16px; font: 600 12px/1.3 var(--sans); background: rgba(251, 247, 236, .85); border: 1px solid var(--rule); border-radius: 10px; padding: 8px 12px; text-align: right; }
+  .grow-meter b { font-variant-numeric: tabular-nums; color: var(--blue); }
+  .scroll-hint { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); font: 600 12px/1 var(--sans); letter-spacing: .2em; text-transform: uppercase; color: var(--ink-2); background: rgba(251, 247, 236, .7); padding: 8px 12px; border-radius: 999px; transition: opacity .4s; }
+
+  /* ---------- Layout ---------- */
+  main { position: relative; z-index: 2; background: var(--paper); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+  section { padding: 64px 0 24px; }
+  .eyebrow { font: 700 11.5px/1 var(--sans); letter-spacing: .26em; text-transform: uppercase; color: var(--brush); margin: 0 0 10px; }
+  h2 { font: 400 clamp(32px, 5vw, 52px)/1.02 var(--serif); margin: 0 0 12px; letter-spacing: -.01em; }
+  h2 em { color: var(--blue); }
+  .sub { color: var(--ink-2); max-width: 62ch; margin: 0 0 24px; }
+  .note { font-size: 13px; color: var(--ink-2); font-style: italic; }
+
+  .facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border-top: 1px solid var(--ink); border-bottom: 1px solid var(--rule); }
+  .facts div { padding: 22px 20px 22px 0; }
+  .facts div + div { border-left: 1px solid var(--rule); padding-left: 20px; }
+  .facts h3 { font: 400 23px/1.15 var(--serif); margin: 0 0 6px; }
+  .facts p { margin: 0; color: var(--ink-2); font-size: 15px; }
+
+  /* ---------- Field guide / filter ---------- */
+  .filter-bar { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: flex-end; padding: 16px; background: var(--paper-2); border: 1px solid var(--rule); border-radius: 14px; margin-bottom: 16px; }
+  .field label, .field .lbl { display: block; font: 700 11px/1 var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--ink-2); margin-bottom: 8px; }
+  select { font: 600 15px/1 var(--sans); padding: 10px 12px; min-height: 44px; border-radius: 10px; border: 1.5px solid var(--rule); background: var(--card); color: var(--ink); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font: 600 13px/1 var(--sans); cursor: pointer; min-height: 40px; padding: 8px 12px 8px 10px; border-radius: 999px; border: 1.5px solid var(--rule); background: var(--card); color: var(--ink); display: inline-flex; align-items: center; gap: 7px; }
+  .chip i { width: 12px; height: 12px; border-radius: 50%; display: inline-block; box-shadow: inset 0 0 0 1px rgba(0,0,0,.15); }
+  .chip[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .result-line { font: 600 14px/1.4 var(--sans); margin: 0 0 14px; color: var(--ink-2); }
+  .guide { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(245px, 1fr)); gap: 14px; }
+  .sp { background: var(--card); border: 1px solid var(--rule); border-radius: 16px; padding: 14px 16px 16px; display: grid; grid-template-columns: 76px 1fr; gap: 4px 14px; align-items: start; position: relative; }
+  .sp canvas { grid-row: span 3; width: 76px; height: 104px; border-radius: 10px; background: linear-gradient(180deg, #e6ecf3, #f3ead3); }
+  .sp h3 { margin: 2px 0 0; font: 400 21px/1.1 var(--serif); }
+  .sp .latin { font: italic 13px/1.3 var(--serif); color: var(--ink-2); margin: 0; }
+  .sp p.desc { margin: 4px 0 0; font-size: 13.5px; line-height: 1.5; color: var(--ink); grid-column: 1 / -1; }
+  .sp .when { font: 700 11px/1 var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--leaf); }
+  .empty { padding: 26px; text-align: center; border: 1.5px dashed var(--rule); border-radius: 14px; color: var(--ink-2); font-family: var(--serif); font-size: 18px; }
+
+  /* ---------- Calendar ---------- */
+  .cal-wrap { background: var(--card); border: 1px solid var(--rule); border-radius: 16px; padding: 16px; overflow-x: auto; }
+  table.cal { border-collapse: separate; border-spacing: 3px; width: 100%; min-width: 640px; font-size: 13px; }
+
+  .cal th { font: 700 11px/1 var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); padding: 0; }
+  .cal th.sp-name { text-align: left; font: 400 15px/1.2 var(--serif); letter-spacing: 0; text-transform: none; color: var(--ink); padding-right: 10px; white-space: nowrap; position: sticky; left: 0; z-index: 1; background: var(--card); }
+  .cal thead button { font: 700 11px/1 var(--sans); letter-spacing: .08em; text-transform: uppercase; width: 100%; min-height: 34px; border: 0; border-radius: 8px; background: transparent; color: var(--ink-2); cursor: pointer; }
+  .cal thead button:hover { background: var(--paper-2); color: var(--ink); }
+  .cal thead button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  .cal td { position: relative; height: 26px; border-radius: 6px; background: #efe8d6; }
+  .cal td.on { background: var(--c); }
+  .cal td.peak { box-shadow: inset 0 0 0 2px rgba(38, 36, 54, .55); }
+  .cal td.col-sel { outline: 2px solid var(--ink); outline-offset: -1px; }
+  .cal-legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 12px; font-size: 12.5px; color: var(--ink-2); }
+  .cal-legend span::before { content: ""; display: inline-block; width: 14px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; background: var(--leaf-2); }
+  .cal-legend span.pk::before { box-shadow: inset 0 0 0 2px rgba(38, 36, 54, .55); }
+
+  /* ---------- Planner ---------- */
+  .planner { display: grid; grid-template-columns: 1.1fr .9fr; gap: 22px; align-items: start; }
+  .panel { background: var(--card); border: 1px solid var(--rule); border-radius: 18px; padding: 20px; }
+  .panel h3 { font: 400 26px/1.1 var(--serif); margin: 0 0 4px; }
+  .progress { height: 10px; border-radius: 99px; background: #eadfc4; overflow: hidden; margin: 12px 0 6px; }
+  .progress i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--blue), var(--blue-2)); transition: width .3s; }
+  .checklist { list-style: none; margin: 10px 0 0; padding: 0; }
+  .checklist li { border-top: 1px dashed var(--rule); }
+  .checklist label { display: grid; grid-template-columns: 24px 1fr; gap: 12px; padding: 11px 2px; cursor: pointer; align-items: start; }
+  .checklist input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--blue); }
+  .checklist b { font-weight: 600; }
+  .checklist small { display: block; color: var(--ink-2); font-size: 13px; }
+  .checklist input:checked + span b { text-decoration: line-through; text-decoration-color: var(--brush); color: var(--ink-2); }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .btn { font: 700 14px/1 var(--sans); cursor: pointer; border-radius: 999px; min-height: 44px; padding: 12px 18px; border: 1.5px solid var(--ink); background: var(--ink); color: var(--paper); }
+  .btn:hover { background: var(--blue); border-color: var(--blue); }
+  .btn.ghost { background: transparent; color: var(--ink); }
+  .btn.ghost:hover { color: var(--blue); background: transparent; }
+  .tours { display: grid; gap: 10px; margin: 12px 0; }
+  .tour { display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: center; padding: 12px 14px; border: 1.5px solid var(--rule); border-radius: 14px; cursor: pointer; background: var(--paper); }
+  .tour:has(input:checked) { border-color: var(--blue); background: #eef1fb; }
+  .tour input { width: 18px; height: 18px; accent-color: var(--blue); margin: 0; }
+  .tour b { font: 400 18px/1.2 var(--serif); display: block; }
+  .tour small { color: var(--ink-2); font-size: 12.5px; }
+  .tour .price { font: 700 15px/1 var(--sans); font-variant-numeric: tabular-nums; }
+  .stepper { display: inline-flex; align-items: center; border: 1.5px solid var(--rule); border-radius: 999px; overflow: hidden; }
+  .stepper button { width: 44px; height: 44px; border: 0; background: var(--card); font: 700 20px/1 var(--sans); cursor: pointer; color: var(--ink); }
+  .stepper button:disabled { opacity: .35; cursor: not-allowed; }
+  .stepper output { min-width: 36px; text-align: center; font: 700 16px/1 var(--sans); font-variant-numeric: tabular-nums; }
+  .quote { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--ink); display: grid; gap: 4px; font-variant-numeric: tabular-nums; }
+  .quote div { display: flex; justify-content: space-between; font-size: 14px; color: var(--ink-2); }
+  .quote div.total { font: 400 26px/1.2 var(--serif); color: var(--ink); }
+  .confirm { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: #e8efdc; border: 1px solid #b9cc9a; font-size: 14px; }
+
+  footer { margin-top: 56px; padding: 30px 0 46px; border-top: 1px solid var(--rule); color: var(--ink-2); font-size: 13px; }
+  footer .brand { font: italic 400 22px/1 var(--serif); color: var(--ink); }
+
+  @media (max-width: 860px) {
+    .planner { grid-template-columns: 1fr; }
+    .facts { grid-template-columns: 1fr; }
+    .facts div + div { border-left: 0; padding-left: 0; border-top: 1px solid var(--rule); }
+  }
+  @media (max-width: 520px) {
+    .hero-copy { padding-top: 88px; }
+    .grow-meter { right: 10px; bottom: 10px; }
+    .scroll-hint { display: none; }
+    .sp { grid-template-columns: 64px 1fr; }
+    .sp canvas { width: 64px; height: 88px; }
+    .filter-bar { padding: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .progress i { transition: none; }
+    .scrolly { height: auto; }
+    .stage { position: relative; height: 88vh; min-height: 520px; }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+
+<div class="scrolly" id="scrolly">
+  <div class="stage">
+    <canvas id="meadow" data-testid="meadow" aria-label="A generated meadow of Texas wildflowers that grows as you scroll" role="img"></canvas>
+    <div class="hero-copy">
+      <p class="kicker">Petal &amp; Pike Wildflower Tours · Spring field guide</p>
+      <h1>Bluebonnet<br><em>Season</em></h1>
+      <p class="lede">Scroll slowly. The meadow fills in the way a Texas roadside does between the first warm week of March and the last of April.</p>
+    </div>
+    <div class="grow-meter" data-testid="grow-meter" aria-live="off">
+      <b data-testid="grown-count">0</b> of <b data-testid="flower-total">0</b> in bloom
+    </div>
+    <div class="scroll-hint" id="hint">Scroll to grow ↓</div>
+  </div>
+</div>
+
+<main>
+  <div class="wrap">
+    <section aria-labelledby="about-h" style="padding-top:48px">
+      <p class="eyebrow">A few true things</p>
+      <h2 id="about-h">Why the roadsides <em>turn blue</em></h2>
+      <div class="facts">
+        <div><h3>Planted in autumn</h3><p>Texas bluebonnets are winter annuals: seeds sprout in fall, sit out the cold as flat leafy rosettes, then bolt and bloom when spring warms up.</p></div>
+        <div><h3>A state flower, plural</h3><p>The bluebonnet became the Texas state flower in 1901, and in 1971 the designation was widened to cover every native Texas lupine.</p></div>
+        <div><h3>No picking law, but manners</h3><p>Picking one isn't a crime, contrary to the popular myth. Trespassing is, and trampled patches set fewer seeds for next year. Photograph from the edge.</p></div>
+      </div>
+    </section>
+
+    <section id="guide" aria-labelledby="guide-h">
+      <p class="eyebrow">Field guide</p>
+      <h2 id="guide-h">What's <em>blooming</em>?</h2>
+      <p class="sub">Pick a month and a colour. Windows below are typical for Central Texas; a wet winter or a late freeze can shift them by weeks.</p>
+      <div class="filter-bar">
+        <div class="field">
+          <label for="month">Month</label>
+          <select id="month" data-testid="month-select"></select>
+        </div>
+        <div class="field">
+          <span class="lbl" id="colour-lbl">Colour</span>
+          <div class="chips" role="group" aria-labelledby="colour-lbl" id="colours"></div>
+        </div>
+      </div>
+      <p class="result-line" data-testid="bloom-count" aria-live="polite" id="bloomCount"></p>
+      <ul class="guide" id="guideList" data-testid="guide-list"></ul>
+      <div class="empty" id="empty" data-testid="empty-state" hidden>Nothing in that colour this month. Try a neighbouring month, or clear the colour filter.</div>
+    </section>
+
+    <section id="calendar" aria-labelledby="cal-h">
+      <p class="eyebrow">Bloom calendar</p>
+      <h2 id="cal-h">Twelve months, <em>nine flowers</em></h2>
+      <p class="sub">Tap a month to jump the field guide to it. Outlined cells mark the usual peak.</p>
+      <div class="cal-wrap">
+        <table class="cal" data-testid="bloom-calendar">
+          <caption class="note" style="caption-side:bottom;text-align:left;padding-top:10px">Typical Central Texas bloom windows. Approximate; weather rules.</caption>
+          <thead><tr id="calHead"><th scope="col"><span class="note">Species</span></th></tr></thead>
+          <tbody id="calBody"></tbody>
+        </table>
+      </div>
+      <div class="cal-legend"><span>Usually in bloom</span><span class="pk">Usual peak</span></div>
+    </section>
+
+    <section id="plan" aria-labelledby="plan-h">
+      <p class="eyebrow">Trip planner</p>
+      <h2 id="plan-h">Before you <em>pull over</em></h2>
+      <p class="sub">Your checklist saves in this browser. Our loops are small-van day trips with a driver who knows where the good shoulders are.</p>
+      <div class="planner">
+        <div class="panel">
+          <h3>Packing &amp; etiquette</h3>
+          <p class="note" data-testid="check-progress" id="checkProgress" aria-live="polite"></p>
+          <div class="progress" aria-hidden="true"><i id="checkBar" data-testid="check-bar"></i></div>
+          <ul class="checklist" id="checklist" data-testid="checklist"></ul>
+          <div class="row" style="margin-top:12px"><button class="btn ghost" type="button" id="resetChecks" data-testid="reset-checks">Clear checklist</button></div>
+        </div>
+        <div class="panel">
+          <h3>Ride along</h3>
+          <p class="note">Petal &amp; Pike is a made-up outfit for this demo. Prices are illustrative.</p>
+          <fieldset style="border:0;padding:0;margin:0">
+            <legend class="lbl" style="font:700 11px/1 var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--ink-2)">Choose a loop</legend>
+            <div class="tours" id="tours"></div>
+          </fieldset>
+          <div class="row">
+            <span class="lbl" style="font:700 11px/1 var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--ink-2)" id="party-lbl">Riders</span>
+            <div class="stepper" role="group" aria-labelledby="party-lbl">
+              <button type="button" id="dec" data-testid="party-dec" aria-label="Fewer riders">−</button>
+              <output id="party" data-testid="party" aria-live="polite">2</output>
+              <button type="button" id="inc" data-testid="party-inc" aria-label="More riders">+</button>
+            </div>
+          </div>
+          <div class="quote" aria-live="polite">
+            <div><span>Seats</span><span data-testid="subtotal" id="subtotal">$0</span></div>
+            <div><span>Group of 4+ (−10%)</span><span data-testid="discount" id="discount">$0</span></div>
+            <div class="total"><span>Total</span><span data-testid="total" id="total">$0</span></div>
+          </div>
+          <div class="row" style="margin-top:14px"><button class="btn" type="button" id="hold" data-testid="hold-seats">Hold seats</button></div>
+          <div class="confirm" id="confirm" data-testid="confirmation" role="status" hidden></div>
+        </div>
+      </div>
+    </section>
+  </div>
+  <footer>
+    <div class="wrap">
+      <div class="brand">Petal &amp; Pike</div>
+      <p>A fictional wildflower tour outfit, built as a design and front-end demo by Zac, who grew up thinking every Texas highway came with a blue median. Species notes are general; for serious identification, carry a regional field guide.</p>
+    </div>
+  </footer>
+</main>
+
+<script>
+(() => {
+  'use strict';
+  const params = new URLSearchParams(location.search);
+  const SEED = Number(params.get('seed')) || 1901;
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const MONTH_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+  // months are 1-based; typical Central Texas windows (approximate)
+  const SPECIES = [
+    { id: 'bluebonnet', name: 'Texas bluebonnet', latin: 'Lupinus texensis', colour: 'blue', c: '#3f55c4', months: [3, 4], peak: [4],
+      desc: 'Spikes of pea-like blue flowers with a white tip. The white spot on each banner petal turns reddish-purple as the flower ages.' },
+    { id: 'paintbrush', name: 'Texas paintbrush', latin: 'Castilleja indivisa', colour: 'red', c: '#de4a2a', months: [3, 4, 5], peak: [4],
+      desc: 'The scarlet "paint" is mostly colourful bracts, not petals. Partly parasitic: its roots tap neighbouring plants for nutrients.' },
+    { id: 'winecup', name: 'Winecup', latin: 'Callirhoe involucrata', colour: 'pink', c: '#a3245e', months: [3, 4, 5, 6], peak: [4],
+      desc: 'Low, sprawling mallow with deep magenta, goblet-shaped flowers that close in the evening.' },
+    { id: 'primrose', name: 'Pink evening primrose', latin: 'Oenothera speciosa', colour: 'pink', c: '#ef9fb4', months: [3, 4, 5, 6], peak: [4, 5],
+      desc: 'Four papery pink petals around a yellow centre. Spreads in big drifts along road cuts and lawns.' },
+    { id: 'coreopsis', name: 'Plains coreopsis', latin: 'Coreopsis tinctoria', colour: 'yellow', c: '#e9b422', months: [4, 5, 6], peak: [5],
+      desc: 'Yellow ray flowers with a maroon ring at the base around a dark centre; thin, wiry stems.' },
+    { id: 'blanket', name: 'Indian blanket', latin: 'Gaillardia pulchella', colour: 'red', c: '#c9322b', months: [5, 6, 7], peak: [6],
+      desc: 'Also called firewheel. Red rays tipped with yellow, each tip three-toothed. Handles heat and sandy soil.' },
+    { id: 'susan', name: 'Black-eyed Susan', latin: 'Rudbeckia hirta', colour: 'yellow', c: '#f0b81c', months: [5, 6, 7], peak: [6],
+      desc: 'Golden rays around a dark brown, domed centre. Hairy stems and leaves.' },
+    { id: 'hat', name: 'Mexican hat', latin: 'Ratibida columnifera', colour: 'red', c: '#b8452a', months: [5, 6, 7], peak: [6],
+      desc: 'A tall brown cone ringed by drooping red-and-yellow rays, like a sombrero brim.' },
+    { id: 'horsemint', name: 'Lemon beebalm', latin: 'Monarda citriodora', colour: 'purple', c: '#9b7bc7', months: [5, 6, 7], peak: [6],
+      desc: 'Stacked whorls of lavender flowers on square stems. Crushed leaves smell of citrus.' }
+  ];
+  const COLOURS = [
+    { id: 'all', label: 'Any', dot: 'conic-gradient(#3f55c4 0 25%, #de4a2a 0 50%, #f0b81c 0 75%, #ef9fb4 0)' },
+    { id: 'blue', label: 'Blue', dot: '#3f55c4' }, { id: 'red', label: 'Red & orange', dot: '#de4a2a' },
+    { id: 'yellow', label: 'Yellow', dot: '#f0b81c' }, { id: 'pink', label: 'Pink', dot: '#ef9fb4' }, { id: 'purple', label: 'Purple', dot: '#9b7bc7' }
+  ];
+
+  /* =================== Flower drawing =================== */
+  function stem(ctx, x, y, h, sway, s) {
+    ctx.strokeStyle = '#4d6c35'; ctx.lineWidth = Math.max(1, 1.6 * s); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + sway * .4, y - h * .5, x + sway, y - h); ctx.stroke();
+  }
+  function leafPair(ctx, x, y, s, g) {
+    if (g < .15) return;
+    ctx.fillStyle = '#5f8240';
+    for (const d of [-1, 1]) {
+      ctx.beginPath(); ctx.ellipse(x + d * 6 * s, y - 4 * s, 7 * s * g, 2.4 * s * g, d * -.5, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  const DRAW = {
+    bluebonnet(ctx, x, y, s, g, sw, v) {
+      const h = 46 * s * g; stem(ctx, x, y, h * .55, sw * .5, s); leafPair(ctx, x, y, s, g);
+      const top = x + sw, n = 9, bloom = Math.max(0, (g - .35) / .65);
+      for (let i = 0; i < n; i++) {
+        const t = i / (n - 1), yy = y - h * .45 - t * h * .55, r = (4.2 - t * 2.6) * s * (0.4 + .6 * bloom);
+        const xx = x + sw * (.5 + t * .5);
+        const white = t > .78 || (v > .6 && i === 3);
+        ctx.fillStyle = white ? '#f6f6fb' : (i % 2 ? '#3346a8' : '#4b60cf');
+        for (const d of [-1, 1]) { ctx.beginPath(); ctx.ellipse(xx + d * r * .8, yy, r, r * .75, 0, 0, Math.PI * 2); ctx.fill(); }
+      }
+      if (bloom > .4) { ctx.fillStyle = '#f6f6fb'; ctx.beginPath(); ctx.arc(top, y - h - 2 * s, 2 * s, 0, 7); ctx.fill(); }
+    },
+    paintbrush(ctx, x, y, s, g, sw) {
+      const h = 38 * s * g; stem(ctx, x, y, h * .7, sw * .6, s); leafPair(ctx, x, y - 6 * s, s * .8, g);
+      const bloom = Math.max(0, (g - .35) / .65), cx = x + sw * .8, cy = y - h * .78;
+      for (let i = 0; i < 12; i++) {
+        const a = -Math.PI / 2 + (i - 5.5) * .23, r = (7 + (i % 3) * 2) * s * bloom;
+        ctx.fillStyle = i % 2 ? '#e2522c' : '#f07a3a';
+        ctx.beginPath(); ctx.ellipse(cx + Math.cos(a) * r * .5, cy + Math.sin(a) * r * .8, 2.6 * s * bloom + .3, 5 * s * bloom + .3, a + Math.PI / 2, 0, 7); ctx.fill();
+      }
+    },
+    blanket(ctx, x, y, s, g, sw) { daisy(ctx, x, y, s, g, sw, 44, '#c9322b', '#f2c23a', '#7a2a18', 12, true); },
+    susan(ctx, x, y, s, g, sw) { daisy(ctx, x, y, s, g, sw, 48, '#f0b81c', null, '#3b2414', 13, false); },
+    coreopsis(ctx, x, y, s, g, sw) { daisy(ctx, x, y, s, g, sw, 40, '#f2c02a', '#8a2323', '#3d1c12', 8, false, true); },
+    hat(ctx, x, y, s, g, sw) {
+      const h = 50 * s * g; stem(ctx, x, y, h, sw, s); leafPair(ctx, x, y, s, g);
+      const b = Math.max(0, (g - .4) / .6), cx = x + sw, cy = y - h;
+      for (let i = 0; i < 6; i++) {
+        const a = Math.PI * (.15 + i * .14);
+        ctx.fillStyle = '#b8452a'; ctx.beginPath(); ctx.ellipse(cx + Math.cos(a) * 5 * s * b, cy + Math.sin(a) * 6 * s * b, 2.2 * s * b + .2, 5 * s * b + .2, a - Math.PI / 2, 0, 7); ctx.fill();
+        ctx.fillStyle = '#f0c040'; ctx.beginPath(); ctx.arc(cx + Math.cos(a) * 9 * s * b, cy + Math.sin(a) * 10 * s * b, 1.4 * s * b + .1, 0, 7); ctx.fill();
+      }
+      ctx.fillStyle = '#4a2d1a'; ctx.beginPath(); ctx.ellipse(cx, cy - 3 * s * b, 2.6 * s * b + .3, 6 * s * b + .3, 0, 0, 7); ctx.fill();
+    },
+    winecup(ctx, x, y, s, g, sw) { cup(ctx, x, y, s, g, sw, 18, '#a3245e', '#f6e8ef', 5); },
+    primrose(ctx, x, y, s, g, sw) { cup(ctx, x, y, s, g, sw, 24, '#f1a5b9', '#f5d24a', 4); },
+    horsemint(ctx, x, y, s, g, sw) {
+      const h = 44 * s * g; stem(ctx, x, y, h, sw, s); leafPair(ctx, x, y, s, g);
+      const b = Math.max(0, (g - .4) / .6);
+      for (let k = 0; k < 3; k++) {
+        const cy = y - h * (.55 + k * .2), cx = x + sw * (.55 + k * .2), r = (6 - k) * s * b;
+        ctx.fillStyle = k % 2 ? '#c7b3e3' : '#9b7bc7';
+        ctx.beginPath(); ctx.ellipse(cx, cy, r + .2, r * .55 + .2, 0, 0, 7); ctx.fill();
+        ctx.fillStyle = '#e9e0f5'; ctx.beginPath(); ctx.ellipse(cx, cy - r * .3, r * .5 + .1, r * .25 + .1, 0, 0, 7); ctx.fill();
+      }
+    }
+  };
+  function daisy(ctx, x, y, s, g, sw, H, petal, tip, centre, n, toothed, ring) {
+    const h = H * s * g; stem(ctx, x, y, h, sw, s); leafPair(ctx, x, y, s, g);
+    const b = Math.max(0, (g - .4) / .6), cx = x + sw, cy = y - h, R = 8 * s * b;
+    if (b <= 0) { ctx.fillStyle = '#6d8b44'; ctx.beginPath(); ctx.arc(cx, cy, 2 * s, 0, 7); ctx.fill(); return; }
+    for (let i = 0; i < n; i++) {
+      const a = i / n * Math.PI * 2;
+      ctx.save(); ctx.translate(cx, cy); ctx.rotate(a); ctx.scale(1, .62);
+      ctx.fillStyle = petal; ctx.beginPath(); ctx.ellipse(R * .6, 0, R * .55, R * .22, 0, 0, 7); ctx.fill();
+      if (tip) { ctx.fillStyle = ring && !toothed ? tip : tip; if (toothed) { ctx.beginPath(); ctx.ellipse(R * 1.0, 0, R * .18, R * .2, 0, 0, 7); ctx.fill(); } else { ctx.beginPath(); ctx.ellipse(R * .25, 0, R * .18, R * .18, 0, 0, 7); ctx.fill(); } }
+      ctx.restore();
+    }
+    ctx.fillStyle = centre; ctx.beginPath(); ctx.ellipse(cx, cy, R * .32, R * .24, 0, 0, 7); ctx.fill();
+  }
+  function cup(ctx, x, y, s, g, sw, H, col, eye, n) {
+    const h = H * s * g; stem(ctx, x, y, h, sw * .4, s);
+    const b = Math.max(0, (g - .35) / .65), cx = x + sw * .4, cy = y - h, R = 7 * s * b;
+    if (b <= 0) return;
+    for (let i = 0; i < n; i++) {
+      const a = -Math.PI / 2 + (i - (n - 1) / 2) * (1.9 / n);
+      ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(cx + Math.cos(a) * R * .55, cy + Math.sin(a) * R * .45, R * .55, R * .38, a, 0, 7); ctx.fill();
+    }
+    ctx.fillStyle = eye; ctx.beginPath(); ctx.ellipse(cx, cy - R * .15, R * .28, R * .16, 0, 0, 7); ctx.fill();
+  }
+
+  /* =================== Meadow =================== */
+  const canvas = document.getElementById('meadow');
+  const ctx = canvas.getContext('2d');
+  const scrolly = document.getElementById('scrolly');
+  const grownEl = document.querySelector('[data-testid="grown-count"]');
+  const totalEl = document.querySelector('[data-testid="flower-total"]');
+  const hint = document.getElementById('hint');
+  let W = 0, H = 0, DPR = 1, flowers = [], grass = [], hills = [], progress = reduced ? 1 : 0, visible = true;
+  const WEIGHTS = [['bluebonnet', 46], ['paintbrush', 16], ['primrose', 8], ['winecup', 6], ['coreopsis', 7], ['blanket', 7], ['susan', 4], ['hat', 3], ['horsemint', 3]];
+  function pickKind(r) { let t = r * 100; for (const [k, w] of WEIGHTS) { if ((t -= w) < 0) return k; } return 'bluebonnet'; }
+
+  function build() {
+    const rect = canvas.getBoundingClientRect();
+    W = Math.max(320, rect.width); H = Math.max(400, rect.height); DPR = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
+    const rnd = mulberry32(SEED);
+    const count = Math.round(Math.min(260, Math.max(110, W * H / 3200)));
+    const horizon = H * .56;
+    flowers = []; grass = []; hills = [];
+    for (let i = 0; i < 3; i++) hills.push({ y: horizon - 40 + i * 26, amp: 16 + rnd() * 18, f: 1.5 + rnd() * 2, ph: rnd() * 6, col: ['#9fb47a', '#86a15d', '#6f8c49'][i] });
+    for (let i = 0; i < count; i++) {
+      const depth = Math.pow(rnd(), .8); // 0 far -> 1 near
+      const y = horizon + 10 + depth * (H - horizon + 20);
+      const s = .45 + depth * 1.35;
+      const kind = pickKind(rnd());
+      // far and central flowers bloom later so the meadow "fills in" towards the viewer
+      const birth = Math.min(.82, rnd() * .7 + (1 - depth) * .12);
+      flowers.push({ x: rnd() * (W + 40) - 20, y, s, kind, birth, ph: rnd() * 6.28, v: rnd() });
+    }
+    for (let i = 0; i < count * 1.6; i++) {
+      const d = rnd(); grass.push({ x: rnd() * W, y: horizon + 8 + d * (H - horizon + 10), h: (6 + rnd() * 14) * (.5 + d * 1.2), lean: rnd() * 6 - 3, ph: rnd() * 6 });
+    }
+    flowers.sort((a, b) => a.y - b.y); grass.sort((a, b) => a.y - b.y);
+    totalEl.textContent = flowers.length;
+    draw(performance.now());
+  }
+
+  const growthOf = f => Math.max(0, Math.min(1, (progress - f.birth) / .16));
+  function draw(now) {
+    const t = reduced ? 0 : now / 1000;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    // sun glow
+    const sg = ctx.createRadialGradient(W * .78, H * .3, 5, W * .78, H * .3, H * .35);
+    sg.addColorStop(0, 'rgba(255,236,190,.9)'); sg.addColorStop(1, 'rgba(255,236,190,0)');
+    ctx.fillStyle = sg; ctx.fillRect(0, 0, W, H);
+    // hills with a blue wash that deepens as the season advances
+    hills.forEach((h, i) => {
+      ctx.fillStyle = h.col; ctx.beginPath(); ctx.moveTo(0, H);
+      for (let x = 0; ; x = Math.min(W, x + 16)) { ctx.lineTo(x, h.y - Math.sin(x / W * h.f * Math.PI + h.ph) * h.amp); if (x >= W) break; }
+      ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
+      if (i > 0) { ctx.globalAlpha = Math.min(.4, progress * .45) * (i === 2 ? 1 : .6); ctx.fillStyle = '#6c7fd6'; ctx.fill(); ctx.globalAlpha = 1; }
+    });
+    ctx.fillStyle = '#6f8c49'; ctx.fillRect(0, hills[2].y + hills[2].amp, W, H);
+    // grass
+    ctx.lineCap = 'round';
+    for (const gr of grass) {
+      const sw = Math.sin(t * 1.3 + gr.ph) * 1.5;
+      ctx.strokeStyle = gr.y > H * .8 ? '#557536' : '#6b8a45'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(gr.x, gr.y); ctx.quadraticCurveTo(gr.x + gr.lean * .3, gr.y - gr.h * .6, gr.x + gr.lean + sw, gr.y - gr.h); ctx.stroke();
+    }
+    let grown = 0;
+    for (const f of flowers) {
+      const g = growthOf(f);
+      if (g >= 1) grown++;
+      if (g <= 0) continue;
+      const sway = Math.sin(t * 1.1 + f.ph + f.x * .01) * 2.2 * f.s;
+      DRAW[f.kind](ctx, f.x, f.y, f.s, .12 + g * .88, sway, f.v);
+    }
+    grownEl.textContent = grown;
+    api.grown = grown; api.total = flowers.length; api.progress = progress;
+  }
+
+  function readProgress() {
+    if (reduced) { progress = 1; return; }
+    const r = scrolly.getBoundingClientRect();
+    const span = scrolly.offsetHeight - innerHeight;
+    progress = span > 0 ? Math.max(0, Math.min(1, -r.top / span)) : 1;
+    // a gentle head start so the page never opens on bare ground
+    progress = Math.min(1, .1 + progress * 1.04);
+    hint.style.opacity = progress > .2 ? '0' : '1';
+  }
+  const api = { grown: 0, total: 0, progress: 0, seed: SEED, kinds: () => flowers.map(f => f.kind) };
+  window.__meadow = api;
+
+  let raf = 0;
+  function loop(now) { draw(now); raf = visible && !reduced ? requestAnimationFrame(loop) : 0; }
+  addEventListener('scroll', () => { readProgress(); if (!raf) draw(performance.now()); }, { passive: true });
+  let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { build(); readProgress(); }, 120); });
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(es => { visible = es[0].isIntersecting; if (visible && !raf && !reduced) raf = requestAnimationFrame(loop); }).observe(canvas);
+  }
+  if (reduced) canvas.dataset.motion = 'static';
+  readProgress(); build();
+  if (!reduced) raf = requestAnimationFrame(loop);
+
+  /* =================== Field guide & filter =================== */
+  const monthSel = document.getElementById('month');
+  MONTHS.forEach((m, i) => { const o = document.createElement('option'); o.value = i + 1; o.textContent = MONTH_FULL[i]; monthSel.appendChild(o); });
+  const state = { month: 4, colour: 'all' };
+  monthSel.value = String(state.month);
+  const colourWrap = document.getElementById('colours');
+  COLOURS.forEach(c => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'chip'; b.dataset.testid = 'colour-' + c.id; b.setAttribute('data-testid', 'colour-' + c.id);
+    b.setAttribute('aria-pressed', String(c.id === state.colour));
+    b.innerHTML = `<i style="background:${c.dot}"></i>${c.label}`;
+    b.addEventListener('click', () => { state.colour = c.id; renderGuide(); });
+    colourWrap.appendChild(b);
+  });
+  monthSel.addEventListener('change', () => { state.month = Number(monthSel.value); renderGuide(); });
+
+  const guideList = document.getElementById('guideList');
+  const cards = {};
+  SPECIES.forEach(sp => {
+    const li = document.createElement('li');
+    li.className = 'sp'; li.setAttribute('data-testid', 'species-card'); li.dataset.species = sp.id; li.dataset.colour = sp.colour;
+    const range = MONTHS[sp.months[0] - 1] + '–' + MONTHS[sp.months[sp.months.length - 1] - 1];
+    li.innerHTML = `<canvas width="152" height="208" aria-hidden="true"></canvas>
+      <h3>${sp.name}</h3><p class="latin">${sp.latin}</p><span class="when">Blooms ${range} · peak ${sp.peak.map(m => MONTHS[m - 1]).join('/')}</span>
+      <p class="desc">${sp.desc}</p>`;
+    const c = li.querySelector('canvas').getContext('2d');
+    c.scale(2, 2); DRAW[sp.id](c, 38, 100, 1.55, 1, 2, .2);
+    cards[sp.id] = li; guideList.appendChild(li);
+  });
+  const countEl = document.getElementById('bloomCount');
+  const emptyEl = document.getElementById('empty');
+  function renderGuide() {
+    monthSel.value = String(state.month);
+    colourWrap.querySelectorAll('.chip').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.testid === 'colour-' + state.colour)));
+    let n = 0;
+    SPECIES.forEach(sp => {
+      const show = sp.months.includes(state.month) && (state.colour === 'all' || sp.colour === state.colour);
+      cards[sp.id].hidden = !show; if (show) n++;
+    });
+    const cl = COLOURS.find(c => c.id === state.colour);
+    countEl.textContent = `${n} ${n === 1 ? 'species' : 'species'} blooming in ${MONTH_FULL[state.month - 1]}${state.colour === 'all' ? '' : ' · ' + cl.label.toLowerCase()}`;
+    emptyEl.hidden = n > 0;
+    document.querySelectorAll('.cal thead button').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.month) === state.month)));
+    document.querySelectorAll('.cal td').forEach(td => td.classList.toggle('col-sel', Number(td.dataset.month) === state.month));
+  }
+
+  /* =================== Calendar =================== */
+  const head = document.getElementById('calHead');
+  MONTHS.forEach((m, i) => {
+    const th = document.createElement('th'); th.scope = 'col';
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = m; b.dataset.month = i + 1;
+    b.setAttribute('data-testid', 'cal-month-' + (i + 1)); b.setAttribute('aria-label', 'Show what blooms in ' + MONTH_FULL[i]);
+    b.addEventListener('click', () => { state.month = i + 1; renderGuide(); document.getElementById('guide').scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' }); });
+    th.appendChild(b); head.appendChild(th);
+  });
+  const body = document.getElementById('calBody');
+  SPECIES.forEach(sp => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<th scope="row" class="sp-name">${sp.name}</th>` + MONTHS.map((m, i) => {
+      const on = sp.months.includes(i + 1), pk = sp.peak.includes(i + 1);
+      return `<td data-month="${i + 1}" class="${on ? 'on' : ''} ${pk ? 'peak' : ''}" style="--c:${sp.c}" ${on ? `title="${sp.name}: ${MONTH_FULL[i]}${pk ? ' (peak)' : ''}"` : ''}><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">${on ? (pk ? 'peak bloom' : 'in bloom') : 'not blooming'}</span></td>`;
+    }).join('');
+    body.appendChild(tr);
+  });
+  renderGuide();
+
+  /* =================== Checklist =================== */
+  const ITEMS = [
+    ['water', 'Water, more than you think', 'Spring afternoons in Texas can hit the 80s.'],
+    ['shoes', 'Closed-toe shoes', 'Fire ant mounds hide in tall grass.'],
+    ['sun', 'Hat & sunscreen', 'Wildflower fields have no shade by design.'],
+    ['early', 'Go early or late', 'Low sun makes the blues glow and the crowds thin.'],
+    ['pull', 'Pull fully off the road', 'Only stop where it is legal and safe; never on a bridge or blind curve.'],
+    ['fence', 'Stay outside the fence', 'Most fields are private land. Ask before you open a gate.'],
+    ['tread', 'Tread lightly', 'Step where others have stepped; let the patch go to seed.'],
+    ['snake', 'Look before you sit', 'Snakes like the same warm, grassy spots you do.'],
+    ['allergy', 'Allergy meds', 'Oak and grass pollen peak alongside the flowers.'],
+    ['camera', 'Charge the camera', 'Shoot from low down, into the flowers, sky behind.']
+  ];
+  const KEY = 'petalpike.checklist.v1';
+  let checked = {};
+  try { checked = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { checked = {}; }
+  const listEl = document.getElementById('checklist');
+  ITEMS.forEach(([id, t, sub]) => {
+    const li = document.createElement('li');
+    li.innerHTML = `<label><input type="checkbox" data-testid="check-${id}" data-id="${id}"><span><b>${t}</b><small>${sub}</small></span></label>`;
+    const cb = li.querySelector('input'); cb.checked = !!checked[id];
+    cb.addEventListener('change', () => { checked[id] = cb.checked; saveChecks(); renderChecks(); });
+    listEl.appendChild(li);
+  });
+  function saveChecks() { try { localStorage.setItem(KEY, JSON.stringify(checked)); } catch (e) { /* storage blocked */ } }
+  function renderChecks() {
+    const n = ITEMS.filter(([id]) => checked[id]).length;
+    document.getElementById('checkProgress').textContent = n === ITEMS.length ? `All ${n} done. The flowers are waiting.` : `${n} of ${ITEMS.length} ready`;
+    document.getElementById('checkBar').style.width = (n / ITEMS.length * 100) + '%';
+  }
+  document.getElementById('resetChecks').addEventListener('click', () => {
+    checked = {}; saveChecks(); listEl.querySelectorAll('input').forEach(i => { i.checked = false; }); renderChecks();
+  });
+  renderChecks();
+
+  /* =================== Tours =================== */
+  const TOURS = [
+    { id: 'hill', name: 'Hill Country Loop', meta: 'Full day · limestone creeks, ranch roads', price: 89 },
+    { id: 'brazos', name: 'Brazos Backroads', meta: 'Full day · rolling pasture, old churches', price: 109 },
+    { id: 'prairie', name: 'Prairie Sunrise', meta: 'Half day · dawn light, coastal prairie', price: 64 }
+  ];
+  const toursEl = document.getElementById('tours');
+  let tour = 'hill', party = 2;
+  TOURS.forEach(t => {
+    const l = document.createElement('label'); l.className = 'tour';
+    l.innerHTML = `<input type="radio" name="tour" value="${t.id}" data-testid="tour-${t.id}" ${t.id === tour ? 'checked' : ''}><span><b>${t.name}</b><small>${t.meta}</small></span><span class="price">$${t.price}</span>`;
+    l.querySelector('input').addEventListener('change', () => { tour = t.id; renderQuote(); });
+    toursEl.appendChild(l);
+  });
+  const fmt = n => '$' + n.toFixed(2).replace(/\.00$/, '');
+  function quote() {
+    const t = TOURS.find(x => x.id === tour); const sub = t.price * party; const disc = party >= 4 ? Math.round(sub * 10) / 100 : 0;
+    return { t, sub, disc, total: sub - disc };
+  }
+  function renderQuote() {
+    const q = quote();
+    document.getElementById('party').textContent = party;
+    document.getElementById('subtotal').textContent = fmt(q.sub);
+    document.getElementById('discount').textContent = q.disc ? '−' + fmt(q.disc) : '$0';
+    document.getElementById('total').textContent = fmt(q.total);
+    document.getElementById('dec').disabled = party <= 1; document.getElementById('inc').disabled = party >= 8;
+    document.getElementById('confirm').hidden = true;
+  }
+  document.getElementById('dec').addEventListener('click', () => { party = Math.max(1, party - 1); renderQuote(); });
+  document.getElementById('inc').addEventListener('click', () => { party = Math.min(8, party + 1); renderQuote(); });
+  document.getElementById('hold').addEventListener('click', () => {
+    const q = quote(); const box = document.getElementById('confirm');
+    const code = 'PP-' + (Math.floor(mulberry32(SEED + party * 31 + q.t.price)() * 9000) + 1000);
+    box.innerHTML = `Holding <b>${party} ${party === 1 ? 'seat' : 'seats'}</b> on the <b>${q.t.name}</b> for ${fmt(q.total)}. Reference <b data-testid="hold-code">${code}</b>. (Demo only, nothing is booked.)`;
+    box.hidden = false;
+  });
+  renderQuote();
+})();
+</script>
+</body>
+</html>

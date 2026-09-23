@@ -1,0 +1,34 @@
+{
+  "id": "021",
+  "slug": "021-regression-radar",
+  "file": "lab/021-regression-radar.html",
+  "title": "Regression Radar — Visual Diff Workbench",
+  "category": "QA & Testing",
+  "tags": ["canvas", "visual-regression", "pixel-diff", "file-api", "pointer-events"],
+  "description": "A visual-regression workbench modelled on toHaveScreenshot: a canvas-drawn mock UI is rendered as a baseline and as a candidate with four toggleable, seeded regressions (shifted padding, colour drift, a missing icon, a lighter heading), then compared pixel by pixel into a heatmap with detected change regions. Tune threshold and maxDiffPixelRatio, drag masks over noisy areas or auto-mask the changes, and get a pass/fail verdict — or compare two images from your own device.",
+  "prompt": "Build 'Regression Radar', a visual diff tool that behaves like Playwright's toHaveScreenshot. Draw a small mock UI on canvas as a baseline and a candidate, where the candidate has seeded, subtle regressions I can toggle: shifted padding, a colour change, a missing icon, a font-weight change. Show a pixel diff heatmap, sliders for threshold and maxDiffPixelRatio, a way to mask a region by dragging a rectangle, and a big pass/fail verdict that explains itself. Group changed pixels into regions so I can see where the problems are. Also let me drop in two of my own images (local only, never uploaded), and fail on a size mismatch the way the real assertion does. Style it like a print proof sheet — registration marks, CMYK swatches, a rubber stamp for the verdict.",
+  "qa": {
+    "methodology": [
+      "Zero-diff control: with every regression switched off, baseline and candidate come from the same drawing code in the same browser, so the diff must be exactly 0 — this is the oracle that anti-aliasing noise is not being counted.",
+      "Isolation per regression: enabling a single regression must produce exactly one region at the expected position (the missing icon at y128).",
+      "Threshold semantics: the colour drift was tuned so its YIQ delta sits between thresholds 0.05 and 0.2, proving the default tolerance hides it and a stricter one catches it.",
+      "Ratio semantics: the same diff count passes once maxDiffPixelRatio allows 0.05 × 86,400 = 4,320 pixels, a hand-computed value.",
+      "Masking via three routes: auto-mask detected regions, clear, and a hand-drawn drag across the whole diff canvas.",
+      "File path: generated PNGs are uploaded with setInputFiles for an identical pair and a 40×30 vs 40×32 size mismatch."
+    ],
+    "risks": [
+      "Font rendering differing between the two canvases if they were ever drawn at different times with a web font still loading (avoided by using system fonts only).",
+      "Pointer-to-canvas coordinate mapping breaking when the canvas is scaled by CSS at narrow widths, putting masks in the wrong place.",
+      "Region grouping merging adjacent regressions (padding and colour both touch the button) so region counts shift if the layout moves."
+    ],
+    "playwright": "The page is itself a screenshot comparator, so the spec deliberately does not use toHaveScreenshot: the oracle is the comparator's numeric output (diff pixels, allowed, regions) exposed as DOM text. The first probing run found that the initial colour drift was invisible even at threshold 0.05, which led to retuning it so the threshold test is meaningful. Mask drawing uses page.mouse down/move/up with steps, which also works on the Pixel 7 project because Chromium still dispatches pointer events for mouse input with touch emulation on. Test images are generated inside the page with a canvas and passed to setInputFiles as buffers, so no fixture files are needed.",
+    "coverage": [
+      "All regressions fail; none gives 0 diff and pass; single regression located",
+      "Threshold hides then reveals subtle colour drift",
+      "maxDiffPixelRatio turns the same diff into a pass",
+      "Auto-mask, clear, and drag-to-mask",
+      "Uploaded identical images pass; size mismatch fails with message"
+    ]
+  },
+  "a11y": "Every control is a native checkbox, slider, file input or button with a label, and mask drawing has a keyboard-friendly alternative (Mask changed regions). The verdict, pixel counts, explanation and region coordinates are text in a live region, so the result never depends on reading the heatmap."
+}

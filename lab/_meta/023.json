@@ -1,0 +1,34 @@
+{
+  "id": "023",
+  "slug": "023-tool-call-tracer",
+  "file": "lab/023-tool-call-tracer.html",
+  "title": "Tool-Call Tracer — Multi-Agent Trace Viewer",
+  "category": "AI & Agents",
+  "tags": ["observability", "multi-agent", "timeline", "critical-path", "zoom-pan"],
+  "description": "A trace viewer for three scripted, fictional multi-agent coding runs: swimlanes for an orchestrator and its parallel sub-agents, with a bar for every read, grep, edit, bash, test and planning call on a zoomable, pannable time axis. Click any span for its input, output and dependencies, filter by tool, and highlight the critical path to see which work actually set the wall-clock time.",
+  "prompt": "Build 'Tool-Call Tracer', a trace viewer for a simulated multi-agent coding run. Swimlanes for the orchestrator and its parallel sub-agents, bars for each tool call (read, grep, edit, bash, test) on a time axis with zoom and pan, and clicking a span shows its made-up input and output. Add filters by tool type and a critical-path highlight that's computed from real dependencies (sub-agents start after they're spawned, the orchestrator waits for all of them), plus summary stats: wall time, total tool time, parallelism and time by tool. Give me 2–3 selectable scripted traces — a flaky-test fix, a feature fan-out with a failing test and retry, and a cross-package rename. Everything scripted and clearly fictional. Terminal-flavoured look, not another generic dashboard.",
+  "qa": {
+    "methodology": [
+      "Model check before UI check: the critical path is computed from explicit dependencies, and the spec pins the expected branch (ci-reader's 8.4 s log fetch beats the investigator) rather than trusting the highlight visually.",
+      "Invariant found by probing: the first implementation put the orchestrator's 'wait' span on the critical path, which made the critical path longer than the wall time (75 s vs 64.8 s) — impossible. Joins are now excluded, and the spec asserts no wait span is ever marked critical.",
+      "Exact stats per trace (wall time, calls, critical-path length) computed from the scripted data, plus a switch between traces to catch stale state.",
+      "Details panel contract: title, lane, duration, input and output for a known span, and keyboard navigation along a lane.",
+      "Filters: visible span counts drop by exactly the per-tool counts shown on the chips and are restored after re-enabling.",
+      "Zoom arithmetic (0–66.1 s → 16.5–49.6 s), a pointer drag that pans later in time, fit, and zoom-out clamped to the whole trace."
+    ],
+    "risks": [
+      "Very short spans overlapping at phone widths (a 0.8 s call is ~3 px at 390 px), making them hard to hit without zooming first.",
+      "Floating-point accumulation in scripted start times producing labels like 77.44999 s (formatting pins one decimal).",
+      "Pan and wheel handlers fighting page scroll on touch devices (the track uses touch-action: pan-y so vertical scrolling still works)."
+    ],
+    "playwright": "The timeline is plain DOM (positioned buttons), so spans are addressed by data-testid rather than coordinates, and the spec clicks only spans wide enough to hit reliably; a probe script had shown that at 390 px the first two 0.8 s calls overlap by a sub-pixel. Panning uses page.mouse down/move/up on an empty track region, which works on both projects because Chromium still dispatches pointer events for mouse input under touch emulation. The view range is surfaced as text, so zoom and pan can be asserted exactly without reading transforms. No clock control is needed because the traces are static data and nothing animates.",
+    "coverage": [
+      "Stats for trace 1, switching to traces 2 and 3, failed span marker",
+      "Span details and ArrowRight navigation within a lane",
+      "Critical path branch selection and no critical wait spans",
+      "Tool filters hide/restore exact counts",
+      "Zoom in, drag-pan, fit, clamped zoom-out"
+    ]
+  },
+  "a11y": "Every span is a focusable button whose accessible name gives the lane, tool, label, timing, failure and critical-path status, and arrow keys move between spans in a lane while + and − zoom. Filters and the critical-path toggle use aria-pressed, and stats, range and details update in live regions."
+}

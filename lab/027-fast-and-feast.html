@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fast &amp; Feast — a Lenten meal planner</title>
+<meta name="description" content="A Lent and Friday meal planner for Catholic households following US norms: enter ages to see who fasts and who abstains on each day of the chosen year's Lent, drag meatless recipes into a week plan and get a scaled shopping list.">
+<style>
+  :root {
+    --bg: #f6f3ee;
+    --card: #fffdf9;
+    --ink: #2a2230;
+    --ink-2: #625a67;
+    --ink-3: #958d98;
+    --line: #e4ddd3;
+    --aub: #3b2445;
+    --aub-2: #5a3a68;
+    --ash: #8d8a86;
+    --terra: #c0623d;
+    --olive: #6b7a3a;
+    --olive-bg: #eef1e0;
+    --terra-bg: #f8e7dd;
+    --aub-bg: #efe6f2;
+    --sans: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+    --display: "Segoe UI Black", "Arial Black", "Helvetica Neue", system-ui, sans-serif;
+    --hand: "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 15.5px/1.55 var(--sans); overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--terra); outline-offset: 2px; }
+  a.back { position: fixed; top: 12px; left: 12px; z-index: 40; font: 600 13px/1 var(--sans); color: #fff; text-decoration: none;
+    background: rgba(59, 36, 69, .9); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, .25); }
+  a.back:hover { background: var(--terra); }
+  button { font-family: inherit; }
+
+  .hero { background: var(--aub); color: #f6eee9; padding: 70px 20px 34px; position: relative; overflow: hidden; }
+  .hero::after { content: ""; position: absolute; right: -80px; top: -60px; width: 340px; height: 340px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(141, 138, 134, .35), transparent 65%); }
+  .hero .in { max-width: 1160px; margin: 0 auto; position: relative; z-index: 1; display: grid; grid-template-columns: 1.3fr 1fr; gap: 24px 40px; align-items: end; }
+  .hero h1 { margin: 0; font: 900 clamp(44px, 8vw, 92px)/.9 var(--display); letter-spacing: -.03em; }
+  .hero h1 span { color: #e8a37f; }
+  .hero p.lede { margin: 16px 0 0; max-width: 52ch; color: #dccfd9; }
+  .hero .cross { position: absolute; left: 50%; top: 30px; width: 18px; height: 18px; opacity: .4; }
+  .notice { background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .2); border-radius: 12px; padding: 14px 16px; font-size: 13.5px; color: #eadfe6; }
+  .notice b { color: #fff; }
+
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 0 20px; }
+  section { padding: 34px 0 6px; }
+  h2 { font: 900 26px/1.1 var(--display); letter-spacing: -.01em; margin: 0 0 4px; }
+  h2 small { font: 600 13px/1 var(--sans); color: var(--ink-3); letter-spacing: 0; margin-left: 8px; }
+  .sub { margin: 0 0 16px; color: var(--ink-2); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; box-shadow: 0 1px 0 rgba(42, 34, 48, .03); }
+
+  .setup { display: grid; grid-template-columns: 320px 1fr; gap: 18px; align-items: start; }
+  label.fld { display: block; font: 700 11px/1 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 6px; }
+  input[type=number], input[type=text], select { font: 600 15px/1 var(--sans); color: var(--ink); background: #fff; border: 1.5px solid var(--line); border-radius: 10px; padding: 10px 11px; min-height: 42px; }
+  input:focus, select:focus { border-color: var(--aub-2); }
+  .year-row { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; }
+  .year-row input { width: 100px; }
+  .keydates { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 4px; }
+  .keydates div { background: var(--bg); border-radius: 10px; padding: 8px 10px; }
+  .keydates span { display: block; font: 700 10px/1 var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 4px; }
+  .keydates b { font-size: 14.5px; }
+  .people { list-style: none; margin: 10px 0; padding: 0; display: grid; gap: 8px; }
+  .person { display: grid; grid-template-columns: 1fr 76px 40px; gap: 6px; align-items: center; }
+  .person input { width: 100%; min-width: 0; }
+  .icon-btn { width: 40px; height: 42px; border-radius: 10px; border: 1.5px solid var(--line); background: #fff; cursor: pointer; font-size: 18px; color: var(--ink-2); }
+  .icon-btn:hover { border-color: var(--terra); color: var(--terra); }
+  .btn { font: 700 14px/1 var(--sans); border-radius: 10px; min-height: 42px; padding: 0 14px; cursor: pointer; border: 1.5px solid var(--aub); background: var(--aub); color: #fff; }
+  .btn:hover { background: var(--aub-2); }
+  .btn.ghost { background: transparent; color: var(--aub); }
+  .btn.ghost:hover { background: var(--aub-bg); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 10px 16px; font-size: 12.5px; color: var(--ink-2); margin: 0 0 10px; }
+  .tag { display: inline-flex; align-items: center; gap: 5px; font: 700 11.5px/1 var(--sans); padding: 5px 8px; border-radius: 999px; white-space: nowrap; }
+  .tag.fast { background: var(--aub); color: #fff; }
+  .tag.abst { background: var(--terra-bg); color: #8c3f20; }
+  .tag.free { background: #efedea; color: var(--ink-3); }
+  .tag.sol { background: var(--olive-bg); color: #4b5724; }
+  .days { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .day { display: grid; grid-template-columns: 92px 1fr; gap: 12px; padding: 12px 14px; border-radius: 12px; background: #fff; border: 1px solid var(--line); }
+  .day.big { border-left: 5px solid var(--aub); }
+  .day.sol { border-left: 5px solid var(--olive); background: #fbfcf5; }
+  .day .dt { font: 900 20px/1 var(--display); }
+  .day .dt small { display: block; font: 700 11px/1.3 var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); margin-top: 4px; }
+  .day h3 { margin: 0; font-size: 15.5px; }
+  .day p { margin: 2px 0 6px; font-size: 13.5px; color: var(--ink-2); }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .summary { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0 0 12px; font-size: 14px; }
+  .summary b { font: 900 20px/1 var(--display); color: var(--aub); margin-right: 4px; }
+  .strip { display: grid; grid-template-columns: repeat(47, 1fr); gap: 2px; margin: 4px 0 14px; }
+  .strip i { height: 18px; border-radius: 3px; background: #e9e4dc; position: relative; }
+  .strip i.sun { background: #f3efe8; outline: 1px dashed #d6cfc4; outline-offset: -1px; }
+  .strip i.abst { background: #e8a37f; }
+  .strip i.fast { background: var(--aub); }
+  .strip i.sol { background: var(--olive); }
+  .strip i.easter { background: #f0c75e; }
+
+  /* planner */
+  .planner-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; justify-content: space-between; margin-bottom: 12px; }
+  .plan-grid { display: grid; grid-template-columns: 290px 1fr; gap: 16px; align-items: start; }
+  .shelf { max-height: 640px; overflow: auto; padding-right: 4px; }
+  .shelf-filter { display: flex; gap: 6px; margin-bottom: 10px; }
+  .shelf-filter button { flex: 1; font: 700 12.5px/1 var(--sans); min-height: 36px; border-radius: 999px; border: 1.5px solid var(--line); background: #fff; cursor: pointer; color: var(--ink-2); }
+  .shelf-filter button[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .recipes { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+  .recipe { display: grid; grid-template-columns: 28px 1fr; align-items: stretch; background: #fff; border: 1.5px solid var(--line); border-radius: 12px; overflow: hidden; user-select: none; }
+  .recipe .grip { display: grid; place-items: center; background: var(--bg); color: var(--ink-3); cursor: grab; touch-action: none; font-size: 14px; letter-spacing: -2px; }
+  .recipe button.pick { all: unset; box-sizing: border-box; padding: 9px 11px; cursor: pointer; display: block; }
+  .recipe button.pick:focus-visible { outline: 3px solid var(--terra); outline-offset: -3px; }
+  .recipe b { display: block; font-size: 14px; line-height: 1.25; }
+  .recipe small { color: var(--ink-3); font-size: 12px; }
+  .recipe.picked { border-color: var(--terra); box-shadow: 0 0 0 3px var(--terra-bg); }
+  .kind { font: 700 10px/1 var(--sans); letter-spacing: .1em; text-transform: uppercase; padding: 3px 6px; border-radius: 5px; margin-right: 4px; }
+  .kind.full { background: var(--aub-bg); color: var(--aub-2); }
+  .kind.light { background: var(--olive-bg); color: #4b5724; }
+  .week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+  .wday { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 8px; min-height: 150px; display: flex; flex-direction: column; gap: 6px; }
+  .wday.off { background: transparent; border-style: dashed; opacity: .5; }
+  .wday header { display: flex; justify-content: space-between; align-items: baseline; gap: 4px; }
+  .wday header b { font: 900 15px/1 var(--display); }
+  .wday header small { font-size: 11px; color: var(--ink-3); }
+  .wday .flag { font: 700 10px/1.2 var(--sans); letter-spacing: .06em; text-transform: uppercase; }
+  .wday .flag.fast { color: var(--aub-2); } .wday .flag.abst { color: var(--terra); } .wday .flag.sol { color: var(--olive); }
+  .slot { border: 1.5px dashed #d4ccc0; border-radius: 9px; min-height: 48px; padding: 6px 7px; font-size: 12.5px; color: var(--ink-3); position: relative; background: var(--bg); cursor: pointer; text-align: left; width: 100%; }
+  .slot .lbl { display: block; font: 700 9.5px/1 var(--sans); letter-spacing: .12em; text-transform: uppercase; margin-bottom: 3px; }
+  .slot.filled { border-style: solid; border-color: var(--line); background: #fff; color: var(--ink); }
+  .slot.filled.full { border-left: 4px solid var(--aub-2); }
+  .slot.filled.light { border-left: 4px solid var(--olive); }
+  .slot.hot, .picking .slot:not(.filled) { border-color: var(--terra); background: var(--terra-bg); }
+  .slot .x { position: absolute; top: 2px; right: 2px; width: 24px; height: 24px; border: 0; border-radius: 6px; background: transparent; cursor: pointer; color: var(--ink-3); font-size: 15px; line-height: 1; }
+  .slot .x:hover { background: var(--terra-bg); color: var(--terra); }
+  .drag-ghost { position: fixed; z-index: 100; pointer-events: none; background: var(--aub); color: #fff; font: 700 13px/1.2 var(--sans); padding: 8px 12px; border-radius: 10px; box-shadow: 0 10px 30px -10px rgba(0, 0, 0, .5); transform: translate(-50%, -120%); }
+  .toast { min-height: 22px; font-size: 13.5px; color: var(--terra); margin: 8px 0 0; font-weight: 600; }
+
+  .shop { columns: 3 220px; column-gap: 22px; }
+  .aisle { break-inside: avoid; margin-bottom: 14px; }
+  .aisle h3 { font: 700 11px/1 var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--terra); margin: 0 0 6px; }
+  .aisle ul { list-style: none; margin: 0; padding: 0; }
+  .aisle li label { display: flex; gap: 8px; align-items: baseline; padding: 4px 0; border-bottom: 1px dotted var(--line); font-size: 14px; cursor: pointer; }
+  .aisle li input { accent-color: var(--olive); }
+  .aisle li input:checked + span { text-decoration: line-through; color: var(--ink-3); }
+  .aisle .q { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--ink-2); white-space: nowrap; }
+  .empty { column-span: all; color: var(--ink-3); font-family: var(--hand); font-size: 17px; padding: 10px 0; }
+  footer { max-width: 1160px; margin: 30px auto 0; padding: 22px 20px 44px; font-size: 13px; color: var(--ink-3); border-top: 1px solid var(--line); }
+
+  @media (max-width: 980px) {
+    .hero .in { grid-template-columns: 1fr; }
+    .setup, .plan-grid { grid-template-columns: 1fr; }
+    .shelf { max-height: 320px; }
+    .week { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+  }
+  @media (max-width: 480px) {
+    .day { grid-template-columns: 1fr; gap: 6px; }
+    .week { grid-template-columns: 1fr 1fr; }
+    .wday { min-height: 0; }
+    .wday.off { display: none; }
+    .strip i { height: 14px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+
+<div class="hero">
+  <div class="in">
+    <div>
+      <h1>Fast <span>&amp;</span><br>Feast</h1>
+      <p class="lede">A Lenten meal planner for the whole household. Put in everyone's age, and it works out who fasts and who abstains on each day of this year's Lent. Then plan a week of meatless meals and take the shopping list with you.</p>
+    </div>
+    <div class="notice" data-testid="disclaimer" role="note">
+      <b>A planning aid, not a rule book.</b> This follows the general US norms: abstinence from meat on Ash Wednesday and the Fridays of Lent from age 14; fasting on Ash Wednesday and Good Friday from 18 to 59. Illness, pregnancy and other circumstances excuse, and bishops can dispense. Ask your pastor or diocese about your situation.
+    </div>
+  </div>
+</div>
+
+<main class="wrap">
+  <section aria-labelledby="h-setup">
+    <h2 id="h-setup">1 · Your household <small>ages decide the obligations</small></h2>
+    <p class="sub">Fasting means one full meal and two smaller meals that together don't equal a full one, with nothing in between. Abstinence means no meat; fish, eggs and dairy are fine.</p>
+    <div class="setup">
+      <div class="card">
+        <label class="fld" for="year">Lent of year</label>
+        <div class="year-row">
+          <input id="year" type="number" min="1970" max="2299" data-testid="year-input" inputmode="numeric">
+          <button class="btn ghost" type="button" id="yearPrev" aria-label="Previous year" data-testid="year-prev">‹</button>
+          <button class="btn ghost" type="button" id="yearNext" aria-label="Next year" data-testid="year-next">›</button>
+        </div>
+        <div class="keydates">
+          <div><span>Ash Wednesday</span><b data-testid="ash-date" id="ashDate"></b></div>
+          <div><span>Good Friday</span><b data-testid="gf-date" id="gfDate"></b></div>
+          <div><span>Easter Sunday</span><b data-testid="easter-date" id="easterDate"></b></div>
+          <div><span>Fridays of Lent</span><b data-testid="friday-count" id="fridayCount"></b></div>
+        </div>
+        <label class="fld" style="margin-top:16px" id="people-lbl">People &amp; ages</label>
+        <ul class="people" id="people" aria-labelledby="people-lbl" data-testid="people"></ul>
+        <button class="btn ghost" type="button" id="addPerson" data-testid="add-person">+ Add person</button>
+      </div>
+      <div class="card">
+        <div class="summary" id="summary" data-testid="summary" aria-live="polite"></div>
+        <div class="strip" id="strip" aria-hidden="true"></div>
+        <div class="legend">
+          <span class="tag fast">Fast + abstain</span><span class="tag abst">Abstain</span><span class="tag free">Not bound</span><span class="tag sol">Solemnity, no abstinence</span>
+        </div>
+        <ul class="days" id="days" data-testid="day-guide"></ul>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-plan">
+    <div class="planner-head">
+      <div>
+        <h2 id="h-plan">2 · Plan a week <small>drag, or tap a recipe then a slot</small></h2>
+        <p class="sub" style="margin:0">Every recipe here is meatless. On fast days, the two smaller meals take light dishes only.</p>
+      </div>
+      <div>
+        <label class="fld" for="weekSel">Week</label>
+        <select id="weekSel" data-testid="week-select"></select>
+      </div>
+    </div>
+    <div class="plan-grid">
+      <div class="card">
+        <div class="shelf-filter" role="group" aria-label="Filter recipes">
+          <button type="button" data-f="all" aria-pressed="true">All</button>
+          <button type="button" data-f="full" aria-pressed="false">Full meals</button>
+          <button type="button" data-f="light" aria-pressed="false">Light</button>
+        </div>
+        <div class="shelf"><ul class="recipes" id="recipes" data-testid="recipes"></ul></div>
+      </div>
+      <div>
+        <div class="week" id="week" data-testid="week"></div>
+        <p class="toast" id="toast" data-testid="toast" role="status" aria-live="polite"></p>
+        <button class="btn ghost" type="button" id="clearWeek" data-testid="clear-week">Clear this week</button>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-shop">
+    <h2 id="h-shop">3 · Shopping list <small id="shopMeta" data-testid="shop-meta"></small></h2>
+    <p class="sub">Scaled from 4-serving recipes to your household size, merged across the week's plan.</p>
+    <div class="card"><div class="shop" id="shop" data-testid="shopping-list"></div></div>
+  </section>
+</main>
+<footer>Fast &amp; Feast is a personal project by Zac. Recipes are original and fictional. Dates follow the Gregorian computus; the obligations follow the US bishops' published norms and canon 1251 (no abstinence when a solemnity falls on a Friday). Your pastor has the final word.</footer>
+
+<script>
+(() => {
+  'use strict';
+  const DAY = 864e5;
+  const dn = (y, m, d) => Math.floor(Date.UTC(y, m - 1, d) / DAY);
+  const toDate = n => new Date(n * DAY);
+  const dow = n => toDate(n).getUTCDay();
+  const iso = n => toDate(n).toISOString().slice(0, 10);
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const DOWL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const fmt = n => { const d = toDate(n); return `${DOW[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]}`; };
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  function easter(y) {
+    const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4;
+    const f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31), day = ((h + l - 7 * m + 114) % 31) + 1;
+    return dn(y, month, day);
+  }
+
+  function lent(y) {
+    const E = easter(y), ash = E - 46, palm = E - 7, gf = E - 2;
+    // Solemnities that can land on a Friday of Lent (with the usual transfers)
+    let joseph = dn(y, 3, 19);
+    if (joseph >= palm && joseph <= E) joseph = palm - 1; else if (dow(joseph) === 0) joseph += 1;
+    let ann = dn(y, 3, 25);
+    if (ann >= palm && ann <= E + 7) ann = E + 8; else if (dow(ann) === 0) ann += 1;
+    const sol = { [joseph]: 'St Joseph', [ann]: 'Annunciation of the Lord' };
+    const days = [];
+    for (let n = ash; n < E; n++) {
+      let kind = null, label = '', note = '';
+      if (n === ash) { kind = 'fast'; label = 'Ash Wednesday'; note = 'Day of fasting and abstinence.'; }
+      else if (n === gf) { kind = 'fast'; label = 'Good Friday'; note = 'Day of fasting and abstinence. Many extend the paschal fast through Holy Saturday, where possible.'; }
+      else if (dow(n) === 5 && sol[n]) { kind = 'sol'; label = `Friday · Solemnity of ${sol[n]}`; note = 'A solemnity outranks the Friday penance, so abstinence does not apply (canon 1251).'; }
+      else if (dow(n) === 5) { const wk = Math.floor((n - (ash + 4)) / 7) + 1; label = n < ash + 4 ? 'Friday after Ash Wednesday' : `Friday of the ${['', 'First', 'Second', 'Third', 'Fourth', 'Fifth'][wk]} Week of Lent`; kind = 'abst'; note = 'Day of abstinence from meat.'; }
+      days.push({ n, kind, label, note });
+    }
+    return { y, E, ash, palm, gf, days };
+  }
+
+  // US norms: abstinence from 14; fasting 18–59
+  function obligation(age, kind) {
+    if (kind === 'sol') return 'free';
+    if (!kind || !Number.isFinite(age)) return 'free';
+    const abst = age >= 14, fast = age >= 18 && age <= 59;
+    if (kind === 'fast') return fast ? 'fast' : abst ? 'abst' : 'free';
+    return abst ? 'abst' : 'free';
+  }
+  const OBL_TEXT = { fast: 'Fast + abstain', abst: 'Abstain', free: 'Not bound' };
+
+  /* ---------- Recipes (original, serves 4) ---------- */
+  const R = [
+    ['enchiladas', 'Black Bean Enchiladas', 'full', 45, [['corn tortillas', 12, 'ea'], ['black beans', 2, 'can'], ['red enchilada sauce', 2, 'cup'], ['monterey jack', 2, 'cup'], ['onion', 1, 'ea']]],
+    ['shrimpgrits', 'Gulf Shrimp & Grits', 'full', 35, [['shrimp', 1, 'lb'], ['grits', 1, 'cup'], ['cheddar', 1, 'cup'], ['butter', 3, 'tbsp'], ['green onions', 1, 'bunch']]],
+    ['migas', 'Friday Migas', 'light', 15, [['eggs', 6, 'ea'], ['corn tortillas', 4, 'ea'], ['salsa', 1, 'cup'], ['onion', 1, 'ea']]],
+    ['lentil', 'Lentil & Carrot Soup', 'light', 40, [['brown lentils', 1.5, 'cup'], ['carrots', 3, 'ea'], ['onion', 1, 'ea'], ['celery', 2, 'stalk'], ['vegetable broth', 6, 'cup']]],
+    ['salmoncakes', 'Lemony Salmon Cakes', 'full', 30, [['canned salmon', 2, 'can'], ['eggs', 2, 'ea'], ['breadcrumbs', 1, 'cup'], ['lemons', 1, 'ea']]],
+    ['pizza', 'Sheet-Pan Cheese Pizza', 'full', 30, [['pizza dough', 1, 'lb'], ['mozzarella', 2, 'cup'], ['crushed tomatoes', 1, 'can'], ['basil', 1, 'bunch']]],
+    ['tomsoup', 'Tomato Soup & Grilled Cheese', 'full', 30, [['crushed tomatoes', 2, 'can'], ['bread', 8, 'slice'], ['cheddar', 1, 'cup'], ['butter', 3, 'tbsp'], ['vegetable broth', 2, 'cup']]],
+    ['fishtacos', 'Crispy Fish Tacos', 'full', 35, [['white fish fillets', 1.5, 'lb'], ['corn tortillas', 12, 'ea'], ['cabbage', 1, 'ea'], ['limes', 2, 'ea'], ['salsa', 1, 'cup']]],
+    ['fagioli', 'Pasta e Fagioli', 'full', 40, [['small pasta', 8, 'oz'], ['cannellini beans', 2, 'can'], ['crushed tomatoes', 1, 'can'], ['onion', 1, 'ea'], ['vegetable broth', 4, 'cup']]],
+    ['beantacos', 'Bean & Cheese Tacos', 'light', 10, [['flour tortillas', 8, 'ea'], ['refried beans', 1, 'can'], ['cheddar', 1, 'cup']]],
+    ['friedrice', 'Veggie Fried Rice', 'full', 25, [['rice', 2, 'cup'], ['eggs', 3, 'ea'], ['frozen peas', 1, 'cup'], ['carrots', 2, 'ea'], ['soy sauce', 3, 'tbsp']]],
+    ['potatotacos', 'Potato & Egg Breakfast Tacos', 'light', 20, [['potatoes', 3, 'ea'], ['eggs', 6, 'ea'], ['flour tortillas', 8, 'ea']]],
+    ['tunabake', 'Tuna Noodle Bake', 'full', 45, [['egg noodles', 12, 'oz'], ['canned tuna', 2, 'can'], ['frozen peas', 1, 'cup'], ['cheddar', 1, 'cup'], ['milk', 1, 'cup']]],
+    ['bepsalad', 'Black-eyed Pea Salad', 'light', 15, [['black-eyed peas', 2, 'can'], ['bell pepper', 1, 'ea'], ['onion', 1, 'ea'], ['limes', 1, 'ea']]],
+    ['oats', 'Cinnamon Oats & Bananas', 'light', 10, [['rolled oats', 2, 'cup'], ['bananas', 2, 'ea'], ['milk', 2, 'cup']]],
+    ['quesadillas', 'Spinach & Mushroom Quesadillas', 'light', 20, [['flour tortillas', 8, 'ea'], ['spinach', 5, 'oz'], ['mushrooms', 8, 'oz'], ['monterey jack', 2, 'cup']]],
+    ['cod', 'Baked Cod & Lemon Rice', 'full', 35, [['cod fillets', 1.5, 'lb'], ['rice', 2, 'cup'], ['lemons', 2, 'ea'], ['butter', 2, 'tbsp']]],
+    ['rellenos', 'Chile Relleno Casserole', 'full', 55, [['poblano peppers', 6, 'ea'], ['eggs', 4, 'ea'], ['monterey jack', 2, 'cup'], ['milk', 1, 'cup']]],
+    ['minestrone', 'Weeknight Minestrone', 'light', 35, [['vegetable broth', 6, 'cup'], ['cannellini beans', 1, 'can'], ['zucchini', 2, 'ea'], ['carrots', 2, 'ea'], ['small pasta', 4, 'oz']]],
+    ['pbtoast', 'Peanut Butter Toast & Apples', 'light', 5, [['bread', 4, 'slice'], ['peanut butter', 0.5, 'cup'], ['apples', 2, 'ea']]]
+  ].map(([id, name, kind, mins, ing]) => ({ id, name, kind, mins, ing }));
+  const RECIPE = Object.fromEntries(R.map(r => [r.id, r]));
+  const AISLE = {
+    Produce: ['onion', 'carrots', 'celery', 'lemons', 'basil', 'cabbage', 'limes', 'green onions', 'potatoes', 'bell pepper', 'bananas', 'spinach', 'mushrooms', 'poblano peppers', 'zucchini', 'apples'],
+    'Dairy & eggs': ['eggs', 'cheddar', 'butter', 'mozzarella', 'monterey jack', 'milk'],
+    Seafood: ['shrimp', 'white fish fillets', 'cod fillets'],
+    'Pantry & cans': ['black beans', 'red enchilada sauce', 'salsa', 'brown lentils', 'vegetable broth', 'canned salmon', 'crushed tomatoes', 'cannellini beans', 'refried beans', 'canned tuna', 'black-eyed peas', 'soy sauce', 'peanut butter', 'breadcrumbs'],
+    'Grains, bread & pasta': ['grits', 'corn tortillas', 'flour tortillas', 'pizza dough', 'bread', 'small pasta', 'rice', 'egg noodles', 'rolled oats'],
+    Freezer: ['frozen peas']
+  };
+  const aisleOf = name => Object.keys(AISLE).find(a => AISLE[a].includes(name)) || 'Other';
+
+  /* ---------- State ---------- */
+  const KEY = 'fastfeast.v1';
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { saved = {}; }
+  const now = new Date();
+  const todayN = dn(now.getFullYear(), now.getMonth() + 1, now.getDate());
+  const defaultYear = todayN > easter(now.getFullYear()) ? now.getFullYear() + 1 : now.getFullYear();
+  const state = {
+    year: defaultYear,
+    people: Array.isArray(saved.people) ? saved.people : [
+      { name: 'Adult 1', age: 38 }, { name: 'Adult 2', age: 36 }, { name: 'Teen', age: 15 }, { name: 'Kid', age: 10 }, { name: 'Grandpa', age: 64 }
+    ],
+    plan: saved.plan && typeof saved.plan === 'object' ? saved.plan : {},
+    week: 0, filter: 'all', picked: null
+  };
+  function save() { try { localStorage.setItem(KEY, JSON.stringify({ people: state.people, plan: state.plan })); } catch (e) { /* storage unavailable */ } }
+  let L = lent(state.year);
+
+  /* ---------- Household ---------- */
+  const peopleEl = document.getElementById('people');
+  function renderPeople() {
+    peopleEl.textContent = '';
+    state.people.forEach((p, i) => {
+      const li = document.createElement('li'); li.className = 'person'; li.setAttribute('data-testid', 'person');
+      li.innerHTML = `<input type="text" aria-label="Name of person ${i + 1}" data-testid="person-name" value="${esc(p.name)}">
+        <input type="number" min="0" max="120" aria-label="Age of person ${i + 1}" data-testid="person-age" value="${p.age}">
+        <button type="button" class="icon-btn" aria-label="Remove ${esc(p.name)}" data-testid="person-remove">×</button>`;
+      const [nm, ag, rm] = li.querySelectorAll('input, button');
+      nm.addEventListener('input', () => { p.name = nm.value || `Person ${i + 1}`; save(); renderGuide(); });
+      ag.addEventListener('input', () => { const v = parseInt(ag.value, 10); p.age = Number.isFinite(v) ? Math.max(0, Math.min(120, v)) : NaN; save(); renderGuide(); renderShop(); });
+      rm.addEventListener('click', () => { state.people.splice(i, 1); save(); renderPeople(); renderGuide(); renderShop(); });
+      peopleEl.appendChild(li);
+    });
+    document.getElementById('addPerson').disabled = state.people.length >= 12;
+  }
+  document.getElementById('addPerson').addEventListener('click', () => {
+    state.people.push({ name: `Person ${state.people.length + 1}`, age: 30 }); save(); renderPeople(); renderGuide(); renderShop();
+    const inputs = peopleEl.querySelectorAll('[data-testid="person-age"]'); inputs[inputs.length - 1].focus();
+  });
+
+  /* ---------- Day guide ---------- */
+  function renderGuide() {
+    document.getElementById('ashDate').textContent = fmt(L.ash) + ' ' + L.y;
+    document.getElementById('gfDate').textContent = fmt(L.gf);
+    document.getElementById('easterDate').textContent = fmt(L.E);
+    const obligDays = L.days.filter(d => d.kind);
+    document.getElementById('fridayCount').textContent = L.days.filter(d => dow(d.n) === 5).length + ' incl. Good Friday';
+    const ul = document.getElementById('days'); ul.textContent = '';
+    let fastDays = 0, abstDays = 0;
+    obligDays.forEach(d => {
+      if (d.kind === 'fast') fastDays++;
+      if (d.kind !== 'sol') abstDays++;
+      const li = document.createElement('li');
+      li.className = 'day' + (d.kind === 'fast' ? ' big' : d.kind === 'sol' ? ' sol' : '');
+      li.setAttribute('data-testid', 'guide-day'); li.dataset.date = iso(d.n); li.dataset.kind = d.kind;
+      const dt = toDate(d.n);
+      const chips = state.people.map(p => { const o = obligation(p.age, d.kind); return `<span class="tag ${d.kind === 'sol' ? 'sol' : o}" data-testid="chip" data-person="${esc(p.name)}" data-obl="${o}">${esc(p.name)}: ${d.kind === 'sol' ? 'No abstinence' : OBL_TEXT[o]}</span>`; }).join('');
+      li.innerHTML = `<div class="dt">${dt.getUTCDate()} ${MON[dt.getUTCMonth()]}<small>${DOWL[dt.getUTCDay()]}</small></div>
+        <div><h3>${d.label}</h3><p>${d.note}</p><div class="chips">${chips || '<span class="tag free">Add someone to see obligations</span>'}</div></div>`;
+      ul.appendChild(li);
+    });
+    const bound = state.people.filter(p => p.age >= 14).length, fasting = state.people.filter(p => p.age >= 18 && p.age <= 59).length;
+    document.getElementById('summary').innerHTML =
+      `<span><b data-testid="fast-days">${fastDays}</b>fast days</span><span><b data-testid="abst-days">${abstDays}</b>days of abstinence</span>` +
+      `<span><b data-testid="fasters">${fasting}</b>of ${state.people.length} fast</span><span><b data-testid="abstainers">${bound}</b>of ${state.people.length} abstain</span>`;
+    const strip = document.getElementById('strip'); strip.textContent = '';
+    for (let n = L.ash; n <= L.E; n++) {
+      const d = L.days.find(x => x.n === n); const i = document.createElement('i');
+      i.className = n === L.E ? 'easter' : d && d.kind ? d.kind : dow(n) === 0 ? 'sun' : '';
+      i.title = fmt(n) + (d && d.label ? ' · ' + d.label : n === L.E ? ' · Easter' : '');
+      strip.appendChild(i);
+    }
+  }
+
+  /* ---------- Weeks & planner ---------- */
+  function weeks() {
+    const W = [{ label: 'Ash Wednesday week', from: L.ash, to: L.ash + 3 }];
+    for (let k = 1; k <= 5; k++) { const s = L.ash + 4 + (k - 1) * 7; W.push({ label: `${['', 'First', 'Second', 'Third', 'Fourth', 'Fifth'][k]} week of Lent`, from: s, to: s + 6 }); }
+    W.push({ label: 'Holy Week', from: L.palm, to: L.E - 1 });
+    return W;
+  }
+  const weekSel = document.getElementById('weekSel');
+  function renderWeekOptions() {
+    weekSel.textContent = '';
+    weeks().forEach((w, i) => { const o = document.createElement('option'); o.value = i; o.textContent = `${w.label} (${fmt(w.from)} – ${fmt(w.to)})`; weekSel.appendChild(o); });
+    weekSel.value = String(state.week);
+  }
+  weekSel.addEventListener('change', () => { state.week = Number(weekSel.value); renderWeek(); renderShop(); });
+
+  const recipesEl = document.getElementById('recipes');
+  function renderRecipes() {
+    recipesEl.textContent = '';
+    R.filter(r => state.filter === 'all' || r.kind === state.filter).forEach(r => {
+      const li = document.createElement('li'); li.className = 'recipe' + (state.picked === r.id ? ' picked' : '');
+      li.setAttribute('data-testid', 'recipe-' + r.id); li.dataset.id = r.id;
+      li.innerHTML = `<span class="grip" aria-hidden="true" data-testid="grip-${r.id}">⋮⋮</span><button type="button" class="pick" aria-pressed="${state.picked === r.id}"><b>${r.name}</b><small><span class="kind ${r.kind}">${r.kind}</span>${r.mins} min · serves 4</small></button>`;
+      li.querySelector('.pick').addEventListener('click', () => {
+        if (suppressClick) return;
+        state.picked = state.picked === r.id ? null : r.id; renderRecipes(); renderWeek();
+        toast(state.picked ? `Picked up ${r.name}. Now choose a meal slot.` : '');
+      });
+      li.addEventListener('pointerdown', e => startDrag(e, r, li));
+      recipesEl.appendChild(li);
+    });
+  }
+  document.querySelectorAll('.shelf-filter button').forEach(b => b.addEventListener('click', () => {
+    state.filter = b.dataset.f; document.querySelectorAll('.shelf-filter button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); renderRecipes();
+  }));
+
+  function slotsFor(n) {
+    const d = L.days.find(x => x.n === n);
+    return d && d.kind === 'fast' ? ['main', 'small1', 'small2'] : ['main'];
+  }
+  const SLOT_LABEL = { main: 'Main meal', small1: 'Small meal', small2: 'Small meal' };
+  const weekEl = document.getElementById('week');
+  function renderWeek() {
+    const w = weeks()[state.week];
+    weekEl.classList.toggle('picking', !!state.picked);
+    weekEl.textContent = '';
+    // always show a Sun–Sat grid; days outside Lent are greyed out
+    const gridStart = w.from - dow(w.from);
+    for (let n = gridStart; n < gridStart + 7; n++) {
+      const inWeek = n >= w.from && n <= w.to;
+      const col = document.createElement('div'); col.className = 'wday' + (inWeek ? '' : ' off');
+      const dt = toDate(n); const d = L.days.find(x => x.n === n);
+      col.innerHTML = `<header><b>${DOW[dow(n)]}</b><small>${dt.getUTCDate()} ${MON[dt.getUTCMonth()]}</small></header>` +
+        (d && d.kind ? `<span class="flag ${d.kind}">${d.kind === 'fast' ? 'Fast · abstain' : d.kind === 'abst' ? 'Abstain' : 'Solemnity'}</span>` : '');
+      if (inWeek) {
+        col.setAttribute('data-testid', 'plan-day'); col.dataset.date = iso(n);
+        slotsFor(n).forEach(s => {
+          const rid = state.plan[iso(n)] && state.plan[iso(n)][s]; const r = rid && RECIPE[rid];
+          const b = document.createElement('div');
+          b.className = 'slot' + (r ? ' filled ' + r.kind : ''); b.dataset.date = iso(n); b.dataset.slot = s;
+          b.setAttribute('data-testid', `slot-${iso(n)}-${s}`); b.setAttribute('role', 'button'); b.tabIndex = 0;
+          b.setAttribute('aria-label', `${SLOT_LABEL[s]}, ${fmt(n)}: ${r ? r.name : 'empty'}`);
+          b.innerHTML = `<span class="lbl">${SLOT_LABEL[s]}</span>${r ? `<span data-testid="slot-recipe">${r.name}</span><button type="button" class="x" aria-label="Remove ${r.name}" data-testid="slot-remove">×</button>` : (state.picked ? 'Place here' : 'Empty')}`;
+          const activate = () => { if (state.picked) place(state.picked, iso(n), s); };
+          b.addEventListener('click', e => { if (e.target.closest('.x')) { delete state.plan[iso(n)][s]; save(); renderWeek(); renderShop(); toast('Removed.'); return; } activate(); });
+          b.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === b) { e.preventDefault(); activate(); } });
+          col.appendChild(b);
+        });
+      }
+      weekEl.appendChild(col);
+    }
+  }
+  function place(rid, date, slot) {
+    const r = RECIPE[rid];
+    if (slot !== 'main' && r.kind !== 'light') { toast(`${r.name} is a full meal. On fast days the two smaller meals should be light.`); return false; }
+    (state.plan[date] = state.plan[date] || {})[slot] = rid;
+    state.picked = null; save(); renderRecipes(); renderWeek(); renderShop();
+    const n = Math.floor(Date.parse(date) / DAY);
+    toast(`${r.name} planned for ${fmt(n)}.`);
+    return true;
+  }
+  document.getElementById('clearWeek').addEventListener('click', () => {
+    const w = weeks()[state.week]; for (let n = w.from; n <= w.to; n++) delete state.plan[iso(n)];
+    save(); renderWeek(); renderShop(); toast('Week cleared.');
+  });
+  const toastEl = document.getElementById('toast');
+  function toast(msg) { toastEl.textContent = msg; }
+
+  /* ---------- Pointer drag (mouse from the card, touch from the grip) ---------- */
+  let drag = null, suppressClick = false;
+  function startDrag(e, r, li) {
+    if (e.button !== 0) return;
+    const onGrip = !!e.target.closest('.grip');
+    if (e.pointerType !== 'mouse' && !onGrip) return;          // let touch scroll the shelf
+    drag = { r, x: e.clientX, y: e.clientY, active: false, ghost: null, id: e.pointerId };
+    if (onGrip) { e.preventDefault(); }
+    addEventListener('pointermove', moveDrag); addEventListener('pointerup', endDrag); addEventListener('pointercancel', cancelDrag);
+  }
+  function slotAt(x, y) { const el = document.elementFromPoint(x, y); return el && el.closest('.slot'); }
+  function moveDrag(e) {
+    if (!drag) return;
+    if (!drag.active && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 6) {
+      drag.active = true; drag.ghost = document.createElement('div'); drag.ghost.className = 'drag-ghost'; drag.ghost.textContent = drag.r.name; document.body.appendChild(drag.ghost);
+    }
+    if (!drag.active) return;
+    e.preventDefault();
+    drag.ghost.style.left = e.clientX + 'px'; drag.ghost.style.top = e.clientY + 'px';
+    document.querySelectorAll('.slot.hot').forEach(s => s.classList.remove('hot'));
+    const s = slotAt(e.clientX, e.clientY); if (s) s.classList.add('hot');
+  }
+  function endDrag(e) {
+    if (!drag) return;
+    if (drag.active) {
+      const s = slotAt(e.clientX, e.clientY);
+      if (s) place(drag.r.id, s.dataset.date, s.dataset.slot);
+      suppressClick = true; setTimeout(() => { suppressClick = false; }, 0);
+    }
+    cancelDrag();
+  }
+  function cancelDrag() {
+    if (drag && drag.ghost) drag.ghost.remove();
+    document.querySelectorAll('.slot.hot').forEach(s => s.classList.remove('hot'));
+    drag = null; removeEventListener('pointermove', moveDrag); removeEventListener('pointerup', endDrag); removeEventListener('pointercancel', cancelDrag);
+  }
+
+  /* ---------- Shopping list ---------- */
+  const nice = q => { const r = Math.round(q * 4) / 4; const w = Math.floor(r), f = r - w; const fr = f === .25 ? '¼' : f === .5 ? '½' : f === .75 ? '¾' : ''; return (w ? w : '') + fr || '0'; };
+  function shoppingList() {
+    const w = weeks()[state.week]; const scale = Math.max(1, state.people.length) / 4; const acc = {}; let meals = 0;
+    for (let n = w.from; n <= w.to; n++) {
+      const p = state.plan[iso(n)]; if (!p) continue;
+      Object.values(p).forEach(rid => {
+        const r = RECIPE[rid]; if (!r) return; meals++;
+        r.ing.forEach(([name, q, unit]) => { const k = name + '|' + unit; acc[k] = acc[k] || { name, unit, q: 0 }; acc[k].q += q * scale; });
+      });
+    }
+    return { items: Object.values(acc), meals, scale };
+  }
+  function renderShop() {
+    const { items, meals, scale } = shoppingList();
+    const el = document.getElementById('shop');
+    document.getElementById('shopMeta').textContent = meals ? `${items.length} items · ${meals} meals · ×${scale.toFixed(2).replace(/\.?0+$/, '')} for ${state.people.length} ${state.people.length === 1 ? 'person' : 'people'}` : '';
+    if (!items.length) { el.innerHTML = '<p class="empty">Nothing planned for this week yet. Pick a recipe and drop it on a day.</p>'; return; }
+    const groups = {};
+    items.forEach(it => { (groups[aisleOf(it.name)] = groups[aisleOf(it.name)] || []).push(it); });
+    el.innerHTML = Object.keys(AISLE).concat('Other').filter(a => groups[a]).map(a =>
+      `<div class="aisle"><h3>${a}</h3><ul>${groups[a].sort((x, y) => x.name.localeCompare(y.name)).map(it => {
+        const q = it.unit === 'ea' ? Math.ceil(it.q) : nice(it.q);
+        return `<li data-testid="shop-item" data-name="${it.name}" data-qty="${Math.round(it.q * 100) / 100}" data-unit="${it.unit}"><label><input type="checkbox"><span>${it.name}</span><span class="q">${q} ${it.unit}</span></label></li>`;
+      }).join('')}</ul></div>`).join('');
+  }
+
+  /* ---------- Year ---------- */
+  const yearInput = document.getElementById('year');
+  function setYear(y) {
+    state.year = Math.min(2299, Math.max(1970, y)); yearInput.value = state.year;
+    L = lent(state.year); state.week = Math.min(state.week, 6);
+    renderGuide(); renderWeekOptions(); renderWeek(); renderShop();
+  }
+  yearInput.addEventListener('change', () => { const y = parseInt(yearInput.value, 10); setYear(Number.isFinite(y) ? y : state.year); });
+  document.getElementById('yearPrev').addEventListener('click', () => setYear(state.year - 1));
+  document.getElementById('yearNext').addEventListener('click', () => setYear(state.year + 1));
+
+  window.__fast = { lent: y => { const l = lent(y); return { ash: iso(l.ash), gf: iso(l.gf), easter: iso(l.E), days: l.days.filter(d => d.kind).map(d => ({ date: iso(d.n), kind: d.kind })) }; }, obligation, shoppingList: () => shoppingList(), state };
+  renderPeople(); renderRecipes(); setYear(state.year);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Context Window — Budgeting an LLM Prompt</title>
+<meta name="description" content="A visual tool for LLM context budgeting: load a system prompt, tool definitions, documents, history and tool results into a fixed context window, reserve output headroom, compare overflow strategies (drop oldest, summarise, retrieve) and see how a stable prefix earns prompt-cache hits turn after turn.">
+<style>
+  :root {
+    --bg: #fffaf2;
+    --bg-2: #f6efe2;
+    --card: #ffffff;
+    --ink: #14213d;
+    --ink-2: #4a5570;
+    --ink-3: #8a91a3;
+    --line: #e6dccb;
+    --coral: #f0643f;
+    --ok: #1f8a70;
+    --warn: #c17c00;
+    --c-system: #14213d;
+    --c-tools: #3d5a98;
+    --c-doc: #2a9d8f;
+    --c-history: #e9b949;
+    --c-user: #f0643f;
+    --c-toolresult: #9b5de5;
+    --c-summary: #c9a227;
+    --c-retrieved: #57b5a8;
+    --c-custom: #6c757d;
+    --sans: "Avenir Next", Avenir, "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+    --mono: ui-monospace, "SFMono-Regular", "Cascadia Code", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.45; overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  .back { position: fixed; top: 12px; left: 12px; z-index: 60; text-decoration: none; font: 600 12px/1 var(--sans); color: var(--ink);
+    background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; box-shadow: 0 2px 6px rgba(20,33,61,.08); }
+  .back:hover { color: var(--coral); }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 60px 20px 40px; }
+  header.top { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 24px; align-items: end; margin-bottom: 20px; }
+  .eyebrow { font: 700 12px var(--mono); color: var(--coral); letter-spacing: .12em; text-transform: uppercase; }
+  h1 { margin: 6px 0 8px; font: 800 clamp(34px, 5.6vw, 60px)/.95 var(--sans); letter-spacing: -.035em; }
+  h1 .brk { color: var(--coral); font-weight: 300; }
+  .lede { margin: 0; color: var(--ink-2); max-width: 60ch; }
+  .winbox { background: var(--ink); color: #fff; border-radius: 16px; padding: 14px 16px; display: grid; gap: 10px; }
+  .winbox .row { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .winbox label { font: 700 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: #aab4cc; }
+  .winbox output { font: 800 22px var(--mono); }
+  .seg { display: flex; flex-wrap: wrap; gap: 4px; }
+  .seg button { border: 1px solid #34426a; background: transparent; color: #dbe2f3; border-radius: 999px; padding: 4px 10px; font: 600 12.5px var(--mono); }
+  .seg button[aria-pressed="true"] { background: var(--coral); border-color: var(--coral); color: #fff; }
+  .winbox input[type=range] { width: 100%; accent-color: var(--coral); }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+  .card h2 { margin: 0 0 10px; font: 800 17px var(--sans); letter-spacing: -.01em; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .card h2 small { font: 500 12.5px var(--sans); color: var(--ink-3); }
+
+  /* bars */
+  .bars { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .barwrap { position: relative; }
+  .bar-label { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--ink-2); margin-bottom: 5px; flex-wrap: wrap; }
+  .bar-label b { color: var(--ink); }
+  .bar { position: relative; height: 58px; border-radius: 10px; background: var(--bg-2); display: flex; overflow: visible; }
+  .bar.drop { outline: 3px dashed var(--coral); outline-offset: 3px; }
+  .bar .s { height: 100%; position: relative; border-right: 2px solid var(--card); min-width: 0; overflow: hidden; color: #fff; font: 600 11px/1.2 var(--sans); padding: 6px 0 0; text-indent: 5px; white-space: nowrap; transition: flex-basis .35s ease; }
+  .bar .s:first-child { border-radius: 10px 0 0 10px; }
+  .bar .s small { display: block; font: 500 10px var(--mono); opacity: .85; }
+  .bar .s.dark { color: var(--ink); }
+  .bar .s.over { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.0) 0 6px, rgba(255,255,255,.45) 6px 9px) !important; }
+  .bar .s.out { background: repeating-linear-gradient(135deg, #fbe2d9 0 6px, #fff 6px 12px); color: var(--coral); border: 1.5px dashed var(--coral); border-radius: 0 10px 10px 0; }
+  .bar .s.out.short { background: repeating-linear-gradient(135deg, #ffd0c2 0 6px, #fff 6px 12px); }
+  .bar .s.free { background: transparent; color: var(--ink-3); }
+  .winline { position: absolute; top: -8px; bottom: -8px; width: 0; border-left: 2px solid var(--ink); z-index: 3; }
+  .winline::after { content: attr(data-l); position: absolute; bottom: -18px; left: -2px; transform: translateX(-100%); font: 700 10.5px var(--mono); color: var(--ink); white-space: nowrap; padding-right: 4px; }
+  .cachebr { position: absolute; bottom: -12px; height: 8px; border: 2px solid var(--ok); border-top: 0; border-radius: 0 0 6px 6px; z-index: 2; }
+  .cachebr span { position: absolute; top: 7px; left: 4px; font: 700 10.5px var(--mono); color: var(--ok); white-space: nowrap; }
+  .overmsg { font-size: 13px; margin-top: 28px; min-height: 1.3em; }
+  .overmsg.bad { color: var(--coral); font-weight: 700; }
+  .overmsg.ok { color: var(--ok); font-weight: 600; }
+
+  .strategies { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0 2px; }
+  .strategies .lbl { font: 700 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); margin-right: 4px; }
+  .pill { border: 1.5px solid var(--ink); background: var(--card); border-radius: 999px; padding: 5px 13px; font-weight: 700; font-size: 13.5px; }
+  .pill[aria-pressed="true"] { background: var(--ink); color: #fff; }
+  .changes { margin: 8px 0 0; padding-left: 18px; font-size: 13px; color: var(--ink-2); }
+
+  .grid { display: grid; grid-template-columns: 250px minmax(0, 1fr) 300px; gap: 16px; margin-top: 16px; align-items: start; }
+  .palette { display: grid; gap: 6px; }
+  .pb { display: grid; grid-template-columns: 12px minmax(0,1fr) auto; gap: 8px; align-items: center; text-align: left; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 7px 10px; touch-action: none; user-select: none; font-size: 13.5px; }
+  .pb:hover { border-color: var(--ink-3); background: #fff; }
+  .pb i { width: 12px; height: 12px; border-radius: 3px; }
+  .pb span.t { font: 600 11.5px var(--mono); color: var(--ink-3); }
+  .est { margin-top: 12px; border-top: 1px dashed var(--line); padding-top: 10px; display: grid; gap: 6px; }
+  .est label { font: 700 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+  .est textarea { width: 100%; min-height: 70px; border: 1px solid var(--line); border-radius: 8px; padding: 7px; font-size: 13px; resize: vertical; background: var(--bg); }
+  .est .r { font-size: 12.5px; color: var(--ink-2); }
+  .btn { border: 0; background: var(--ink); color: #fff; border-radius: 9px; padding: 8px 14px; font-weight: 700; font-size: 14px; }
+  .btn.coral { background: var(--coral); }
+  .btn.ghost { background: transparent; color: var(--ink); border: 1.5px solid var(--line); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+  ol.seq { list-style: none; margin: 0; padding: 0; counter-reset: s; }
+  ol.seq li { display: grid; grid-template-columns: 12px minmax(0,1fr) auto; gap: 8px; align-items: center; padding: 6px 4px; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+  ol.seq li i { width: 12px; height: 30px; border-radius: 3px; }
+  ol.seq .nm { min-width: 0; }
+  ol.seq .nm b { display: block; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  ol.seq .nm small { font: 11.5px var(--mono); color: var(--ink-3); }
+  ol.seq .acts { display: flex; gap: 2px; }
+  ol.seq .acts button { width: 28px; height: 28px; border-radius: 7px; border: 1px solid var(--line); background: var(--bg); font-size: 13px; padding: 0; }
+  ol.seq .acts button[aria-pressed="true"] { background: var(--ok); color: #fff; border-color: var(--ok); }
+  ol.seq .acts button:disabled { opacity: .3; }
+  ol.seq li.bp { border-bottom: 3px solid var(--ok); }
+  .volwarn { font-size: 12.5px; color: var(--warn); margin: 8px 0 0; font-weight: 600; }
+
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat { background: var(--bg); border-radius: 10px; padding: 8px 10px; }
+  .stat .k { font: 700 10.5px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+  .stat .v { font: 800 20px var(--mono); }
+  .turns { list-style: none; margin: 10px 0 0; padding: 0; font-size: 13px; max-height: 220px; overflow: auto; }
+  .turns li { padding: 6px 0; border-bottom: 1px dashed var(--line); display: flex; gap: 8px; }
+  .turns li b { font: 700 11px var(--mono); padding: 2px 6px; border-radius: 4px; height: fit-content; white-space: nowrap; }
+  .turns b.hit { background: #d8f0e8; color: var(--ok); }
+  .turns b.miss { background: #fde3da; color: #a8391c; }
+  .explain { font-size: 13px; color: var(--ink-2); margin: 10px 0 0; }
+  .ghost-drag { position: fixed; z-index: 100; pointer-events: none; padding: 6px 10px; border-radius: 8px; color: #fff; font: 700 12px var(--sans); transform: translate(-50%, -50%); box-shadow: 0 8px 20px rgba(0,0,0,.2); }
+  .fine { font-size: 12px; color: var(--ink-3); margin-top: 16px; }
+
+  @media (max-width: 1080px) { .grid { grid-template-columns: 230px minmax(0,1fr); } .grid > .side-r { grid-column: 1 / -1; } }
+  @media (max-width: 720px) {
+    header.top, .grid { grid-template-columns: minmax(0,1fr); }
+    .palette { grid-template-columns: 1fr 1fr; }
+    .pb { grid-template-columns: 10px minmax(0,1fr); font-size: 12.5px; }
+    .pb span.t { grid-column: 2; }
+    .bar { height: 46px; }
+    .bar .s { font-size: 10px; padding: 4px 0 0; text-indent: 3px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .bar .s { transition: none; } }
+</style>
+</head>
+<body>
+<a href="../index.html#lab" class="back" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">AI engineering · prompt budgeting</div>
+      <h1><span class="brk">[</span>Context Window<span class="brk">]</span></h1>
+      <p class="lede">Everything a model reads — instructions, tools, documents, history, tool output — has to fit in one fixed window, with room left for the answer. Load the window, overflow it, and try the strategies agents actually use.</p>
+    </div>
+    <div class="winbox">
+      <div class="row"><label>Window size</label><output id="winOut" data-testid="window-size">64K</output></div>
+      <div class="seg" role="group" aria-label="Window size">
+        <button data-win="8000" aria-pressed="false" data-testid="win-8k">8K</button>
+        <button data-win="32000" aria-pressed="false" data-testid="win-32k">32K</button>
+        <button data-win="64000" aria-pressed="true" data-testid="win-64k">64K</button>
+        <button data-win="128000" aria-pressed="false" data-testid="win-128k">128K</button>
+        <button data-win="200000" aria-pressed="false" data-testid="win-200k">200K</button>
+        <button data-win="1000000" aria-pressed="false" data-testid="win-1m">1M</button>
+      </div>
+      <div class="row"><label for="outTok">Reserved for output</label><output id="outOut" for="outTok" data-testid="output-reserve">8K</output></div>
+      <input id="outTok" type="range" min="1000" max="32000" step="1000" value="8000" data-testid="output-slider">
+    </div>
+  </header>
+
+  <section class="card" aria-labelledby="bars-h">
+    <h2 id="bars-h">The window <small>token sizes are rough estimates (~4 characters per token for English)</small></h2>
+    <div class="bars">
+      <div class="barwrap">
+        <div class="bar-label"><span><b>Assembled</b> — everything you want to send</span><span data-testid="assembled-total">0 tokens</span></div>
+        <div class="bar" id="barA" data-testid="bar-assembled" aria-hidden="true"></div>
+        <div class="overmsg" id="overA" data-testid="overflow" role="status"></div>
+      </div>
+      <div>
+        <div class="strategies" role="group" aria-label="Overflow strategy">
+          <span class="lbl">If it overflows</span>
+          <button class="pill" data-strat="none" aria-pressed="true" data-testid="strat-none">Do nothing</button>
+          <button class="pill" data-strat="drop" aria-pressed="false" data-testid="strat-drop">Drop oldest</button>
+          <button class="pill" data-strat="summarize" aria-pressed="false" data-testid="strat-summarize">Summarise</button>
+          <button class="pill" data-strat="retrieve" aria-pressed="false" data-testid="strat-retrieve">Retrieve</button>
+        </div>
+        <ul class="changes" id="changes" data-testid="changes" aria-live="polite"></ul>
+      </div>
+      <div class="barwrap" style="margin-top:14px">
+        <div class="bar-label"><span><b>Sent</b> — what the model actually sees</span><span data-testid="sent-total">0 tokens</span></div>
+        <div class="bar" id="barS" data-testid="bar-sent" aria-hidden="true"></div>
+        <div class="overmsg" id="overS" data-testid="sent-status" role="status"></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="grid">
+    <section class="card" aria-labelledby="pal-h">
+      <h2 id="pal-h">Blocks</h2>
+      <div class="palette" id="palette"></div>
+      <p class="explain" style="margin-top:8px">Drag onto the Assembled bar to insert at a position, or tap to add before the latest user message.</p>
+      <div class="est">
+        <label for="estText">Estimate your own text</label>
+        <textarea id="estText" data-testid="est-text" placeholder="Paste a prompt, a file, a log…"></textarea>
+        <div class="r" id="estR" data-testid="est-result" aria-live="polite">≈ 0 tokens</div>
+        <button class="btn ghost" type="button" id="estAdd" data-testid="est-add" disabled>Add as block</button>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="seq-h">
+      <h2 id="seq-h">Order <small>top is sent first · 📌 marks the end of the cached prefix</small></h2>
+      <ol class="seq" id="seq" data-testid="sequence"></ol>
+      <p class="volwarn" id="volwarn" data-testid="volatile-warning" hidden></p>
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+        <button class="btn ghost" type="button" id="resetBtn" data-testid="reset">Reset scenario</button>
+      </div>
+    </section>
+
+    <section class="card side-r" aria-labelledby="cache-h">
+      <h2 id="cache-h">Prompt cache</h2>
+      <div class="stats">
+        <div class="stat"><div class="k">Cached prefix</div><div class="v" data-testid="prefix-tokens">0</div></div>
+        <div class="stat"><div class="k">Headroom</div><div class="v" data-testid="headroom">0</div></div>
+      </div>
+      <button class="btn coral" type="button" id="sendTurn" data-testid="send-turn" style="width:100%;margin-top:10px">Send turn →</button>
+      <ul class="turns" id="turns" data-testid="turns" aria-live="polite"></ul>
+      <p class="explain">Caches match on an exact prefix. Keep stable things (system prompt, tools, reference docs) first and put the breakpoint after them; anything that changes above it — an edit, a reorder, a new document — forces a fresh write on the next turn.</p>
+    </section>
+  </div>
+  <p class="fine">A teaching model, not any vendor's tokenizer or pricing. Token counts are estimates, and real providers differ in how they cache (minimum prefix sizes, time-to-live, number of breakpoints) and in what happens on overflow.</p>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const fmt = n => n >= 1000 ? (n / 1000).toFixed(n >= 100000 ? 0 : 1).replace(/\.0$/, '') + 'K' : String(n);
+  const fmtWin = n => n >= 1000000 ? (n / 1000000) + 'M' : (n / 1000) + 'K';
+  const VOLATILE = new Set(['history', 'user', 'toolresult']);
+  const LIGHT = new Set(['history', 'summary']);
+
+  const PALETTE = [
+    { type: 'system', label: 'System prompt', tokens: 1200 },
+    { type: 'tools', label: 'Tool definitions', tokens: 3500 },
+    { type: 'doc', label: 'Codebase map', tokens: 9000 },
+    { type: 'doc', label: 'API reference', tokens: 18000 },
+    { type: 'doc', label: 'Style guide', tokens: 6000 },
+    { type: 'doc', label: 'Large source file', tokens: 40000 },
+    { type: 'history', label: 'History turn', tokens: 2400 },
+    { type: 'toolresult', label: 'Test log (tool result)', tokens: 12000 },
+    { type: 'toolresult', label: 'grep results', tokens: 3000 },
+    { type: 'user', label: 'User message', tokens: 400 },
+  ];
+  let uid = 0;
+  const mk = (type, label, tokens) => ({ id: 'b' + (++uid), type, label, tokens });
+  function scenario() {
+    uid = 0; turnNo = 6;
+    return [
+      mk('system', 'System prompt', 1200), mk('tools', 'Tool definitions', 3500), mk('doc', 'Codebase map', 9000), mk('doc', 'API reference', 18000),
+      mk('history', 'Turn 1', 2100), mk('history', 'Turn 2', 2600), mk('history', 'Turn 3', 2400), mk('history', 'Turn 4', 2900), mk('history', 'Turn 5', 2300),
+      mk('toolresult', 'Test log (tool result)', 12000), mk('user', 'User message', 400),
+    ];
+  }
+  let turnNo = 6;
+  let blocks = scenario();
+  let bpId = 'b4';               // cache breakpoint after "API reference"
+  let win = 64000, outRes = 8000, strat = 'none';
+  let lastPrefixSig = null, turnLog = [];
+
+  /* ---------- strategies ---------- */
+  const sum = arr => arr.reduce((s, b) => s + b.tokens, 0);
+  function applyStrategy(list) {
+    const need = () => sum(out) + outRes - win;
+    let out = list.map((b, i) => ({ ...b, pos: i }));
+    const changes = [];
+    if (strat === 'none' || need() <= 0) return { out, changes };
+    if (strat === 'drop') {
+      const order = ['history', 'toolresult'];
+      for (const t of order) {
+        while (need() > 0) {
+          const i = out.findIndex(b => b.type === t);
+          if (i < 0) break;
+          changes.push(`Dropped ${out[i].label} (${fmt(out[i].tokens)})`);
+          out.splice(i, 1);
+        }
+      }
+    } else if (strat === 'summarize') {
+      const hist = out.filter(b => b.type === 'history');
+      const keep = hist.slice(-2), old = hist.slice(0, -2);
+      if (old.length) {
+        const t = Math.max(400, Math.round(sum(old) * 0.12));
+        const at = out.indexOf(old[0]);
+        const s = { id: 'sum', type: 'summary', label: `Summary of ${old.length} turns`, tokens: t, pos: old[0].pos };
+        out = out.filter(b => !old.includes(b));
+        out.splice(at, 0, s);
+        changes.push(`Summarised ${old.length} older turns: ${fmt(sum(old))} → ${fmt(t)} (kept last ${keep.length} verbatim)`);
+      }
+      if (need() > 0) {
+        out = out.map(b => {
+          if (b.type !== 'toolresult' || need() <= 0) return b;
+          const t = Math.max(300, Math.round(b.tokens * 0.15));
+          changes.push(`Condensed ${b.label}: ${fmt(b.tokens)} → ${fmt(t)} (failures only)`);
+          return { ...b, id: b.id + 's', type: 'summary', label: b.label + ' (condensed)', tokens: t };
+        });
+      }
+    } else if (strat === 'retrieve') {
+      const docs = out.filter(b => b.type === 'doc').sort((a, b) => b.tokens - a.tokens);
+      for (const d of docs) {
+        if (need() <= 0) break;
+        const t = Math.min(3000, Math.round(d.tokens * 0.15));
+        const i = out.indexOf(d);
+        out[i] = { ...d, id: d.id + 'r', type: 'retrieved', label: `${d.label}: top chunks`, tokens: t };
+        changes.push(`Retrieved the relevant chunks of ${d.label}: ${fmt(d.tokens)} → ${fmt(t)}`);
+      }
+    }
+    return { out, changes };
+  }
+
+  /* ---------- rendering ---------- */
+  const color = t => `var(--c-${t})`;
+  function drawBar(el, list, opts) {
+    const total = sum(list);
+    const scale = Math.max(win, total + outRes);
+    let html = '', acc = 0;
+    list.forEach((b, i) => {
+      const w = b.tokens / scale * 100;
+      html += `<div class="s ${LIGHT.has(b.type) ? 'dark' : ''} ${acc + b.tokens > win ? 'over' : ''}" style="flex:0 1 ${w}%;background:${color(b.type)}" title="${esc(b.label)} · ${fmt(b.tokens)}" data-i="${i}">${w > 6 ? esc(b.label) : ''}${w > 6 ? `<small>${fmt(b.tokens)}</small>` : ''}</div>`;
+      acc += b.tokens;
+    });
+    const free = win - total;
+    const outW = outRes / scale * 100;
+    html += `<div class="s out ${free < outRes ? 'short' : ''}" style="flex:0 1 ${outW}%">${outW > 7 ? 'output' : ''}${outW > 7 ? `<small>${fmt(outRes)}</small>` : ''}</div>`;
+    if (total + outRes < win) html += `<div class="s free" style="flex:1 1 auto">${(win - total - outRes) / scale > .08 ? 'free<small>' + fmt(win - total - outRes) + '</small>' : ''}</div>`;
+    html += `<div class="winline" style="left:${win / scale * 100}%" data-l="window ${fmtWin(win)}"></div>`;
+    if (opts && opts.prefix) {
+      const w = opts.prefix / scale * 100;
+      if (w > 0) html += `<div class="cachebr" style="left:0;width:${w}%"><span>cached prefix ${fmt(opts.prefix)}</span></div>`;
+    }
+    el.innerHTML = html;
+    return total;
+  }
+
+  function prefixOf(sent) {
+    const bpPos = blocks.findIndex(b => b.id === bpId);
+    if (bpPos < 0) return [];
+    return sent.filter(b => b.pos <= bpPos);
+  }
+
+  function render() {
+    // assembled
+    const totalA = drawBar($('barA'), blocks);
+    document.querySelector('[data-testid="assembled-total"]').textContent = `${totalA.toLocaleString('en-US')} tokens + ${fmt(outRes)} output`;
+    const overBy = totalA + outRes - win;
+    const oA = $('overA');
+    if (overBy > 0) { oA.className = 'overmsg bad'; oA.textContent = `Overflows by ${overBy.toLocaleString('en-US')} tokens. Sent as-is, the request would be rejected or cut off, depending on the client.`; }
+    else { oA.className = 'overmsg ok'; oA.textContent = `Fits, with ${(win - totalA - outRes).toLocaleString('en-US')} tokens to spare after reserving output.`; }
+
+    // strategy
+    const { out, changes } = applyStrategy(blocks);
+    const prefix = prefixOf(out);
+    const prefixTokens = sum(prefix);
+    const totalS = drawBar($('barS'), out, { prefix: prefixTokens });
+    document.querySelector('[data-testid="sent-total"]').textContent = `${totalS.toLocaleString('en-US')} tokens + ${fmt(outRes)} output`;
+    const oS = $('overS'), overS = totalS + outRes - win;
+    if (overS > 0) { oS.className = 'overmsg bad'; oS.textContent = strat === 'none' ? 'Still overflowing — pick a strategy.' : `This strategy is not enough: still ${overS.toLocaleString('en-US')} over.`; }
+    else { oS.className = 'overmsg ok'; oS.textContent = `Fits: ${(win - totalS).toLocaleString('en-US')} tokens left for the answer (${fmt(outRes)} reserved).`; }
+    $('changes').innerHTML = changes.length ? changes.map(c => `<li>${esc(c)}</li>`).join('') : (overBy > 0 && strat !== 'none' ? '<li>Nothing this strategy can remove.</li>' : '');
+    document.querySelector('[data-testid="prefix-tokens"]').textContent = fmt(prefixTokens);
+    document.querySelector('[data-testid="headroom"]').textContent = fmt(Math.max(0, win - totalS));
+
+    // sequence list
+    const bpPos = blocks.findIndex(b => b.id === bpId);
+    $('seq').innerHTML = blocks.map((b, i) => `<li class="${b.id === bpId ? 'bp' : ''}" data-testid="seq-${i}" data-type="${b.type}">
+      <i style="background:${color(b.type)}"></i>
+      <span class="nm"><b>${esc(b.label)}</b><small>${b.type} · ${fmt(b.tokens)}${i <= bpPos ? ' · cached' : ''}</small></span>
+      <span class="acts">
+        <button type="button" data-act="up" data-i="${i}" aria-label="Move ${esc(b.label)} up" ${i === 0 ? 'disabled' : ''}>↑</button>
+        <button type="button" data-act="down" data-i="${i}" aria-label="Move ${esc(b.label)} down" ${i === blocks.length - 1 ? 'disabled' : ''}>↓</button>
+        <button type="button" data-act="bp" data-i="${i}" aria-label="End cached prefix after ${esc(b.label)}" aria-pressed="${b.id === bpId}" data-testid="bp-${i}">📌</button>
+        <button type="button" data-act="rm" data-i="${i}" aria-label="Remove ${esc(b.label)}" data-testid="rm-${i}">×</button>
+      </span></li>`).join('');
+    const vol = blocks.slice(0, bpPos + 1).filter(b => VOLATILE.has(b.type));
+    const vw = $('volwarn');
+    vw.hidden = !vol.length;
+    if (vol.length) vw.textContent = `⚠ ${vol.map(b => b.label).join(', ')} ${vol.length === 1 ? 'is' : 'are'} inside the cached prefix but change${vol.length === 1 ? 's' : ''} every turn, so the cache will keep missing. Move the 📌 above ${vol.length === 1 ? 'it' : 'them'}.`;
+
+    window.__ctx = { assembled: totalA, sent: totalS, prefix: prefixTokens, overflow: Math.max(0, overBy), blocks: blocks.map(b => b.label) };
+  }
+
+  $('seq').addEventListener('click', e => {
+    const b = e.target.closest('[data-act]'); if (!b) return;
+    const i = +b.dataset.i, act = b.dataset.act;
+    if (act === 'up' && i > 0) [blocks[i - 1], blocks[i]] = [blocks[i], blocks[i - 1]];
+    if (act === 'down' && i < blocks.length - 1) [blocks[i + 1], blocks[i]] = [blocks[i], blocks[i + 1]];
+    if (act === 'bp') bpId = blocks[i].id;
+    if (act === 'rm') { if (blocks[i].id === bpId) bpId = i > 0 ? blocks[i - 1].id : null; blocks.splice(i, 1); }
+    render();
+    const again = $('seq').querySelector(`[data-act="${act}"][data-i="${act === 'up' ? i - 1 : act === 'down' ? i + 1 : i}"]`);
+    if (again && act !== 'rm') again.focus();
+  });
+
+  /* ---------- turns & caching ---------- */
+  $('sendTurn').addEventListener('click', () => {
+    const { out } = applyStrategy(blocks);
+    const over = sum(out) + outRes - win;
+    if (over > 0) { turnLog.unshift({ kind: 'miss', text: `Turn ${turnNo}: not sent — ${over.toLocaleString('en-US')} tokens over the window.` }); renderTurns(); return; }
+    const prefix = prefixOf(out);
+    const sig = prefix.map(b => b.id + ':' + b.tokens).join('|');
+    const pt = sum(prefix);
+    if (!prefix.length) turnLog.unshift({ kind: 'miss', text: `Turn ${turnNo}: no cache breakpoint — all ${fmt(sum(out))} tokens processed fresh.` });
+    else if (sig === lastPrefixSig) turnLog.unshift({ kind: 'hit', text: `Turn ${turnNo}: cache hit — ${fmt(pt)} prefix tokens reused, ${fmt(sum(out) - pt)} processed fresh.` });
+    else turnLog.unshift({ kind: 'miss', text: `Turn ${turnNo}: cache ${lastPrefixSig === null ? 'write' : 'miss (prefix changed)'} — ${fmt(pt)} written to cache.` });
+    lastPrefixSig = prefix.length ? sig : null;
+    // advance the conversation: the user message + reply become a history turn, a new user message arrives
+    const ui = blocks.map(b => b.type).lastIndexOf('user');
+    const turn = mk('history', `Turn ${turnNo}`, 1600 + (turnNo * 370) % 1400);
+    if (ui >= 0) blocks.splice(ui, 0, turn); else blocks.push(turn);
+    turnNo++;
+    renderTurns(); render();
+  });
+  function renderTurns() {
+    $('turns').innerHTML = turnLog.map((t, i) => `<li data-testid="turn-${turnLog.length - 1 - i}"><b class="${t.kind}">${t.kind === 'hit' ? 'HIT' : 'MISS'}</b><span>${esc(t.text)}</span></li>`).join('');
+  }
+
+  /* ---------- palette, drag & drop ---------- */
+  function insertDefault(b) {
+    const ui = blocks.map(x => x.type).lastIndexOf('user');
+    if (b.type === 'user' || ui < 0) blocks.push(b); else blocks.splice(ui, 0, b);
+  }
+  PALETTE.forEach((p, k) => {
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'pb';
+    btn.setAttribute('data-testid', 'add-' + k);
+    btn.setAttribute('aria-label', `Add ${p.label}, about ${fmt(p.tokens)} tokens`);
+    btn.innerHTML = `<i style="background:${color(p.type)}"></i><span>${esc(p.label)}</span><span class="t">~${fmt(p.tokens)}</span>`;
+    let start = null, ghost = null, suppress = false;
+    btn.addEventListener('pointerdown', e => { if (e.button === 0) start = { x: e.clientX, y: e.clientY, id: e.pointerId }; });
+    window.addEventListener('pointermove', e => {
+      if (!start || e.pointerId !== start.id) return;
+      if (!ghost && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 8) {
+        ghost = document.createElement('div'); ghost.className = 'ghost-drag'; ghost.style.background = color(p.type); ghost.textContent = p.label;
+        document.body.appendChild(ghost);
+        try { btn.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+      }
+      if (ghost) { ghost.style.left = e.clientX + 'px'; ghost.style.top = e.clientY + 'px'; $('barA').classList.toggle('drop', overBar(e)); }
+    });
+    const end = e => {
+      if (ghost) {
+        if (e.type === 'pointerup' && overBar(e)) {
+          const idx = dropIndex(e.clientX);
+          const label = p.type === 'history' ? `Turn ${turnNo++}` : p.label;
+          blocks.splice(idx, 0, mk(p.type, label, p.tokens)); render();
+        }
+        ghost.remove(); ghost = null; $('barA').classList.remove('drop');
+        suppress = true; setTimeout(() => { suppress = false; }, 50);
+      }
+      start = null;
+    };
+    window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
+    btn.addEventListener('click', () => {
+      if (suppress) return;
+      const label = p.type === 'history' ? `Turn ${turnNo++}` : p.label;
+      insertDefault(mk(p.type, label, p.tokens)); render();
+    });
+    $('palette').appendChild(btn);
+  });
+  function overBar(e) { const r = $('barA').getBoundingClientRect(); return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top - 20 && e.clientY <= r.bottom + 20; }
+  function dropIndex(x) {
+    const segs = [...$('barA').querySelectorAll('.s[data-i]')];
+    for (const s of segs) { const r = s.getBoundingClientRect(); if (x < r.left + r.width / 2) return +s.dataset.i; }
+    return blocks.length;
+  }
+
+  /* ---------- estimator ---------- */
+  const estTokens = t => Math.ceil(t.length / 4);
+  $('estText').addEventListener('input', () => {
+    const t = $('estText').value, n = estTokens(t);
+    const words = (t.trim().match(/\S+/g) || []).length;
+    $('estR').textContent = `≈ ${n.toLocaleString('en-US')} tokens (${t.length.toLocaleString('en-US')} chars ÷ 4; ${words} words × 1.3 ≈ ${Math.round(words * 1.3)})`;
+    $('estAdd').disabled = n === 0;
+  });
+  $('estAdd').addEventListener('click', () => {
+    const t = $('estText').value; if (!t) return;
+    insertDefault(mk('custom', 'Your text: "' + t.trim().slice(0, 18) + (t.trim().length > 18 ? '…"' : '"'), estTokens(t)));
+    $('estText').value = ''; $('estText').dispatchEvent(new Event('input')); render();
+  });
+
+  /* ---------- window controls ---------- */
+  document.querySelectorAll('[data-win]').forEach(b => b.addEventListener('click', () => {
+    win = +b.dataset.win;
+    document.querySelectorAll('[data-win]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    $('winOut').textContent = fmtWin(win);
+    render();
+  }));
+  $('outTok').addEventListener('input', e => { outRes = +e.target.value; $('outOut').textContent = fmt(outRes); render(); });
+  document.querySelectorAll('[data-strat]').forEach(b => b.addEventListener('click', () => {
+    strat = b.dataset.strat;
+    document.querySelectorAll('[data-strat]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    render();
+  }));
+  $('resetBtn').addEventListener('click', () => { blocks = scenario(); bpId = 'b4'; lastPrefixSig = null; turnLog = []; renderTurns(); render(); });
+
+  render();
+})();
+</script>
+</body>
+</html>

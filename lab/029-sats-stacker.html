@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sats Stacker — DCA vs lump sum, simulated</title>
+<meta name="description" content="A dollar-cost-averaging versus lump-sum simulator on a seeded, fictional price series: pick amount, frequency, duration, volatility and trend, then compare sats stacked, cost basis, returns and drawdowns side by side. A simulation, not real prices and not financial advice.">
+<style>
+  :root {
+    --paper: #fbfaf7;
+    --paper-2: #f2f0ea;
+    --ink: #111111;
+    --ink-2: #555350;
+    --ink-3: #8f8c86;
+    --rule: #dedad2;
+    --orange: #ee8a12;
+    --orange-2: #ffb347;
+    --orange-bg: #fff3e2;
+    --blue: #2f5bea;
+    --blue-bg: #e9eefd;
+    --red: #d6412f;
+    --green: #178a53;
+    --sans: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--paper); color: var(--ink); font: 15px/1.5 var(--sans); overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+  button, input, select { font-family: inherit; }
+  a.back { position: fixed; top: 12px; left: 12px; z-index: 40; font: 700 12px/1 var(--sans); color: var(--ink); text-decoration: none;
+    background: var(--paper); border: 2px solid var(--ink); padding: 7px 10px; box-shadow: 3px 3px 0 var(--ink); }
+  a.back:hover { background: var(--orange-2); }
+
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+  header { padding: 66px 0 20px; display: grid; grid-template-columns: 1fr auto; gap: 16px 30px; align-items: end; border-bottom: 3px solid var(--ink); }
+  h1 { margin: 0; font: 900 clamp(46px, 8.5vw, 104px)/.85 var(--sans); letter-spacing: -.05em; text-transform: uppercase; }
+  h1 span { color: var(--orange); }
+  .lede { margin: 14px 0 0; max-width: 60ch; color: var(--ink-2); }
+  .sim-badge { display: inline-flex; flex-direction: column; gap: 4px; border: 2px solid var(--ink); padding: 10px 14px; background: repeating-linear-gradient(-45deg, var(--orange-bg) 0 8px, var(--paper) 8px 16px); max-width: 300px; }
+  .sim-badge b { font: 900 13px/1 var(--sans); letter-spacing: .14em; text-transform: uppercase; }
+  .sim-badge span { font-size: 12.5px; color: var(--ink-2); line-height: 1.35; }
+
+  .controls { display: grid; grid-template-columns: repeat(6, auto); gap: 14px 22px; align-items: end; padding: 18px 0; border-bottom: 1px solid var(--rule); }
+  .ctl label, .ctl .lbl { display: block; font: 800 10.5px/1 var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 7px; }
+  .ctl input, .ctl select { font: 700 15px/1 var(--mono); border: 2px solid var(--ink); background: #fff; padding: 9px 10px; min-height: 42px; border-radius: 0; color: var(--ink); }
+  .ctl input[type=number] { width: 110px; }
+  .seg { display: inline-flex; border: 2px solid var(--ink); }
+  .seg button { font: 700 13px/1 var(--sans); min-height: 38px; min-width: 42px; padding: 0 10px; border: 0; background: #fff; cursor: pointer; color: var(--ink); }
+  .seg button + button { border-left: 2px solid var(--ink); }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  .seed-row { display: flex; gap: 6px; }
+  .seed-row input { width: 92px; }
+  .btn { font: 800 13px/1 var(--sans); min-height: 42px; padding: 0 14px; border: 2px solid var(--ink); background: var(--orange-2); cursor: pointer; box-shadow: 3px 3px 0 var(--ink); color: var(--ink); }
+  .btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+  .btn.plain { background: #fff; }
+
+  .main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 26px; padding: 22px 0 40px; }
+  .chart-card { border: 2px solid var(--ink); background: #fff; }
+  .chart-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; padding: 12px 14px; border-bottom: 2px solid var(--ink); }
+  .chart-head h2 { margin: 0; font: 900 14px/1 var(--sans); letter-spacing: .12em; text-transform: uppercase; }
+  .key { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--ink-2); }
+  .key i { display: inline-block; width: 18px; height: 0; border-top: 3px solid; vertical-align: middle; margin-right: 6px; }
+  .key i.dash { border-top-style: dashed; }
+  .key i.dot { border-top-style: dotted; }
+  svg.chart { display: block; width: 100%; height: auto; touch-action: pan-y; }
+  svg.chart:focus { outline: none; }
+  svg.chart:focus-visible { outline: 3px solid var(--blue); outline-offset: -3px; }
+  .grid line { stroke: #ece9e2; }
+  .axis text { font: 11px var(--mono); fill: var(--ink-3); }
+  .readout { display: flex; flex-wrap: wrap; gap: 4px 18px; padding: 10px 14px; border-top: 2px solid var(--ink); font: 12.5px/1.4 var(--mono); min-height: 42px; background: var(--paper-2); }
+  .readout b { font-weight: 700; }
+  .play-row { display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--rule); font-size: 13px; color: var(--ink-2); }
+  .bar { flex: 1; height: 6px; background: var(--paper-2); border: 1px solid var(--rule); }
+  .bar i { display: block; height: 100%; width: 0; background: var(--orange); }
+
+  .stack { border: 2px solid var(--ink); background: var(--ink); color: var(--paper); padding: 16px; margin-bottom: 16px; }
+  .stack small { font: 800 10.5px/1 var(--sans); letter-spacing: .16em; text-transform: uppercase; color: #bcb8b0; }
+  .stack .big { font: 900 clamp(30px, 4vw, 40px)/1.05 var(--mono); color: var(--orange-2); margin: 6px 0 2px; font-variant-numeric: tabular-nums; word-break: break-all; }
+  .stack p { margin: 0; font-size: 13px; color: #d8d4cc; }
+  .verdict { border: 2px solid var(--ink); padding: 14px 16px; margin-bottom: 16px; background: var(--orange-bg); font-size: 14.5px; }
+  .verdict b { font-weight: 900; }
+
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 2px solid var(--ink); }
+  .col { padding: 14px; background: #fff; }
+  .col + .col { border-left: 2px solid var(--ink); }
+  .col h3 { margin: 0 0 2px; font: 900 15px/1.1 var(--sans); text-transform: uppercase; letter-spacing: .04em; display: flex; justify-content: space-between; gap: 6px; align-items: center; }
+  .col.dca h3 { color: var(--orange); } .col.lump h3 { color: var(--blue); }
+  .col .win { font: 800 9.5px/1 var(--sans); letter-spacing: .12em; background: var(--ink); color: var(--paper); padding: 4px 6px; }
+  .col p.how { margin: 0 0 10px; font-size: 12px; color: var(--ink-3); }
+  .col dl { margin: 0; display: grid; gap: 7px; }
+  .col dt { font: 800 9.5px/1 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+  .col dd { margin: 2px 0 0; font: 700 14.5px/1.2 var(--mono); font-variant-numeric: tabular-nums; }
+  .pos { color: var(--green); } .neg { color: var(--red); }
+  .fine { font-size: 12.5px; color: var(--ink-3); margin: 14px 0 0; }
+  .explain { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; padding: 26px 0 50px; border-top: 3px solid var(--ink); }
+  .explain h3 { margin: 0 0 6px; font: 900 16px/1.2 var(--sans); text-transform: uppercase; letter-spacing: .03em; }
+  .explain p { margin: 0; color: var(--ink-2); font-size: 14px; }
+
+  @media (max-width: 1060px) { .controls { grid-template-columns: repeat(3, auto); } .main { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 640px) {
+    header { grid-template-columns: 1fr; }
+    .controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .ctl input[type=number], .ctl select { width: 100%; }
+    .seed-row input { flex: 1; min-width: 0; }
+    .ctl.wide { grid-column: 1 / -1; }
+    .explain { grid-template-columns: 1fr; }
+    .compare { grid-template-columns: 1fr; }
+    .col + .col { border-left: 0; border-top: 2px solid var(--ink); }
+    .seg button { min-width: 0; padding: 0 9px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .btn:active { transform: none; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Sats<br><span>Stacker</span></h1>
+      <p class="lede">Buy a little on a schedule, or buy it all on day one? Run both strategies over the same made-up market and see how the stack, the cost basis and the scary drawdowns compare.</p>
+    </div>
+    <div class="sim-badge" data-testid="sim-badge" role="note">
+      <b>Simulation only</b>
+      <span>Prices are a seeded, fictional random walk, not real Bitcoin history. Nothing here is financial advice.</span>
+    </div>
+  </header>
+
+  <div class="controls" role="group" aria-label="Simulation settings">
+    <div class="ctl"><label for="amount">Buy amount ($)</label><input id="amount" type="number" min="10" max="10000" step="10" value="100" data-testid="amount"></div>
+    <div class="ctl"><label for="freq">Every</label>
+      <select id="freq" data-testid="frequency"><option value="1">Day</option><option value="7" selected>Week</option><option value="14">2 weeks</option><option value="30">30 days</option></select></div>
+    <div class="ctl"><span class="lbl" id="dur-l">Duration</span><div class="seg" role="group" aria-labelledby="dur-l" id="dur"></div></div>
+    <div class="ctl"><span class="lbl" id="vol-l">Volatility</span><div class="seg" role="group" aria-labelledby="vol-l" id="vol"></div></div>
+    <div class="ctl"><label for="trend">Trend</label>
+      <select id="trend" data-testid="trend"><option value="-0.25">Bear (−25%/yr)</option><option value="0">Sideways</option><option value="0.35" selected>Bull (+35%/yr)</option></select></div>
+    <div class="ctl wide"><label for="seed">Market seed</label><div class="seed-row"><input id="seed" type="number" min="1" max="999999" data-testid="seed"><button class="btn" type="button" id="reroll" data-testid="reroll">New market</button></div></div>
+  </div>
+
+  <div class="main">
+    <div>
+      <div class="chart-card">
+        <div class="chart-head">
+          <h2>Portfolio value vs money in</h2>
+          <div class="key"><span><i style="border-color:var(--orange)"></i>DCA value</span><span><i class="dash" style="border-color:var(--orange)"></i>DCA cost basis</span><span><i style="border-color:var(--blue)"></i>Lump value</span><span><i class="dot" style="border-color:var(--blue)"></i>Lump cost</span></div>
+        </div>
+        <svg class="chart" id="chart" viewBox="0 0 800 380" data-testid="chart" tabindex="0" role="img" aria-label="Chart of both strategies over time. Use arrow keys to scrub."></svg>
+        <div class="chart-head" style="border-top:2px solid var(--ink);border-bottom:0"><h2>Fictional price</h2><span class="key" id="priceRange" data-testid="price-range"></span></div>
+        <svg class="chart" id="priceChart" viewBox="0 0 800 130" aria-hidden="true"></svg>
+        <div class="play-row"><button class="btn plain" type="button" id="replay" data-testid="replay">Replay</button><div class="bar" aria-hidden="true"><i id="bar"></i></div><span id="dayLbl" data-testid="progress-day">Day 0</span></div>
+        <div class="readout" id="readout" data-testid="readout" aria-live="off">Hover, drag or use ← → on the chart to inspect a day.</div>
+      </div>
+      <p class="fine">Model: daily log-returns from a seeded normal distribution (geometric Brownian motion) starting at a fictional $30,000. Each buy is converted to whole satoshis (1 BTC = 100,000,000 sats) at that day's simulated price. The lump sum invests the same total on day one. No fees, no taxes.</p>
+    </div>
+
+    <aside>
+      <div class="stack"><small>Sats stacked by DCA</small><div class="big" data-testid="sats-live" id="satsLive">0</div><p id="satsSub">…</p></div>
+      <div class="verdict" id="verdict" data-testid="verdict" aria-live="polite"></div>
+      <div class="compare" data-testid="compare">
+        <div class="col dca" data-testid="col-dca"><h3>Stacking <span class="win" id="winDca" hidden>ahead</span></h3><p class="how" id="howDca"></p><dl id="dlDca"></dl></div>
+        <div class="col lump" data-testid="col-lump"><h3>All at once <span class="win" id="winLump" hidden>ahead</span></h3><p class="how" id="howLump"></p><dl id="dlLump"></dl></div>
+      </div>
+    </aside>
+  </div>
+
+  <section class="explain">
+    <div><h3>Why DCA feels better</h3><p>Buying on a schedule spreads your entries across highs and lows, so a crash early on hurts less and even buys you cheaper sats.</p></div>
+    <div><h3>Why lump sum often wins</h3><p>In a market that trends up, money invested earlier has longer to grow. Flip the trend to Bear and watch that reverse.</p></div>
+    <div><h3>What to look at</h3><p>Compare "worst vs cost" and "days underwater": they're a better guide to how a strategy feels to live through than the final number.</p></div>
+  </section>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const NS = 'http://www.w3.org/2000/svg';
+  const SATS = 100000000, P0 = 30000;
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const qs = new URLSearchParams(location.search);
+  const DURS = [1, 2, 4, 8], VOLS = [['Calm', .35], ['Classic', .75], ['Wild', 1.1]];
+  const state = { amount: 100, every: 7, years: 4, vol: .75, trend: .35, seed: Number(qs.get('seed')) || 2140 };
+
+  const $ = id => document.getElementById(id);
+  const usd = (v, d = 0) => (v < 0 ? '−$' : '$') + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const pct = v => (v >= 0 ? '+' : '−') + Math.abs(v * 100).toFixed(1) + '%';
+  const int = v => Math.round(v).toLocaleString('en-US');
+
+  /* ---------- Model ---------- */
+  function prices(seed, years, vol, trend) {
+    const rnd = mulberry32(seed), n = years * 365, out = new Array(n);
+    const mu = (trend - vol * vol / 2) / 365, sd = vol / Math.sqrt(365);
+    let p = P0;
+    for (let i = 0; i < n; i++) {
+      out[i] = Math.round(p * 100) / 100;
+      const u1 = Math.max(1e-12, rnd()), u2 = rnd();
+      const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+      p = p * Math.exp(mu + sd * z);
+    }
+    return out;
+  }
+  function maxDrawdown(vals) { let peak = -Infinity, dd = 0; for (const v of vals) { if (v > peak) peak = v; if (peak > 0) dd = Math.max(dd, (peak - v) / peak); } return dd; }
+  function simulate() {
+    const P = prices(state.seed, state.years, state.vol, state.trend), n = P.length;
+    const buys = []; for (let d = 0; d < n; d += state.every) buys.push(d);
+    const total = state.amount * buys.length;
+    let sats = 0, cost = 0, bi = 0;
+    const dca = { value: new Array(n), cost: new Array(n), sats: new Array(n) };
+    for (let d = 0; d < n; d++) {
+      if (bi < buys.length && buys[bi] === d) { sats += Math.floor(state.amount / P[d] * SATS); cost += state.amount; bi++; }
+      dca.value[d] = sats * P[d] / SATS; dca.cost[d] = cost; dca.sats[d] = sats;
+    }
+    const lumpSats = Math.floor(total / P[0] * SATS);
+    const lump = { value: P.map(p => lumpSats * p / SATS), cost: P.map(() => total), sats: P.map(() => lumpSats) };
+    const stats = s => {
+      const last = n - 1, v = s.value[last], c = s.cost[last];
+      let worst = 0, under = 0;
+      for (let d = 0; d < n; d++) { const r = s.value[d] / s.cost[d] - 1; if (r < worst) worst = r; if (s.value[d] < s.cost[d]) under++; }
+      return { invested: c, sats: s.sats[last], avgCost: c / (s.sats[last] / SATS), final: v, ret: v / c - 1, maxDD: maxDrawdown(s.value), worst, under };
+    };
+    return { P, n, buys, total, dca, lump, dcaStats: stats(dca), lumpStats: stats(lump), priceDD: maxDrawdown(P) };
+  }
+
+  /* ---------- Chart ---------- */
+  const chart = $('chart'), priceChart = $('priceChart');
+  let W = 800, H = 380; const M = { l: 62, r: 14, t: 16, b: 30 };
+  const el = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+  let S = null, clipRect = null, pClip = null, cursorG = null, progress = 0, animStart = 0, raf = 0, scrub = -1;
+  const niceMax = v => { const e = Math.pow(10, Math.floor(Math.log10(v))); for (const m of [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) if (m * e >= v) return m * e; return 10 * e; };
+  function pathOf(arr, x, y, step) { let d = ''; for (let i = 0; i < arr.length; i += step) d += (d ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(arr[i]).toFixed(1); const k = arr.length - 1; return d + 'L' + x(k).toFixed(1) + ' ' + y(arr[k]).toFixed(1); }
+
+  function drawCharts() {
+    const narrow = chart.getBoundingClientRect().width < 600;
+    W = narrow ? 480 : 800; H = narrow ? 330 : 380; M.l = narrow ? 48 : 62;
+    chart.setAttribute('viewBox', `0 0 ${W} ${H}`); priceChart.setAttribute('viewBox', `0 0 ${W} 130`);
+    chart.textContent = ''; priceChart.textContent = '';
+    const n = S.n, step = Math.max(1, Math.ceil(n / 700));
+    const maxV = niceMax(Math.max(...S.dca.value, ...S.lump.value, S.total) * 1.02);
+    const x = i => M.l + (i / (n - 1)) * (W - M.l - M.r), y = v => H - M.b - (v / maxV) * (H - M.t - M.b);
+    const defs = el('defs', {}, chart); const cp = el('clipPath', { id: 'reveal' }, defs); clipRect = el('rect', { x: 0, y: 0, width: 0, height: H }, cp);
+    const g = el('g', { class: 'grid' }, chart), ax = el('g', { class: 'axis' }, chart);
+    for (let k = 0; k <= 4; k++) { const v = maxV * k / 4, yy = y(v); el('line', { x1: M.l, x2: W - M.r, y1: yy, y2: yy }, g); const t = el('text', { x: M.l - 8, y: yy + 4, 'text-anchor': 'end' }, ax); t.textContent = v >= 1000 ? '$' + (v / 1000).toFixed(v >= 10000 ? 0 : 1) + 'k' : '$' + v; }
+    for (let yr = 0; yr <= state.years; yr++) { const i = Math.min(n - 1, yr * 365), xx = x(i); el('line', { x1: xx, x2: xx, y1: M.t, y2: H - M.b }, g); const t = el('text', { x: xx, y: H - 10, 'text-anchor': yr === 0 ? 'start' : yr === state.years ? 'end' : 'middle' }, ax); t.textContent = yr === 0 ? 'Start' : 'Y' + yr; }
+    const lines = el('g', { 'clip-path': 'url(#reveal)' }, chart);
+    el('path', { d: pathOf(S.dca.value, x, y, step) + `L${x(n - 1)} ${y(0)}L${x(0)} ${y(0)}Z`, fill: 'rgba(238,138,18,.08)', stroke: 'none' }, lines);
+    el('path', { d: pathOf(S.lump.cost, x, y, n), fill: 'none', stroke: '#2f5bea', 'stroke-width': 2, 'stroke-dasharray': '2 5', 'stroke-linecap': 'round' }, lines);
+    el('path', { d: pathOf(S.dca.cost, x, y, step), fill: 'none', stroke: '#ee8a12', 'stroke-width': 2, 'stroke-dasharray': '7 5' }, lines);
+    el('path', { d: pathOf(S.lump.value, x, y, step), fill: 'none', stroke: '#2f5bea', 'stroke-width': 2.2, 'data-testid': 'line-lump' }, lines);
+    el('path', { d: pathOf(S.dca.value, x, y, step), fill: 'none', stroke: '#ee8a12', 'stroke-width': 2.6, 'data-testid': 'line-dca' }, lines);
+    // buy ticks along the bottom
+    const ticks = el('g', {}, lines);
+    if (S.buys.length <= 120) S.buys.forEach(d => el('line', { x1: x(d), x2: x(d), y1: H - M.b, y2: H - M.b - 5, stroke: '#ee8a12', 'stroke-width': 1 }, ticks));
+    cursorG = el('g', { visibility: 'hidden' }, chart);
+    el('line', { x1: 0, x2: 0, y1: M.t, y2: H - M.b, stroke: '#111', 'stroke-width': 1, 'stroke-dasharray': '3 3' }, cursorG);
+    el('circle', { r: 5, fill: '#ee8a12', stroke: '#fff', 'stroke-width': 2, class: 'cd' }, cursorG);
+    el('circle', { r: 5, fill: '#2f5bea', stroke: '#fff', 'stroke-width': 2, class: 'cl' }, cursorG);
+    chart._x = x; chart._y = y;
+    // price chart
+    const PH = 130, pm = { t: 10, b: 18 };
+    const lo = Math.min(...S.P), hi = Math.max(...S.P);
+    const py = v => PH - pm.b - ((Math.log(v) - Math.log(lo)) / (Math.log(hi) - Math.log(lo) || 1)) * (PH - pm.t - pm.b);
+    const pdefs = el('defs', {}, priceChart); const pc = el('clipPath', { id: 'revealP' }, pdefs); pClip = el('rect', { x: 0, y: 0, width: 0, height: PH }, pc);
+    const pg = el('g', { 'clip-path': 'url(#revealP)' }, priceChart);
+    el('path', { d: pathOf(S.P, x, py, step) + `L${x(n - 1)} ${PH - pm.b}L${x(0)} ${PH - pm.b}Z`, fill: '#f2f0ea' }, pg);
+    el('path', { d: pathOf(S.P, x, py, step), fill: 'none', stroke: '#111', 'stroke-width': 1.4 }, pg);
+    const t1 = el('text', { x: M.l - 8, y: py(hi) + 4, 'text-anchor': 'end', style: 'font:11px ui-monospace,monospace;fill:#8f8c86' }, priceChart); t1.textContent = '$' + Math.round(hi / 1000) + 'k';
+    const t2 = el('text', { x: M.l - 8, y: py(lo) + 4, 'text-anchor': 'end', style: 'font:11px ui-monospace,monospace;fill:#8f8c86' }, priceChart); t2.textContent = '$' + Math.round(lo / 1000) + 'k';
+    $('priceRange').textContent = `log scale · low ${usd(lo)} · high ${usd(hi)} · end ${usd(S.P[n - 1])} · max drawdown ${(S.priceDD * 100).toFixed(1)}%`;
+  }
+
+  function setProgress(p) {
+    progress = Math.max(0, Math.min(1, p));
+    const w = M.l + progress * (W - M.l - M.r) + 1;
+    clipRect.setAttribute('width', progress >= 1 ? W : w); pClip.setAttribute('width', progress >= 1 ? W : w);
+    $('bar').style.width = (progress * 100) + '%';
+    const d = Math.round(progress * (S.n - 1));
+    $('dayLbl').textContent = `Day ${d + (progress > 0 ? 1 : 0)} of ${S.n}`;
+    $('satsLive').textContent = int(S.dca.sats[d]);
+    $('satsLive').dataset.value = S.dca.sats[d];
+    $('satsSub').textContent = `${(S.dca.sats[d] / SATS).toFixed(8)} BTC from ${S.buys.filter(b => b <= d).length} of ${S.buys.length} buys`;
+    chart.dataset.progress = progress.toFixed(3);
+    api.progress = progress;
+  }
+  function animate() {
+    cancelAnimationFrame(raf);
+    if (reduced) { setProgress(1); return; }
+    animStart = performance.now(); setProgress(0);
+    const tick = now => { const p = (now - animStart) / 2600; setProgress(1 - Math.pow(1 - Math.min(1, p), 2)); if (p < 1) raf = requestAnimationFrame(tick); };
+    raf = requestAnimationFrame(tick);
+  }
+
+  /* ---------- Scrubbing ---------- */
+  function showDay(d) {
+    scrub = Math.max(0, Math.min(S.n - 1, d));
+    const x = chart._x(scrub);
+    cursorG.setAttribute('visibility', 'visible');
+    cursorG.querySelector('line').setAttribute('x1', x); cursorG.querySelector('line').setAttribute('x2', x);
+    const cd = cursorG.querySelector('.cd'), cl = cursorG.querySelector('.cl');
+    cd.setAttribute('cx', x); cd.setAttribute('cy', chart._y(S.dca.value[scrub]));
+    cl.setAttribute('cx', x); cl.setAttribute('cy', chart._y(S.lump.value[scrub]));
+    const r = $('readout');
+    r.innerHTML = `<span>Day <b data-testid="readout-day">${scrub + 1}</b></span><span>Price <b data-testid="readout-price">${usd(S.P[scrub], 2)}</b></span>` +
+      `<span style="color:var(--orange)">DCA <b>${usd(S.dca.value[scrub])}</b> / in ${usd(S.dca.cost[scrub])}</span><span style="color:var(--blue)">Lump <b>${usd(S.lump.value[scrub])}</b> / in ${usd(S.lump.cost[scrub])}</span>`;
+  }
+  function dayFromEvent(e) {
+    const r = chart.getBoundingClientRect(), vx = (e.clientX - r.left) / r.width * W;
+    return Math.round((vx - M.l) / (W - M.l - M.r) * (S.n - 1));
+  }
+  chart.addEventListener('pointermove', e => showDay(dayFromEvent(e)));
+  chart.addEventListener('pointerdown', e => showDay(dayFromEvent(e)));
+  chart.addEventListener('keydown', e => {
+    const big = Math.max(1, Math.round(S.n / 48));
+    const map = { ArrowRight: 1, ArrowLeft: -1, PageUp: big, PageDown: -big };
+    if (e.key in map) { e.preventDefault(); showDay((scrub < 0 ? 0 : scrub) + map[e.key]); }
+    else if (e.key === 'Home') { e.preventDefault(); showDay(0); }
+    else if (e.key === 'End') { e.preventDefault(); showDay(S.n - 1); }
+  });
+
+  /* ---------- Comparison ---------- */
+  function renderStats() {
+    const a = S.dcaStats, b = S.lumpStats;
+    const row = (k, v, cls, tid) => `<div><dt>${k}</dt><dd class="${cls || ''}" ${tid ? `data-testid="${tid}"` : ''}>${v}</dd></div>`;
+    const dl = (s, p) => row('Invested', usd(s.invested), '', p + '-invested') + row('Sats stacked', `<span data-value="${s.sats}">${int(s.sats)}</span>`, '', p + '-sats') +
+      row('Avg cost / BTC', usd(s.avgCost), '', p + '-avg') + row('Final value', usd(s.final), '', p + '-final') + row('Return', pct(s.ret), s.ret >= 0 ? 'pos' : 'neg', p + '-return') +
+      row('Max drawdown', `<span data-value="${s.maxDD.toFixed(6)}">−${(s.maxDD * 100).toFixed(1)}%</span>`, 'neg', p + '-dd') +
+      row('Worst vs cost', pct(s.worst), s.worst < 0 ? 'neg' : '', p + '-worst') + row('Days underwater', `${int(s.under)} of ${int(S.n)}`, '', p + '-under');
+    $('dlDca').innerHTML = dl(a, 'dca'); $('dlLump').innerHTML = dl(b, 'lump');
+    const freqTxt = { 1: 'every day', 7: 'every week', 14: 'every 2 weeks', 30: 'every 30 days' }[state.every];
+    $('howDca').textContent = `${usd(state.amount)} ${freqTxt} · ${S.buys.length} buys`;
+    $('howLump').textContent = `${usd(S.total)} on day 1`;
+    const diff = a.final - b.final, dcaAhead = diff > 0;
+    $('winDca').hidden = !dcaAhead; $('winLump').hidden = dcaAhead;
+    $('verdict').innerHTML = `After ${state.years} simulated year${state.years > 1 ? 's' : ''}, <b data-testid="winner">${dcaAhead ? 'stacking (DCA)' : 'the lump sum'}</b> finished ahead by <b>${usd(Math.abs(diff))}</b>. ` +
+      (a.maxDD < b.maxDD ? 'DCA also had the shallower drawdown.' : 'DCA still had the deeper drawdown, though.') + ` (${state.seed === 2140 ? 'default market' : 'market #' + state.seed})`;
+  }
+
+  /* ---------- Controls ---------- */
+  function segs(id, items, cur, onPick, tid) {
+    const wrap = $(id); wrap.textContent = '';
+    items.forEach(([label, val]) => {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.setAttribute('aria-pressed', String(val === cur()));
+      b.setAttribute('data-testid', `${tid}-${label.toLowerCase()}`);
+      b.addEventListener('click', () => { onPick(val); wrap.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); run(); });
+      wrap.appendChild(b);
+    });
+  }
+  segs('dur', DURS.map(y => [y + 'y', y]), () => state.years, v => { state.years = v; }, 'dur');
+  segs('vol', VOLS, () => state.vol, v => { state.vol = v; }, 'vol');
+  $('amount').addEventListener('change', () => { const v = Number($('amount').value); state.amount = Math.min(10000, Math.max(10, Number.isFinite(v) ? v : 100)); $('amount').value = state.amount; run(); });
+  $('freq').addEventListener('change', () => { state.every = Number($('freq').value); run(); });
+  $('trend').addEventListener('change', () => { state.trend = Number($('trend').value); run(); });
+  $('seed').value = state.seed;
+  $('seed').addEventListener('change', () => { const v = parseInt($('seed').value, 10); state.seed = Number.isFinite(v) && v > 0 ? v : 1; $('seed').value = state.seed; run(); });
+  $('reroll').addEventListener('click', () => { state.seed = 1 + Math.floor(Math.random() * 999998); $('seed').value = state.seed; run(); });
+  $('replay').addEventListener('click', animate);
+
+  const api = { progress: 0, state, get prices() { return S.P.slice(); }, get buys() { return S.buys.slice(); }, get dcaValue() { return S.dca.value.slice(); }, get lumpValue() { return S.lump.value.slice(); }, get stats() { return { dca: S.dcaStats, lump: S.lumpStats }; } };
+  window.__sats = api;
+  let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { const p = progress, sc = scrub; drawCharts(); setProgress(p); if (sc >= 0) showDay(sc); }, 150); });
+  function run() { S = simulate(); drawCharts(); renderStats(); scrub = -1; $('readout').textContent = 'Hover, drag or use ← → on the chart to inspect a day.'; animate(); }
+  run();
+})();
+</script>
+</body>
+</html>

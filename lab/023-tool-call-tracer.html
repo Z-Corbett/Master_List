@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tool-Call Tracer — Multi-Agent Trace Viewer</title>
+<meta name="description" content="A trace viewer for simulated multi-agent coding runs: swimlanes for an orchestrator and its parallel sub-agents, a bar for every read, grep, edit, bash and test call on a zoomable time axis, span details with inputs and outputs, tool filters and a critical-path highlight.">
+<style>
+  :root {
+    --bg: #0c1110;
+    --bg-2: #121a18;
+    --bg-3: #19231f;
+    --line: #25332e;
+    --ink: #e4efe9;
+    --ink-2: #a6b8b0;
+    --ink-3: #6b7f77;
+    --mint: #5eead4;
+    --crit: #ff5d73;
+    --t-read: #7dd3fc;
+    --t-grep: #c4b5fd;
+    --t-edit: #fbbf24;
+    --t-bash: #fb923c;
+    --t-test: #4ade80;
+    --t-think: #64748b;
+    --t-spawn: #f0abfc;
+    --t-wait: #2b3a35;
+    --sans: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", "Cascadia Code", Menlo, Consolas, monospace;
+    --lane-h: 38px;
+    --label-w: 150px;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.45; overflow-x: hidden;
+    background-image: linear-gradient(rgba(94,234,212,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(94,234,212,.035) 1px, transparent 1px);
+    background-size: 32px 32px; }
+  :focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  .back { position: fixed; top: 12px; left: 12px; z-index: 60; text-decoration: none; font: 600 12px/1 var(--mono); color: var(--ink-2);
+    background: rgba(18,26,24,.92); border: 1px solid var(--line); border-radius: 4px; padding: 7px 10px; }
+  .back:hover { color: var(--mint); }
+  .wrap { max-width: 1320px; margin: 0 auto; padding: 56px 20px 40px; }
+  header.top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 14px 24px; margin-bottom: 16px; }
+  .prompt { font: 13px var(--mono); color: var(--mint); }
+  .prompt::before { content: "$ "; color: var(--ink-3); }
+  h1 { margin: 4px 0 6px; font: 700 clamp(28px, 4.6vw, 46px)/1.05 var(--mono); letter-spacing: -.03em; }
+  h1 span { color: var(--mint); }
+  .lede { margin: 0; color: var(--ink-2); max-width: 64ch; font-size: 15px; }
+  .traces { display: flex; gap: 6px; flex-wrap: wrap; }
+  .traces button { border: 1px solid var(--line); background: var(--bg-2); border-radius: 6px; padding: 7px 12px; font: 600 13px var(--sans); color: var(--ink-2); text-align: left; }
+  .traces button small { display: block; font: 11px var(--mono); color: var(--ink-3); }
+  .traces button[aria-pressed="true"] { border-color: var(--mint); color: var(--ink); box-shadow: inset 0 0 0 1px var(--mint); }
+
+  .stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .stat { background: var(--bg-2); border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; min-width: 0; }
+  .stat .k { font: 600 10.5px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+  .stat .v { font: 700 21px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stat .v.crit { color: var(--crit); }
+
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-bottom: 10px; }
+  .filters { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--bg-2); border-radius: 999px; padding: 4px 10px 4px 8px; font: 12.5px var(--mono); color: var(--ink-2); }
+  .chip i { width: 10px; height: 10px; border-radius: 2px; }
+  .chip[aria-pressed="false"] { opacity: .45; text-decoration: line-through; }
+  .chip .n { color: var(--ink-3); }
+  .zoom { display: flex; gap: 4px; align-items: center; margin-left: auto; }
+  .zoom button, .critbtn { border: 1px solid var(--line); background: var(--bg-2); border-radius: 6px; padding: 5px 10px; font: 600 13px var(--mono); }
+  .critbtn[aria-pressed="true"] { border-color: var(--crit); color: var(--crit); box-shadow: inset 0 0 0 1px var(--crit); }
+  .range { font: 12px var(--mono); color: var(--ink-3); min-width: 110px; text-align: right; }
+
+  .viewer { background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .axis-row, .lane { display: grid; grid-template-columns: var(--label-w) minmax(0, 1fr); }
+  .axis-row { border-bottom: 1px solid var(--line); height: 28px; }
+  .axis-row .corner { border-right: 1px solid var(--line); font: 11px var(--mono); color: var(--ink-3); padding: 6px 10px; }
+  .axis { position: relative; overflow: hidden; }
+  .tick { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--line); font: 10.5px var(--mono); color: var(--ink-3); padding: 6px 0 0 4px; white-space: nowrap; }
+  .lanes { position: relative; }
+  .lane { height: var(--lane-h); border-bottom: 1px solid rgba(37,51,46,.6); }
+  .lane:last-child { border-bottom: 0; }
+  .lane .name { border-right: 1px solid var(--line); padding: 0 10px; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+  .lane .name b { font: 600 12.5px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lane .name small { font: 10.5px var(--mono); color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .track { position: relative; overflow: hidden; cursor: grab; touch-action: pan-y; }
+  .track.panning { cursor: grabbing; }
+  .gridline { position: absolute; top: 0; bottom: 0; border-left: 1px dashed rgba(37,51,46,.7); pointer-events: none; }
+  .span { position: absolute; top: 7px; height: calc(var(--lane-h) - 14px); border-radius: 3px; border: 0; padding: 0 5px; font: 600 10.5px/calc(var(--lane-h) - 14px) var(--mono); color: #0c1110; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 3px; }
+  .span.wait { background: repeating-linear-gradient(135deg, #1f2c28 0 5px, #25352f 5px 10px) !important; color: var(--ink-3); border: 1px dashed #3a4e47; }
+  .span.think { color: #e4efe9; }
+  .span.fail { box-shadow: inset 0 -3px 0 #ff5d73; }
+  .span.sel { outline: 2px solid #fff; outline-offset: 1px; z-index: 2; }
+  .viewer.critmode .span:not(.crit) { opacity: .22; }
+  .viewer.critmode .span.crit { box-shadow: 0 0 0 2px var(--crit); z-index: 1; }
+  .span.filtered { display: none; }
+  .links { position: absolute; inset: 0; pointer-events: none; }
+  .overview { position: relative; height: 26px; margin: 8px 0 0 var(--label-w); background: var(--bg-3); border-radius: 4px; cursor: pointer; overflow: hidden; }
+  .overview i { position: absolute; top: 5px; height: 16px; border-radius: 1px; opacity: .8; }
+  .overview .win { position: absolute; top: 0; bottom: 0; border: 1.5px solid var(--mint); background: rgba(94,234,212,.08); border-radius: 3px; }
+
+  .bottom { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+  .panel { background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; padding: 14px; min-width: 0; }
+  .panel h2 { margin: 0 0 10px; font: 600 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+  .det-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .badge { font: 700 11px var(--mono); border-radius: 4px; padding: 2px 7px; color: #0c1110; }
+  .badge.crit { background: var(--crit); color: #fff; }
+  .badge.fail { background: transparent; color: var(--crit); border: 1px solid var(--crit); }
+  .det-title { font: 600 15px var(--mono); overflow-wrap: anywhere; }
+  .kv { display: grid; grid-template-columns: 90px minmax(0,1fr); gap: 4px 10px; font-size: 13px; margin-bottom: 10px; }
+  .kv dt { color: var(--ink-3); font: 12px var(--mono); }
+  .kv dd { margin: 0; font-family: var(--mono); font-size: 12.5px; }
+  pre.io { margin: 4px 0 10px; background: #080c0b; border: 1px solid var(--line); border-radius: 6px; padding: 9px 10px; font: 12px/1.5 var(--mono); color: #cfe0d8; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 200px; overflow: auto; }
+  .io-l { font: 600 10.5px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+  .empty { color: var(--ink-3); font-size: 14px; padding: 20px 0; }
+  .bars { display: grid; gap: 6px; }
+  .bars .row { display: grid; grid-template-columns: 56px minmax(0,1fr) 100px; gap: 8px; align-items: center; font: 12px var(--mono); }
+  .bars .b { height: 10px; background: var(--bg-3); border-radius: 3px; overflow: hidden; }
+  .bars .b i { display: block; height: 100%; }
+  .bars .row span:last-child { text-align: right; color: var(--ink-2); }
+  .note { font-size: 13px; color: var(--ink-2); margin: 12px 0 0; }
+  .fine { font-size: 12px; color: var(--ink-3); margin-top: 16px; }
+
+  @media (max-width: 900px) {
+    .stats { grid-template-columns: repeat(3, minmax(0,1fr)); }
+    .bottom { grid-template-columns: minmax(0,1fr); }
+  }
+  @media (max-width: 560px) {
+    :root { --label-w: 86px; --lane-h: 36px; }
+    .stats { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .stat .v { font-size: 17px; }
+    .lane .name small { display: none; }
+    .zoom { margin-left: 0; }
+    .range { min-width: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<a href="../index.html#lab" class="back" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="prompt">trace view --run agent-session</div>
+      <h1>Tool-Call <span>Tracer</span></h1>
+      <p class="lede">Scripted traces of fictional multi-agent coding runs. Each bar is one tool call; lanes are the orchestrator and the sub-agents it spawned. Find where the wall-clock time really went.</p>
+    </div>
+    <div class="traces" role="group" aria-label="Choose a trace" id="traces"></div>
+  </header>
+
+  <div class="stats" aria-live="polite">
+    <div class="stat"><div class="k">Wall time</div><div class="v" data-testid="wall">0s</div></div>
+    <div class="stat"><div class="k">Tool time</div><div class="v" data-testid="tooltime">0s</div></div>
+    <div class="stat"><div class="k">Parallelism</div><div class="v" data-testid="parallel">1.0×</div></div>
+    <div class="stat"><div class="k">Calls</div><div class="v" data-testid="calls">0</div></div>
+    <div class="stat"><div class="k">Critical path</div><div class="v crit" data-testid="critlen">0s</div></div>
+  </div>
+
+  <div class="toolbar">
+    <div class="filters" role="group" aria-label="Filter by tool" id="filters"></div>
+    <button class="critbtn" type="button" id="critBtn" aria-pressed="false" data-testid="crit-toggle">Critical path</button>
+    <div class="zoom">
+      <button type="button" id="zin" aria-label="Zoom in" data-testid="zoom-in">+</button>
+      <button type="button" id="zout" aria-label="Zoom out" data-testid="zoom-out">−</button>
+      <button type="button" id="zfit" data-testid="zoom-fit">Fit</button>
+      <span class="range" id="range" data-testid="range" aria-live="polite"></span>
+    </div>
+  </div>
+
+  <section class="viewer" id="viewer" aria-label="Trace timeline" data-testid="viewer">
+    <div class="axis-row"><div class="corner">lane</div><div class="axis" id="axis"></div></div>
+    <div class="lanes" id="lanes"></div>
+  </section>
+  <div class="overview" id="overview" data-testid="overview" aria-hidden="true"></div>
+
+  <div class="bottom">
+    <section class="panel" aria-labelledby="det-h">
+      <h2 id="det-h">Span</h2>
+      <div id="details" data-testid="details" aria-live="polite"><p class="empty">Select a bar to see the call's input and output. Drag the timeline to pan; use the buttons or Ctrl + wheel to zoom.</p></div>
+    </section>
+    <section class="panel" aria-labelledby="by-h">
+      <h2 id="by-h">Time by tool</h2>
+      <div class="bars" id="byTool" data-testid="by-tool"></div>
+      <p class="note" id="insight" data-testid="insight"></p>
+    </section>
+  </div>
+  <p class="fine">All traces are scripted and fictional: the repositories, files, commands' output and timings were written for this demo, not captured from a real agent. Durations are in seconds of simulated wall-clock time.</p>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const TOOLS = ['read', 'grep', 'edit', 'bash', 'test', 'think', 'spawn', 'wait'];
+  const FILTERABLE = ['read', 'grep', 'edit', 'bash', 'test', 'think'];
+  const GAP = 0.15;
+
+  /* ---------- trace builder ---------- */
+  function Trace(title, subtitle) {
+    const t = { title, subtitle, lanes: [], spans: [] };
+    let n = 0;
+    t.lane = (id, role) => { t.lanes.push({ id, role }); return id; };
+    // run a sequence in a lane from time t0; each step: [tool, dur, label, input, output, flags]
+    t.run = (lane, t0, steps, firstDeps) => {
+      let at = t0, prev = null, first = null;
+      for (const s of steps) {
+        const [tool, dur, label, input, output, fail] = s;
+        const sp = { id: 's' + (++n), lane, tool, start: +at.toFixed(2), dur, label, input: input || label, output: output || 'ok', fail: !!fail, deps: [] };
+        if (prev) sp.deps.push(prev.id); else if (firstDeps) sp.deps.push(...firstDeps);
+        t.spans.push(sp); prev = sp; if (!first) first = sp;
+        at = at + dur + GAP;
+      }
+      return { first, last: prev, end: prev.start + prev.dur };
+    };
+    t.wait = (lane, after, children) => {
+      const end = Math.max(...children.map(c => c.end));
+      const sp = { id: 's' + (++n), lane, tool: 'wait', start: +(after.end + GAP).toFixed(2), dur: +(end - after.end - GAP + 0.1).toFixed(2), label: `wait for ${children.length} sub-agent${children.length > 1 ? 's' : ''}`, input: 'join(' + children.map(c => c.first.lane).join(', ') + ')', output: children.map(c => `${c.first.lane}: finished at ${c.end.toFixed(1)}s`).join('\n'), deps: [after.last.id, ...children.map(c => c.last.id)] };
+      t.spans.push(sp);
+      return { first: sp, last: sp, end: sp.start + sp.dur };
+    };
+    return t;
+  }
+
+  function traceFlaky() {
+    const t = Trace('Fix a flaky checkout test', '3 lanes · parallel investigation');
+    const O = t.lane('orchestrator', 'lead agent'), I = t.lane('investigator', 'sub-agent'), C = t.lane('ci-reader', 'sub-agent');
+    const o1 = t.run(O, 0, [
+      ['read', 0.8, 'read README.md', 'Read("README.md")', '# acme-shop (fictional)\nnpm test · npm run e2e\n…412 lines'],
+      ['grep', 0.5, 'grep checkout tests/', 'Grep(pattern="checkout", path="tests/")', 'tests/checkout.spec.ts:14\ntests/fixtures/cart.ts:3\n2 files'],
+      ['think', 3.2, 'plan', 'Plan the investigation', 'Two unknowns: what the test waits on, and how CI fails.\n→ spawn investigator (code) and ci-reader (logs) in parallel.'],
+      ['spawn', 0.3, 'spawn investigator', 'Task(agent="investigator", brief="Find why checkout.spec.ts is flaky; do not edit files")', 'agent started'],
+    ]);
+    const o2 = t.run(O, o1.end + GAP, [['spawn', 0.3, 'spawn ci-reader', 'Task(agent="ci-reader", brief="Summarise the last 5 failed CI runs of checkout.spec.ts")', 'agent started']], [o1.last.id]);
+    const i = t.run(I, o1.end + GAP, [
+      ['read', 0.9, 'read checkout.spec.ts', 'Read("tests/checkout.spec.ts")', "await page.click('#pay');\nawait page.waitForTimeout(2000);\nawait expect(page.locator('.receipt')).toBeVisible();"],
+      ['grep', 0.6, 'grep waitForTimeout', 'Grep(pattern="waitForTimeout|setTimeout", path="tests/")', 'tests/checkout.spec.ts:22  await page.waitForTimeout(2000);\n1 match'],
+      ['read', 1.1, 'read fixtures/cart.ts', 'Read("tests/fixtures/cart.ts")', 'export const seedCart = async (api) => api.post("/cart", …) // no await on the second call'],
+      ['bash', 1.9, 'git log -p -3', 'Bash("git log -p -3 -- tests/checkout.spec.ts")', 'a1f3c2e  "speed up checkout test" replaced waitForResponse with waitForTimeout(2000)'],
+      ['think', 4.5, 'write findings', 'Summarise root cause', 'Root cause: fixed 2s sleep instead of waiting for POST /orders; seedCart has an un-awaited call.\nConfidence: high.'],
+    ], [o1.last.id]);
+    const c = t.run(C, o2.end + GAP, [
+      ['bash', 8.4, 'gh run view --log-failed', 'Bash("gh run view 4242 --log-failed")', 'checkout.spec.ts:24  Timeout 5000ms exceeded waiting for .receipt\n(5 of the last 40 runs)'],
+      ['grep', 0.4, 'grep "Timeout"', 'Grep(pattern="Timeout 5000ms", path="ci-logs/")', '5 matches, all on the slow runner pool'],
+      ['read', 0.7, 'read playwright.config.ts', 'Read("playwright.config.ts")', 'retries: 2, workers: 4, expect.timeout: 5000'],
+      ['think', 2.2, 'write findings', 'Summarise CI evidence', 'Fails only when the payment API responds > 2s. Retries hide it most of the time.'],
+    ], [o2.last.id]);
+    const w = t.wait(O, o2, [i, c]);
+    t.run(O, w.end + GAP, [
+      ['edit', 1.8, 'edit checkout.spec.ts', 'Edit("tests/checkout.spec.ts", replace waitForTimeout(2000) → waitForResponse(/\\/orders/))', '1 hunk changed'],
+      ['edit', 0.9, 'edit fixtures/cart.ts', 'Edit("tests/fixtures/cart.ts", await the second api.post)', '1 hunk changed'],
+      ['test', 41.0, 'playwright --repeat-each=20', 'Bash("npx playwright test checkout.spec.ts --repeat-each=20")', '20 passed (41.0s)'],
+      ['think', 2.4, 'summarise', 'Write the final report', 'Fixed the race; 20/20 green locally. Suggest dropping retries for this spec.'],
+    ], [w.last.id]);
+    return t;
+  }
+
+  function traceDarkMode() {
+    const t = Trace('Add a dark-mode toggle', '4 lanes · fan-out, failing test, retry');
+    const O = t.lane('orchestrator', 'lead agent'), T = t.lane('tokens', 'sub-agent'), K = t.lane('components', 'sub-agent'), D = t.lane('docs', 'sub-agent');
+    const o1 = t.run(O, 0, [
+      ['read', 0.7, 'read package.json', 'Read("package.json")', '"scripts": { "build": "vite build", "test": "vitest run" }'],
+      ['grep', 0.9, 'grep --color', 'Grep(pattern="--color-", path="src/")', '37 matches in 9 files'],
+      ['think', 4.1, 'plan', 'Split the work', 'tokens: define dark palette · components: toggle + wiring · docs: README section.\nIndependent → run in parallel.'],
+      ['spawn', 0.3, 'spawn tokens', 'Task(agent="tokens")', 'agent started'],
+    ]);
+    const o2 = t.run(O, o1.end + GAP, [['spawn', 0.3, 'spawn components', 'Task(agent="components")', 'agent started']], [o1.last.id]);
+    const o3 = t.run(O, o2.end + GAP, [['spawn', 0.3, 'spawn docs', 'Task(agent="docs")', 'agent started']], [o2.last.id]);
+    const a = t.run(T, o1.end + GAP, [
+      ['read', 0.8, 'read tokens.css', 'Read("src/styles/tokens.css")', ':root { --color-bg: #fff; --color-ink: #111; … 24 tokens }'],
+      ['think', 2.6, 'derive dark palette', 'Map each token to a dark value, keep 4.5:1 contrast', '24 tokens mapped; 2 needed manual contrast fixes'],
+      ['edit', 2.2, 'edit tokens.css', 'Edit("src/styles/tokens.css", add [data-theme="dark"] block)', '+31 lines'],
+    ], [o1.last.id]);
+    const b = t.run(K, o2.end + GAP, [
+      ['read', 1.0, 'read Header.tsx', 'Read("src/components/Header.tsx")', '<header>…<nav/>…</header>'],
+      ['grep', 0.6, 'grep localStorage', 'Grep(pattern="localStorage", path="src/")', 'src/lib/prefs.ts:4'],
+      ['edit', 3.1, 'create ThemeToggle.tsx', 'Write("src/components/ThemeToggle.tsx")', 'new file, 42 lines'],
+      ['edit', 1.4, 'edit Header.tsx', 'Edit("src/components/Header.tsx", mount <ThemeToggle/>)', '+3 lines'],
+      ['edit', 1.2, 'edit prefs.ts', 'Edit("src/lib/prefs.ts", persist theme)', '+9 lines'],
+      ['think', 1.8, 'report', 'Summarise changes', 'Toggle sets data-theme on <html>; respects prefers-color-scheme on first load.'],
+    ], [o2.last.id]);
+    const c = t.run(D, o3.end + GAP, [
+      ['read', 0.6, 'read README.md', 'Read("README.md")', '## Features …'],
+      ['edit', 1.3, 'edit README.md', 'Edit("README.md", add "Dark mode" section)', '+12 lines'],
+    ], [o3.last.id]);
+    const w = t.wait(O, o3, [a, b, c]);
+    t.run(O, w.end + GAP, [
+      ['bash', 12.4, 'npm run build', 'Bash("npm run build")', 'vite v5 building for production…\n✓ built in 12.1s'],
+      ['test', 22.6, 'npm test', 'Bash("npm test")', 'FAIL src/components/Header.test.tsx\n  × renders the nav (snapshot mismatch: new toggle button)\n118 passed, 1 failed', true],
+      ['think', 2.0, 'diagnose failure', 'Is this a regression?', 'Expected: the header now contains the toggle. Update the snapshot deliberately, after checking the diff.'],
+      ['edit', 0.8, 'update snapshot', 'Bash("npx vitest -u src/components/Header.test.tsx")', '1 snapshot updated'],
+      ['test', 21.9, 'npm test', 'Bash("npm test")', '119 passed'],
+    ], [w.last.id]);
+    return t;
+  }
+
+  function traceRename() {
+    const t = Trace('Rename getUser → fetchUser', '4 lanes · search, then two migrators');
+    const O = t.lane('orchestrator', 'lead agent'), S = t.lane('search', 'sub-agent'), A = t.lane('migrate-api', 'sub-agent'), W = t.lane('migrate-web', 'sub-agent');
+    const o1 = t.run(O, 0, [
+      ['think', 1.6, 'plan', 'Plan the rename', 'Find every call site first; then split by package.'],
+      ['spawn', 0.3, 'spawn search', 'Task(agent="search")', 'agent started'],
+    ]);
+    const s = t.run(S, o1.end + GAP, [
+      ['grep', 2.4, 'grep -r getUser', 'Grep(pattern="\\bgetUser\\b", path=".")', '31 matches: packages/api (14), packages/web (17)'],
+      ['read', 0.9, 'read api/users.ts', 'Read("packages/api/src/users.ts")', 'export async function getUser(id: string) { … }'],
+      ['read', 0.8, 'read web/hooks.ts', 'Read("packages/web/src/hooks.ts")', "import { getUser } from '@acme/api'"],
+      ['think', 1.5, 'report', 'List call sites by package', 'api: 14 sites in 5 files · web: 17 sites in 8 files · 1 dynamic string use in web/analytics.ts'],
+    ], [o1.last.id]);
+    const w1 = t.wait(O, o1, [s]);
+    const o2 = t.run(O, w1.end + GAP, [
+      ['spawn', 0.3, 'spawn migrate-api', 'Task(agent="migrate-api")', 'agent started'],
+    ], [w1.last.id]);
+    const o3 = t.run(O, o2.end + GAP, [['spawn', 0.3, 'spawn migrate-web', 'Task(agent="migrate-web")', 'agent started']], [o2.last.id]);
+    const a = t.run(A, o2.end + GAP, [
+      ['edit', 1.9, 'edit users.ts', 'Edit("packages/api/src/users.ts")', 'renamed + deprecated alias exported'],
+      ['edit', 2.3, 'edit 4 route files', 'MultiEdit(4 files)', '13 call sites'],
+      ['test', 9.8, 'vitest api', 'Bash("npm test -w packages/api")', '64 passed'],
+    ], [o2.last.id]);
+    const b = t.run(W, o3.end + GAP, [
+      ['edit', 2.8, 'edit 8 web files', 'MultiEdit(8 files)', '16 call sites'],
+      ['grep', 0.5, 'grep "getUser"', 'Grep(pattern="\'getUser\'", path="packages/web")', "analytics.ts:88  track('getUser')"],
+      ['think', 1.1, 'decide on string', 'Rename the analytics event?', 'No: it is a public event name, not a symbol. Leave it and note it.'],
+      ['test', 14.2, 'vitest web', 'Bash("npm test -w packages/web")', '203 passed'],
+    ], [o3.last.id]);
+    const w2 = t.wait(O, o3, [a, b]);
+    t.run(O, w2.end + GAP, [
+      ['bash', 9.0, 'npm run typecheck', 'Bash("npm run typecheck")', 'tsc -b  ✓ 0 errors'],
+      ['test', 35.5, 'full test suite', 'Bash("npm test")', '267 passed'],
+      ['think', 1.2, 'summarise', 'Final report', '30 sites renamed; deprecated alias kept for one release; analytics event name unchanged on purpose.'],
+    ], [w2.last.id]);
+    return t;
+  }
+
+  const TRACES = [traceFlaky(), traceDarkMode(), traceRename()];
+  TRACES.forEach(t => {
+    const byId = new Map(t.spans.map(s => [s.id, s]));
+    t.byId = byId;
+    t.wall = Math.max(...t.spans.map(s => s.start + s.dur));
+    // critical path: walk back from the last-ending span through the predecessor that ended last
+    let cur = t.spans.reduce((a, b) => (b.start + b.dur > a.start + a.dur ? b : a));
+    // wait spans only mark a join; the time they cover belongs to the sub-agent that finished last
+    const path = cur.tool === 'wait' ? [] : [cur];
+    while (cur.deps.length) {
+      cur = cur.deps.map(id => byId.get(id)).reduce((a, b) => (b.start + b.dur > a.start + a.dur ? b : a));
+      if (cur.tool !== 'wait') path.push(cur);
+    }
+    t.crit = new Set(path.map(s => s.id));
+    t.critLen = path.reduce((s, x) => s + x.dur, 0);
+  });
+
+  /* ---------- state ---------- */
+  const qs = new URLSearchParams(location.search);
+  let ti = Math.min(TRACES.length - 1, Math.max(0, parseInt(qs.get('trace') || '1', 10) - 1));
+  let v0 = 0, v1 = 1, selected = null, critOn = false;
+  const shown = Object.fromEntries(FILTERABLE.map(k => [k, true]));
+  const fmtS = x => (x >= 100 ? x.toFixed(0) : x.toFixed(1)) + 's';
+
+  // trace picker
+  TRACES.forEach((t, i) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.setAttribute('data-testid', 'trace-' + i);
+    b.innerHTML = `${esc(t.title)}<small>${esc(t.subtitle)}</small>`;
+    b.addEventListener('click', () => loadTrace(i));
+    $('traces').appendChild(b);
+  });
+
+  function loadTrace(i) {
+    ti = i; selected = null;
+    document.querySelectorAll('#traces button').forEach((b, k) => b.setAttribute('aria-pressed', String(k === i)));
+    const t = TRACES[ti];
+    v0 = 0; v1 = t.wall * 1.02;
+    // lanes
+    $('lanes').innerHTML = t.lanes.map(l => `<div class="lane" data-testid="lane-${l.id}"><div class="name"><b>${esc(l.id)}</b><small>${esc(l.role)}</small></div><div class="track" data-lane="${l.id}"></div></div>`).join('');
+    t.lanes.forEach(l => {
+      const track = $('lanes').querySelector(`.track[data-lane="${l.id}"]`);
+      t.spans.filter(s => s.lane === l.id).forEach(s => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = `span ${s.tool}${s.fail ? ' fail' : ''}${t.crit.has(s.id) ? ' crit' : ''}`;
+        b.dataset.id = s.id; b.dataset.tool = s.tool;
+        b.setAttribute('data-testid', 'span-' + s.id);
+        b.style.background = `var(--t-${s.tool})`;
+        b.textContent = s.label;
+        b.setAttribute('aria-label', `${s.lane}: ${s.tool} ${s.label}, ${s.dur.toFixed(1)} seconds at ${s.start.toFixed(1)}s${s.fail ? ', failed' : ''}${t.crit.has(s.id) ? ', on critical path' : ''}`);
+        b.addEventListener('click', e => { e.stopPropagation(); select(s.id); });
+        track.appendChild(b);
+      });
+      attachPan(track);
+    });
+    // filters
+    const counts = {}; t.spans.forEach(s => { counts[s.tool] = (counts[s.tool] || 0) + 1; });
+    $('filters').innerHTML = FILTERABLE.map(k => `<button type="button" class="chip" data-tool="${k}" aria-pressed="${shown[k]}" data-testid="filter-${k}"><i style="background:var(--t-${k})"></i>${k} <span class="n">${counts[k] || 0}</span></button>`).join('');
+    // stats
+    const work = t.spans.filter(s => s.tool !== 'wait');
+    const toolTime = work.reduce((a, s) => a + s.dur, 0);
+    document.querySelector('[data-testid="wall"]').textContent = fmtS(t.wall);
+    document.querySelector('[data-testid="tooltime"]').textContent = fmtS(toolTime);
+    document.querySelector('[data-testid="parallel"]').textContent = (toolTime / t.wall).toFixed(2) + '×';
+    document.querySelector('[data-testid="calls"]').textContent = work.length;
+    document.querySelector('[data-testid="critlen"]').textContent = fmtS(t.critLen);
+    // by tool
+    const byTool = {}; work.forEach(s => { byTool[s.tool] = (byTool[s.tool] || 0) + s.dur; });
+    const max = Math.max(...Object.values(byTool));
+    const order = Object.keys(byTool).sort((a, b) => byTool[b] - byTool[a]);
+    $('byTool').innerHTML = order.map(k => `<div class="row" data-testid="bytool-${k}"><span>${k}</span><span class="b"><i style="width:${byTool[k] / max * 100}%;background:var(--t-${k})"></i></span><span>${fmtS(byTool[k])} · ${Math.round(byTool[k] / toolTime * 100)}%</span></div>`).join('');
+    const critTest = t.spans.filter(s => t.crit.has(s.id) && s.tool === 'test').reduce((a, s) => a + s.dur, 0);
+    $('insight').textContent = `Tests on the critical path take ${fmtS(critTest)} of ${fmtS(t.wall)} wall time (${Math.round(critTest / t.wall * 100)}%). ${fmtS(Math.max(0, toolTime - t.critLen))} of tool calls ran in parallel, off the critical path — speeding those up would not finish the run any sooner.`;
+    renderDetails();
+    applyFilters();
+    layout();
+  }
+
+  function layout() {
+    const t = TRACES[ti], span = v1 - v0;
+    const pct = x => ((x - v0) / span * 100);
+    document.querySelectorAll('.span').forEach(b => {
+      const s = t.byId.get(b.dataset.id);
+      b.style.left = pct(s.start) + '%';
+      b.style.width = `max(3px, ${s.dur / span * 100}%)`;
+    });
+    // ticks
+    const step = niceStep(span / 8);
+    let html = '';
+    for (let x = Math.ceil(v0 / step) * step; x <= v1; x += step) html += `<div class="tick" style="left:${pct(x)}%">${+x.toFixed(2)}s</div>`;
+    $('axis').innerHTML = html;
+    document.querySelectorAll('.track').forEach(tr => {
+      tr.querySelectorAll('.gridline').forEach(g => g.remove());
+      for (let x = Math.ceil(v0 / step) * step; x <= v1; x += step) { const g = document.createElement('div'); g.className = 'gridline'; g.style.left = pct(x) + '%'; tr.prepend(g); }
+    });
+    $('range').textContent = `${v0.toFixed(1)}–${v1.toFixed(1)} s`;
+    // overview
+    const W = t.wall * 1.02;
+    $('overview').innerHTML = t.spans.filter(s => s.tool !== 'wait').map(s => `<i style="left:${s.start / W * 100}%;width:max(1px,${s.dur / W * 100}%);background:var(--t-${s.tool});top:${3 + t.lanes.findIndex(l => l.id === s.lane) * (20 / t.lanes.length)}px;height:${Math.max(3, 20 / t.lanes.length - 1)}px"></i>`).join('') +
+      `<div class="win" style="left:${v0 / W * 100}%;width:${(v1 - v0) / W * 100}%"></div>`;
+  }
+  function niceStep(raw) { const p = Math.pow(10, Math.floor(Math.log10(raw))); const m = raw / p; return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * p; }
+
+  function zoom(f, center) {
+    const t = TRACES[ti], W = t.wall * 1.02;
+    const c = center === undefined ? (v0 + v1) / 2 : center;
+    let span = Math.min(W, Math.max(0.5, (v1 - v0) * f));
+    v0 = c - (c - v0) * (span / (v1 - v0)); v1 = v0 + span;
+    clamp(); layout();
+  }
+  function clamp() {
+    const W = TRACES[ti].wall * 1.02, span = v1 - v0;
+    if (v0 < 0) { v0 = 0; v1 = span; }
+    if (v1 > W) { v1 = W; v0 = Math.max(0, W - span); }
+  }
+  $('zin').addEventListener('click', () => zoom(0.5));
+  $('zout').addEventListener('click', () => zoom(2));
+  $('zfit').addEventListener('click', () => { v0 = 0; v1 = TRACES[ti].wall * 1.02; layout(); });
+  $('viewer').addEventListener('wheel', e => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    e.preventDefault();
+    const tr = document.querySelector('.track'); if (!tr) return;
+    const r = tr.getBoundingClientRect();
+    const c = v0 + (e.clientX - r.left) / r.width * (v1 - v0);
+    zoom(e.deltaY > 0 ? 1.25 : 0.8, c);
+  }, { passive: false });
+  $('overview').addEventListener('click', e => {
+    const r = $('overview').getBoundingClientRect(), W = TRACES[ti].wall * 1.02;
+    const c = (e.clientX - r.left) / r.width * W, span = v1 - v0;
+    v0 = c - span / 2; v1 = c + span / 2; clamp(); layout();
+  });
+  function attachPan(track) {
+    let st = null;
+    track.addEventListener('pointerdown', e => {
+      if (e.target.closest('.span') || e.button !== 0) return;
+      st = { x: e.clientX, v0, v1, w: track.getBoundingClientRect().width, id: e.pointerId };
+      track.classList.add('panning');
+      try { track.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    });
+    track.addEventListener('pointermove', e => {
+      if (!st || e.pointerId !== st.id) return;
+      const dt = (e.clientX - st.x) / st.w * (st.v1 - st.v0);
+      v0 = st.v0 - dt; v1 = st.v1 - dt; clamp(); layout();
+    });
+    const end = () => { st = null; track.classList.remove('panning'); };
+    track.addEventListener('pointerup', end); track.addEventListener('pointercancel', end);
+  }
+  document.addEventListener('keydown', e => {
+    if (!e.target.closest || !e.target.closest('#viewer')) return;
+    if (e.key === '+' || e.key === '=') { zoom(0.5); e.preventDefault(); }
+    else if (e.key === '-') { zoom(2); e.preventDefault(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      if (e.target.classList.contains('span')) {
+        // move to previous / next span in the same lane
+        const sibs = [...e.target.parentElement.querySelectorAll('.span:not(.filtered)')];
+        const i = sibs.indexOf(e.target) + (e.key === 'ArrowRight' ? 1 : -1);
+        if (sibs[i]) { sibs[i].focus(); select(sibs[i].dataset.id); ensureVisible(sibs[i].dataset.id); }
+        e.preventDefault();
+      }
+    }
+  });
+  function ensureVisible(id) {
+    const s = TRACES[ti].byId.get(id), span = v1 - v0;
+    if (s.start < v0 || s.start + s.dur > v1) { v0 = s.start - span * 0.1; v1 = v0 + span; clamp(); layout(); }
+  }
+
+  /* ---------- filters & critical path ---------- */
+  $('filters').addEventListener('click', e => {
+    const b = e.target.closest('[data-tool]'); if (!b) return;
+    shown[b.dataset.tool] = !shown[b.dataset.tool];
+    b.setAttribute('aria-pressed', String(shown[b.dataset.tool]));
+    applyFilters();
+  });
+  function applyFilters() {
+    document.querySelectorAll('.span').forEach(b => {
+      const tool = b.dataset.tool;
+      b.classList.toggle('filtered', FILTERABLE.includes(tool) && !shown[tool]);
+    });
+    $('viewer').dataset.visible = document.querySelectorAll('.span:not(.filtered)').length;
+  }
+  $('critBtn').addEventListener('click', () => {
+    critOn = !critOn;
+    $('critBtn').setAttribute('aria-pressed', String(critOn));
+    $('viewer').classList.toggle('critmode', critOn);
+  });
+
+  /* ---------- details ---------- */
+  function select(id) {
+    selected = id;
+    document.querySelectorAll('.span').forEach(b => b.classList.toggle('sel', b.dataset.id === id));
+    renderDetails();
+  }
+  function renderDetails() {
+    const t = TRACES[ti];
+    if (!selected) { $('details').innerHTML = '<p class="empty">Select a bar to see the call\'s input and output. Drag the timeline to pan; use the buttons or Ctrl + wheel to zoom.</p>'; return; }
+    const s = t.byId.get(selected);
+    const deps = s.deps.map(d => t.byId.get(d)).map(d => `${d.lane}/${d.label}`).join(', ') || '—';
+    $('details').innerHTML = `<div class="det-head"><span class="badge" style="background:var(--t-${s.tool})">${s.tool}</span>${t.crit.has(s.id) ? '<span class="badge crit" data-testid="det-crit">critical path</span>' : ''}${s.fail ? '<span class="badge fail">failed</span>' : ''}<span class="det-title" data-testid="det-title">${esc(s.label)}</span></div>
+      <dl class="kv"><dt>lane</dt><dd data-testid="det-lane">${esc(s.lane)}</dd><dt>start</dt><dd>${s.start.toFixed(2)} s</dd><dt>duration</dt><dd data-testid="det-dur">${s.dur.toFixed(2)} s</dd><dt>waits on</dt><dd>${esc(deps)}</dd></dl>
+      <div class="io-l">input</div><pre class="io" data-testid="det-input">${esc(s.input)}</pre>
+      <div class="io-l">output</div><pre class="io" data-testid="det-output">${esc(s.output)}</pre>`;
+  }
+
+  window.__tracer = { traces: TRACES.map(t => ({ title: t.title, wall: t.wall, crit: [...t.crit], critLen: t.critLen })) };
+  loadTrace(ti);
+})();
+</script>
+</body>
+</html>

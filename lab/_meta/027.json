@@ -1,0 +1,35 @@
+{
+  "id": "027",
+  "slug": "027-fast-and-feast",
+  "file": "lab/027-fast-and-feast.html",
+  "title": "Fast & Feast — a Lenten meal planner",
+  "category": "Tools",
+  "tags": ["drag-and-drop", "pointer-events", "calendar-math", "localstorage", "catholic"],
+  "description": "A Lent and Friday meal planner for Catholic households under US norms: enter everyone's age and it lists each day of fasting or abstinence in the chosen year's Lent, including Friday solemnities that lift abstinence. You can drag or tap 20 original meatless recipes into a week plan (light dishes only in the small-meal slots on fast days) and get a merged shopping list scaled to your household.",
+  "prompt": "Build me a Lent meal planner for Catholic families using the US norms: abstinence from meat on Ash Wednesday and the Fridays of Lent from age 14, fasting on Ash Wednesday and Good Friday for ages 18 to 59, meaning one full meal and two smaller ones. I enter the household's ages and get a per-day guide for the chosen year's Lent, with dates computed from Easter. Then give me a drag-and-drop week planner with about twenty made-up meatless recipes (Texas-friendly is welcome) and a shopping list. Make it very clear it's a planning aid and people should ask their pastor or diocese about specifics and dispensations. Save the plan locally and keep it to one HTML file.",
+  "qa": {
+    "methodology": [
+      "Rule oracle from the published US norms: age boundaries 13/14/17/18/59/60 are each checked against the expected obligation on Ash Wednesday.",
+      "Date oracle: the full obligation calendar for Lent 2027 and 2026 is hard-coded from real calendars, including the 19 March 2027 Friday solemnity that lifts abstinence under canon 1251.",
+      "Clock control: page.clock.install plus pauseAt fixes 'today' so the default year (the next Lent after Easter) is deterministic.",
+      "Interaction coverage for both input paths: the tap-to-pick flow and a real pointer drag with locator.dragTo, plus the business rule refusing full meals in small-meal slots.",
+      "Arithmetic oracle for the shopping list: merged ingredient quantities are compared with hand-computed sums at ×1.25 and ×1 household scaling, read from data-qty attributes.",
+      "Persistence across reload and screenshot review at 1280px and 390px, which caught a CSS class-name collision that turned outline buttons into floating overlays."
+    ],
+    "risks": [
+      "Custom pointer-based drag diverging between mouse and touch; touch drags only start from the grip so the shelf still scrolls.",
+      "Transfer rules for St Joseph and the Annunciation deciding whether a Friday is a solemnity.",
+      "Rounding in the shopping list (fractions for cups, whole numbers for items) hiding under- or over-buying.",
+      "Stale plans in localStorage referencing dates from a different Lent after the year changes."
+    ],
+    "playwright": "Rules and dates were easy to assert because each guide row and chip carries data-date, data-kind and data-obl attributes, so tests compare values instead of parsing badge text. The default year depends on today's date, so every test installs a fake clock and pauses it immediately. Drag and drop was the interesting part: the planner uses pointer events rather than HTML5 drag and drop so it works on touch, and Playwright's locator.dragTo drives the mouse path on both the desktop and Pixel 7 projects, while the tap-to-place path gives touch and keyboard users an alternative. toHaveScreenshot was avoided; layout bugs were found by reviewing screenshots.",
+    "coverage": [
+      "Default year and Lent 2027 obligation calendar, including a Friday solemnity",
+      "Age boundaries for fasting and abstinence; adding and removing people",
+      "Tap-to-place planning, the light-meal rule, persistence and removal",
+      "Pointer drag and drop onto a day",
+      "Shopping list merging, household scaling, week switching and clearing"
+    ]
+  },
+  "a11y": "Recipes are real toggle buttons (aria-pressed) and meal slots are focusable role=button targets, so the whole planner works by keyboard with Enter and Space as well as by drag. Obligations are written out in text on every chip, and planner messages and the summary are announced through aria-live regions."
+}

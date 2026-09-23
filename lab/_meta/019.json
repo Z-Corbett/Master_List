@@ -1,0 +1,34 @@
+{
+  "id": "019",
+  "slug": "019-cucumber-stand",
+  "file": "lab/019-cucumber-stand.html",
+  "title": "Cucumber Stand — Gherkin Editor and Step Matcher",
+  "category": "QA & Testing",
+  "tags": ["bdd", "gherkin", "cucumber-expressions", "code-generation", "editor"],
+  "description": "A Gherkin editor with live syntax highlighting that matches every step against a panel of cucumber-expression step definitions ({string}, {int}, {float}, {word}, optional text and alternation), expanding Scenario Outlines against each Examples row and flagging undefined and ambiguous steps in the gutter. Resolve problems by deleting or adding definitions (with Cucumber-style snippet suggestions), then generate a readable Playwright test skeleton with beforeEach, example loops, tags and fixme markers.",
+  "prompt": "Make 'Cucumber Stand': a Gherkin editor for Feature / Background / Scenario / Scenario Outline + Examples with Given/When/Then/And, with proper syntax highlighting. Next to it, a panel of step definitions written as cucumber expressions with {string} and {int} params (add {float}, {word}, optional text like item(s) and alternation like click/press too). Match every step live as I type, show the captured arguments, and warn about undefined steps and ambiguous ones where two definitions match — outline steps need checking against every Examples row, not just the template. Offer a snippet for undefined steps the way Cucumber does, let me add and delete definitions, and have a 'generate Playwright test' button that outputs a readable skeleton: Background as beforeEach, outlines as a loop over the examples, tags as Playwright tags, and anything unresolved marked fixme. Market-stall look, cucumber greens.",
+  "qa": {
+    "methodology": [
+      "Known-answer fixture: the shipped example feature deliberately contains one ambiguous step, one undefined step, an alternation, an optional-text match and a {float}, so the default state alone exercises every matching branch.",
+      "Resolution flows are tested as a user would do them: delete the overlapping definition (ambiguous → matched) and add one from the generated snippet (undefined → matched).",
+      "Outline expansion is tested with a new Examples row whose value breaks {int}, so only that row fails and the report names the concrete failing text.",
+      "Snippet generation is checked against a hand-written expected expression covering {string}, {int} and {float} together.",
+      "Parser error paths (step outside a scenario, Examples without an Outline) and the highlighter's token counts per token type.",
+      "Generated code is asserted line-by-line for the key structures: describe with tag option, beforeEach, typed arguments, example loop with Number(ex.count), and fixme."
+    ],
+    "risks": [
+      "The transparent textarea and highlighted pre drifting out of alignment (font, padding or line-height mismatch), which makes the caret land in the wrong place.",
+      "Regex escaping in the cucumber-expression compiler: literal characters like '.', '?' or '$' in step text must never act as regex syntax.",
+      "Outline arguments in the generated code mapping to the wrong column when two columns share the same value in the first row."
+    ],
+    "playwright": "Editing is driven with locator.fill() on the real textarea, which fires input events exactly like typing, so tests never touch internal state. Every status the gutter shows is mirrored in a report table with data-status attributes, which let the spec assert on meaning instead of on icon colours. Syntax highlighting is verified by counting token classes in the highlight layer rather than screenshotting it, because a screenshot would break on any font change while token counts only change when tokenisation does. Local storage persistence is bypassed with a ?fresh query so every test starts from the known example. The clipboard path is not asserted since clipboard permissions differ between projects; the spec only checks that Copy becomes enabled.",
+    "coverage": [
+      "Matched / ambiguous / undefined counts and captured args for the example feature",
+      "Delete a definition to resolve ambiguity; add a definition from a snippet",
+      "Outline expansion with a failing example row; multi-parameter snippet suggestion",
+      "Parser problems and highlight token counts",
+      "Generated Playwright skeleton structure"
+    ]
+  },
+  "a11y": "The editor is a real labelled textarea, and every gutter icon has a text equivalent in the step report table, so status never depends on colour or icons. The tally, parser problems and generation notes are live regions, and the generated code block is focusable for keyboard scrolling."
+}

@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Porch Light — a Texas summer night</title>
+<meta name="description" content="A generative Texas summer night: moths circling a warm porch bulb, fireflies in the yard, heat lightning on the horizon, and a synthesized cricket and cicada chorus whose chirp rate follows Dolbear's law as you change the temperature.">
+<style>
+  :root {
+    --night: #0b0d1a;
+    --night-2: #141733;
+    --amber: #ffc46b;
+    --amber-2: #ff9f43;
+    --cream: #f4ead8;
+    --dim: #a7a3b8;
+    --glass: rgba(14, 16, 34, .72);
+    --line: rgba(255, 214, 150, .22);
+    --green: #d4ff6b;
+    --serif: "Georgia", "Iowan Old Style", "Palatino Linotype", serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--night); color: var(--cream); font: 15px/1.55 var(--sans); overflow-x: hidden; }
+  :focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
+  button, input { font-family: inherit; }
+  a.back { position: fixed; top: 12px; left: 12px; z-index: 40; font: 600 12.5px/1 var(--sans); color: var(--cream); text-decoration: none;
+    background: rgba(11, 13, 26, .7); border: 1px solid var(--line); padding: 8px 12px; border-radius: 999px; backdrop-filter: blur(6px); }
+  a.back:hover { color: var(--amber); border-color: var(--amber); }
+
+  .scene { position: relative; height: 100vh; height: 100svh; min-height: 560px; overflow: hidden; }
+  #night { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .title { position: absolute; top: 16px; right: 20px; text-align: right; pointer-events: none; }
+  .title h1 { margin: 0; font: italic 400 clamp(34px, 6vw, 68px)/1 var(--serif); color: var(--cream); text-shadow: 0 0 30px rgba(255, 196, 107, .35); }
+  .title p { margin: 6px 0 0; font: 600 11px/1.3 var(--sans); letter-spacing: .26em; text-transform: uppercase; color: var(--dim); }
+
+  .dock { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); width: min(980px, calc(100% - 28px));
+    background: var(--glass); border: 1px solid var(--line); border-radius: 18px; backdrop-filter: blur(10px);
+    display: grid; grid-template-columns: 1.4fr auto auto; gap: 14px 20px; align-items: center; padding: 14px 18px; }
+  .temp label { display: flex; justify-content: space-between; align-items: baseline; font: 700 11px/1 var(--sans); letter-spacing: .18em; text-transform: uppercase; color: var(--dim); margin-bottom: 8px; }
+  .temp label output { font: 700 20px/1 var(--sans); letter-spacing: 0; color: var(--amber); text-transform: none; }
+  .temp label output small { font-size: 12px; color: var(--dim); font-weight: 600; margin-left: 4px; }
+  input[type=range] { width: 100%; accent-color: var(--amber-2); height: 28px; margin: 0; }
+  .readouts { display: flex; gap: 16px; }
+  .ro { min-width: 92px; }
+  .ro b { display: block; font: 700 22px/1 var(--sans); font-variant-numeric: tabular-nums; color: var(--cream); }
+  .ro > span { font: 600 10.5px/1.3 var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+  .cricket-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--green); margin-left: 6px; vertical-align: 3px; opacity: .15; transition: opacity .05s; }
+  .cricket-dot.on { opacity: 1; box-shadow: 0 0 10px var(--green); }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .btn { font: 700 13px/1 var(--sans); min-height: 42px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: rgba(255, 255, 255, .06); color: var(--cream); cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+  .btn:hover { border-color: var(--amber); }
+  .btn.primary { background: var(--amber); color: #2a1a05; border-color: var(--amber); }
+  .btn[aria-pressed="true"].toggle { background: rgba(255, 196, 107, .18); border-color: var(--amber); }
+  .formula { grid-column: 1 / -1; margin: 0; font-size: 12.5px; color: var(--dim); border-top: 1px solid var(--line); padding-top: 10px; }
+  .formula code { font: 600 12.5px/1 ui-monospace, Menlo, Consolas, monospace; color: var(--cream); }
+
+  .notes { max-width: 1080px; margin: 0 auto; padding: 56px 20px 60px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 26px; }
+  .notes h2 { grid-column: 1 / -1; margin: 0; font: italic 400 clamp(28px, 4vw, 42px)/1.1 var(--serif); }
+  .notes h3 { margin: 0 0 6px; font: 700 12px/1.2 var(--sans); letter-spacing: .18em; text-transform: uppercase; color: var(--amber); }
+  .notes p { margin: 0; color: var(--dim); font-size: 14.5px; }
+  footer { max-width: 1080px; margin: 0 auto; padding: 0 20px 40px; font-size: 13px; color: #6e6a82; }
+
+  @media (max-width: 860px) {
+    .dock { grid-template-columns: 1fr; gap: 12px; padding: 12px 14px; bottom: 12px; }
+    .btns { justify-content: flex-start; }
+    .readouts { justify-content: space-between; }
+    .notes { grid-template-columns: 1fr 1fr; }
+    .title { top: 58px; left: 20px; right: auto; text-align: left; }
+  }
+  @media (max-width: 480px) {
+    .notes { grid-template-columns: 1fr; }
+    .ro { min-width: 0; }
+    .ro b { font-size: 19px; }
+    .formula { font-size: 11.5px; }
+    .btn { padding: 0 12px; }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+
+<div class="scene">
+  <canvas id="night" data-testid="scene" role="img" aria-label="A porch at night: moths circle a warm bulb, fireflies blink in the yard and heat lightning flickers on the horizon"></canvas>
+  <div class="title"><h1>Porch Light</h1><p>A Texas summer night</p></div>
+
+  <div class="dock" role="group" aria-label="Night controls">
+    <div class="temp">
+      <label for="temp">Temperature <output id="tempOut" data-testid="temp-readout" for="temp">84°F<small>29°C</small></output></label>
+      <input id="temp" type="range" min="55" max="100" step="1" value="84" data-testid="temp-slider">
+    </div>
+    <div class="readouts" aria-live="polite">
+      <div class="ro"><b><span data-testid="chirp-rate" id="chirpRate">176</span><i class="cricket-dot" id="dot" aria-hidden="true"></i></b><span>chirps / min</span></div>
+      <div class="ro"><b data-testid="chirp-count" id="chirpCount">0</b><span>chirps so far</span></div>
+      <div class="ro"><b data-testid="lightning-count" id="boltCount">0</b><span>far flashes</span></div>
+    </div>
+    <div class="btns">
+      <button class="btn primary" type="button" id="sound" data-testid="sound-toggle">▶ Start the chorus</button>
+      <button class="btn toggle" type="button" id="mute" data-testid="mute" aria-pressed="false" hidden>Mute</button>
+      <button class="btn toggle" type="button" id="light" data-testid="light-toggle" aria-pressed="true">Porch light on</button>
+    </div>
+    <p class="formula">Dolbear's law (1897): <code>chirps per minute = 4 × °F − 160</code>, so counting chirps for 15 seconds and adding 40 gives the temperature in °F. <span id="rule" data-testid="rule-check"></span></p>
+  </div>
+</div>
+
+<section class="notes" aria-labelledby="notes-h">
+  <h2 id="notes-h">Field notes from the porch</h2>
+  <div><h3>The cricket thermometer</h3><p>Amos Dolbear published his chirp-rate rule in 1897; it fits the snowy tree cricket best. Crickets are cold-blooded, so their chirping speeds up as the night warms. The synthesized crickets here chirp in unison, as snowy tree crickets tend to.</p></div>
+  <div><h3>Moths aren't really "drawn in"</h3><p>High-speed tracking studies suggest moths keep their backs turned toward the brightest light, which they normally read as the sky. A bulb traps them in endless orbits. Flip the porch light off and watch them drift off.</p></div>
+  <div><h3>Fireflies prefer the dark</h3><p>Firefly courtship runs on flash signals, and artificial light can drown them out. Near the bulb they go quiet. Warmer nights also speed up their flashing.</p></div>
+  <div><h3>Heat lightning</h3><p>It's ordinary lightning from a storm too far away for its thunder to reach you. The flashes light up the clouds on the horizon and you hear nothing.</p></div>
+</section>
+<footer>Built by Zac, who's spent plenty of Texas summer nights on porches. Everything is generated live: canvas for the scene, Web Audio for the sound (it only starts when you press the button). Add ?seed= to the URL for a repeatable night.</footer>
+
+<script>
+(() => {
+  'use strict';
+  const qs = new URLSearchParams(location.search);
+  const SEED = Number(qs.get('seed')) || 1897;
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const rnd = mulberry32(SEED), vrnd = mulberry32(SEED ^ 0x5bd1e995);
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const $ = id => document.getElementById(id);
+
+  /* ---------- Dolbear ---------- */
+  const dolbear = f => Math.max(0, 4 * f - 160);         // chirps per minute (snowy tree cricket)
+  const toC = f => (f - 32) * 5 / 9;
+
+  const state = { tempF: 84, light: true, chirpCount: 0, chirpPhase: 0, bolts: 0, flashes: 0, flashesNearBulb: 0, audio: 'off', muted: false, scheduled: 0 };
+
+  /* ---------- Canvas scene ---------- */
+  const cv = $('night'), ctx = cv.getContext('2d');
+  let W = 0, H = 0, DPR = 1, horizon = 0, bulb = { x: 0, y: 0 }, stars = [], trees = [], moths = [], flies = [], clouds = [];
+  function layout() {
+    const r = cv.getBoundingClientRect(); W = r.width; H = r.height; DPR = Math.min(2, devicePixelRatio || 1);
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+    horizon = H * .62;
+    const porchX = W < 700 ? W * .78 : W * .74;
+    bulb = { x: porchX - Math.min(90, W * .12), y: H * .3 };
+  }
+  function populate() {
+    const r = mulberry32(SEED);
+    stars = Array.from({ length: 170 }, () => ({ x: r(), y: r() * .6, s: r() * 1.3 + .2, tw: r() * 6 }));
+    trees = []; let x = -20; while (x < 1.2) { trees.push({ x, w: .05 + r() * .09, h: .03 + r() * .06 }); x += .04 + r() * .06; }
+    clouds = Array.from({ length: 7 }, () => ({ x: r(), y: .5 + r() * .08, w: .12 + r() * .2, h: .02 + r() * .03 }));
+    moths = Array.from({ length: 34 }, () => {
+      const a = r() * Math.PI * 2, d = 30 + r() * 140;
+      return { x: bulb.x + Math.cos(a) * d, y: bulb.y + Math.sin(a) * d, vx: 0, vy: 0, dir: r() < .5 ? 1 : -1, orbit: 18 + r() * 70, speed: 60 + r() * 70, ph: r() * 6.28, size: 2.2 + r() * 1.8 };
+    });
+    flies = Array.from({ length: 40 }, () => ({ x: r() * W, y: horizon + 20 + r() * (H - horizon - 40), vx: (r() - .5) * 10, vy: (r() - .5) * 6, phase: r(), glow: 0, base: 4.5 + r() * 2.5 }));
+  }
+
+  // Heat lightning: seeded schedule, more frequent on hotter nights
+  let nextBolt = 2 + rnd() * 4, flash = 0, flashX = .3, flicker = 0;
+
+  function step(dt) {
+    const T = state.tempF;
+    // chirp clock uses the real elapsed time (not capped) so counts stay exact
+    const rate = dolbear(T) / 60;
+    state.chirpPhase += state.rawDt * rate;
+    while (state.chirpPhase >= 1) { state.chirpPhase -= 1; state.chirpCount++; pulseDot(); }
+
+    nextBolt -= state.rawDt;
+    while (nextBolt <= 0) {
+      state.bolts++; flash = 1; flicker = rnd() < .45 ? .18 : 0; flashX = .08 + rnd() * .6;
+      const mean = 9 - Math.max(0, T - 70) * .15;   // seconds between flashes
+      nextBolt += mean * (.4 + rnd() * 1.2);
+    }
+    flash = Math.max(0, flash - dt * 2.4);
+    if (flicker > 0) { flicker -= dt; if (flicker <= 0) flash = Math.max(flash, .8); }
+
+    const md = reduced ? dt * .35 : dt;   // reduced motion: everything drifts slowly
+    // Moths: keep the light perpendicular to the body (dorsal light response) → orbit
+    for (const m of moths) {
+      const dx = bulb.x - m.x, dy = bulb.y - m.y, d = Math.hypot(dx, dy) || 1;
+      let ax = 0, ay = 0;
+      if (state.light) {
+        const tx = -dy / d * m.dir, ty = dx / d * m.dir;                 // tangent
+        const radial = (d - m.orbit) / m.orbit;                           // drift in/out of the orbit
+        ax += (tx * m.speed - m.vx) * 2.2 + dx / d * radial * 90;
+        ay += (ty * m.speed - m.vy) * 2.2 + dy / d * radial * 90;
+      } else {
+        ax += (Math.cos(m.ph) * 40 - m.vx) * .6 + (m.x < W * .5 ? -8 : 8);
+        ay += (Math.sin(m.ph) * 30 - m.vy) * .6 - 10;
+      }
+      m.ph += (vrnd() - .5) * 2 * dt * 6;
+      ax += (vrnd() - .5) * 260; ay += (vrnd() - .5) * 260;             // flutter
+      m.vx += ax * md; m.vy += ay * md;
+      const sp = Math.hypot(m.vx, m.vy), max = 190; if (sp > max) { m.vx *= max / sp; m.vy *= max / sp; }
+      m.x += m.vx * md; m.y += m.vy * md;
+      if (!state.light && (m.x < -30 || m.x > W + 30 || m.y < -30)) {    // wandered off: park far away
+        m.x = Math.max(-40, Math.min(W + 40, m.x)); m.y = Math.max(-40, m.y); m.vx *= .5; m.vy *= .5;
+      }
+    }
+
+    // Fireflies: flash period shortens as it warms; suppressed near a lit bulb
+    const period = 5.5 * (84 / T);
+    for (const f of flies) {
+      f.x += f.vx * md; f.y += f.vy * md;
+      if (f.x < 0 || f.x > W) f.vx *= -1; if (f.y < horizon + 10 || f.y > H - 12) f.vy *= -1;
+      f.vx += (vrnd() - .5) * 8 * dt; f.vy += (vrnd() - .5) * 6 * dt;
+      const before = f.phase; f.phase += state.rawDt / period;
+      if (f.phase >= 1) {
+        f.phase -= Math.floor(f.phase);
+        const near = state.light && Math.hypot(f.x - bulb.x, f.y - bulb.y) < Math.max(160, W * .18);
+        if (!near) { f.glow = 1; state.flashes++; } else state.flashesNearBulb++;
+      }
+      f.glow = Math.max(0, f.glow - dt * 1.6);
+      void before;
+    }
+  }
+
+  function draw(t) {
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    // sky
+    const g = ctx.createLinearGradient(0, 0, 0, horizon);
+    g.addColorStop(0, '#070817'); g.addColorStop(.7, '#15183a'); g.addColorStop(1, '#2b2346');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    for (const s of stars) { ctx.globalAlpha = .45 + .45 * Math.sin(t * .8 + s.tw) * (reduced ? 0 : 1); ctx.fillStyle = '#fff6e8'; ctx.fillRect(s.x * W, s.y * horizon, s.s, s.s); }
+    ctx.globalAlpha = 1;
+    // heat lightning glow in the cloud band
+    if (flash > 0) {
+      const fx = flashX * W, rg = ctx.createRadialGradient(fx, horizon - 20, 5, fx, horizon - 20, W * .35);
+      rg.addColorStop(0, `rgba(200,190,255,${.55 * flash})`); rg.addColorStop(1, 'rgba(200,190,255,0)');
+      ctx.fillStyle = rg; ctx.fillRect(0, 0, W, horizon + 10);
+    }
+    for (const c of clouds) {
+      const lit = flash > 0 ? Math.max(0, 1 - Math.abs(c.x - flashX) * 2.5) * flash : 0;
+      ctx.fillStyle = `rgba(${60 + lit * 150},${55 + lit * 140},${95 + lit * 150},.55)`;
+      ctx.beginPath(); ctx.ellipse(c.x * W, c.y * H, c.w * W, c.h * H, 0, 0, 7); ctx.fill();
+    }
+    // treeline & ground
+    ctx.fillStyle = '#05060d';
+    for (const tr of trees) { ctx.beginPath(); ctx.ellipse(tr.x * W, horizon, tr.w * W, tr.h * H + 8, 0, Math.PI, 0); ctx.fill(); }
+    const gg = ctx.createLinearGradient(0, horizon, 0, H); gg.addColorStop(0, '#0a0c12'); gg.addColorStop(1, '#101a10');
+    ctx.fillStyle = gg; ctx.fillRect(0, horizon, W, H - horizon);
+    // porch light spill on the ground
+    if (state.light) {
+      const sg = ctx.createRadialGradient(bulb.x, H * .92, 10, bulb.x, H * .92, W * .45);
+      sg.addColorStop(0, 'rgba(255,190,110,.22)'); sg.addColorStop(1, 'rgba(255,190,110,0)');
+      ctx.fillStyle = sg; ctx.fillRect(0, horizon, W, H - horizon);
+    }
+    drawPorch();
+    // fireflies
+    for (const f of flies) {
+      if (f.glow <= 0.01) { ctx.fillStyle = 'rgba(40,50,20,.8)'; ctx.fillRect(f.x, f.y, 1.5, 1.5); continue; }
+      const r = 3 + f.glow * 9, fg = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, r * 2);
+      fg.addColorStop(0, `rgba(230,255,120,${f.glow})`); fg.addColorStop(1, 'rgba(210,255,100,0)');
+      ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(f.x, f.y, r * 2, 0, 7); ctx.fill();
+    }
+    // bulb glow
+    if (state.light) {
+      const fl = reduced ? 1 : .93 + Math.sin(t * 13) * .02 + Math.sin(t * 7.3) * .03;
+      const bg = ctx.createRadialGradient(bulb.x, bulb.y, 2, bulb.x, bulb.y, 230);
+      bg.addColorStop(0, `rgba(255,236,190,${.95 * fl})`); bg.addColorStop(.08, `rgba(255,196,107,${.6 * fl})`); bg.addColorStop(1, 'rgba(255,160,70,0)');
+      ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(bulb.x, bulb.y, 230, 0, 7); ctx.fill();
+    }
+    ctx.fillStyle = state.light ? '#fff4d6' : '#4a4637'; ctx.beginPath(); ctx.arc(bulb.x, bulb.y, 7, 0, 7); ctx.fill();
+    // moths
+    for (const m of moths) {
+      const flap = reduced ? .7 : .45 + Math.abs(Math.sin(t * 38 + m.ph)) * .55, a = Math.atan2(m.vy, m.vx);
+      ctx.save(); ctx.translate(m.x, m.y); ctx.rotate(a);
+      ctx.fillStyle = state.light ? 'rgba(240,222,190,.9)' : 'rgba(150,140,130,.6)';
+      ctx.beginPath(); ctx.ellipse(0, -m.size * flap, m.size * 1.1, m.size * flap, 0, 0, 7); ctx.ellipse(0, m.size * flap, m.size * 1.1, m.size * flap, 0, 0, 7); ctx.fill();
+      ctx.restore();
+    }
+  }
+  function drawPorch() {
+    const px = W < 700 ? W * .78 : W * .74, roof = H * .22, floor = H * .74;
+    ctx.fillStyle = '#16121a'; ctx.fillRect(px - 20, roof - 6, W - px + 40, floor - roof + 30);          // house wall
+    ctx.fillStyle = '#0d0a10'; ctx.beginPath(); ctx.moveTo(px - 150, roof); ctx.lineTo(W + 10, roof - 50); ctx.lineTo(W + 10, roof + 8); ctx.lineTo(px - 150, roof + 14); ctx.fill(); // eave
+    ctx.fillStyle = '#1e1822'; ctx.fillRect(px - 150, floor, W - px + 160, 14);                             // porch floor
+    ctx.fillStyle = '#0f0c12'; ctx.fillRect(px - 146, roof + 12, 10, floor - roof - 12);                    // post
+    ctx.fillStyle = state.light ? '#3a2a1a' : '#1a1418'; ctx.fillRect(px + 30, roof + 60, 60, floor - roof - 60);   // door
+    ctx.fillStyle = state.light ? 'rgba(255,190,110,.18)' : 'rgba(80,70,90,.15)'; ctx.fillRect(px + 36, roof + 66, 48, floor - roof - 80); // screen
+    ctx.strokeStyle = '#0f0c12'; ctx.lineWidth = 3;
+    for (let x = px - 136; x < px + 20; x += 16) { ctx.beginPath(); ctx.moveTo(x, floor - 34); ctx.lineTo(x, floor); ctx.stroke(); }
+    ctx.beginPath(); ctx.moveTo(px - 146, floor - 34); ctx.lineTo(px + 20, floor - 34); ctx.stroke();
+    ctx.strokeStyle = '#2a2430'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(bulb.x, roof + 10); ctx.lineTo(bulb.x, bulb.y - 6); ctx.stroke(); // cord
+  }
+
+  let last = performance.now(), dotTimer = 0;
+  function pulseDot() { const d = $('dot'); d.classList.add('on'); clearTimeout(dotTimer); dotTimer = setTimeout(() => d.classList.remove('on'), 70); }
+  function frame(now) {
+    const raw = Math.max(0, (now - last) / 1000); last = now;
+    state.rawDt = raw;
+    const dt = Math.min(raw, 1 / 20);
+    step(dt);
+    draw(now / 1000);
+    $('chirpCount').textContent = state.chirpCount;
+    $('boltCount').textContent = state.bolts;
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------- Controls ---------- */
+  const slider = $('temp');
+  function setTemp(f) {
+    state.tempF = f;
+    $('tempOut').innerHTML = `${f}°F<small>${Math.round(toC(f))}°C</small>`;
+    const n = dolbear(f);
+    $('chirpRate').textContent = n;
+    $('rule').textContent = `Check: ${n} ÷ 4 = ${n / 4} chirps per 15 s, + 40 = ${n / 4 + 40}°F.`;
+    updateAudioLevels();
+  }
+  slider.addEventListener('input', () => setTemp(Number(slider.value)));
+  $('light').addEventListener('click', () => {
+    state.light = !state.light;
+    $('light').setAttribute('aria-pressed', String(state.light));
+    $('light').textContent = state.light ? 'Porch light on' : 'Porch light off';
+  });
+
+  /* ---------- Audio (only after a gesture) ---------- */
+  let ac = null, master = null, cricketBus = null, cicadaGain = null, cicadaLfoDepth = null, nextChirp = 0, sched = 0;
+  function startAudio() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) { $('sound').textContent = 'Audio unavailable'; $('sound').disabled = true; return; }
+    ac = new AC();
+    master = ac.createGain(); master.gain.value = .8; master.connect(ac.destination);
+    cricketBus = ac.createGain(); cricketBus.gain.value = .5; cricketBus.connect(master);
+    // cicada drone: band-passed noise with a fast tremolo
+    const len = ac.sampleRate * 2, buf = ac.createBuffer(1, len, ac.sampleRate), data = buf.getChannelData(0);
+    const nr = mulberry32(SEED + 7); for (let i = 0; i < len; i++) data[i] = nr() * 2 - 1;
+    const src = ac.createBufferSource(); src.buffer = buf; src.loop = true;
+    const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 4300; bp.Q.value = 5;
+    cicadaGain = ac.createGain(); cicadaGain.gain.value = 0;
+    const trem = ac.createGain(); trem.gain.value = .6;
+    const lfo = ac.createOscillator(); lfo.frequency.value = 14; cicadaLfoDepth = ac.createGain(); cicadaLfoDepth.gain.value = .4;
+    lfo.connect(cicadaLfoDepth); cicadaLfoDepth.connect(trem.gain);
+    src.connect(bp); bp.connect(trem); trem.connect(cicadaGain); cicadaGain.connect(master);
+    src.start(); lfo.start();
+    nextChirp = ac.currentTime + .1;
+    sched = setInterval(schedule, 40);
+    state.audio = ac.state;
+    ac.onstatechange = () => { state.audio = ac.state; };
+    updateAudioLevels();
+  }
+  function chirpAt(t0) {
+    // one snowy-tree-cricket style chirp: a ~110 ms burst, three synchronized crickets slightly detuned
+    [2850, 2905, 2790].forEach((f, i) => {
+      const o = ac.createOscillator(), g = ac.createGain(), am = ac.createOscillator(), amg = ac.createGain();
+      o.type = 'sine'; o.frequency.value = f; am.frequency.value = 42 + i * 3; amg.gain.value = .5;
+      am.connect(amg); amg.connect(g.gain);
+      const t = t0 + i * .004, peak = [.22, .14, .1][i];
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(peak, t + .012); g.gain.setValueAtTime(peak, t + .09); g.gain.linearRampToValueAtTime(0, t + .115);
+      o.connect(g); g.connect(cricketBus);
+      o.start(t); am.start(t); o.stop(t + .13); am.stop(t + .13);
+    });
+    state.scheduled++;
+  }
+  function schedule() {
+    if (!ac) return;
+    const n = dolbear(state.tempF);
+    if (n <= 0) { nextChirp = ac.currentTime + .2; return; }
+    const gap = 60 / n;
+    if (nextChirp < ac.currentTime) nextChirp = ac.currentTime + .02;
+    while (nextChirp < ac.currentTime + .25) { chirpAt(nextChirp); nextChirp += gap; }
+  }
+  function updateAudioLevels() {
+    if (!ac) return;
+    const heat = Math.max(0, Math.min(1, (state.tempF - 76) / 22));      // cicadas swell on hot nights
+    cicadaGain.gain.setTargetAtTime(heat * .09, ac.currentTime, .3);
+    cricketBus.gain.setTargetAtTime(.35 + Math.max(0, (state.tempF - 55) / 45) * .35, ac.currentTime, .3);
+  }
+  $('sound').addEventListener('click', () => {
+    if (!ac) { startAudio(); if (!ac) return; }
+    if (ac.state === 'running' && !$('sound').dataset.first) { /* first start */ }
+    if (ac.state === 'suspended') ac.resume();
+    $('sound').dataset.first = '1';
+    $('sound').hidden = true; $('mute').hidden = false; $('mute').focus();
+  });
+  $('mute').addEventListener('click', () => {
+    state.muted = !state.muted;
+    master.gain.setValueAtTime(state.muted ? 0 : .8, ac.currentTime);
+    $('mute').setAttribute('aria-pressed', String(state.muted));
+    $('mute').textContent = state.muted ? 'Unmute' : 'Mute';
+  });
+
+  /* ---------- Test hook ---------- */
+  window.__porch = {
+    get temperatureF() { return state.tempF; }, get chirpsPerMinute() { return dolbear(state.tempF); }, dolbear,
+    get chirpCount() { return state.chirpCount; }, get light() { return state.light; }, get audio() { return ac ? ac.state : 'off'; },
+    get audioStarted() { return !!ac; }, get muted() { return state.muted; }, get masterGain() { return master ? master.gain.value : null; },
+    get scheduledChirps() { return state.scheduled; }, get lightning() { return state.bolts; }, get fireflyFlashes() { return state.flashes; },
+    get suppressedNearBulb() { return state.flashesNearBulb; },
+    avgMothDistance() { return moths.reduce((s, m) => s + Math.hypot(m.x - bulb.x, m.y - bulb.y), 0) / moths.length; },
+    seed: SEED
+  };
+
+  layout(); populate(); setTemp(Number(slider.value));
+  let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { const oldB = { ...bulb }; layout(); for (const m of moths) { m.x += bulb.x - oldB.x; m.y += bulb.y - oldB.y; } }, 120); });
+  requestAnimationFrame(t => { last = t; requestAnimationFrame(frame); });
+})();
+</script>
+</body>
+</html>
