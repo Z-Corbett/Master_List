@@ -9,7 +9,8 @@
   const hrefOf = (p) => p.url || p.file;
   const numberOf = (p) => (p.kind === 'lab' ? `#${p.id}` : p.kind === 'client' ? 'Client' : 'Classic');
   const lab = PROJECTS.filter((p) => p.kind === 'lab');
-  const totalTests = lab.reduce((n, p) => n + (p.tests || 0), 0);
+  // Exact counts from the spec files (scripts/build-data.mjs); every spec runs on desktop + mobile.
+  const SUITE = window.SUITE || { total: 0, skipped: 0, lab: { total: 0, skipped: 0 } };
 
   // ---------- Theme ----------
   const themeBtn = $('[data-testid="theme-toggle"]');
@@ -23,7 +24,7 @@
   // ---------- Stats ----------
   const setStat = (k, v) => { const el = $(`[data-stat="${k}"]`); if (el) el.textContent = v; };
   setStat('lab', lab.length);
-  setStat('tests', totalTests * 2); // every spec runs on desktop + mobile projects
+  setStat('tests', SUITE.total);
   setStat('clients', PROJECTS.filter((p) => p.kind === 'client').length);
   document.querySelectorAll('[data-year]').forEach((el) => (el.textContent = new Date().getFullYear()));
 
@@ -60,6 +61,7 @@
   function badge(p) {
     return p.kind === 'lab' && p.tests
       ? `<span class="badge" title="${p.tests} tests × desktop + mobile">✓ ${p.tests} tests passing</span>`
+      : p.suite ? `<span class="badge" title="Maintained end-to-end suite in the project repo">${esc(p.suite)}</span>`
       : `<span class="badge badge--plan">QA plan</span>`;
   }
   function cardHTML(p) {
@@ -210,11 +212,11 @@
     }
     const specLink = p.spec ? `<a class="btn btn--ghost btn--sm" href="${REPO}${esc(p.spec)}" target="_blank" rel="noopener">View the spec ↗</a>` : '';
     return `
-      ${p.kind === 'lab' ? `<p><span class="badge">✓ ${p.tests} tests × desktop + mobile</span></p>` : `<p><span class="badge badge--plan">QA plan · archived site, not under active test</span></p>`}
+      ${p.kind === 'lab' ? `<p><span class="badge">✓ ${p.tests} tests × desktop + mobile</span></p>` : p.suite ? `<p><span class="badge">${esc(p.suite)} · maintained in the project repo</span></p>` : `<p><span class="badge badge--plan">QA plan · archived site, not under active test</span></p>`}
       <h4>Methodology</h4><ul data-testid="qa-methodology">${li(qa.methodology)}</ul>
       ${qa.risks?.length ? `<h4>Highest risks</h4><ul>${li(qa.risks)}</ul>` : ''}
       <h4>Playwright critique</h4><p class="critique" data-testid="qa-critique">${esc(qa.playwright)}</p>
-      ${qa.coverage?.length ? `<h4>${p.kind === 'lab' ? 'What the spec covers' : 'What the suite would cover'}</h4><ul class="cov">${li(qa.coverage)}</ul>` : ''}
+      ${qa.coverage?.length ? `<h4>${p.kind === 'lab' ? 'What the spec covers' : p.suite ? 'What the suite covers' : 'What the suite would cover'}</h4><ul class="cov">${li(qa.coverage)}</ul>` : ''}
       ${p.a11y ? `<h4>Accessibility</h4><p>${esc(p.a11y)}</p>` : ''}
       <div class="modal__foot">
         <a class="btn btn--primary btn--sm" href="${esc(hrefOf(p))}" ${p.url ? 'target="_blank" rel="noopener"' : ''}>Open the page ↗</a>
@@ -253,11 +255,11 @@
     ['dim', '  ● Run    playwright test --project=desktop --project=mobile'],
     ['', ''],
     ['p', '$ npx playwright test'],
-    ['', `Running ${totalTests * 2} tests using 8 workers`],
+    ['', `Running ${SUITE.lab.total} tests using 8 workers`],
     ...lab.slice(0, 6).map((p) => ['ok', `  ✓ [desktop] ${p.slug}.spec.ts (${p.tests})`]),
     ['dim', `  … ${Math.max(0, lab.length - 6)} more specs`],
     ['', ''],
-    ['hl', `  ${totalTests * 2} passed`],
+    ['hl', `  ${SUITE.lab.total - SUITE.lab.skipped} passed${SUITE.lab.skipped ? `, ${SUITE.lab.skipped} skipped` : ''}`],
   ];
   // Follow the output like a real terminal, so the final "passed" line is never clipped.
   const paint = (html) => { term.innerHTML = html; term.scrollTop = term.scrollHeight; };

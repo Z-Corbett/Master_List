@@ -19,6 +19,12 @@ jobs:
       - run: node scripts/build-data.mjs
       - name: Fail if data/projects.js is stale
         run: git diff --exit-code data/projects.js
+      - name: Fail if the homepage test count differs from Playwright's
+        run: |
+          listed=$(npx playwright test --list | sed -nE 's/^Total: ([0-9]+) tests.*/\1/p')
+          shown=$(node -e "global.window={};require('./data/projects.js');console.log(window.SUITE.total)")
+          echo "playwright: $listed, homepage: $shown"
+          test "$listed" = "$shown"
       - run: npx playwright test
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
