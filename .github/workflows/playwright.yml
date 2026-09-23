@@ -4,6 +4,12 @@ on:
   push:
     branches: [master]
   pull_request:
+  workflow_dispatch:
+
+# Only one deploy at a time; a newer push waits rather than racing an older one.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   test:
@@ -32,3 +38,25 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 14
+
+  # GitHub Pages is set to deploy from Actions, so the site only updates when every test above passes.
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: deployment
+        uses: actions/deploy-pages@v4
