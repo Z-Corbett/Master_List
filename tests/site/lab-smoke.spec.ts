@@ -39,8 +39,13 @@ for (const meta of pages) {
     test('no horizontal page scroll', async ({ page }) => {
       await page.goto(`/${meta.file}`);
       await page.waitForTimeout(300);
-      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-      expect(overflow).toBeLessThanOrEqual(1);
+      const overflow = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      expect(await overflow()).toBeLessThanOrEqual(1);
+      // Fonts differ by OS: Linux/Android glyphs run wider than Windows ones, which once pushed a <select> off-screen
+      // only in CI. Widen text slightly so font-sensitive layouts fail here too, not just on real phones.
+      await page.addStyleTag({ content: '*{letter-spacing:.05em !important}' });
+      await page.waitForTimeout(100);
+      expect(await overflow(), 'overflow with wider fonts').toBeLessThanOrEqual(1);
     });
   });
 }
