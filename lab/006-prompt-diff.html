@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prompt Diff — Compare & Lint Prompt Versions</title>
+<meta name="description" content="Compare two versions of an LLM prompt side by side: word-level diff, rough token estimates, a prompt lint report card, and a shareable link that stores both versions in the URL hash.">
+<style>
+  :root {
+    --paper: #f5f0e6;
+    --paper-2: #fbf8f2;
+    --card: #fffdf8;
+    --ink: #1f1c17;
+    --ink-2: #4a443a;
+    --muted: #7a7264;
+    --rule: #e2d9c8;
+    --rule-2: #d3c7b1;
+    --teal: #0e5d58;
+    --teal-2: #13807a;
+    --teal-soft: #dcefeb;
+    --ins-bg: #cdeccf;
+    --ins-ink: #14501f;
+    --del-bg: #f8d3d6;
+    --del-ink: #7c1b2a;
+    --warn: #a45c00;
+    --warn-soft: #fbe9cc;
+    --ok: #1d6b35;
+    --ok-soft: #dcf0df;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background-color: var(--paper);
+    background-image: radial-gradient(circle at 1px 1px, rgba(31, 28, 23, .06) 1px, transparent 0);
+    background-size: 22px 22px;
+    color: var(--ink);
+    font: 15px/1.55 var(--sans);
+    overflow-x: hidden;
+  }
+  :focus-visible { outline: 3px solid var(--teal-2); outline-offset: 2px; }
+  .back {
+    position: fixed; top: 12px; left: 12px; z-index: 30;
+    font: 600 13px/1 var(--sans); color: var(--ink-2); text-decoration: none;
+    background: var(--card); border: 1px solid var(--rule-2); border-radius: 6px;
+    padding: 8px 11px; box-shadow: 0 1px 0 var(--rule-2);
+  }
+  .back:hover { color: var(--teal); border-color: var(--teal); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 64px 20px 48px; }
+
+  header.masthead { display: grid; grid-template-columns: 1fr auto; gap: 12px 32px; align-items: end; border-bottom: 3px double var(--rule-2); padding-bottom: 18px; margin-bottom: 22px; }
+  .kicker { font: 700 11px/1 var(--sans); letter-spacing: .2em; text-transform: uppercase; color: var(--teal); margin: 0 0 10px; }
+  h1 { font: 700 clamp(34px, 5.5vw, 58px)/1 var(--serif); margin: 0; letter-spacing: -.01em; }
+  h1 em { font-style: italic; color: var(--teal); font-weight: 600; }
+  .dek { margin: 10px 0 0; color: var(--ink-2); max-width: 62ch; font-size: 15.5px; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+  .btn {
+    font: 600 13px/1 var(--sans); color: var(--ink); cursor: pointer;
+    background: var(--card); border: 1px solid var(--rule-2); border-radius: 7px;
+    padding: 10px 13px; min-height: 40px; display: inline-flex; align-items: center; gap: 7px;
+    box-shadow: 0 2px 0 var(--rule-2); transition: transform .08s, box-shadow .08s;
+  }
+  .btn:hover { border-color: var(--ink-2); }
+  .btn:active { transform: translateY(2px); box-shadow: 0 0 0 var(--rule-2); }
+  .btn.primary { background: var(--teal); color: #fff; border-color: var(--teal); box-shadow: 0 2px 0 #083c39; }
+  .btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+  .editors { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .ed { background: var(--card); border: 1px solid var(--rule-2); border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; min-width: 0; box-shadow: 0 1px 0 var(--rule), 0 10px 30px -22px rgba(31, 28, 23, .45); }
+  .ed-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--rule); background: var(--paper-2); }
+  .ed-h label { font: 700 16px/1.2 var(--serif); display: flex; align-items: center; gap: 9px; }
+  .tag { font: 800 11px/1 var(--sans); width: 22px; height: 22px; border-radius: 50%; display: inline-grid; place-items: center; color: #fff; }
+  .tag.a { background: var(--del-ink); }
+  .tag.b { background: var(--ins-ink); }
+  .ed textarea {
+    width: 100%; min-height: 250px; resize: vertical; border: 0; outline-offset: -3px;
+    background: transparent; color: var(--ink); padding: 14px 16px;
+    font: 13.5px/1.6 var(--mono); tab-size: 2;
+  }
+  .ed-f { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; padding: 9px 14px; border-top: 1px dashed var(--rule-2); font: 12.5px/1.3 var(--sans); color: var(--muted); }
+  .ed-f b { font: 700 15px/1 var(--mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+  .est { font-size: 11px; font-style: italic; }
+
+  section.panel { background: var(--card); border: 1px solid var(--rule-2); border-radius: 10px; margin-top: 22px; box-shadow: 0 1px 0 var(--rule); min-width: 0; }
+  .panel-h { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 14px 18px; border-bottom: 1px solid var(--rule); }
+  .panel-h h2 { font: 700 22px/1.1 var(--serif); margin: 0; }
+  .panel-h h2 small { font: 500 13px var(--sans); color: var(--muted); margin-left: 6px; }
+  .seg { display: inline-flex; border: 1px solid var(--rule-2); border-radius: 7px; overflow: hidden; }
+  .seg button { font: 600 12.5px/1 var(--sans); background: var(--card); color: var(--ink-2); border: 0; padding: 9px 12px; cursor: pointer; min-height: 36px; }
+  .seg button + button { border-left: 1px solid var(--rule-2); }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+
+  .stats { display: flex; flex-wrap: wrap; gap: 8px 22px; padding: 12px 18px; border-bottom: 1px solid var(--rule); font-size: 13px; color: var(--ink-2); }
+  .stats b { font: 700 15px var(--mono); color: var(--ink); }
+  .stats .plus b { color: var(--ins-ink); }
+  .stats .minus b { color: var(--del-ink); }
+  .sim { display: inline-flex; align-items: center; gap: 8px; }
+  .sim-bar { width: 90px; height: 7px; border-radius: 7px; background: var(--rule); overflow: hidden; display: inline-block; }
+  .sim-bar i { display: block; height: 100%; background: var(--teal-2); transition: width .3s; }
+
+  .diff { padding: 16px 18px 20px; font: 13.5px/1.75 var(--mono); white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; }
+  .diff.split { display: grid; grid-template-columns: 1fr 1fr; gap: 0; padding: 0; }
+  .diff.split > div { padding: 16px 18px 20px; min-width: 0; }
+  .diff.split > div + div { border-left: 1px solid var(--rule); }
+  .diff .side-h { display: block; font: 700 11px/1 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; white-space: normal; }
+  ins, del { text-decoration: none; border-radius: 3px; padding: 1px 0; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+  ins { background: var(--ins-bg); color: var(--ins-ink); box-shadow: inset 0 -2px 0 rgba(20, 80, 31, .25); }
+  del { background: var(--del-bg); color: var(--del-ink); text-decoration: line-through; text-decoration-color: rgba(124, 27, 42, .5); }
+  del + ins, ins + del { margin-left: 3px; }
+  .legend { display: inline-flex; gap: 10px; font-size: 12px; color: var(--muted); align-items: center; }
+  .legend ins, .legend del { padding: 1px 6px; font: 12px var(--mono); }
+  .identical { color: var(--muted); font: italic 14px var(--serif); }
+
+  .lint-grid { display: grid; grid-template-columns: 1fr 1fr; }
+  .lint-col { padding: 14px 18px 18px; min-width: 0; }
+  .lint-col + .lint-col { border-left: 1px solid var(--rule); }
+  .lint-top { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+  .grade { width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center; font: 700 26px/1 var(--serif); border: 3px solid currentColor; flex: none; }
+  .grade[data-grade="A"] { color: var(--ok); }
+  .grade[data-grade="B"], .grade[data-grade="C"] { color: var(--warn); }
+  .grade[data-grade="D"], .grade[data-grade="F"] { color: var(--del-ink); }
+  .lint-top h3 { font: 700 17px/1.2 var(--serif); margin: 0; display: flex; align-items: center; gap: 8px; }
+  .lint-top p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  .rules { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .rules li { display: grid; grid-template-columns: 24px 1fr; gap: 10px; padding: 9px 11px; border-radius: 8px; border: 1px solid var(--rule); background: var(--paper-2); }
+  .rules li[data-status="warn"] { background: var(--warn-soft); border-color: #efd3a4; }
+  .rules li[data-status="pass"] { background: var(--ok-soft); border-color: #bfe0c5; }
+  .rules .ic { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font: 800 12px/1 var(--sans); color: #fff; margin-top: 1px; }
+  .rules li[data-status="pass"] .ic { background: var(--ok); }
+  .rules li[data-status="warn"] .ic { background: var(--warn); }
+  .rules .rn { font-weight: 650; font-size: 13.5px; }
+  .rules .rd { font-size: 12.5px; color: var(--ink-2); margin-top: 2px; word-break: break-word; }
+  .rules code { font: 12px var(--mono); background: rgba(255, 255, 255, .7); border: 1px solid var(--rule-2); border-radius: 4px; padding: 0 4px; }
+
+  .toast { position: fixed; left: 50%; bottom: 22px; transform: translate(-50%, 20px); opacity: 0; background: var(--ink); color: var(--paper); padding: 10px 16px; border-radius: 8px; font: 600 13px var(--sans); transition: opacity .2s, transform .2s; pointer-events: none; z-index: 40; max-width: calc(100vw - 32px); }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  footer { margin-top: 24px; color: var(--muted); font-size: 12.5px; text-align: center; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  @media (max-width: 860px) {
+    header.masthead { grid-template-columns: 1fr; }
+    .toolbar { justify-content: flex-start; }
+    .editors, .lint-grid, .diff.split { grid-template-columns: 1fr; }
+    .lint-col + .lint-col, .diff.split > div + div { border-left: 0; border-top: 1px solid var(--rule); }
+  }
+  @media (max-width: 480px) {
+    .wrap { padding: 60px 14px 36px; }
+    .ed textarea { min-height: 200px; font-size: 13px; }
+    .btn { padding: 9px 11px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition-duration: .001ms !important; animation-duration: .001ms !important; }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="masthead">
+    <div>
+      <p class="kicker">Prompt engineering · review tool</p>
+      <h1>Prompt <em>Diff</em></h1>
+      <p class="dek">Paste two versions of a prompt to see exactly what changed, word by word — with a rough token estimate and a lint report that flags vague wording, missing output formats, missing examples, contradictions and run-on sentences.</p>
+    </div>
+    <div class="toolbar">
+      <button type="button" class="btn" id="swapBtn" data-testid="swap"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 5h10l-3-3M13 11H3l3 3"/></svg>Swap A ⇄ B</button>
+      <button type="button" class="btn" id="exampleBtn" data-testid="load-example"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2.5h7l3 3v8H3z M10 2.5v3h3"/></svg>Example</button>
+      <button type="button" class="btn" id="clearBtn" data-testid="clear"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4h10M6 4V2.5h4V4M4.5 4l.7 9.5h5.6L11.5 4"/></svg>Clear</button>
+      <button type="button" class="btn primary" id="shareBtn" data-testid="share"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 9.5a3 3 0 0 0 4.2 0l2.3-2.3a3 3 0 0 0-4.2-4.2l-.8.8M9.5 6.5a3 3 0 0 0-4.2 0L3 8.8a3 3 0 0 0 4.2 4.2l.8-.8"/></svg>Copy share link</button>
+    </div>
+  </header>
+
+  <div class="editors">
+    <div class="ed">
+      <div class="ed-h"><label for="promptA"><span class="tag a" aria-hidden="true">A</span>Version A <span class="sr">(before)</span></label><span class="est">before</span></div>
+      <textarea id="promptA" data-testid="prompt-a" spellcheck="false"></textarea>
+      <div class="ed-f"><span><b data-testid="tokens-a" id="tokA">0</b> ≈ tokens</span><span><b id="charsA">0</b> chars</span><span><b id="wordsA">0</b> words</span><span class="est">token count is an estimate: characters ÷ 4</span></div>
+    </div>
+    <div class="ed">
+      <div class="ed-h"><label for="promptB"><span class="tag b" aria-hidden="true">B</span>Version B <span class="sr">(after)</span></label><span class="est">after</span></div>
+      <textarea id="promptB" data-testid="prompt-b" spellcheck="false"></textarea>
+      <div class="ed-f"><span><b data-testid="tokens-b" id="tokB">0</b> ≈ tokens</span><span><b id="charsB">0</b> chars</span><span><b id="wordsB">0</b> words</span><span class="est">Δ <b data-testid="tokens-delta" id="tokD" style="font-size:12.5px">0</b> est.</span></div>
+    </div>
+  </div>
+
+  <section class="panel" aria-labelledby="diff-h">
+    <div class="panel-h">
+      <h2 id="diff-h">Changes <small>word-level</small></h2>
+      <span class="legend" aria-hidden="true"><del>removed</del><ins>added</ins></span>
+      <div class="seg" role="group" aria-label="Diff layout">
+        <button type="button" aria-pressed="true" data-view="inline" data-testid="view-inline">Inline</button>
+        <button type="button" aria-pressed="false" data-view="split" data-testid="view-split">Side by side</button>
+      </div>
+    </div>
+    <div class="stats" aria-live="polite" data-testid="diff-stats">
+      <span class="plus"><b id="addN" data-testid="words-added">0</b> words added</span>
+      <span class="minus"><b id="delN" data-testid="words-removed">0</b> words removed</span>
+      <span class="sim"><b id="simN" data-testid="similarity">100%</b> similar <span class="sim-bar" aria-hidden="true"><i id="simBar" style="width:100%"></i></span></span>
+    </div>
+    <div class="diff" id="diff" data-testid="diff-output"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="lint-h">
+    <div class="panel-h">
+      <h2 id="lint-h">Prompt lint <small>5 heuristic checks</small></h2>
+      <span class="est" style="color:var(--muted);font-size:12.5px">Heuristics, not judgement — a warning is a prompt to look, not a verdict.</span>
+    </div>
+    <div class="lint-grid">
+      <div class="lint-col" data-testid="lint-a"><div class="lint-top"><div class="grade" id="gradeA" data-testid="grade-a" aria-hidden="true">–</div><div><h3><span class="tag a" aria-hidden="true">A</span>Version A</h3><p id="scoreA" aria-live="polite" data-testid="score-a"></p></div></div><ul class="rules" id="rulesA"></ul></div>
+      <div class="lint-col" data-testid="lint-b"><div class="lint-top"><div class="grade" id="gradeB" data-testid="grade-b" aria-hidden="true">–</div><div><h3><span class="tag b" aria-hidden="true">B</span>Version B</h3><p id="scoreB" aria-live="polite" data-testid="score-b"></p></div></div><ul class="rules" id="rulesB"></ul></div>
+    </div>
+  </section>
+
+  <footer>Runs entirely in your browser. Both prompts live in the page’s URL hash, so a share link carries them with it and nothing is sent to a server.</footer>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite" data-testid="toast"></div>
+
+<script>
+(() => {
+  'use strict';
+  const EXAMPLE_A = `You are a helpful assistant. Summarize the customer feedback below and maybe pull out some of the main themes. Try to be brief but also give a detailed explanation of each theme so the product team understands everything they need to know about what customers are saying and why it matters for the roadmap going forward into next quarter and beyond.
+
+Feedback:
+{{feedback}}`;
+  const EXAMPLE_B = `You are a product analyst. Summarize the customer feedback below for the product team.
+
+Identify the 3 most frequent themes. For each theme, give a one-sentence summary and quote one representative comment.
+
+Respond in Markdown using this format:
+## Theme name
+- Summary: ...
+- Quote: "..."
+
+Example:
+## Slow checkout
+- Summary: Users abandon carts when payment takes more than 10 seconds.
+- Quote: "I gave up after the spinner ran for ages."
+
+Feedback:
+{{feedback}}`;
+
+  const $ = (id) => document.getElementById(id);
+  const taA = $('promptA'), taB = $('promptB'), diffEl = $('diff');
+  let view = 'inline';
+
+  // ---------- Encoding for the URL hash ----------
+  function b64encode(str) {
+    const bytes = new TextEncoder().encode(str);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function b64decode(s) {
+    s = s.replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    const bin = atob(s);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+  function readHash() {
+    const h = location.hash.replace(/^#/, '');
+    if (!h) return null;
+    const p = new URLSearchParams(h);
+    if (!p.has('a') && !p.has('b')) return null;
+    try {
+      return { a: p.has('a') ? b64decode(p.get('a')) : '', b: p.has('b') ? b64decode(p.get('b')) : '', view: p.get('v') };
+    } catch (e) { return null; }
+  }
+  let lastHash = '';
+  function writeHash() {
+    const h = '#a=' + b64encode(taA.value) + '&b=' + b64encode(taB.value) + (view === 'split' ? '&v=split' : '');
+    lastHash = h;
+    try { history.replaceState(null, '', h); } catch (e) { location.hash = h; }
+  }
+
+  // ---------- Tokenising & diff ----------
+  // Each token is a word / number / placeholder or one punctuation mark, with trailing whitespace attached.
+  function tokenize(text) {
+    const out = [];
+    const lead = text.match(/^\s+/);
+    if (lead) out.push({ key: '', text: lead[0], word: false });
+    const re = /([\w'’{}#-]+|[^\w\s])(\s*)/g;
+    let m;
+    while ((m = re.exec(text))) out.push({ key: m[1], text: m[0], word: /\w/.test(m[1]) });
+    return out;
+  }
+  function diffTokens(a, b) {
+    let start = 0;
+    while (start < a.length && start < b.length && a[start].key === b[start].key) start++;
+    let endA = a.length, endB = b.length;
+    while (endA > start && endB > start && a[endA - 1].key === b[endB - 1].key) { endA--; endB--; }
+    const ops = [];
+    for (let i = 0; i < start; i++) ops.push(['=', a[i], b[i]]);
+    const n = endA - start, m = endB - start;
+    if (n * m > 4e6) {
+      for (let i = start; i < endA; i++) ops.push(['-', a[i]]);
+      for (let j = start; j < endB; j++) ops.push(['+', b[j]]);
+    } else if (n || m) {
+      const w = m + 1;
+      const dp = new Uint32Array((n + 1) * w);
+      for (let i = n - 1; i >= 0; i--) {
+        for (let j = m - 1; j >= 0; j--) {
+          dp[i * w + j] = a[start + i].key === b[start + j].key ? dp[(i + 1) * w + j + 1] + 1 : Math.max(dp[(i + 1) * w + j], dp[i * w + j + 1]);
+        }
+      }
+      let i = 0, j = 0;
+      while (i < n && j < m) {
+        if (a[start + i].key === b[start + j].key) { ops.push(['=', a[start + i], b[start + j]]); i++; j++; }
+        else if (dp[(i + 1) * w + j] >= dp[i * w + j + 1]) { ops.push(['-', a[start + i]]); i++; }
+        else { ops.push(['+', b[start + j]]); j++; }
+      }
+      while (i < n) { ops.push(['-', a[start + i]]); i++; }
+      while (j < m) { ops.push(['+', b[start + j]]); j++; }
+    }
+    for (let i = endA, j = endB; i < a.length; i++, j++) ops.push(['=', a[i], b[j]]);
+    return cleanup(ops);
+  }
+
+  // Semantic cleanup: a lone matching word stranded between two changes (e.g. "the")
+  // reads as noise, so fold it into the surrounding edit, then list deletions before insertions.
+  function cleanup(ops) {
+    const out = ops.slice();
+    let i = 0;
+    while (i < out.length) {
+      if (out[i][0] !== '=') { i++; continue; }
+      let j = i;
+      while (j < out.length && out[j][0] === '=') j++;
+      const words = out.slice(i, j).filter((op) => op[1].word).length;
+      if (i > 0 && j < out.length && words <= 1) {
+        const repl = [];
+        for (let k = i; k < j; k++) { repl.push(['-', out[k][1]]); repl.push(['+', out[k][2]]); }
+        out.splice(i, j - i, ...repl);
+        j = i + repl.length;
+      }
+      i = j;
+    }
+    const res = [];
+    let dels = [], inss = [];
+    const flush = () => { res.push(...dels, ...inss); dels = []; inss = []; };
+    for (const op of out) {
+      if (op[0] === '-') dels.push(op); else if (op[0] === '+') inss.push(op); else { flush(); res.push(op); }
+    }
+    flush();
+    return res;
+  }
+
+  const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  // Group consecutive ops of the same type into runs for tidy markup.
+  function runs(ops, side) {
+    const out = [];
+    for (const op of ops) {
+      const type = op[0];
+      if (side === 'a' && type === '+') continue;
+      if (side === 'b' && type === '-') continue;
+      const tok = type === '+' ? op[1] : (side === 'b' && type === '=' ? op[2] : op[1]);
+      const last = out[out.length - 1];
+      if (last && last.type === type) last.text += tok.text; else out.push({ type, text: tok.text });
+    }
+    return out;
+  }
+  function runHtml(r) {
+    if (r.type === '=') return esc(r.text);
+    // keep trailing whitespace outside the highlight so it doesn't paint gaps
+    const m = r.text.match(/^([\s\S]*?)(\s*)$/);
+    const tag = r.type === '+' ? 'ins' : 'del';
+    return m[1] ? `<${tag}>${esc(m[1])}</${tag}>${esc(m[2])}` : esc(r.text);
+  }
+  function inlineRuns(ops) {
+    const out = [];
+    for (let k = 0; k < ops.length; k++) {
+      const op = ops[k], next = ops[k + 1];
+      // equal tokens take B's whitespace unless a deletion follows, so line breaks aren't doubled
+      const tok = op[0] === '=' ? (next && next[0] === '-' ? op[1] : op[2]) : op[1];
+      const last = out[out.length - 1];
+      if (last && last.type === op[0]) last.text += tok.text; else out.push({ type: op[0], text: tok.text });
+    }
+    return out;
+  }
+
+  // ---------- Lint rules ----------
+  const AMBIGUOUS = ['maybe', 'some', 'perhaps', 'possibly', 'probably', 'somewhat', 'various', 'several', 'a few', 'stuff', 'things', 'etc', 'try to', 'if possible', 'kind of', 'sort of', 'as needed', 'appropriate', 'good', 'nice', 'a bit', 'fairly', 'reasonably'];
+  const CONFLICTS = [
+    [/\b(brief|concise|short|succinct|terse)\b/i, /\b(detailed|thorough|comprehensive|in[- ]depth|exhaustive|elaborate)\b/i, 'length'],
+    [/\b(formal|professional)\b/i, /\b(casual|informal|chatty|slang)\b/i, 'tone'],
+    [/\b(use|include) (bullet|bullets|bullet points|a list)\b/i, /\b(no|avoid|don['’]t use|do not use) (bullet|bullets|bullet points|lists?)\b/i, 'bullets'],
+    [/\bonly (respond|reply|answer|output) (with|in) json\b/i, /\b(explain|explanation|reasoning|commentary)\b/i, 'JSON-only vs. explanation']
+  ];
+  function lint(text) {
+    const t = text.trim();
+    const lower = t.toLowerCase();
+    const results = [];
+    // 1. ambiguous words
+    const found = [];
+    for (const w of AMBIGUOUS) {
+      const re = new RegExp('\\b' + w.replace(/ /g, '\\s+') + '\\b', 'gi');
+      const n = (t.match(re) || []).length;
+      if (n) found.push(w + (n > 1 ? ' ×' + n : ''));
+    }
+    results.push({ id: 'ambiguous', name: 'Precise wording', status: found.length ? 'warn' : 'pass',
+      detail: found.length ? 'Vague words: ' + found.map((f) => `<code>${esc(f)}</code>`).join(' ') + ' — replace with a number, a list, or a rule.' : 'No hedge words like “maybe” or “some”.' });
+    // 2. output format
+    const fmt = /\b(json|markdown|yaml|csv|xml|table|bullet(ed)?( points?| list)?|numbered list|headings?|format|schema|respond (with|in|using)|return (only|a|an|the)|output (only|a|an|as|in)|in the form)\b/i.test(t);
+    results.push({ id: 'format', name: 'Output format specified', status: fmt ? 'pass' : 'warn',
+      detail: fmt ? 'Tells the model what shape the answer should take.' : 'No output format found. Say how the answer should look (e.g. JSON schema, Markdown headings, a numbered list).' });
+    // 3. examples
+    const ex = /(\bexamples?\b|\be\.g\.|\bfor instance\b|<example>|^\s*(input|output)\s*:)/im.test(t);
+    results.push({ id: 'examples', name: 'Includes an example', status: ex ? 'pass' : 'warn',
+      detail: ex ? 'Shows the model at least one concrete example.' : 'No example given. One worked example is often worth a paragraph of instructions.' });
+    // 4. conflicts
+    const hits = [];
+    for (const [x, y, label] of CONFLICTS) {
+      const mx = t.match(x), my = t.match(y);
+      if (mx && my) hits.push(`<code>${esc(mx[0])}</code> vs <code>${esc(my[0])}</code> (${label})`);
+    }
+    const alwaysRe = /\balways (\w+)/gi, neverRe = /\bnever (\w+)/gi;
+    const alw = new Set([...t.matchAll(alwaysRe)].map((m) => m[1].toLowerCase()));
+    for (const m of t.matchAll(neverRe)) if (alw.has(m[1].toLowerCase())) hits.push(`<code>always ${esc(m[1])}</code> vs <code>never ${esc(m[1])}</code>`);
+    results.push({ id: 'conflicts', name: 'No conflicting instructions', status: hits.length ? 'warn' : 'pass',
+      detail: hits.length ? 'Possible conflict: ' + hits.join('; ') + '.' : 'No obviously contradictory pairs found.' });
+    // 5. long sentences
+    const sentences = t.replace(/\{\{[^}]*\}\}/g, 'X').split(/(?<=[.!?])\s+|\n+/).map((s) => s.trim()).filter(Boolean);
+    const long = sentences.map((s) => ({ s, n: (s.match(/[\w'’-]+/g) || []).length })).filter((x) => x.n > 35);
+    results.push({ id: 'long', name: 'Sentences under 35 words', status: long.length ? 'warn' : 'pass',
+      detail: long.length ? `${long.length} long sentence${long.length > 1 ? 's' : ''} (longest ${Math.max(...long.map((l) => l.n))} words): “${esc(long[0].s.slice(0, 70))}…” — split it up.` : (sentences.length ? `Longest sentence: ${Math.max(0, ...sentences.map((s) => (s.match(/[\w'’-]+/g) || []).length))} words.` : 'Nothing to check yet.') });
+    if (!t) results.forEach((r) => { r.status = 'warn'; r.detail = 'Empty prompt.'; });
+    return results;
+  }
+  function gradeOf(passed) { return ['F', 'F', 'D', 'C', 'B', 'A'][passed]; }
+
+  function renderLint(side, text) {
+    const res = lint(text);
+    const ul = $(side === 'a' ? 'rulesA' : 'rulesB');
+    ul.innerHTML = res.map((r) => `<li data-rule="${r.id}" data-status="${r.status}" data-testid="rule-${side}-${r.id}"><span class="ic" aria-hidden="true">${r.status === 'pass' ? '✓' : '!'}</span><div><div class="rn">${r.name}<span class="sr"> — ${r.status === 'pass' ? 'passed' : 'warning'}</span></div><div class="rd">${r.detail}</div></div></li>`).join('');
+    const passed = res.filter((r) => r.status === 'pass').length;
+    const g = $(side === 'a' ? 'gradeA' : 'gradeB');
+    g.textContent = gradeOf(passed); g.dataset.grade = gradeOf(passed);
+    $(side === 'a' ? 'scoreA' : 'scoreB').textContent = `${passed} of ${res.length} checks pass · grade ${gradeOf(passed)}`;
+  }
+
+  const estTokens = (s) => Math.ceil(s.length / 4);
+  const wordCount = (s) => (s.match(/[\w'’-]+/g) || []).length;
+
+  function update(opts = {}) {
+    const a = taA.value, b = taB.value;
+    const tA = estTokens(a), tB = estTokens(b);
+    $('tokA').textContent = tA; $('tokB').textContent = tB;
+    $('charsA').textContent = a.length; $('charsB').textContent = b.length;
+    $('wordsA').textContent = wordCount(a); $('wordsB').textContent = wordCount(b);
+    const d = tB - tA;
+    $('tokD').textContent = (d > 0 ? '+' : '') + d;
+
+    const ta = tokenize(a), tb = tokenize(b);
+    const ops = diffTokens(ta, tb);
+    let add = 0, del = 0, same = 0;
+    for (const op of ops) {
+      if (op[0] === '+' && op[1].word) add++;
+      else if (op[0] === '-' && op[1].word) del++;
+      else if (op[0] === '=' && op[1].word) same++;
+    }
+    $('addN').textContent = add; $('delN').textContent = del;
+    const wa = ta.filter((t) => t.word).length, wb = tb.filter((t) => t.word).length;
+    const sim = wa + wb ? Math.round(200 * same / (wa + wb)) : 100;
+    $('simN').textContent = sim + '%'; $('simBar').style.width = sim + '%';
+
+    if (!a && !b) {
+      diffEl.className = 'diff';
+      diffEl.innerHTML = '<span class="identical">Both prompts are empty — type or paste into A and B, or load the example.</span>';
+    } else if (view === 'split') {
+      diffEl.className = 'diff split';
+      diffEl.innerHTML = `<div data-testid="split-a"><span class="side-h">A · before</span>${runs(ops, 'a').map(runHtml).join('')}</div><div data-testid="split-b"><span class="side-h">B · after</span>${runs(ops, 'b').map(runHtml).join('')}</div>`;
+    } else {
+      diffEl.className = 'diff';
+      diffEl.innerHTML = add || del || a !== b ? inlineRuns(ops).map(runHtml).join('') : '<span class="identical">No differences — the two versions are identical.</span>';
+    }
+    renderLint('a', a); renderLint('b', b);
+    if (!opts.skipHash) scheduleHash();
+  }
+  let hashTimer = null;
+  function scheduleHash() { clearTimeout(hashTimer); hashTimer = setTimeout(writeHash, 200); }
+
+  function setView(v) {
+    view = v;
+    document.querySelectorAll('[data-view]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === v)));
+    update();
+  }
+
+  let toastTimer = null;
+  function toast(msg) {
+    const t = $('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+  }
+
+  taA.addEventListener('input', () => update());
+  taB.addEventListener('input', () => update());
+  document.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => setView(b.dataset.view)));
+  $('swapBtn').addEventListener('click', () => { const t = taA.value; taA.value = taB.value; taB.value = t; update(); toast('Swapped A and B'); });
+  $('exampleBtn').addEventListener('click', () => { taA.value = EXAMPLE_A; taB.value = EXAMPLE_B; update(); toast('Loaded the example pair'); });
+  $('clearBtn').addEventListener('click', () => { taA.value = ''; taB.value = ''; update(); taA.focus(); });
+  $('shareBtn').addEventListener('click', async () => {
+    clearTimeout(hashTimer); writeHash();
+    const url = location.href;
+    let ok = false;
+    try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(url); ok = true; } } catch (e) { ok = false; }
+    if (!ok) {
+      try {
+        const tmp = document.createElement('textarea'); tmp.value = url; tmp.setAttribute('readonly', ''); tmp.style.position = 'fixed'; tmp.style.opacity = '0';
+        document.body.appendChild(tmp); tmp.select(); ok = document.execCommand('copy'); tmp.remove();
+      } catch (e) { ok = false; }
+    }
+    toast(ok ? 'Share link copied — both prompts are in the URL' : 'Link is in the address bar — copy it from there');
+  });
+  window.addEventListener('hashchange', () => {
+    if (location.hash === lastHash) return;
+    const st = readHash();
+    if (st) { taA.value = st.a; taB.value = st.b; if (st.view === 'split' || st.view === 'inline') view = st.view; setView(view); }
+  });
+
+  // ---------- Boot ----------
+  const initial = readHash();
+  if (initial) {
+    taA.value = initial.a; taB.value = initial.b;
+    if (initial.view === 'split') view = 'split';
+    document.querySelectorAll('[data-view]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === view)));
+    lastHash = location.hash;
+    update({ skipHash: true });
+  } else {
+    taA.value = EXAMPLE_A; taB.value = EXAMPLE_B;
+    update({ skipHash: true });
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,284 @@
+[
+  {
+    "id": "C01",
+    "title": "70 Rainey — Downtown Austin Condos",
+    "category": "Client Work",
+    "file": "70rainey.com/70rainey.com/index.html",
+    "thumb": "images/70Rainey.jpg",
+    "tags": ["real estate", "multi-page", "jQuery", "CMS content"],
+    "description": "Marketing site for a luxury high-rise condo project on Austin's Rainey Street, with residences, floor plans, amenities, a news hub of 50+ articles and an inquiry funnel. Shown here as an archived static snapshot.",
+    "qa": {
+      "methodology": [
+        "Crawl every internal link (news hub has 50+ pages) and fail on any 4xx: link rot is the #1 regression on content-heavy real-estate sites.",
+        "Inquiry form: validation messages, required fields, and a stubbed POST via page.route() so no test lead ever reaches the sales team.",
+        "Floor-plan and gallery modals: open, next/prev, Escape to close, focus returns to the trigger.",
+        "Responsive pass at 360/768/1280: hero, nav and floor-plan tables must not overflow.",
+        "Performance budget on the image-heavy hero (LCP under 2.5s on a throttled profile)."
+      ],
+      "risks": ["Dead third-party scripts (CallRail, Bing UET) in the archived snapshot", "Oversized hero imagery", "Modal focus traps built on old jQuery plugins"],
+      "playwright": "Link crawling is where Playwright shines: collect every a[href] with page.$$eval, then request.get() each one in parallel and assert status < 400. The archived snapshot still references dead trackers, so the audit blocks them with page.route('**/*callrail*', r => r.abort()) and treats third-party noise as a separate report instead of letting it fail the core suite. The jQuery gallery animates with setTimeout, so assertions wait on visible state (toBeVisible) rather than fixed sleeps.",
+      "coverage": ["Internal link crawl", "Inquiry form validation (network stubbed)", "Gallery modal keyboard behaviour", "Viewport overflow at 3 widths"]
+    }
+  },
+  {
+    "id": "C02",
+    "title": "Le Politique — French Brasserie, Austin",
+    "category": "Client Work",
+    "file": "lepolitiqueaustin.com/lepolitiqueaustin.com/index.html",
+    "thumb": "images/lepolitique.png",
+    "tags": ["restaurant", "menus", "reservations"],
+    "description": "Custom site for a hip French brasserie, patisserie and coffee shop in the heart of downtown Austin, with menus, hours and reservations. Archived static snapshot.",
+    "qa": {
+      "methodology": [
+        "Hours and address are business-critical: assert them against a single source of truth (a fixtures file) so a menu update never silently changes hours.",
+        "Menu pages: every section heading is present and prices use one consistent format.",
+        "Reservation CTA: correct outbound link, opens in a new tab, has rel=noopener.",
+        "Mobile-first check: tap targets at least 44px and phone number is a tel: link."
+      ],
+      "risks": ["Menu PDFs going stale", "Third-party reservation widget changes", "Hours drifting between pages"],
+      "playwright": "Restaurants live and die by hours and phone numbers, so the most valuable test is also the simplest: a data-driven loop over fixture values with expect(page.getByText(...)).toBeVisible(). Outbound reservation links are verified with a popup listener (context.waitForEvent('page')) instead of actually loading the partner site. Hosted-builder markup has few stable hooks, so getByRole and visible text beat CSS selectors here.",
+      "coverage": ["NAP (name/address/phone) consistency", "Menu structure", "Outbound CTA behaviour", "Tap target sizing"]
+    }
+  },
+  {
+    "id": "C03",
+    "title": "Blue Bell Capital",
+    "category": "Client Work",
+    "file": "bluebellcap.com/bluebellcap.com/index.html",
+    "thumb": "images/bluebellcap.jpg",
+    "tags": ["finance", "redesign", "brand"],
+    "description": "A redesign for a capital group that needed a credible, restrained brand presence: clear hierarchy, strong typography and a simple path to contact. Archived static snapshot.",
+    "qa": {
+      "methodology": [
+        "Visual regression on the homepage hero and team section (toHaveScreenshot with masked dynamic areas), because brand trust depends on pixel-level polish.",
+        "Accessibility: colour contrast on muted finance palettes, heading order, alt text on team photos.",
+        "Contact path: every page reaches the contact CTA in 1 click.",
+        "Legal/disclaimer footer present on every page."
+      ],
+      "risks": ["Low-contrast grey-on-white text", "Missing disclaimer on new pages", "Web-font swap shifting layout (CLS)"],
+      "playwright": "Visual snapshots are worth the maintenance cost on a brochure site this stable. The trick is pinning fonts and masking anything live (mask: [page.locator('iframe')]) so diffs mean real regressions. Layout shift is measured in-page with a PerformanceObserver injected through page.addInitScript, which catches font-swap CLS that a screenshot would miss.",
+      "coverage": ["Hero and team visual snapshots", "Contrast and heading-order audit", "Footer disclaimer on every page"]
+    }
+  },
+  {
+    "id": "C04",
+    "title": "NSS1 — Security Camera Installation",
+    "category": "Client Work",
+    "file": "nss1.org/nss1.org/index.html",
+    "thumb": "images/nss1.jpg",
+    "tags": ["local business", "lead gen", "SEO"],
+    "description": "A redesign for an Austin CCTV and video-surveillance installer, built around local SEO and turning visitors into quote requests. Archived static snapshot.",
+    "qa": {
+      "methodology": [
+        "SEO smoke test: one h1 per page, a unique title and meta description, canonical tag and LocalBusiness structured data that parses as valid JSON-LD.",
+        "Quote form: field validation, spam honeypot present, success state (network stubbed).",
+        "Click-to-call and click-to-quote CTAs visible above the fold on mobile.",
+        "Reviews widget degrades gracefully when the third-party script fails."
+      ],
+      "risks": ["Third-party reviews embed blocking render", "Duplicate titles across service pages", "Form spam"],
+      "playwright": "Lead-gen sites need SEO assertions as much as UI ones. Playwright reads the head directly (expect(page).toHaveTitle, locator('meta[name=description]')) and JSON.parse() on the ld+json block. The reviews embed is a classic flake source, so one test deliberately aborts it with page.route() to prove the page still renders and the CTA stays clickable.",
+      "coverage": ["Meta and structured-data checks", "Quote form (stubbed)", "Above-the-fold mobile CTAs", "Third-party failure resilience"]
+    }
+  },
+  {
+    "id": "C05",
+    "title": "CMC Commercial Real Estate",
+    "category": "Client Work",
+    "file": "cmcrealty.com/cmcrealty.com/index.html",
+    "thumb": "images/cmcrealty.jpg",
+    "tags": ["real estate", "video", "design + build"],
+    "description": "A commercial real-estate site I designed and coded: property listings, embedded video and a clean brokerage brand. Archived static snapshot.",
+    "qa": {
+      "methodology": [
+        "Listing cards: data completeness (price/size/location present) and every card links to a detail page that exists.",
+        "Embedded video: poster renders and the player opens without autoplaying sound.",
+        "Print stylesheet for listing sheets, which brokers actually print.",
+        "Cross-browser run on Chromium, WebKit and Firefox."
+      ],
+      "risks": ["Video embed provider changes", "Listing data typos", "Print layout breakage"],
+      "playwright": "Playwright's WebKit project catches the Safari-only video quirks that brokers on iPads hit first. Print is testable too: page.emulateMedia({ media: 'print' }) plus page.pdf() gives a reviewable artifact. The Wistia iframe is out of our control, so assertions stop at the iframe boundary: frameLocator() checks the play button exists, not that the video plays.",
+      "coverage": ["Listing data completeness", "Video embed presence", "Print media emulation", "3-engine cross-browser run"]
+    }
+  },
+  {
+    "id": "C06",
+    "title": "Walden Retreats — Luxury Camping",
+    "category": "Client Work",
+    "file": "waldenretreats.com/waldenretreats.com/index.html",
+    "thumb": "images/waldenretreats.jpg",
+    "tags": ["hospitality", "booking", "redesign"],
+    "description": "A redesign and rebuild for a Texas Hill Country glamping retreat: immersive photography, tent pages and a booking hand-off. Archived static snapshot.",
+    "qa": {
+      "methodology": [
+        "Booking hand-off: dates and guests carry into the booking engine URL correctly.",
+        "Image-heavy pages: lazy-loading works, and no image ships at more than 2x its rendered size.",
+        "Gallery swipe on touch devices (hasTouch project).",
+        "Seasonal banners: the right banner shows on the right date, tested with a mocked clock."
+      ],
+      "risks": ["Booking-engine URL parameter changes", "Huge hero photos on mobile data", "Stale seasonal promos"],
+      "playwright": "Date-driven content is untestable without controlling time. page.clock.setFixedTime('2026-12-20') lets one test check the holiday banner deterministically. Image weight is audited by listening to page.on('response') and summing content-length by resource type, which gives a hard performance budget that fails the build instead of a Lighthouse score that just drifts.",
+      "coverage": ["Booking deep-link parameters", "Image weight budget", "Touch gallery swipe", "Clock-mocked seasonal content"]
+    }
+  },
+  {
+    "id": "C07",
+    "title": "Mile High Run Club — Treadmill Studio",
+    "category": "Client Work",
+    "file": "milehighrunclub.com/milehighrunclub.com/index.html",
+    "thumb": "images/milehighrun.jpg",
+    "tags": ["fitness", "class schedule", "design + build"],
+    "description": "New site design and build for a New York City treadmill fitness studio: class formats, coach profiles, locations and a path to book. Archived static snapshot.",
+    "qa": {
+      "methodology": [
+        "Class schedule renders in the visitor's timezone (context timezoneId set to America/New_York vs America/Los_Angeles).",
+        "Coach profile pages: every coach card has a photo with alt text and a bio.",
+        "Book-a-class CTA reachable by keyboard alone from the top of the page.",
+        "Location pages: map embed fallback link works when the map is blocked."
+      ],
+      "risks": ["Timezone bugs in the schedule", "Missing alt text as coaches rotate", "Map embed failures"],
+      "playwright": "Timezone bugs are sneaky and Playwright makes them cheap to catch: two browser contexts with different timezoneId values, same assertions. The keyboard-only booking path is scripted with page.keyboard.press('Tab') and an expect on document.activeElement, which doubles as an accessibility regression test.",
+      "coverage": ["Timezone-aware schedule", "Coach card completeness", "Keyboard-only booking path", "Map fallback"]
+    }
+  },
+  {
+    "id": "C08",
+    "title": "St. Peter Damian Society",
+    "category": "Client Work",
+    "url": "https://z-corbett.github.io/Saint-Peter-Damian-Society/",
+    "thumb": "images/stpeterdamian.jpg",
+    "tags": ["non-profit", "design + build", "GitHub Pages"],
+    "description": "New website design and code for a Catholic non-profit: a calm, dignified landing page with mission, events and ways to get involved.",
+    "qa": {
+      "methodology": [
+        "Content accuracy: event dates in the future, and past events automatically hidden or labelled.",
+        "Donation or contact link targets verified, with HTTPS only.",
+        "Accessibility first: many visitors skew older, so text scales to 200% without loss of content.",
+        "Lighthouse-style budget on a static GitHub Pages deploy."
+      ],
+      "risks": ["Stale event dates", "Small body text", "Mixed-content links"],
+      "playwright": "Zoom resilience is easy to automate: set a large deviceScaleFactor or inject a CSS zoom through addStyleTag, then assert that key sections have no horizontal overflow (scrollWidth <= clientWidth). A mocked clock makes 'no past events shown' a deterministic test rather than one that breaks every month.",
+      "coverage": ["Event date freshness (mocked clock)", "HTTPS link audit", "200% text-zoom reflow"]
+    }
+  },
+  {
+    "id": "C09",
+    "title": "Discover Catholic Business",
+    "category": "Client Work",
+    "url": "https://www.discovercatholicbusiness.com/",
+    "thumb": "lab/thumbs/C09.jpg",
+    "tags": ["directory", "platform", "2026"],
+    "description": "A live directory platform with 46,000+ Catholic-owned business listings across all 50 states, with search, categories, deals and owner onboarding.",
+    "qa": {
+      "methodology": [
+        "Search is the product: data-driven tests for location plus keyword queries, empty states and typo tolerance.",
+        "Listing submission flow end to end against a seeded test database, never production.",
+        "API contract tests (Playwright's request fixture) alongside UI tests, so backend changes fail fast.",
+        "Accessibility and responsive checks on listing cards and filters.",
+        "Smoke suite runs against every preview deploy in CI before merge."
+      ],
+      "risks": ["Geolocation permission flows", "Search relevance regressions", "Listing moderation edge cases"],
+      "playwright": "Geolocation is fully controllable: context.grantPermissions(['geolocation']) plus setGeolocation({ latitude, longitude }) turns 'near me' into a repeatable test. API-level request tests seed and clean up data around each UI test, which keeps the suite fast and isolated. Preview-deploy smoke runs catch regressions before real users do.",
+      "coverage": ["Geo-mocked search", "Listing flow on seeded data", "API contract checks", "Preview-deploy smoke run"]
+    }
+  },
+  {
+    "id": "D01",
+    "title": "Bham Coffee Finder (original)",
+    "category": "Classic Demos",
+    "file": "coffeeFinder/coffeefinder.html",
+    "thumb": "images/coffee-finder.png",
+    "tags": ["quiz", "jQuery", "Velocity.js"],
+    "description": "The original fun little quiz, with Velocity.js animations, that matches you with a Birmingham coffee shop. Lab page 008 is its 2026 remake.",
+    "qa": {
+      "methodology": [
+        "Every answer path through the quiz ends on a valid result (combinatorial walk of all branches).",
+        "Animations never block input: rapid double-clicks can't skip a question or double-count.",
+        "Restart resets all state.",
+        "Compare against the 2026 remake to show how testability improved (testids, no animation-driven state)."
+      ],
+      "risks": ["Animation-coupled state", "Unreachable results", "Double-submit on fast clicks"],
+      "playwright": "This is the 'before' in a before-and-after. The 2015-era jQuery code keeps state inside animation callbacks, so tests have to wait on Velocity finishing. Emulating reducedMotion doesn't help because the library ignores it. The remake (Lab 008) was written with data-testid hooks and pure scoring functions, so its spec asserts exact match scores without a single fixed wait.",
+      "coverage": ["All-paths result walk", "Rapid-click guard", "Restart state reset"]
+    }
+  },
+  {
+    "id": "D02",
+    "title": "Podcast Player in Vue.js",
+    "category": "Classic Demos",
+    "file": "music_player/index.html",
+    "thumb": "music_player/img/bg.png",
+    "tags": ["Vue.js", "audio", "SCSS"],
+    "description": "A mini audio player built in Vue.js with animated cover transitions, favourites and a scrubbable progress bar, loaded with Bitcoin podcasts.",
+    "qa": {
+      "methodology": [
+        "Audio element state: play, pause, next and prev update both UI and currentTrack, checked via evaluate().",
+        "Progress bar scrubbing seeks to the right timestamp (click at x% means currentTime is about x% of duration).",
+        "Favourite toggle is reflected in aria-pressed as well as colour.",
+        "Autoplay policy: nothing plays before a user gesture."
+      ],
+      "risks": ["Autoplay rejection promises unhandled", "Seeking before metadata loads", "Icon-only buttons with no accessible names"],
+      "playwright": "Headless Chromium can play media, but asserting sound is pointless. Tests read the HTMLMediaElement directly (page.evaluate(() => audio.paused / currentTime)), which is fast and exact. Seeking needs loadedmetadata first, so the test waits on a readyState predicate with expect.poll instead of a timeout. The icon-only controls were an accessibility gap the audit flagged.",
+      "coverage": ["Play/pause/next state", "Scrub-to-seek accuracy", "Autoplay policy", "Accessible names audit"]
+    }
+  },
+  {
+    "id": "D03",
+    "title": "Apple Keyboard Replica",
+    "category": "Classic Demos",
+    "url": "https://z-corbett.github.io/apple_keyboard/",
+    "thumb": "lab/thumbs/D03.jpg",
+    "tags": ["pure CSS", "replica"],
+    "description": "A pixel-careful replica of Apple's aluminium keyboard built entirely in HTML and CSS. Remade as the playable Lab page 012.",
+    "qa": {
+      "methodology": ["Visual regression against a reference screenshot at fixed DPR", "Layout holds at narrow widths", "Key legends are real text (selectable, readable by screen readers)"],
+      "risks": ["Sub-pixel rounding across browsers", "Overflow on phones"],
+      "playwright": "A pure-CSS replica is the ideal visual-regression candidate: no data, no time and no randomness, so toHaveScreenshot with a small maxDiffPixelRatio is stable across runs. Cross-engine rendering differences are expected, so baselines are stored per browser project.",
+      "coverage": ["Per-engine visual snapshot", "Narrow-viewport overflow"]
+    }
+  },
+  {
+    "id": "D04",
+    "title": "Calculator in JS + CSS",
+    "category": "Classic Demos",
+    "url": "https://z-corbett.github.io/calculator/",
+    "thumb": "lab/thumbs/D04.jpg",
+    "tags": ["vanilla JS", "UI"],
+    "description": "A classic four-function calculator in vanilla JavaScript and CSS.",
+    "qa": {
+      "methodology": ["Table-driven arithmetic cases, including floating-point traps (0.1 + 0.2)", "Divide-by-zero and repeated-equals behaviour", "Keyboard input parity with clicks"],
+      "risks": ["Floating-point display", "Operator chaining edge cases"],
+      "playwright": "Calculators are perfect for parameterised tests: one test body looped over an array of { keys, expected } cases generates dozens of named tests. The tricky part isn't Playwright, it's defining the oracle for float display, which the audit documents explicitly.",
+      "coverage": ["Parameterised arithmetic table", "Error states", "Keyboard parity"]
+    }
+  },
+  {
+    "id": "D05",
+    "title": "Day & Night Button (original)",
+    "category": "Classic Demos",
+    "url": "https://z-corbett.github.io/Day-Night-Button/",
+    "thumb": "lab/thumbs/D05.jpg",
+    "tags": ["CSS animation", "toggle"],
+    "description": "The original animated day/night toggle. Lab page 014 grows it into a full scene with an accessible switch.",
+    "qa": {
+      "methodology": ["Toggle state readable by assistive tech", "Animation respects reduced motion", "State persists or resets predictably"],
+      "risks": ["Checkbox hack with no accessible label", "Motion sensitivity"],
+      "playwright": "The original used a styled checkbox without a label, so getByRole('switch') finds nothing. That is exactly the kind of accessibility gap a role-first locator strategy surfaces. The remake exposes role='switch' with aria-checked, and its test reads like a spec: expect(switch).toHaveAttribute('aria-checked', 'true').",
+      "coverage": ["Accessible name/role audit", "Reduced-motion behaviour"]
+    }
+  },
+  {
+    "id": "D06",
+    "title": "Laughing Man Logo",
+    "category": "Classic Demos",
+    "url": "https://z-corbett.github.io/LaughingMan/",
+    "thumb": "lab/thumbs/D06.jpg",
+    "tags": ["CSS art", "animation"],
+    "description": "A CSS recreation of the rotating Laughing Man emblem, with circular text animated purely in CSS (fan art).",
+    "qa": {
+      "methodology": ["Rotation animation pauses under prefers-reduced-motion", "Renders identically across engines", "No layout shift while fonts load"],
+      "risks": ["Infinite animation with no motion preference", "Font-dependent circular text"],
+      "playwright": "Infinite CSS animations make screenshots flaky, so the test uses page.emulateMedia({ reducedMotion: 'reduce' }) or the animations: 'disabled' screenshot option to freeze a frame before comparing. It's a small detail that separates a stable visual suite from a noisy one.",
+      "coverage": ["Frozen-frame visual snapshot", "Reduced-motion check"]
+    }
+  }
+]

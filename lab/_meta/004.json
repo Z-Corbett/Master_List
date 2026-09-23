@@ -1,0 +1,33 @@
+{
+  "id": "004",
+  "slug": "004-lighthouse-lab",
+  "file": "lab/004-lighthouse-lab.html",
+  "title": "Report Card — a web-perf what-if lab",
+  "category": "Data Viz",
+  "tags": ["web-performance", "core-web-vitals", "lighthouse", "svg", "simulation"],
+  "description": "Four animated Lighthouse-style gauges, LCP/INP/CLS meters and a ten-frame loading filmstrip for a fictional slow product page, all driven by a small, documented network and main-thread model. Toggle 18 real fixes (compress the hero, preload it, defer JS, yield long tasks, set image dimensions, add alt text and more) to see what each one changes, with per-fix impact pills and an explanation.",
+  "prompt": "Build 'Report Card: a web-perf what-if lab'. Show four animated score gauges (Performance, Accessibility, Best Practices, SEO) and the Core Web Vitals LCP, INP and CLS for a fictional, badly built e-commerce product page. Give me a checklist of real optimisations: compress the hero image, preload it, lazy-load below-the-fold images, defer render-blocking JS, inline critical CSS, preload the font with font-display: swap, break up long tasks, delay a third-party chat widget, set image dimensions, reserve ad space, add alt text, fix contrast and so on. Toggling them should update the scores, the vitals and a filmstrip of the page loading, using a clear, plausible model (bandwidth sharing, render-blocking, long tasks, Lighthouse-style log-normal scoring) rather than made-up numbers. Explain each change in plain language and show its marginal impact.",
+  "qa": {
+    "methodology": [
+      "Model-based oracles: tests assert direction and threshold (the LCP rating flips, CLS ≤ 0.1, all categories reach the green band) instead of exact milliseconds, so the model can be retuned without rewriting the spec.",
+      "Every visual encoding also has a data attribute (data-score, data-band, data-rating, data-value, data-state on filmstrip frames), so gauges, meters and frames are verified without pixel comparison.",
+      "Interaction coverage: individual toggles, combinations whose effects add up (dims + adslot), cross-category effects (alt text raises both Accessibility and SEO), Apply all, and Reset back to the baseline.",
+      "Explanations are content under test: the impact pill must predict the direction of the change it describes, and the 'Why this helps' disclosures open and contain the specific guidance.",
+      "Responsive review at 1280px and 390px led to a sticky mini score bar on narrow screens, so you can see the scores while toggling fixes far down the list."
+    ],
+    "risks": [
+      "Model edits that break monotonicity, where applying a fix makes a metric worse unintentionally (the font-swap CLS trade-off is the one deliberate exception, and it is shown in red).",
+      "Count-up number animations racing with assertions (mitigated with reduced motion and asserting on data-score).",
+      "Filmstrip frame logic around boundaries: a shift that happens before first paint must not be flagged."
+    ],
+    "playwright": "Everything here is DOM and SVG, so automation was straightforward once each visual carried a machine-readable twin. Gauges expose data-score/data-band, vitals data-rating/data-value, and filmstrip frames data-state, so the spec never has to read an SVG stroke-dashoffset or a colour. The gauge numbers count up with requestAnimationFrame. Using emulateMedia({ reducedMotion: 'reduce' }) makes them render their final value immediately, which also exercises the reduced-motion path real users get. Assertions are relational (LCP drops by more than 2 s, Perf goes up) rather than snapshots, and toHaveScreenshot was left out because the value is in the model's behaviour, not in pixel-perfect gauges.",
+    "coverage": [
+      "Baseline scores, vital ratings and blank early frames",
+      "Hero compression: LCP drop, perf gain, impact pill predicted it",
+      "CLS fixes: rating goes to good, shift frames disappear",
+      "Accessibility to 100, alt text lifts SEO, explanation disclosure",
+      "Apply all turns everything green; reset restores baseline"
+    ]
+  },
+  "a11y": "Every fix is a native checkbox inside a label with a details/summary explanation, and gauges carry an aria-label with the score. Score and vital regions are aria-live, ratings use shapes as well as colour, and filmstrip frames are list items whose accessible names describe what is on screen at that moment."
+}

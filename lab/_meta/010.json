@@ -1,0 +1,36 @@
+{
+  "id": "010",
+  "slug": "010-rose-window",
+  "file": "lab/010-rose-window.html",
+  "title": "Rose Window — Generative Stained Glass",
+  "category": "Generative",
+  "tags": ["canvas", "generative", "seeded-prng", "procedural", "png-export"],
+  "description": "A seeded generator for Gothic rose windows with 8, 12 or 16-fold symmetry, lead came lines and textured jewel-tone glass, set in a stone wall above a flagstone floor. Drag the sun across the sky and the coloured light pools slide across the floor; click any pane to recolour its ring, then download the scene as a PNG.",
+  "prompt": "Make me a generative Gothic rose window on canvas. Radial symmetry with 8, 12 or 16 folds, dark lead came between the panes, jewel-tone glass with a subtle hand-blown texture, and — the key idea — light that actually passes through: let me move a sun across the sky with a slider or by dragging, and have the coloured pools of light shift across a stone floor below. Clicking a pane recolours its whole ring, 'new window' regenerates it, and ?seed= must reproduce a window exactly. Add a PNG download. Everything drawn in code, no images, one HTML file.",
+  "qa": {
+    "methodology": [
+      "Determinism oracle: hash canvas.toDataURL() for ?seed=42 across a reload (must match) and against ?seed=43 (must differ).",
+      "Geometry oracle: the pool centre is exposed as data-pool-x/y; a morning sun must throw light west (right) and an afternoon sun east (left).",
+      "Pixel sampling: getImageData luminance at the pool centre must beat the mirrored floor point by a margin, proving light is actually rendered there.",
+      "Hit-testing: a ringPoint() hook returns a CSS point inside ring N; clicking it must recolour that ring (swatch data-color and canvas hash both change); the keyboard path via ring buttons is tested too.",
+      "State in the URL: fold changes keep ?seed and add ?folds; 'New window' updates the seed and the download filename.",
+      "Visual review of 1280px and 390px screenshots for pool placement, light beam and tracery legibility."
+    ],
+    "risks": [
+      "Dust-mote animation making pixel comparisons flaky unless motion is reduced.",
+      "Canvas CSS scaling vs. internal resolution breaking pane hit-testing on phones.",
+      "ctx.filter blur/saturate support differences changing pool brightness.",
+      "PRNG consumption order changing when a new option is added, silently altering every shared seed."
+    ],
+    "playwright": "Canvas is the hard part: there is no DOM inside the picture, so the spec combines three oracles — a toDataURL hash for determinism, small data-* attributes for geometry, and targeted getImageData samples for 'is there light here'. emulateMedia({ reducedMotion: 'reduce' }) switches off the mote animation so the canvas becomes a pure function of seed and sun position. Clicks use a page-exposed ringPoint() so the test doesn't hard-code pixel positions that change with viewport. toHaveScreenshot was deliberately avoided: anti-aliasing and blur filters vary by GPU and would make the suite brittle. The download is verified with waitForEvent('download') and its suggested filename.",
+    "coverage": [
+      "Seed reproducibility and seed sensitivity",
+      "Sun slider moves the light pool; the pool is brighter than its mirror point",
+      "Dragging the sun on the sky dial updates the slider",
+      "Pane click and keyboard ring buttons recolour a ring",
+      "8/12/16-fold switching reflected in state and URL",
+      "New window and PNG download filename"
+    ]
+  },
+  "a11y": "The sun is controlled by a labelled range input with a time-of-day aria-valuetext (the drag dial is a pointer convenience), and every ring has a real button that recolours it, so the canvas never has to be clicked. The canvas carries a descriptive aria-label that updates with seed, symmetry and glass colours, and changes are announced through an aria-live status line."
+}

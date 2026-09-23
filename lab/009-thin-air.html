@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thin Air — Altitude Pace Calculator</title>
+<meta name="description" content="A running pace calculator that adjusts goal times for altitude, builds even or negative split tables, draws a pace profile and prints a race wristband.">
+<style>
+  :root {
+    --night: #0e1a2b;
+    --ridge: #1a2c45;
+    --slate: #2a4262;
+    --glacier: #d9e9f4;
+    --snow: #f6fafd;
+    --mist: #8fa8c2;
+    --ember: #ff7a45;
+    --ember-deep: #e2551f;
+    --pine: #3fb59b;
+    --warn: #ffc857;
+    --err: #ff6b6b;
+    --radius: 14px;
+    --sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    --narrow: "Avenir Next Condensed", "Arial Narrow", "Roboto Condensed", "Segoe UI", sans-serif;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font-family: var(--sans);
+    color: var(--snow);
+    background: linear-gradient(180deg, #0a1422 0%, var(--night) 40%, #13243a 100%);
+    min-height: 100vh;
+    overflow-x: hidden;
+    font-variant-numeric: tabular-nums;
+  }
+  .back {
+    position: fixed; top: 10px; left: 10px; z-index: 20;
+    font-size: 13px; color: var(--glacier); text-decoration: none;
+    background: rgba(14, 26, 43, .78); border: 1px solid rgba(217, 233, 244, .18);
+    padding: 6px 11px; border-radius: 999px; backdrop-filter: blur(6px);
+  }
+  .back:hover { color: #fff; border-color: var(--ember); }
+  :focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+
+  header.hero { position: relative; padding: 64px 20px 0; text-align: center; overflow: hidden; }
+  .hero h1 {
+    font-family: var(--narrow); font-stretch: condensed; font-weight: 700;
+    font-size: clamp(40px, 9vw, 84px); letter-spacing: .02em; margin: 0; line-height: .95;
+    text-transform: uppercase;
+    background: linear-gradient(180deg, #fff 30%, var(--glacier) 70%, var(--mist));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .hero p { color: var(--mist); max-width: 560px; margin: 12px auto 0; font-size: 15px; line-height: 1.5; }
+  .hero .kicker { font-size: 12px; letter-spacing: .28em; text-transform: uppercase; color: var(--ember); margin-bottom: 10px; }
+  .range { display: block; width: 100%; height: 90px; margin-top: 18px; }
+
+  main { max-width: 1080px; margin: -8px auto 0; padding: 0 16px 60px; display: grid; gap: 18px; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); }
+  @media (max-width: 860px) { main { grid-template-columns: minmax(0, 1fr); } }
+  .card {
+    background: linear-gradient(180deg, rgba(42, 66, 98, .55), rgba(26, 44, 69, .75));
+    border: 1px solid rgba(217, 233, 244, .12); border-radius: var(--radius);
+    padding: 18px; box-shadow: 0 20px 40px -24px rgba(0, 0, 0, .7);
+  }
+  .card h2 { font-family: var(--narrow); font-stretch: condensed; text-transform: uppercase; letter-spacing: .12em; font-size: 14px; color: var(--glacier); margin: 0 0 12px; }
+  .field { margin-bottom: 16px; }
+  .field > label, .field > .lbl { display: block; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--mist); margin-bottom: 6px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    font: inherit; font-size: 13px; cursor: pointer; color: var(--glacier);
+    background: rgba(14, 26, 43, .6); border: 1px solid rgba(217, 233, 244, .2);
+    padding: 7px 12px; border-radius: 999px; transition: background .15s, border-color .15s;
+  }
+  .chip:hover { border-color: var(--glacier); }
+  .chip[aria-pressed="true"] { background: var(--ember); border-color: var(--ember); color: #1b0e06; font-weight: 600; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  input[type=text], input[type=number] {
+    font: inherit; font-family: var(--mono); font-size: 16px; color: var(--snow);
+    background: rgba(8, 16, 28, .7); border: 1px solid rgba(217, 233, 244, .22);
+    border-radius: 10px; padding: 9px 11px; width: 100%; min-width: 0;
+  }
+  input[aria-invalid="true"] { border-color: var(--err); box-shadow: 0 0 0 2px rgba(255, 107, 107, .25); }
+  .sync { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: end; }
+  .sync .arrow { color: var(--ember); font-size: 18px; padding-bottom: 10px; }
+  .sync label { display: block; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--mist); margin-bottom: 6px; }
+  .hint { font-size: 12px; color: var(--mist); margin-top: 6px; line-height: 1.45; }
+  .seg { display: inline-flex; border: 1px solid rgba(217, 233, 244, .25); border-radius: 999px; overflow: hidden; }
+  .seg button { font: inherit; font-size: 13px; background: transparent; color: var(--glacier); border: 0; padding: 7px 14px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--glacier); color: var(--night); font-weight: 600; }
+  input[type=range] { width: 100%; accent-color: var(--ember); }
+  .alt-readout { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+  .alt-readout strong { font-family: var(--narrow); font-stretch: condensed; font-size: 26px; }
+  .alt-readout span { font-size: 12px; color: var(--mist); }
+  .err {
+    min-height: 0; font-size: 13px; color: #ffd6d6; background: rgba(255, 107, 107, .12);
+    border: 1px solid rgba(255, 107, 107, .4); border-radius: 10px; padding: 8px 10px; margin-bottom: 14px;
+  }
+  .err:empty { display: none; }
+  .model { font-size: 12px; color: var(--mist); line-height: 1.5; border-top: 1px dashed rgba(217, 233, 244, .2); padding-top: 12px; margin-top: 4px; }
+  .model code { font-family: var(--mono); color: var(--glacier); }
+  .toggle { display: flex; align-items: center; gap: 10px; font-size: 14px; cursor: pointer; }
+  .toggle input { width: 18px; height: 18px; accent-color: var(--ember); }
+
+  .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
+  @media (max-width: 520px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .stats .stat:last-child { grid-column: span 2; } }
+  .stat { background: rgba(8, 16, 28, .55); border-radius: 12px; padding: 12px; border: 1px solid rgba(217, 233, 244, .08); }
+  .stat .k { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--mist); }
+  .stat .v { font-family: var(--narrow); font-stretch: condensed; font-size: clamp(22px, 4vw, 30px); font-weight: 700; margin-top: 4px; }
+  .stat .s { font-size: 12px; color: var(--mist); margin-top: 2px; }
+  .stat.hot .v { color: var(--ember); }
+
+  .chart-wrap { position: relative; margin-bottom: 18px; }
+  svg.chart { width: 100%; height: auto; display: block; border-radius: 12px; background: linear-gradient(180deg, #0b1626, #16283f); }
+  .legend { display: flex; gap: 14px; font-size: 12px; color: var(--mist); margin-top: 6px; flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 6px; border-radius: 2px; }
+
+  .table-wrap { max-height: 360px; overflow: auto; border-radius: 12px; border: 1px solid rgba(217, 233, 244, .1); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 8px 10px; text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  thead th { position: sticky; top: 0; background: #14253b; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--mist); font-weight: 600; }
+  tbody tr:nth-child(odd) { background: rgba(8, 16, 28, .35); }
+  td.fast { color: var(--pine); }
+  td.slow { color: var(--warn); }
+  td { font-family: var(--mono); font-size: 13px; }
+
+  .band-card { grid-column: 1 / -1; }
+  .band-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  .btn {
+    font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; color: #1b0e06;
+    background: var(--ember); border: 0; border-radius: 999px; padding: 9px 16px;
+  }
+  .btn:hover { background: var(--ember-deep); color: #fff; }
+  .band-scroll { overflow-x: auto; padding-bottom: 6px; }
+  .wristband {
+    display: inline-flex; align-items: stretch; background: var(--snow); color: #111;
+    border-radius: 8px; border: 2px solid #111; min-height: 56px; font-family: var(--mono);
+  }
+  .wristband .cap { background: #111; color: var(--snow); padding: 6px 10px; display: flex; flex-direction: column; justify-content: center; font-family: var(--narrow); font-stretch: condensed; text-transform: uppercase; font-size: 11px; letter-spacing: .08em; white-space: nowrap; }
+  .wristband .cap b { font-size: 16px; letter-spacing: 0; }
+  .wristband .cell { padding: 6px 9px; border-left: 1px dashed #888; display: flex; flex-direction: column; justify-content: center; text-align: center; white-space: nowrap; }
+  .wristband .cell small { font-size: 10px; color: #555; }
+  .wristband .cell span { font-size: 14px; font-weight: 700; }
+  footer { text-align: center; color: var(--mist); font-size: 12px; padding: 0 16px 40px; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+  @media print {
+    body { background: #fff; }
+    body > *:not(main), main > *:not(.band-card), .band-head, .no-print { display: none !important; }
+    main { display: block; padding: 0; margin: 0; }
+    .band-card { background: none; border: 0; box-shadow: none; padding: 0; }
+    .band-scroll { overflow: visible; }
+    .wristband { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+<a href="../index.html#lab" class="back" data-testid="back-link">← Zac's Lab</a>
+
+<header class="hero">
+  <div class="kicker">Mile High Run Club · Lab edition</div>
+  <h1>Thin Air</h1>
+  <p>Plan your race pace, then see what the altitude will take from it. Even or negative splits, a pace profile, and a wristband you can print and tape on.</p>
+  <svg class="range" viewBox="0 0 1200 90" preserveAspectRatio="none" aria-hidden="true">
+    <defs>
+      <linearGradient id="far" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a5779"/><stop offset="1" stop-color="#1a2c45"/></linearGradient>
+      <linearGradient id="near" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#23395a"/><stop offset="1" stop-color="#0e1a2b"/></linearGradient>
+    </defs>
+    <path d="M0 90 L0 60 L90 34 L160 52 L250 18 L330 44 L410 26 L500 50 L590 12 L690 46 L780 28 L880 54 L980 20 L1070 42 L1200 30 L1200 90Z" fill="url(#far)"/>
+    <path d="M590 12 L610 22 L600 22 L620 30 L575 22Z M250 18 L266 28 L240 27Z M980 20 L996 30 L970 29Z" fill="#d9e9f4" opacity=".75"/>
+    <path d="M0 90 L0 72 L120 56 L220 70 L340 50 L460 72 L560 58 L700 76 L820 54 L940 72 L1060 60 L1200 70 L1200 90Z" fill="url(#near)"/>
+  </svg>
+</header>
+
+<main>
+  <section class="card" aria-labelledby="plan-h">
+    <h2 id="plan-h">Your race</h2>
+    <div class="err" role="alert" data-testid="error" id="error"></div>
+
+    <div class="field">
+      <span class="lbl" id="dist-lbl">Distance</span>
+      <div class="chips" role="group" aria-labelledby="dist-lbl">
+        <button class="chip" type="button" data-dist="5000" data-testid="dist-5k" aria-pressed="false">5K</button>
+        <button class="chip" type="button" data-dist="10000" data-testid="dist-10k" aria-pressed="false">10K</button>
+        <button class="chip" type="button" data-dist="21097.5" data-testid="dist-half" aria-pressed="true">Half</button>
+        <button class="chip" type="button" data-dist="42195" data-testid="dist-full" aria-pressed="false">Marathon</button>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <label for="custom" class="sr" style="font-size:12px;color:var(--mist);white-space:nowrap">Custom</label>
+        <input type="number" id="custom" data-testid="custom-distance" inputmode="decimal" step="0.01" min="0" placeholder="e.g. 15" style="flex:1 1 90px">
+        <div class="seg" role="group" aria-label="Units">
+          <button type="button" data-unit="km" data-testid="unit-km" aria-pressed="true">km</button>
+          <button type="button" data-unit="mi" data-testid="unit-mi" aria-pressed="false">mi</button>
+        </div>
+      </div>
+      <div class="hint" id="dist-hint" data-testid="distance-readout"></div>
+    </div>
+
+    <div class="field sync">
+      <div>
+        <label for="time">Goal time</label>
+        <input type="text" id="time" data-testid="goal-time" inputmode="numeric" autocomplete="off" value="1:45:00" aria-describedby="time-hint">
+      </div>
+      <div class="arrow" aria-hidden="true">⇄</div>
+      <div>
+        <label for="pace" id="pace-lbl">Pace / km</label>
+        <input type="text" id="pace" data-testid="goal-pace" inputmode="numeric" autocomplete="off" aria-describedby="time-hint">
+      </div>
+    </div>
+    <div class="hint" id="time-hint" style="margin-top:-8px;margin-bottom:16px">Type either one — the other follows. Times as <code>h:mm:ss</code> or <code>mm:ss</code>, pace as <code>m:ss</code>. Press Enter or leave the field to apply.</div>
+
+    <div class="field">
+      <label for="alt">Race altitude</label>
+      <div class="alt-readout"><strong data-testid="altitude-value" id="alt-val">0 ft</strong><span id="alt-m">0 m</span></div>
+      <input type="range" id="alt" data-testid="altitude-slider" min="0" max="10152" step="1" value="0" aria-describedby="alt-m">
+      <div class="chips" style="margin-top:8px" role="group" aria-label="Altitude presets">
+        <button class="chip" type="button" data-alt="0" data-testid="alt-sea">Sea level</button>
+        <button class="chip" type="button" data-alt="5280" data-testid="alt-denver">Denver 5,280</button>
+        <button class="chip" type="button" data-alt="7200" data-testid="alt-flagstaff">7,200 ft</button>
+        <button class="chip" type="button" data-alt="10152" data-testid="alt-leadville">Leadville 10,152</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="toggle"><input type="checkbox" id="neg" data-testid="negative-split"> Negative split</label>
+      <div id="neg-box" hidden style="margin-top:10px">
+        <label for="negpct" style="font-size:12px;color:var(--mist)">Second half faster by <b id="negpct-out">3</b>%</label>
+        <input type="range" id="negpct" data-testid="negative-pct" min="1" max="8" step="0.5" value="3">
+      </div>
+    </div>
+
+    <div class="model" data-testid="model-note">
+      <strong style="color:var(--glacier)">Approximate model — not physiology.</strong>
+      Time penalty <code>≈ 0.1% × (altitude in 1,000 ft)²</code> for an unacclimatized runner: about 0.9% at 3,000 ft,
+      2.8% at Denver and 10.3% at Leadville. Real effects vary with acclimatization, distance, heat and hills; use it as a
+      starting point, then run by feel.
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="out-h">
+    <h2 id="out-h">At altitude</h2>
+    <div class="stats" aria-live="polite">
+      <div class="stat"><div class="k">Sea-level goal</div><div class="v" data-testid="base-time" id="base-time">—</div><div class="s" id="base-pace">—</div></div>
+      <div class="stat hot"><div class="k">Altitude-adjusted</div><div class="v" data-testid="adjusted-time" id="adj-time">—</div><div class="s" data-testid="adjusted-pace" id="adj-pace">—</div></div>
+      <div class="stat"><div class="k">Thin-air tax</div><div class="v" data-testid="penalty" id="penalty">+0.0%</div><div class="s" id="penalty-s">—</div></div>
+    </div>
+
+    <div class="chart-wrap">
+      <svg class="chart" id="chart" data-testid="chart" viewBox="0 0 640 220" role="img" aria-labelledby="chart-t">
+        <title id="chart-t">Pace profile</title>
+      </svg>
+      <div class="legend">
+        <span><i style="background:var(--glacier)"></i>Split pace (higher peak = slower)</span>
+        <span><i style="background:var(--ember)"></i>Average adjusted pace</span>
+        <span><i style="background:var(--mist);height:1px;border-top:1px dashed var(--mist)"></i>Sea-level goal pace</span>
+      </div>
+    </div>
+
+    <div class="table-wrap" tabindex="0" aria-label="Split table">
+      <table data-testid="split-table">
+        <thead><tr><th scope="col" id="split-col">Km</th><th scope="col">Split</th><th scope="col">Pace</th><th scope="col">Elapsed</th></tr></thead>
+        <tbody id="splits"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card band-card" aria-labelledby="band-h">
+    <div class="band-head">
+      <h2 id="band-h" style="margin:0">Race wristband</h2>
+      <button class="btn" type="button" id="print" data-testid="print-btn">Print wristband</button>
+    </div>
+    <div class="band-scroll">
+      <div class="wristband" id="wristband" data-testid="wristband"></div>
+    </div>
+    <div class="hint no-print">Elapsed time at every marker, altitude-adjusted. Trim, wrap, tape — done.</div>
+  </section>
+</main>
+<footer>Thin Air · a Lab experiment by Zac Corbett · the model is a rule of thumb, your legs are the final word.</footer>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const UNIT = { km: 1000, mi: 1609.344 };
+  const state = { meters: 21097.5, unit: 'km', seconds: 6300, altFt: 0, neg: false, negPct: 3 };
+
+  // ---------- formatting / parsing ----------
+  function fmt(sec, forceHours) {
+    sec = Math.round(sec);
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    const ss = String(s).padStart(2, '0');
+    if (h > 0 || forceHours) return `${h}:${String(m).padStart(2, '0')}:${ss}`;
+    return `${m}:${ss}`;
+  }
+  function parseClock(str) {
+    const t = String(str).trim();
+    if (!t) return { error: 'empty' };
+    if (!/^\d{1,3}(:\d{1,2}){0,2}$/.test(t)) return { error: 'format' };
+    const parts = t.split(':').map(Number);
+    for (let i = 1; i < parts.length; i++) if (parts[i] > 59) return { error: 'range' };
+    let sec = 0;
+    for (const p of parts) sec = sec * 60 + p;
+    if (parts.length === 1) sec = parts[0] * 60; // bare number = minutes
+    return { value: sec };
+  }
+  const unitLabel = () => (state.unit === 'km' ? 'km' : 'mi');
+  const units = () => state.meters / UNIT[state.unit];
+
+  // Approximate altitude model: penalty fraction = 0.001 * (ft/1000)^2
+  const penaltyFor = (ft) => 0.001 * Math.pow(ft / 1000, 2);
+
+  // ---------- errors ----------
+  const errors = {};
+  function setError(key, msg, input) {
+    if (msg) errors[key] = msg; else delete errors[key];
+    if (input) input.setAttribute('aria-invalid', msg ? 'true' : 'false');
+    $('error').textContent = Object.values(errors).join(' ');
+  }
+
+  // ---------- inputs ----------
+  const timeIn = $('time'), paceIn = $('pace'), customIn = $('custom');
+
+  function applyTime() {
+    const r = parseClock(timeIn.value);
+    if (r.error) {
+      setError('time', r.error === 'empty' ? 'Add a goal time, like 1:45:00.' : r.error === 'range'
+        ? 'Minutes and seconds only go up to 59 — try something like 52:30.'
+        : 'That goal time doesn’t look like a clock. Use h:mm:ss or mm:ss, e.g. 1:45:00.', timeIn);
+      return false;
+    }
+    const perKm = r.value / (state.meters / 1000);
+    if (perKm < 150) { setError('time', 'That’s faster than the world record pace — double-check the time.', timeIn); return false; }
+    if (perKm > 1200) { setError('time', 'That’s slower than a 20 min/km walk — double-check the time.', timeIn); return false; }
+    setError('time', null, timeIn); setError('pace', null, paceIn);
+    state.seconds = r.value;
+    paceIn.value = fmt(state.seconds / units());
+    render();
+    return true;
+  }
+  function applyPace() {
+    const r = parseClock(paceIn.value);
+    if (r.error || r.value <= 0) {
+      setError('pace', r.error === 'empty' ? 'Add a pace, like 5:00.' : 'Pace should look like m:ss, e.g. 4:55.', paceIn);
+      return false;
+    }
+    const perKm = r.value / (UNIT[state.unit] / 1000);
+    if (perKm < 150 || perKm > 1200) { setError('pace', 'That pace is outside what humans run or walk — try between 2:30 and 20:00 per km.', paceIn); return false; }
+    setError('pace', null, paceIn); setError('time', null, timeIn);
+    state.seconds = r.value * units();
+    timeIn.value = fmt(state.seconds, true);
+    render();
+    return true;
+  }
+  function bindCommit(input, fn) {
+    input.addEventListener('change', fn);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); fn(); } });
+  }
+  bindCommit(timeIn, applyTime);
+  bindCommit(paceIn, applyPace);
+
+  function setDistance(m, fromChip) {
+    state.meters = m;
+    document.querySelectorAll('[data-dist]').forEach((b) => b.setAttribute('aria-pressed', String(fromChip && Number(b.dataset.dist) === m)));
+    if (fromChip) { customIn.value = ''; setError('dist', null, customIn); }
+    // keep goal time, recompute pace
+    paceIn.value = fmt(state.seconds / units());
+    render();
+  }
+  document.querySelectorAll('[data-dist]').forEach((b) => b.addEventListener('click', () => setDistance(Number(b.dataset.dist), true)));
+  function applyCustom() {
+    const raw = customIn.value.trim();
+    if (raw === '') { setError('dist', null, customIn); return; }
+    const v = Number(raw);
+    if (!isFinite(v) || v <= 0) { setError('dist', 'Distance needs to be a positive number.', customIn); return; }
+    const m = v * UNIT[state.unit];
+    if (m < 400) { setError('dist', 'Make it at least 400 m — one lap of the track.', customIn); return; }
+    if (m > 161000) { setError('dist', 'Anything past 100 miles deserves its own spreadsheet. Try a shorter distance.', customIn); return; }
+    setError('dist', null, customIn);
+    setDistance(m, false);
+  }
+  bindCommit(customIn, applyCustom);
+
+  document.querySelectorAll('[data-unit]').forEach((b) => b.addEventListener('click', () => {
+    state.unit = b.dataset.unit;
+    document.querySelectorAll('[data-unit]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    $('pace-lbl').textContent = `Pace / ${unitLabel()}`;
+    $('split-col').textContent = state.unit === 'km' ? 'Km' : 'Mile';
+    customIn.value = '';
+    paceIn.value = fmt(state.seconds / units());
+    render();
+  }));
+
+  const altIn = $('alt');
+  function setAlt(ft) {
+    state.altFt = Math.max(0, Math.min(10152, Math.round(ft)));
+    altIn.value = state.altFt;
+    render();
+  }
+  altIn.addEventListener('input', () => setAlt(Number(altIn.value)));
+  document.querySelectorAll('[data-alt]').forEach((b) => b.addEventListener('click', () => setAlt(Number(b.dataset.alt))));
+
+  $('neg').addEventListener('change', (e) => { state.neg = e.target.checked; $('neg-box').hidden = !state.neg; render(); });
+  $('negpct').addEventListener('input', (e) => { state.negPct = Number(e.target.value); $('negpct-out').textContent = state.negPct; render(); });
+  $('print').addEventListener('click', () => { try { window.print(); } catch (e) { /* ignore */ } });
+
+  // ---------- model ----------
+  function computeSplits(totalSec) {
+    const n = units();
+    const full = Math.floor(n + 1e-9);
+    const rest = n - full;
+    const segs = [];
+    for (let i = 0; i < full; i++) segs.push(1);
+    if (rest > 0.005) segs.push(rest);
+    else if (segs.length === 0) segs.push(n);
+    const avgPace = totalSec / n;
+    const X = state.neg ? state.negPct / 100 : 0;
+    // linear pace factor f(x) = 1 + X - 2X·x over position x ∈ [0,1]; integrates to exactly 1.
+    let pos = 0, elapsed = 0;
+    return segs.map((len, i) => {
+      const mid = (pos + len / 2) / n;
+      const f = 1 + X - 2 * X * mid;
+      const pace = avgPace * f;
+      const t = pace * len;
+      pos += len; elapsed += t;
+      const label = len === 1 ? String(i + 1) : (pos).toFixed(2);
+      return { label, len, pace, time: t, elapsed, dist: pos };
+    });
+  }
+
+  // ---------- render ----------
+  function render() {
+    const n = units();
+    const u = unitLabel();
+    const other = state.unit === 'km' ? `${(state.meters / 1609.344).toFixed(2)} mi` : `${(state.meters / 1000).toFixed(2)} km`;
+    $('dist-hint').textContent = `${n.toFixed(n % 1 ? 2 : 0)} ${u} · ${other} · ${Math.ceil(n - 0.005)} splits`;
+
+    const p = penaltyFor(state.altFt);
+    const adj = state.seconds * (1 + p);
+    $('alt-val').textContent = `${state.altFt.toLocaleString('en-US')} ft`;
+    $('alt-m').textContent = `${Math.round(state.altFt * 0.3048).toLocaleString('en-US')} m`;
+    altIn.setAttribute('aria-valuetext', `${state.altFt} feet, ${(p * 100).toFixed(1)} percent slower`);
+
+    $('base-time').textContent = fmt(state.seconds, true);
+    $('base-pace').textContent = `${fmt(state.seconds / n)} /${u}`;
+    $('adj-time').textContent = fmt(adj, true);
+    $('adj-pace').textContent = `${fmt(adj / n)} /${u}`;
+    $('penalty').textContent = `+${(p * 100).toFixed(1)}%`;
+    $('penalty-s').textContent = p > 0 ? `≈ ${fmt(adj - state.seconds)} added` : 'No altitude cost';
+
+    const splits = computeSplits(adj);
+    const avg = adj / n;
+    const body = $('splits');
+    body.textContent = '';
+    for (const s of splits) {
+      const tr = document.createElement('tr');
+      tr.setAttribute('data-testid', 'split-row');
+      const cls = s.pace < avg - 0.5 ? 'fast' : s.pace > avg + 0.5 ? 'slow' : '';
+      tr.innerHTML = `<td>${s.label}</td><td>${fmt(s.time)}</td><td class="${cls}">${fmt(s.pace)}</td><td data-testid="split-elapsed">${fmt(s.elapsed, true)}</td>`;
+      body.appendChild(tr);
+    }
+    drawChart(splits, avg, state.seconds / n);
+    drawBand(splits, adj);
+  }
+
+  function drawChart(splits, avg, basePace) {
+    const svg = $('chart');
+    const W = 640, H = 220, L = 46, R = 12, T = 18, B = 30;
+    const paces = splits.map((s) => s.pace).concat([avg, basePace]);
+    let lo = Math.min(...paces), hi = Math.max(...paces);
+    const pad = Math.max(6, (hi - lo) * 0.35);
+    lo -= pad; hi += pad;
+    const total = splits[splits.length - 1].dist;
+    const x = (d) => L + (d / total) * (W - L - R);
+    const y = (p) => T + (1 - (p - lo) / (hi - lo)) * (H - T - B);
+    // "Elevation" profile: points at segment midpoints, smoothed.
+    const pts = [[0, splits[0].pace]];
+    let prev = 0;
+    for (const s of splits) { pts.push([(prev + s.dist) / 2, s.pace]); prev = s.dist; }
+    pts.push([total, splits[splits.length - 1].pace]);
+    let d = `M${x(pts[0][0]).toFixed(1)} ${y(pts[0][1]).toFixed(1)}`;
+    for (let i = 1; i < pts.length; i++) {
+      const [x0, y0] = [x(pts[i - 1][0]), y(pts[i - 1][1])];
+      const [x1, y1] = [x(pts[i][0]), y(pts[i][1])];
+      const cx = (x0 + x1) / 2;
+      d += ` C${cx.toFixed(1)} ${y0.toFixed(1)} ${cx.toFixed(1)} ${y1.toFixed(1)} ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+    }
+    const area = `${d} L${x(total).toFixed(1)} ${H - B} L${L} ${H - B} Z`;
+    const ticks = [];
+    const step = (hi - lo) / 3;
+    for (let i = 0; i <= 3; i++) {
+      const pv = lo + step * i;
+      ticks.push(`<line x1="${L}" x2="${W - R}" y1="${y(pv).toFixed(1)}" y2="${y(pv).toFixed(1)}" stroke="rgba(217,233,244,.08)"/>` +
+        `<text x="${L - 6}" y="${(y(pv) + 4).toFixed(1)}" text-anchor="end" font-size="10" fill="#8fa8c2" font-family="Consolas,monospace">${fmt(pv)}</text>`);
+    }
+    const xt = [];
+    const every = total > 30 ? 5 : total > 12 ? 2 : 1;
+    for (let k = every; k < total; k += every) xt.push(`<text x="${x(k).toFixed(1)}" y="${H - 10}" text-anchor="middle" font-size="10" fill="#8fa8c2">${k}</text>`);
+    svg.innerHTML = `<title id="chart-t">Pace profile across ${total.toFixed(1)} ${unitLabel()}</title>
+      <defs>
+        <linearGradient id="mtn" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d9e9f4" stop-opacity=".9"/><stop offset=".35" stop-color="#5f7fa3" stop-opacity=".75"/><stop offset="1" stop-color="#1a2c45" stop-opacity=".9"/></linearGradient>
+      </defs>
+      ${ticks.join('')}
+      <path d="${area}" fill="url(#mtn)"/>
+      <path d="${d}" fill="none" stroke="#f6fafd" stroke-width="2"/>
+      <line x1="${L}" x2="${W - R}" y1="${y(basePace).toFixed(1)}" y2="${y(basePace).toFixed(1)}" stroke="#8fa8c2" stroke-dasharray="4 4"/>
+      <line x1="${L}" x2="${W - R}" y1="${y(avg).toFixed(1)}" y2="${y(avg).toFixed(1)}" stroke="#ff7a45" stroke-width="1.5"/>
+      <text x="${W - R}" y="${(y(avg) - 5).toFixed(1)}" text-anchor="end" font-size="11" fill="#ff7a45" font-weight="600">${fmt(avg)}/${unitLabel()}</text>
+      ${xt.join('')}
+      <text x="${W - R}" y="${H - 10}" text-anchor="end" font-size="10" fill="#8fa8c2">${unitLabel()}</text>`;
+  }
+
+  function drawBand(splits, adj) {
+    const band = $('wristband');
+    const n = splits.length;
+    // keep the band wearable: long races show every 2nd/5th marker
+    const every = n > 30 ? 5 : n > 16 ? 2 : 1;
+    const cells = [`<div class="cap"><span>${(state.meters / 1000).toFixed(state.meters % 1000 ? 1 : 0)}K @ ${state.altFt.toLocaleString('en-US')} ft</span><b>${fmt(adj, true)}</b></div>`];
+    splits.forEach((s, i) => {
+      if ((i + 1) % every !== 0 && i !== n - 1) return;
+      cells.push(`<div class="cell" data-testid="band-cell"><small>${state.unit === 'km' ? 'K' : 'MI'} ${s.label}</small><span>${fmt(s.elapsed, true)}</span></div>`);
+    });
+    band.innerHTML = cells.join('');
+  }
+
+  // ---------- init ----------
+  const params = new URLSearchParams(location.search);
+  if (params.get('alt')) { const a = Number(params.get('alt')); if (isFinite(a)) state.altFt = Math.max(0, Math.min(10152, a)); }
+  altIn.value = state.altFt;
+  paceIn.value = fmt(state.seconds / units());
+  render();
+})();
+</script>
+</body>
+</html>

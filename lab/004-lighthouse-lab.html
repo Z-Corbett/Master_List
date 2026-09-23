@@ -1,0 +1,549 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Report Card — a web-perf what-if lab</title>
+<meta name="description" content="Toggle real-world web performance fixes on a fictional slow product page and watch Lighthouse-style scores, Core Web Vitals (LCP, INP, CLS) and a loading filmstrip update from a transparent, plausible model.">
+<style>
+  :root {
+    --paper: #f6f1e6;
+    --paper-2: #fffcf5;
+    --rule: #e3dac6;
+    --ink: #1d2433;
+    --ink-2: #4f586b;
+    --ink-3: #7f8698;
+    --pen: #c8372d;
+    --good: #0c7d4f;
+    --ni: #b86b00;
+    --poor: #c8372d;
+    --blue: #2856c6;
+    --serif: Georgia, "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SFMono-Regular", "Cascadia Code", Menlo, Consolas, monospace;
+    --hand: "Segoe Print", "Bradley Hand", "Comic Sans MS", "Chalkboard SE", cursive;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background-color: var(--paper);
+    background-image: repeating-linear-gradient(0deg, transparent 0 31px, rgba(40,86,198,.07) 31px 32px);
+    color: var(--ink); font-family: var(--sans); line-height: 1.45; overflow-x: hidden;
+  }
+  :focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+  button { font: inherit; cursor: pointer; }
+  .back {
+    position: fixed; top: 12px; left: 12px; z-index: 50; text-decoration: none;
+    font: 600 12px/1 var(--sans); color: var(--ink-2); background: rgba(255,252,245,.92);
+    border: 1px solid var(--rule); border-radius: 999px; padding: 7px 12px; box-shadow: 0 2px 8px rgba(29,36,51,.08);
+  }
+  .back:hover { color: var(--pen); }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 56px 20px 48px; }
+
+  header.mast { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px 24px; align-items: end; border-bottom: 2px solid var(--ink); padding-bottom: 14px; }
+  .mast .kicker { font: 700 12px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--pen); }
+  .mast h1 { font: 700 clamp(30px, 5vw, 50px)/1.02 var(--serif); margin: 6px 0 8px; letter-spacing: -.01em; }
+  .mast h1 i { color: var(--pen); font-family: var(--hand); font-style: normal; font-weight: 400; font-size: .8em; }
+  .mast p { margin: 0; color: var(--ink-2); max-width: 64ch; }
+  .subject { font: 13px var(--mono); color: var(--ink-2); text-align: right; line-height: 1.6; }
+  .subject b { color: var(--ink); }
+
+  .actions { display: flex; gap: 8px; margin: 14px 0 0; flex-wrap: wrap; align-items: center; }
+  .btn { border: 1.5px solid var(--ink); background: var(--paper-2); color: var(--ink); border-radius: 8px; padding: 7px 13px; font-weight: 700; font-size: 13.5px; }
+  .btn:hover { background: #fff; }
+  .btn.primary { background: var(--ink); color: var(--paper-2); }
+  .model-note { font-size: 12.5px; color: var(--ink-3); margin-left: auto; }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 22px; margin-top: 20px; align-items: start; }
+  .sheet { background: var(--paper-2); border: 1px solid var(--rule); border-radius: 6px; box-shadow: 0 1px 0 var(--rule), 0 12px 30px -18px rgba(29,36,51,.35); padding: 18px; }
+  .sheet h2 { font: 700 18px var(--serif); margin: 0 0 12px; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .sheet h2 small { font: 12px var(--sans); color: var(--ink-3); }
+
+  /* Gauges */
+  .gauges { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .gauge { text-align: center; min-width: 0; }
+  .gauge .dial { position: relative; width: 100%; max-width: 116px; margin: 0 auto; aspect-ratio: 1; }
+  .gauge svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .gauge .track { fill: none; stroke: #ece5d5; stroke-width: 8; }
+  .gauge .arc { fill: none; stroke-width: 8; stroke-linecap: round; transition: stroke-dashoffset .9s cubic-bezier(.2,.8,.2,1), stroke .4s; }
+  .gauge .num { position: absolute; inset: 0; display: grid; place-items: center; font: 700 clamp(22px, 3.2vw, 32px) var(--serif); font-variant-numeric: tabular-nums; }
+  .gauge .grade { position: absolute; top: -4px; right: -2px; font: 400 26px/1 var(--hand); color: var(--pen); transform: rotate(-8deg); }
+  .gauge .lbl { font-size: 13px; font-weight: 700; margin-top: 6px; }
+  .gauge[data-band="good"] .arc { stroke: var(--good); } .gauge[data-band="good"] .num { color: var(--good); }
+  .gauge[data-band="ni"] .arc { stroke: var(--ni); } .gauge[data-band="ni"] .num { color: var(--ni); }
+  .gauge[data-band="poor"] .arc { stroke: var(--poor); } .gauge[data-band="poor"] .num { color: var(--poor); }
+  .legend { display: flex; justify-content: center; gap: 14px; font-size: 12px; color: var(--ink-2); margin-top: 12px; flex-wrap: wrap; }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .shape { width: 10px; height: 10px; display: inline-block; }
+  .shape.poor { background: var(--poor); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+  .shape.ni { background: var(--ni); }
+  .shape.good { background: var(--good); border-radius: 50%; }
+
+  /* Vitals */
+  .vitals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
+  .vital { border: 1px solid var(--rule); border-radius: 6px; padding: 10px 12px; background: #fff; min-width: 0; }
+  .vital .top { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+  .vital .name { font: 700 12px var(--mono); color: var(--ink-2); }
+  .vital .rating { font: 700 10.5px var(--sans); text-transform: uppercase; letter-spacing: .06em; display: inline-flex; gap: 5px; align-items: center; }
+  .vital .val { font: 700 26px/1.2 var(--serif); font-variant-numeric: tabular-nums; }
+  .vital .desc { font-size: 11.5px; color: var(--ink-3); }
+  .vital[data-rating="good"] .val, .vital[data-rating="good"] .rating { color: var(--good); }
+  .vital[data-rating="ni"] .val, .vital[data-rating="ni"] .rating { color: var(--ni); }
+  .vital[data-rating="poor"] .val, .vital[data-rating="poor"] .rating { color: var(--poor); }
+  .scale { position: relative; height: 6px; border-radius: 3px; margin: 8px 0 4px; display: flex; overflow: hidden; gap: 2px; }
+  .scale i { display: block; height: 100%; }
+  .scale i:nth-child(1) { background: #b9dcc9; } .scale i:nth-child(2) { background: #f0d3a3; } .scale i:nth-child(3) { background: #efb9b3; }
+  .marker { position: absolute; top: -4px; width: 3px; height: 14px; background: var(--ink); border-radius: 2px; transition: left .6s cubic-bezier(.2,.8,.2,1); }
+  .scale-wrap { position: relative; }
+  .secondary { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 12px; font-size: 13px; color: var(--ink-2); }
+  .secondary b { font: 700 13px var(--mono); color: var(--ink); }
+
+  /* Filmstrip */
+  .film { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 6px; margin-top: 4px; }
+  .frame { min-width: 0; }
+  .phone { position: relative; aspect-ratio: 9 / 16; background: #fff; border: 1.5px solid #cfc6b2; border-radius: 5px; overflow: hidden; }
+  .frame.shift .phone { border-color: var(--pen); box-shadow: 0 0 0 2px rgba(200,55,45,.25); }
+  .frame .t { font: 11px var(--mono); color: var(--ink-3); text-align: center; margin-top: 4px; }
+  .frame .tag { font: 700 9.5px var(--sans); text-align: center; min-height: 14px; letter-spacing: .03em; }
+  .frame .tag.fcp { color: var(--blue); } .frame .tag.lcp { color: var(--good); } .frame .tag.cls { color: var(--pen); }
+  .mini { position: absolute; left: 0; right: 0; transition: top .3s; }
+  .mini.nav { top: 0; height: 9%; background: #22313a; display: flex; align-items: center; padding: 0 8%; }
+  .mini.nav i { display: block; width: 40%; height: 26%; background: #e9dfc8; border-radius: 2px; }
+  .mini.nav.foit i { background: transparent; outline: 1px dashed rgba(233,223,200,.4); }
+  .mini.ad { height: 8%; background: repeating-linear-gradient(45deg, #ffe08a 0 4px, #ffd25e 4px 8px); }
+  .mini.ad.placeholder { background: #f3efe5; }
+  .mini.hero { background: #e7e1d3; }
+  .mini.hero.loaded { background: linear-gradient(160deg, #cfe3dc 0%, #9fc3b8 45%, #6d9b8e 100%); }
+  .mini.hero.loaded::after { content: ""; position: absolute; left: 20%; right: 20%; bottom: 14%; height: 40%; background: #f6f1e6; border-radius: 30% 30% 6px 6px; box-shadow: inset 0 -6px 0 #e0d6bf; }
+  .mini.body { padding: 0 8%; }
+  .mini.body i { display: block; height: 5px; background: #2a2f3a; border-radius: 2px; margin-top: 7%; }
+  .mini.body.foit i { background: transparent; outline: 1px dashed #cfc6b2; }
+  .mini.body i.p { width: 35%; background: var(--pen); }
+  .mini.body i.b { height: 12px; width: 70%; background: #22313a; border-radius: 4px; margin-top: 10%; }
+  .mini.chat { width: 22%; aspect-ratio: 1; right: 6%; left: auto; bottom: 4%; top: auto; border-radius: 50%; background: #7a4fd6; box-shadow: 0 2px 5px rgba(0,0,0,.3); }
+  .film-note { font-size: 12px; color: var(--ink-3); margin-top: 10px; }
+
+  /* Checklist */
+  .checklist { display: flex; flex-direction: column; gap: 14px; }
+  .group h3 { font: 700 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 6px; }
+  .item { border: 1px solid var(--rule); border-radius: 6px; background: #fff; margin-bottom: 6px; }
+  .item.on { border-color: #9fcfb6; background: #f6fbf7; }
+  .item label { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; padding: 9px 11px; cursor: pointer; align-items: start; }
+  .item input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--good); cursor: pointer; }
+  .item .title { font-weight: 700; font-size: 14px; display: block; }
+  .item .impact { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .pill { font: 700 10.5px var(--mono); padding: 2px 6px; border-radius: 4px; background: #eef3ff; color: var(--blue); white-space: nowrap; }
+  .pill.up { background: #e5f4ec; color: var(--good); }
+  .pill.down { background: #fbe9e7; color: var(--pen); }
+  .item details { padding: 0 11px 9px 43px; }
+  .item summary { font-size: 12.5px; color: var(--blue); cursor: pointer; width: max-content; max-width: 100%; }
+  .item details p { font-size: 13px; color: var(--ink-2); margin: 6px 0 0; }
+  .item details code { font: 11.5px var(--mono); background: #f3efe5; padding: 1px 4px; border-radius: 3px; overflow-wrap: anywhere; }
+
+  .model { margin-top: 22px; }
+  .model ul { margin: 0; padding-left: 18px; font-size: 13.5px; color: var(--ink-2); columns: 2; column-gap: 28px; }
+  .model li { margin-bottom: 6px; break-inside: avoid; }
+
+  .minibar { display: none; }
+  @media (max-width: 1060px) {
+    .layout { grid-template-columns: minmax(0, 1fr); }
+    .minibar {
+      display: flex; position: sticky; top: 0; z-index: 40; gap: 4px 12px; justify-content: flex-start; flex-wrap: wrap;
+      margin: 12px -12px 0; padding: 8px 12px 8px 116px; min-height: 48px; align-content: center; background: rgba(255,252,245,.96); border-bottom: 1px solid var(--rule);
+      box-shadow: 0 6px 14px -10px rgba(29,36,51,.4); font: 700 12px var(--mono);
+    }
+    .minibar span { display: inline-flex; align-items: center; gap: 4px; }
+    .minibar b[data-band=good], .minibar b[data-rating=good] { color: var(--good); }
+    .minibar b[data-band=ni], .minibar b[data-rating=ni] { color: var(--ni); }
+    .minibar b[data-band=poor], .minibar b[data-rating=poor] { color: var(--poor); }
+  }
+  @media (max-width: 720px) {
+    .wrap { padding: 52px 12px 36px; }
+    header.mast { grid-template-columns: minmax(0, 1fr); }
+    .subject { text-align: left; }
+    .gauges { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .vitals { grid-template-columns: minmax(0, 1fr); }
+    .film { grid-template-columns: repeat(5, minmax(0, 1fr)); row-gap: 10px; }
+    .model ul { columns: 1; }
+    .model-note { margin-left: 0; }
+    .sheet { padding: 14px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .gauge .arc, .marker, .mini { transition: none; }
+  }
+</style>
+</head>
+<body>
+<a href="../index.html#lab" class="back" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="mast">
+    <div>
+      <div class="kicker">Web-perf what-if lab</div>
+      <h1>Report Card <i>see me after class</i></h1>
+      <p>A fictional product page that does almost everything wrong. Tick off fixes and watch the Lighthouse-style scores, Core Web Vitals and the loading filmstrip respond. Every number comes from a small, explained model, not a lookup table.</p>
+    </div>
+    <div class="subject">
+      subject: <b>fernhill-home.example/p/linen-duvet</b><br>
+      device: <b>mid-range phone</b> · network: <b>4 Mbps, 120 ms RTT</b>
+    </div>
+  </header>
+  <div class="actions">
+    <button class="btn primary" type="button" data-testid="apply-all">Apply every fix</button>
+    <button class="btn" type="button" data-testid="reset">Reset to the slow page</button>
+    <span class="model-note">Scores use Lighthouse-style log-normal curves and weights. The page load is simulated, so treat the numbers as directional.</span>
+  </div>
+
+  <div class="minibar" aria-hidden="true"><span>Perf <b id="mb-performance"></b></span><span>A11y <b id="mb-accessibility"></b></span><span>BP <b id="mb-best-practices"></b></span><span>SEO <b id="mb-seo"></b></span><span>LCP <b id="mb-lcp"></b></span><span>INP <b id="mb-inp"></b></span><span>CLS <b id="mb-cls"></b></span></div>
+
+  <div class="layout">
+    <div class="left">
+      <section class="sheet" aria-labelledby="scores-h">
+        <h2 id="scores-h">Scores <small>0–49 poor · 50–89 needs work · 90–100 good</small></h2>
+        <div class="gauges" aria-live="polite">
+          <div class="gauge" data-testid="gauge-performance"><div class="dial"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="track" cx="50" cy="50" r="42"/><circle class="arc" cx="50" cy="50" r="42"/></svg><div class="num">0</div><div class="grade" aria-hidden="true"></div></div><div class="lbl">Performance</div></div>
+          <div class="gauge" data-testid="gauge-accessibility"><div class="dial"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="track" cx="50" cy="50" r="42"/><circle class="arc" cx="50" cy="50" r="42"/></svg><div class="num">0</div><div class="grade" aria-hidden="true"></div></div><div class="lbl">Accessibility</div></div>
+          <div class="gauge" data-testid="gauge-best-practices"><div class="dial"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="track" cx="50" cy="50" r="42"/><circle class="arc" cx="50" cy="50" r="42"/></svg><div class="num">0</div><div class="grade" aria-hidden="true"></div></div><div class="lbl">Best Practices</div></div>
+          <div class="gauge" data-testid="gauge-seo"><div class="dial"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="track" cx="50" cy="50" r="42"/><circle class="arc" cx="50" cy="50" r="42"/></svg><div class="num">0</div><div class="grade" aria-hidden="true"></div></div><div class="lbl">SEO</div></div>
+        </div>
+        <div class="legend" aria-hidden="true"><span><i class="shape poor"></i>0–49</span><span><i class="shape ni"></i>50–89</span><span><i class="shape good"></i>90–100</span></div>
+
+        <div class="vitals" aria-live="polite">
+          <div class="vital" data-testid="vital-lcp">
+            <div class="top"><span class="name">LCP</span><span class="rating"></span></div>
+            <div class="val">—</div>
+            <div class="scale-wrap"><div class="scale"><i style="flex:2.5"></i><i style="flex:1.5"></i><i style="flex:2"></i></div><span class="marker"></span></div>
+            <div class="desc">Largest Contentful Paint — when the hero image shows up. Good ≤ 2.5 s.</div>
+          </div>
+          <div class="vital" data-testid="vital-inp">
+            <div class="top"><span class="name">INP</span><span class="rating"></span></div>
+            <div class="val">—</div>
+            <div class="scale-wrap"><div class="scale"><i style="flex:2"></i><i style="flex:3"></i><i style="flex:3"></i></div><span class="marker"></span></div>
+            <div class="desc">Interaction to Next Paint — tap “Add to bag”, wait for feedback. Good ≤ 200 ms.</div>
+          </div>
+          <div class="vital" data-testid="vital-cls">
+            <div class="top"><span class="name">CLS</span><span class="rating"></span></div>
+            <div class="val">—</div>
+            <div class="scale-wrap"><div class="scale"><i style="flex:1"></i><i style="flex:1.5"></i><i style="flex:1.5"></i></div><span class="marker"></span></div>
+            <div class="desc">Cumulative Layout Shift — how much the page jumps. Good ≤ 0.1.</div>
+          </div>
+        </div>
+        <div class="secondary" data-testid="secondary">
+          <span>TTFB <b data-testid="m-ttfb"></b></span><span>FCP <b data-testid="m-fcp"></b></span><span>Speed Index <b data-testid="m-si"></b></span><span>TBT <b data-testid="m-tbt"></b></span><span>Page weight <b data-testid="m-bytes"></b></span>
+        </div>
+      </section>
+
+      <section class="sheet" aria-labelledby="film-h" style="margin-top:18px">
+        <h2 id="film-h">Filmstrip <small>what a visitor sees, every 0.8 s</small></h2>
+        <div class="film" data-testid="filmstrip" role="list"></div>
+        <p class="film-note">Blue = first paint, green = hero (LCP) painted, red outline = the layout jumped in that interval. Dashed outlines are text hidden while the web font loads.</p>
+      </section>
+
+      <section class="sheet model" aria-labelledby="model-h">
+        <h2 id="model-h">How the model works</h2>
+        <ul>
+          <li><b>Network:</b> 4 Mbps (500 KB/s) with 120 ms round trips. Downloads that run in parallel share bandwidth, so eager below-the-fold images and the chat widget slow the hero down.</li>
+          <li><b>FCP</b> = TTFB + HTML + render-blocking CSS/JS (download, then execute) + invisible-text time while the font loads.</li>
+          <li><b>LCP</b> = when the hero is discovered (by the preload scanner, or only after blocking scripts) + its download at its share of bandwidth + main-thread render delay.</li>
+          <li><b>TBT</b> sums each long task's time over 50 ms: bundle execution, hydration, the chat widget. <b>INP</b> is roughly handler + paint + input delay caused by those same tasks.</li>
+          <li><b>CLS</b> adds shift scores from images without dimensions, the late promo banner and font swapping.</li>
+          <li><b>Performance</b> = 10% FCP + 10% SI + 25% LCP + 30% TBT + 25% CLS, each scored on a log-normal curve (mobile control points). The other categories are weighted pass/fail audits.</li>
+        </ul>
+      </section>
+    </div>
+
+    <aside class="sheet" aria-labelledby="fix-h">
+      <h2 id="fix-h">Fixes <small data-testid="fix-count">0 of 18 applied</small></h2>
+      <div class="checklist" data-testid="checklist"></div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s, r = document) => r.querySelector(s);
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ------------------------------------------------------------ Fixes
+  const FIXES = [
+    { cat: 'Performance · loading', items: [
+      { id: 'cdn', title: 'Serve HTML from an edge cache', tags: ['TTFB'],
+        why: 'The origin renders every request from scratch in one region: <code>TTFB ≈ 900 ms</code>. Caching the HTML at a CDN edge with <code>stale-while-revalidate</code> cuts it to about 200 ms, and every later milestone moves up by the same amount.' },
+      { id: 'hero', title: 'Compress & resize the hero image', tags: ['LCP'],
+        why: 'The hero is a 2400 px, 1.4 MB JPEG shown at 400 CSS px. A responsive <code>&lt;picture&gt;</code> with AVIF at the right width weighs about 140 KB, so it downloads 10× faster. This is usually the single biggest LCP win.' },
+      { id: 'preload', title: 'Preload the LCP image (fetchpriority="high")', tags: ['LCP'],
+        why: 'The hero URL is buried behind render-blocking scripts, so the browser discovers it late. <code>&lt;link rel="preload" as="image" fetchpriority="high"&gt;</code> lets the preload scanner start it right after the first bytes of HTML.' },
+      { id: 'lazy', title: 'Lazy-load below-the-fold images', tags: ['LCP', 'bytes'],
+        why: 'Twelve gallery and "you may also like" images (1.1 MB) download eagerly and compete with the hero for bandwidth. <code>loading="lazy"</code> defers them until the user scrolls near them.' },
+      { id: 'defer', title: 'Defer non-critical JavaScript', tags: ['FCP', 'LCP'],
+        why: 'A 380 KB bundle sits in <code>&lt;head&gt;</code> without <code>defer</code>, so the parser stops until it downloads and runs. Deferring it lets the page paint first. The code still runs later, so TBT barely changes.' },
+      { id: 'css', title: 'Inline critical CSS, purge the rest', tags: ['FCP'],
+        why: '120 KB of framework CSS (about 70% unused) blocks rendering. Inlining the ~8 KB needed above the fold and loading the rest asynchronously removes a blocking round trip.' },
+      { id: 'font', title: 'Preload the web font + font-display: swap', tags: ['FCP', 'CLS'],
+        why: 'The brand font is discovered late and text stays invisible until it arrives (FOIT). Preloading it and using <code>font-display: swap</code> paints text immediately in a fallback font. The trade-off is a tiny shift when the font swaps in, which a <code>size-adjust</code> fallback keeps near zero.' },
+    ]},
+    { cat: 'Performance · main thread', items: [
+      { id: 'split', title: 'Code-split & drop unused JavaScript', tags: ['TBT', 'INP'],
+        why: 'Only about 45% of the bundle is used on this page. Route-level code splitting and removing a legacy carousel library cut both download size and the 450 ms evaluation task.' },
+      { id: 'yield', title: 'Break up long tasks (yield to the main thread)', tags: ['TBT', 'INP'],
+        why: 'Hydration runs as one 900 ms task, so taps during it just wait. Chunking the work and calling <code>await scheduler.yield()</code> between chunks lets input handlers run in between.' },
+      { id: 'chat', title: 'Load the chat widget on interaction', tags: ['TBT', 'INP', 'LCP'],
+        why: 'A third-party chat widget pulls in 450 KB and a 600 ms task at startup, for a feature most visitors never open. Show a lightweight facade button and load the real widget on the first click.' },
+    ]},
+    { cat: 'Performance · visual stability', items: [
+      { id: 'dims', title: 'Set width & height on images', tags: ['CLS'],
+        why: 'Without dimensions the browser reserves no space, so the title, price and button jump down when the hero arrives. <code>width</code>/<code>height</code> attributes (or <code>aspect-ratio</code>) reserve the box up front.' },
+      { id: 'adslot', title: 'Reserve space for the promo banner', tags: ['CLS'],
+        why: 'A "Free shipping" banner is injected by a script after load and pushes everything down. Give its container a fixed <code>min-height</code> so it fills a slot instead of shoving content.' },
+    ]},
+    { cat: 'Accessibility', items: [
+      { id: 'alt', title: 'Add alt text to product images', tags: ['A11y', 'SEO'],
+        why: 'Screen reader users hear "image, image, image". Descriptive <code>alt</code> ("Sage linen duvet set on an oak bed") fixes that and also helps image search.' },
+      { id: 'contrast', title: 'Fix low-contrast price and helper text', tags: ['A11y'],
+        why: 'Light grey text on white at 2.6:1 fails WCAG AA (4.5:1 for body text). Darkening the grey to #595959 passes without changing the design much.' },
+      { id: 'labels', title: 'Label the newsletter input & icon buttons', tags: ['A11y'],
+        why: 'The email field relies on placeholder text, and the bag and heart buttons are bare SVG icons. Add a <code>&lt;label&gt;</code> and <code>aria-label</code>s so every control has an accessible name.' },
+    ]},
+    { cat: 'Best practices & SEO', items: [
+      { id: 'https', title: 'Fix mixed content (http:// image)', tags: ['Best Practices'],
+        why: 'One trust badge loads over plain HTTP. Browsers auto-upgrade or block it and flag the page as not fully secure. Serve it over HTTPS.' },
+      { id: 'console', title: 'Fix console errors & remove document.write', tags: ['Best Practices'],
+        why: 'A 404 on a legacy script logs errors, and a tag manager uses <code>document.write</code>, which Chrome deprecates for slow connections. Both show up as failed audits.' },
+      { id: 'meta', title: 'Add a meta description & descriptive links', tags: ['SEO'],
+        why: 'There is no <code>&lt;meta name="description"&gt;</code>, so search engines pick a random snippet, and several links just say "click here". Write a real description and name links by where they go.' },
+    ]},
+  ];
+  const ALL = FIXES.flatMap(g => g.items);
+
+  // ------------------------------------------------------------ Model
+  const NET = { bw: 500, rtt: 120 }; // KB/s, ms
+  function simulate(on) {
+    const f = (k) => !!on[k];
+    const ttfb = f('cdn') ? 200 : 900;
+    const htmlKB = 30 + (f('css') ? 8 : 0);
+    const htmlDone = ttfb + (htmlKB / NET.bw) * 1000;
+    const parse = 180;
+
+    // render-blocking resources (parallel downloads, then JS executes)
+    const cssDl = f('css') ? 0 : NET.rtt + (120 / NET.bw) * 1000;
+    const jsKB = f('split') ? 170 : 380;
+    const jsExec = f('split') ? 180 : 450;
+    const jsDl = NET.rtt + (jsKB / NET.bw) * 1000;
+    const blocking = f('defer') ? cssDl : Math.max(cssDl, jsDl) + jsExec;
+
+    // FOIT: text is invisible until the font arrives (fetched after CSS unless preloaded)
+    const fontDelay = f('font') ? 0 : NET.rtt + (90 / NET.bw) * 1000;
+    const renderStart = htmlDone + parse + blocking;
+    const fcp = renderStart + fontDelay;
+
+    // LCP: hero image
+    const heroKB = f('hero') ? 140 : 1400;
+    const discover = f('preload') ? htmlDone - 20 : htmlDone + blocking; // scripts block the parser before the <img>
+    let share = 1;
+    if (!f('lazy')) share *= 0.6;     // 12 eager images competing
+    if (!f('chat')) share *= 0.88;    // chat widget bundle competing
+    const heroDone = discover + NET.rtt + (heroKB / (NET.bw * share)) * 1000;
+    const renderDelay = f('yield') ? 40 : 220; // hydration task delays the paint
+    const lcp = Math.max(fcp, heroDone) + renderDelay;
+
+    // Main thread
+    const longTasks = [jsExec, f('yield') ? 45 : 900, f('chat') ? 0 : 600, 170];
+    const tbt = longTasks.reduce((a, t) => a + Math.max(0, t - 50), 0);
+    const inp = 60 + 40 + (f('yield') ? 20 : 340) + (f('chat') ? 0 : 170) + (f('split') ? 0 : 40);
+
+    // CLS
+    const cls = (f('dims') ? 0 : 0.13) + (f('adslot') ? 0 : 0.09) + (f('font') ? 0.01 : 0);
+
+    const si = fcp + 0.55 * (lcp - fcp) + (cls > 0.1 ? 250 : 0);
+    const bytes = htmlKB + (f('css') ? 40 : 120) + jsKB + 90 + heroKB + (f('lazy') ? 180 : 1100) + (f('chat') ? 0 : 450);
+
+    // Scores
+    const perf = 100 * (
+      .10 * logNormal(fcp, 1800, 3000) +
+      .10 * logNormal(si, 3387, 5800) +
+      .25 * logNormal(lcp, 2500, 4000) +
+      .30 * logNormal(tbt, 200, 600) +
+      .25 * logNormal(cls, 0.1, 0.25));
+    const a11y = 100 * (100 - (f('alt') ? 0 : 10) - (f('contrast') ? 0 : 7) - (f('labels') ? 0 : 10)) / 100;
+    const bp = 100 * (16 - (f('https') ? 0 : 1) - (f('console') ? 0 : 2)) / 16;
+    const seo = 100 * (12 - (f('meta') ? 0 : 2) - (f('alt') ? 0 : 1)) / 12;
+
+    // Layout-shift events for the filmstrip
+    const shifts = [];
+    if (!f('dims')) shifts.push(heroDone + renderDelay);
+    const adTime = Math.max(fcp + 500, htmlDone + 1400 + (f('defer') ? 400 : 0)); // injected by script after first paint
+    if (!f('adslot')) shifts.push(adTime);
+    const chatTime = f('chat') ? Infinity : Math.max(fcp, htmlDone + blocking + 1900);
+
+    return {
+      ttfb, fcp, lcp, si, tbt, inp, cls, bytes, heroDone, adTime, chatTime, shifts,
+      fontReady: renderStart + fontDelay,
+      scores: { performance: Math.round(perf), accessibility: Math.round(a11y), 'best-practices': Math.round(bp), seo: Math.round(seo) },
+    };
+  }
+  // Lighthouse-style complementary log-normal scoring
+  function erfc(x) {
+    const z = Math.abs(x), t = 1 / (1 + z / 2);
+    const r = t * Math.exp(-z * z - 1.26551223 + t * (1.00002368 + t * (.37409196 + t * (.09678418 + t * (-.18628806 + t * (.27886807 + t * (-1.13520398 + t * (1.48851587 + t * (-.82215223 + t * .17087277)))))))));
+    return x >= 0 ? r : 2 - r;
+  }
+  function logNormal(value, p10, median) {
+    if (value <= 0) return 1;
+    const INV_ERFC_ONE_FIFTH = 0.9061938024368232;
+    const x = Math.log(value / median) * INV_ERFC_ONE_FIFTH / -Math.log(p10 / median);
+    return Math.min(1, Math.max(0, erfc(x) / 2));
+  }
+
+  // ------------------------------------------------------------ Rendering
+  const state = {};
+  const band = (s) => (s >= 90 ? 'good' : s >= 50 ? 'ni' : 'poor');
+  const grade = (s) => (s >= 90 ? 'A' : s >= 80 ? 'B' : s >= 65 ? 'C' : s >= 50 ? 'D' : 'F');
+  const fmtS = (ms) => (ms / 1000).toFixed(1) + ' s';
+  const C = 2 * Math.PI * 42;
+
+  const shown = {};
+  function setGauge(key, score) {
+    const g = $(`[data-testid="gauge-${key}"]`);
+    g.dataset.score = String(score); g.dataset.band = band(score);
+    const arc = g.querySelector('.arc');
+    arc.style.strokeDasharray = C; arc.style.strokeDashoffset = C * (1 - score / 100);
+    g.querySelector('.grade').textContent = grade(score);
+    const mb = document.getElementById('mb-' + key); mb.textContent = score; mb.dataset.band = band(score);
+    g.setAttribute('aria-label', `${g.querySelector('.lbl').textContent}: ${score} out of 100`);
+    const num = g.querySelector('.num');
+    const from = shown[key] ?? 0; shown[key] = score;
+    if (reduce || from === score) { num.textContent = score; return; }
+    const t0 = performance.now(), dur = 700;
+    const tick = (now) => {
+      const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+      num.textContent = Math.round(from + (score - from) * e);
+      if (k < 1 && shown[key] === score) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+  const VITALS = {
+    lcp: { good: 2500, poor: 4000, max: 6000, fmt: fmtS },
+    inp: { good: 200, poor: 500, max: 800, fmt: (v) => Math.round(v) + ' ms' },
+    cls: { good: 0.1, poor: 0.25, max: 0.4, fmt: (v) => v.toFixed(2) },
+  };
+  const RATING = { good: 'good', ni: 'needs work', poor: 'poor' };
+  const SHAPE = { good: 'good', ni: 'ni', poor: 'poor' };
+  function setVital(key, v) {
+    const cfg = VITALS[key], el = $(`[data-testid="vital-${key}"]`);
+    const r = v <= cfg.good ? 'good' : v <= cfg.poor ? 'ni' : 'poor';
+    el.dataset.rating = r; el.dataset.value = String(key === 'cls' ? Number(v.toFixed(3)) : Math.round(v));
+    el.querySelector('.val').textContent = cfg.fmt(v);
+    const mb = document.getElementById('mb-' + key); mb.textContent = cfg.fmt(v).replace(' ', ''); mb.dataset.rating = r;
+    el.querySelector('.rating').innerHTML = `<i class="shape ${SHAPE[r]}"></i>${RATING[r]}`;
+    el.querySelector('.marker').style.left = `calc(${Math.min(100, (v / cfg.max) * 100)}% - 1.5px)`;
+  }
+
+  const FRAMES = Array.from({ length: 10 }, (_, i) => (i + 1) * 800);
+  function renderFilm(m) {
+    const film = $('[data-testid="filmstrip"]'); film.innerHTML = '';
+    let fcpTagged = false, lcpTagged = false;
+    FRAMES.forEach((t, i) => {
+      const prev = i === 0 ? 0 : FRAMES[i - 1];
+      const shifted = m.shifts.some(s => s > prev && s <= t);
+      const fr = document.createElement('div'); fr.className = 'frame' + (shifted ? ' shift' : ''); fr.setAttribute('role', 'listitem');
+      fr.dataset.testid = 'frame-' + i;
+      const ph = document.createElement('div'); ph.className = 'phone';
+      const heroLoaded = t >= m.lcp;
+      if (t >= m.fcp) {
+        const foit = t < m.fontReady;
+        const adShown = t >= m.adTime; const reserveAd = on.adslot;
+        let y = 9;
+        const add = (cls, top, h, html = '') => { const d = document.createElement('div'); d.className = 'mini ' + cls; d.style.top = top + '%'; if (h) d.style.height = h + '%'; d.innerHTML = html; ph.appendChild(d); };
+        add('nav' + (foit ? ' foit' : ''), 0, 9, '<i></i>');
+        if (adShown || reserveAd) { add('ad' + (adShown ? '' : ' placeholder'), y, 8); y += 8; }
+        const heroH = (heroLoaded || on.dims) ? 42 : 0;
+        if (heroH) { add('hero' + (heroLoaded ? ' loaded' : ''), y, heroH); y += heroH; }
+        add('body' + (foit ? ' foit' : ''), y, 0, '<i style="width:80%"></i><i style="width:55%"></i><i class="p"></i><i class="b"></i>');
+        if (t >= m.chatTime) { const d = document.createElement('div'); d.className = 'mini chat'; ph.appendChild(d); }
+      }
+      fr.dataset.state = t < m.fcp ? 'blank' : heroLoaded ? 'complete' : 'partial';
+      const tag = document.createElement('div'); tag.className = 'tag';
+      if (!fcpTagged && t >= m.fcp) { tag.textContent = 'FCP'; tag.classList.add('fcp'); fcpTagged = true; }
+      if (!lcpTagged && heroLoaded) { tag.textContent = fcpTagged && tag.textContent === 'FCP' ? 'FCP · LCP' : 'LCP'; tag.classList.add('lcp'); lcpTagged = true; }
+      if (!tag.textContent && shifted) { tag.textContent = 'shift'; tag.classList.add('cls'); }
+      const ts = document.createElement('div'); ts.className = 't'; ts.textContent = (t / 1000).toFixed(1) + 's';
+      fr.setAttribute('aria-label', `${(t / 1000).toFixed(1)} seconds: ${fr.dataset.state === 'blank' ? 'blank screen' : heroLoaded ? 'page with hero image' : 'content without hero image'}${shifted ? ', layout shifted' : ''}`);
+      fr.append(ph, ts, tag); film.appendChild(fr);
+    });
+  }
+
+  // Marginal impact pills
+  const DELTA_KEYS = [
+    ['lcp', 'LCP', (d) => (d / 1000).toFixed(1) + 's', 150],
+    ['fcp', 'FCP', (d) => (d / 1000).toFixed(1) + 's', 150],
+    ['tbt', 'TBT', (d) => Math.round(d) + 'ms', 40],
+    ['inp', 'INP', (d) => Math.round(d) + 'ms', 20],
+    ['cls', 'CLS', (d) => d.toFixed(2), 0.005],
+  ];
+  function impacts(id) {
+    const withIt = simulate({ ...on, [id]: true }), without = simulate({ ...on, [id]: false });
+    const pills = [];
+    for (const [k, label, fmt, min] of DELTA_KEYS) {
+      const d = withIt[k] - without[k];
+      if (Math.abs(d) >= min) pills.push({ text: `${label} ${d < 0 ? '−' : '+'}${fmt(Math.abs(d))}`, good: d < 0 });
+    }
+    for (const [k, label] of [['performance', 'Perf'], ['accessibility', 'A11y'], ['best-practices', 'BP'], ['seo', 'SEO']]) {
+      const d = withIt.scores[k] - without.scores[k];
+      if (d) pills.push({ text: `${label} ${d > 0 ? '+' : '−'}${Math.abs(d)}`, good: d > 0, score: true });
+    }
+    if (!pills.length) pills.push({ text: 'no change right now', neutral: true });
+    return pills.slice(0, 4);
+  }
+
+  const on = {};
+  function buildChecklist() {
+    const root = $('[data-testid="checklist"]');
+    FIXES.forEach(g => {
+      const sec = document.createElement('div'); sec.className = 'group';
+      sec.innerHTML = `<h3>${g.cat}</h3>`;
+      g.items.forEach(it => {
+        const d = document.createElement('div'); d.className = 'item'; d.dataset.testid = 'fix-' + it.id;
+        d.innerHTML = `
+          <label><input type="checkbox" data-testid="toggle-${it.id}"><span><span class="title">${it.title}</span><span class="impact" data-testid="impact-${it.id}" aria-live="off"></span></span></label>
+          <details><summary>Why this helps</summary><p data-testid="why-${it.id}">${it.why}</p></details>`;
+        d.querySelector('input').addEventListener('change', (e) => { on[it.id] = e.target.checked; update(); });
+        sec.appendChild(d);
+      });
+      root.appendChild(sec);
+    });
+  }
+
+  function update() {
+    const m = simulate(on);
+    Object.entries(m.scores).forEach(([k, v]) => setGauge(k, v));
+    setVital('lcp', m.lcp); setVital('inp', m.inp); setVital('cls', m.cls);
+    $('[data-testid="m-ttfb"]').textContent = Math.round(m.ttfb) + ' ms';
+    $('[data-testid="m-fcp"]').textContent = fmtS(m.fcp);
+    $('[data-testid="m-si"]').textContent = fmtS(m.si);
+    $('[data-testid="m-tbt"]').textContent = Math.round(m.tbt) + ' ms';
+    $('[data-testid="m-bytes"]').textContent = (m.bytes / 1024).toFixed(2) + ' MB';
+    renderFilm(m);
+    let n = 0;
+    ALL.forEach(it => {
+      const el = $(`[data-testid="fix-${it.id}"]`); el.classList.toggle('on', !!on[it.id]); if (on[it.id]) n++;
+      $(`[data-testid="toggle-${it.id}"]`).checked = !!on[it.id];
+      const box = $(`[data-testid="impact-${it.id}"]`); box.innerHTML = '';
+      impacts(it.id).forEach(p => {
+        const s = document.createElement('span');
+        s.className = 'pill' + (p.neutral ? '' : p.good ? ' up' : ' down');
+        s.textContent = p.text; box.appendChild(s);
+      });
+    });
+    $('[data-testid="fix-count"]').textContent = `${n} of ${ALL.length} applied`;
+    window.__report = m;
+  }
+
+  $('[data-testid="apply-all"]').addEventListener('click', () => { ALL.forEach(it => on[it.id] = true); update(); });
+  $('[data-testid="reset"]').addEventListener('click', () => { ALL.forEach(it => on[it.id] = false); update(); });
+
+  buildChecklist();
+  update();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+{
+  "id": "007",
+  "slug": "007-austin-after-dark",
+  "file": "lab/007-austin-after-dark.html",
+  "title": "Austin After Dark — Cicada Porch on Rainey",
+  "category": "Landing Pages",
+  "tags": [
+    "canvas",
+    "boids",
+    "svg",
+    "parallax",
+    "landing-page"
+  ],
+  "description": "An atmospheric landing page for Cicada Porch, a made-up live-music porch on Rainey Street: a layered parallax skyline at dusk, a flocking bat emergence rising from the Congress Avenue bridge, and a flickering neon sign. Below it, a filterable October gig calendar feeds a ticket stub where you choose a night, tier and quantity and see the running total.",
+  "prompt": "Build me a single-file landing page for a fictional Rainey Street live-music venue — invent the name. I want it to feel like Austin at dusk: a layered parallax SVG skyline, the Congress Avenue bridge bat emergence as a flocking canvas animation using boids, and a neon sign that flickers. Then make it useful: a gig calendar you can filter by genre and a ticket-quantity selector with a live total. I built sites for Rainey Street clients back in the day, so treat this as a nod to that — polished, moody, and no stock photos or external assets.",
+  "qa": {
+    "methodology": [
+      "Business-logic oracles for the ticket stub: subtotal, per-ticket fee and total are asserted as exact currency strings for known price × quantity × tier combinations.",
+      "Boundary testing on the quantity stepper (1 and 8), checking both the clamped value and the disabled state of each button.",
+      "Filter correctness: after choosing a genre every visible card must carry that data-genre, and the live 'Showing N of 12' text must agree with the DOM count.",
+      "Canvas behaviour tested through state, not pixels: the boids loop publishes bats-released / bats-aloft counters and data-animating/data-motion attributes, polled with expect.poll.",
+      "Reduced-motion path verified with emulateMedia: animation must not start, a static column is drawn once and the counters must stay frozen.",
+      "Seeded skyline windows, stars and bat spawn positions (?seed=) so visual review screenshots at 1280px and 390px are reproducible."
+    ],
+    "risks": [
+      "O(n²) boids neighbour search stuttering on low-end phones if the flock grows unbounded (bats are culled off-screen and waves are smaller on narrow viewports).",
+      "Parallax transforms on the SVG layers leaving gaps at the hero edges or causing horizontal scroll at 360px.",
+      "Fee/total rounding errors when tier and quantity change in different orders.",
+      "The animation loop continuing while the hero is off-screen or the tab is hidden, burning battery."
+    ],
+    "playwright": "The calendar and ticket maths were straightforward: data-testid locators, check() on the tier radio and exact text assertions on the totals. The canvas was the hard part — pixel assertions on a flock would be flaky by design, so the page exposes released/aloft counters and the spec uses expect.poll to prove the animation is producing and culling bats, then that 'Release the bats' adds a new wave. page.clock was deliberately not used for the flock because the loop is rAF-driven with frame-time deltas; polling real counters proved more honest than simulating frames. emulateMedia({ reducedMotion: 'reduce' }) covers the accessibility path, and toHaveScreenshot was avoided because the flicker, twinkle and flock never produce a stable frame.",
+    "coverage": [
+      "Genre filter narrows to matching cards, updates the live count, and resets to all 12",
+      "Choosing a show, bumping quantity and switching to porch-rail updates subtotal, fees and total; holding tickets produces a CP-XXXX code",
+      "Quantity stepper clamps at 1 and 8 with disabled buttons and correct max total",
+      "Bats animate from load and a released wave increases the count",
+      "Reduced motion renders a static bat column; the neon sign toggles on and off"
+    ]
+  },
+  "a11y": "Filters, night pickers, the stepper and the sign switch are native buttons with aria-pressed or descriptive labels, the tiers are a labelled radio group, and totals and the hold confirmation are announced through live regions. The hero art and bat canvas are aria-hidden, and reduced-motion users get a still scene with no flicker or parallax."
+}

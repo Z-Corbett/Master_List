@@ -1,0 +1,814 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Selector Gym — Playwright locator trainer</title>
+<meta name="description" content="An interactive trainer for Playwright locators: type getByRole, getByLabel, getByText, getByTestId, getByPlaceholder or CSS and watch matches light up live on a real checkout form, across ten progressive challenges.">
+<style>
+  :root {
+    --ink: #111318;
+    --ink-2: #181b22;
+    --ink-3: #222632;
+    --line: #2e3342;
+    --chalk: #e9ecf2;
+    --muted: #9aa3b5;
+    --lime: #c8f53a;
+    --lime-dim: #8fb21d;
+    --coral: #ff6b5b;
+    --amber: #ffc24b;
+    --sky: #7cc7ff;
+    --mono: ui-monospace, "SFMono-Regular", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--ink);
+    background-image: radial-gradient(circle at 1px 1px, #1d212b 1px, transparent 0);
+    background-size: 22px 22px;
+    color: var(--chalk);
+    font-family: var(--sans);
+    line-height: 1.45;
+    overflow-x: hidden;
+  }
+  a { color: inherit; }
+  :focus-visible { outline: 3px solid var(--lime); outline-offset: 2px; }
+  .back {
+    position: fixed; top: 12px; left: 12px; z-index: 50;
+    font: 600 12px/1 var(--mono); text-decoration: none;
+    color: var(--muted); background: rgba(17,19,24,.85);
+    border: 1px solid var(--line); border-radius: 999px; padding: 7px 11px;
+    backdrop-filter: blur(6px);
+  }
+  .back:hover { color: var(--lime); border-color: var(--lime-dim); }
+
+  header.top {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+    padding: 12px 20px 12px 140px; border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, #151820, #111318);
+  }
+  .brand { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .brand h1 { margin: 0; font: 800 22px/1.1 var(--sans); letter-spacing: -.02em; }
+  .brand h1 span { color: var(--lime); }
+  .brand p { margin: 0; color: var(--muted); font-size: 13px; }
+  .scoreboard { display: flex; gap: 10px; align-items: center; font-family: var(--mono); }
+  .pill { border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; background: var(--ink-2); font-size: 12px; color: var(--muted); }
+  .pill b { color: var(--chalk); font-size: 15px; margin-left: 4px; }
+  .pill.score b { color: var(--lime); }
+
+  main.gym {
+    display: grid; grid-template-columns: minmax(0, 1fr) 440px; gap: 20px;
+    padding: 20px; max-width: 1360px; margin: 0 auto;
+  }
+  .panel-label { font: 700 11px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; display: flex; justify-content: space-between; }
+
+  /* ---------- Trainer column ---------- */
+  .trainer { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .card { background: var(--ink-2); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+  .challenge-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .challenge-num { font: 700 12px var(--mono); color: var(--lime); }
+  .challenge-title { font-size: 18px; font-weight: 700; margin: 6px 0 4px; }
+  .challenge-desc { color: var(--muted); font-size: 14px; margin: 0; }
+  .status-badge { font: 700 11px var(--mono); padding: 4px 8px; border-radius: 6px; background: var(--ink-3); color: var(--muted); white-space: nowrap; }
+  .status-badge.pass { background: rgba(200,245,58,.14); color: var(--lime); }
+  .status-badge.brittle { background: rgba(255,194,75,.14); color: var(--amber); }
+
+  .editor { margin-top: 14px; }
+  .editor label { display: block; font: 600 12px var(--mono); color: var(--muted); margin-bottom: 6px; }
+  .input-wrap { display: flex; align-items: stretch; border: 1px solid var(--line); border-radius: 10px; background: #0c0e12; overflow: hidden; }
+  .input-wrap:focus-within { border-color: var(--lime-dim); box-shadow: 0 0 0 3px rgba(200,245,58,.12); }
+  .input-wrap .prefix { font: 13px var(--mono); color: #5d6578; padding: 12px 0 12px 12px; user-select: none; }
+  #locator { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--chalk); font: 14px var(--mono); padding: 12px 10px 12px 2px; }
+  #locator:focus { outline: none; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  button { font: inherit; cursor: pointer; }
+  .btn { border: 1px solid var(--line); background: var(--ink-3); color: var(--chalk); border-radius: 9px; padding: 8px 12px; font-size: 13px; font-weight: 600; }
+  .btn:hover { border-color: #465066; }
+  .btn.primary { background: var(--lime); color: #151a05; border-color: var(--lime); }
+  .btn.primary:hover { background: #d7ff55; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+  .readout { margin-top: 12px; display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 13px; min-height: 30px; }
+  .count { font-weight: 800; font-size: 13px; padding: 5px 10px; border-radius: 999px; background: var(--ink-3); }
+  .count.some { background: rgba(124,199,255,.16); color: var(--sky); }
+  .count.one { background: rgba(200,245,58,.16); color: var(--lime); }
+  .count.none { color: var(--muted); }
+  .error { color: var(--coral); font-size: 12.5px; }
+  .matches { list-style: none; margin: 10px 0 0; padding: 0; font: 12.5px/1.5 var(--mono); max-height: 150px; overflow: auto; }
+  .matches li { padding: 3px 8px; border-left: 2px solid var(--sky); margin-bottom: 3px; background: rgba(124,199,255,.05); overflow-wrap: anywhere; }
+  .matches li .r { color: var(--sky); }
+  .matches li .n { color: var(--chalk); }
+  .feedback { margin-top: 12px; padding: 12px; border-radius: 10px; font-size: 14px; display: none; }
+  .feedback.show { display: block; }
+  .feedback.pass { background: rgba(200,245,58,.1); border: 1px solid rgba(200,245,58,.35); }
+  .feedback.brittle { background: rgba(255,194,75,.1); border: 1px solid rgba(255,194,75,.35); }
+  .feedback.fail { background: rgba(255,107,91,.1); border: 1px solid rgba(255,107,91,.35); }
+  .feedback strong { display: block; margin-bottom: 3px; }
+  .hint { margin-top: 12px; font-size: 13.5px; color: #cbd2df; background: #10131a; border: 1px dashed var(--line); border-radius: 10px; padding: 10px 12px; }
+  .hint code, .why code, .challenge-desc code { font-family: var(--mono); font-size: 12.5px; color: var(--lime); }
+
+  .ladder { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .ladder button {
+    width: 100%; height: 44px; border-radius: 9px; border: 1px solid var(--line); background: var(--ink-3);
+    color: var(--muted); font: 700 13px var(--mono); position: relative;
+  }
+  .ladder button[aria-current="step"] { border-color: var(--lime); color: var(--chalk); }
+  .ladder button.pass { background: rgba(200,245,58,.16); color: var(--lime); }
+  .ladder button.brittle { background: rgba(255,194,75,.16); color: var(--amber); }
+  .ladder button.pass::after, .ladder button.brittle::after { content: "✓"; position: absolute; top: 2px; right: 5px; font-size: 10px; }
+
+  .why h2 { font-size: 14px; margin: 0 0 8px; }
+  .why ul { margin: 0; padding-left: 18px; font-size: 13.5px; color: #cbd2df; }
+  .why li { margin-bottom: 6px; }
+  .cheat { font: 12px/1.7 var(--mono); color: var(--muted); margin: 8px 0 0; }
+  .cheat span { color: var(--chalk); }
+
+  /* ---------- Mock app ---------- */
+  .stage { min-width: 0; order: -1; }
+  .browser { border-radius: 14px; overflow: hidden; border: 1px solid var(--line); box-shadow: 0 30px 60px -30px rgba(0,0,0,.7); }
+  .chrome { display: flex; align-items: center; gap: 10px; padding: 9px 12px; background: #1b1f28; border-bottom: 1px solid var(--line); }
+  .dots { display: flex; gap: 6px; }
+  .dots i { width: 10px; height: 10px; border-radius: 50%; background: #3a4050; display: block; }
+  .dots i:nth-child(1) { background: #ff6b5b; } .dots i:nth-child(2) { background: #ffc24b; } .dots i:nth-child(3) { background: #62d26f; }
+  .url { flex: 1; min-width: 0; font: 12px var(--mono); color: var(--muted); background: #11141a; border-radius: 6px; padding: 5px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  #app {
+    --tp-bg: #f6f1e7; --tp-card: #fffdf8; --tp-ink: #2a2620; --tp-muted: #7b7263; --tp-line: #e4dccb; --tp-green: #2f5d46; --tp-rust: #b5532f;
+    background: var(--tp-bg); color: var(--tp-ink); font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif; font-size: 14px;
+  }
+  #app * { font-family: inherit; }
+  #app input, #app button, #app select { font-family: var(--sans); font-size: 14px; }
+  #app .tp-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--tp-line); background: var(--tp-card); flex-wrap: wrap; }
+  #app .tp-logo { font-weight: 700; font-size: 18px; text-decoration: none; letter-spacing: .01em; color: var(--tp-green); }
+  #app .tp-logo small { font-weight: 400; color: var(--tp-muted); font-style: italic; }
+  #app nav ul { display: flex; gap: 16px; list-style: none; margin: 0; padding: 0; }
+  #app nav a { color: var(--tp-ink); text-decoration: none; font-family: var(--sans); font-size: 13px; }
+  #app .tp-main { padding: 18px 20px 24px; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 18px; }
+  #app h1 { grid-column: 1 / -1; margin: 0; font-size: 26px; font-weight: 700; }
+  #app h2 { margin: 0 0 10px; font-size: 16px; }
+  #app .tp-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  #app section, #app fieldset, #app aside { background: var(--tp-card); border: 1px solid var(--tp-line); border-radius: 10px; padding: 14px; margin: 0; min-width: 0; }
+  #app legend { font-weight: 700; font-size: 15px; padding: 0 4px; }
+  #app .cart { list-style: none; margin: 0; padding: 0; }
+  #app .cart li { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--tp-line); }
+  #app .cart li:last-child { border-bottom: 0; }
+  #app .swatch { width: 34px; height: 34px; border-radius: 8px; flex: none; }
+  #app .cart .nm { flex: 1; min-width: 0; }
+  #app .cart .pr { font-family: var(--sans); font-weight: 600; }
+  #app .x { border: 1px solid var(--tp-line); background: transparent; border-radius: 6px; padding: 3px 8px; color: var(--tp-rust); font-size: 12px; }
+  #app .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  #app .fld label { display: block; font-family: var(--sans); font-size: 12px; color: var(--tp-muted); margin-bottom: 3px; }
+  #app .fld input { width: 100%; border: 1px solid var(--tp-line); border-radius: 7px; padding: 7px 9px; background: #fff; color: var(--tp-ink); }
+  #app .full { grid-column: 1 / -1; }
+  #app .tp-btn { border: 1px solid var(--tp-green); background: transparent; color: var(--tp-green); border-radius: 7px; padding: 7px 14px; font-weight: 600; margin-top: 10px; }
+  #app .tp-btn:disabled { border-color: #c9c0ad; color: #b1a893; cursor: not-allowed; }
+  #app .tp-btn.solid { background: var(--tp-green); color: #fff; width: 100%; padding: 11px; font-size: 15px; }
+  #app .chk { display: flex; align-items: center; gap: 8px; font-family: var(--sans); font-size: 13px; margin: 4px 0; }
+  #app .radios label { display: flex; align-items: center; gap: 8px; font-family: var(--sans); font-size: 13px; padding: 7px 9px; border: 1px solid var(--tp-line); border-radius: 7px; margin-bottom: 6px; }
+  #app .radios label span { margin-left: auto; color: var(--tp-muted); }
+  #app dl { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; margin: 0 0 8px; font-family: var(--sans); font-size: 13px; }
+  #app dt { color: var(--tp-muted); } #app dd { margin: 0; text-align: right; }
+  #app dt.tot, #app dd.tot { color: var(--tp-ink); font-weight: 700; font-size: 16px; border-top: 1px solid var(--tp-line); padding-top: 8px; }
+  #app .promo { display: flex; gap: 6px; margin-bottom: 8px; }
+  #app .promo input { flex: 1; min-width: 0; border: 1px solid var(--tp-line); border-radius: 7px; padding: 7px 9px; }
+  #app .promo button { margin: 0; }
+  #app footer { border-top: 1px solid var(--tp-line); padding: 12px 20px; display: flex; gap: 16px; flex-wrap: wrap; font-family: var(--sans); font-size: 12px; color: var(--tp-muted); }
+  #app footer a { color: var(--tp-muted); }
+
+  /* Highlights */
+  #app [data-gym-hit] { outline: 3px solid #1e8fff !important; outline-offset: 2px; box-shadow: 0 0 0 7px rgba(30,143,255,.18) !important; animation: hitpulse 1.4s ease-in-out infinite; position: relative; }
+  #app [data-gym-hit].is-target { outline-color: #6dbb1a !important; box-shadow: 0 0 0 7px rgba(109,187,26,.22) !important; }
+  @keyframes hitpulse { 50% { outline-offset: 5px; } }
+
+  @media (max-width: 1080px) {
+    main.gym { grid-template-columns: minmax(0, 1fr); }
+    .stage { order: 0; }
+    .trainer .card.sticky { position: sticky; top: 0; z-index: 20; box-shadow: 0 10px 30px -12px rgba(0,0,0,.8); }
+  }
+  @media (max-width: 720px) {
+    header.top { padding: 50px 16px 12px; }
+    main.gym { padding: 12px; gap: 14px; }
+    #app .tp-main { grid-template-columns: minmax(0, 1fr); padding: 14px 12px; }
+    #app .tp-header { padding: 12px; }
+    #app .grid2 { grid-template-columns: minmax(0, 1fr); }
+    .trainer .card.sticky { position: static; }
+
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #app [data-gym-hit] { animation: none; }
+    * { transition: none !important; scroll-behavior: auto !important; }
+  }
+</style>
+</head>
+<body>
+<a href="../index.html#lab" class="back" data-testid="back-link">← Zac's Lab</a>
+
+<header class="top">
+  <div class="brand">
+    <h1>Selector <span>Gym</span></h1>
+    <p>Reps for your Playwright locators. Type one, watch it hit.</p>
+  </div>
+  <div class="scoreboard">
+    <div class="pill score">score<b data-testid="score">0</b><span style="color:#5d6578">/100</span></div>
+    <div class="pill">cleared<b data-testid="cleared">0</b>/10</div>
+  </div>
+</header>
+
+<main class="gym">
+  <!-- ======= Trainer ======= -->
+  <div class="trainer">
+    <div class="card sticky">
+      <div class="challenge-head">
+        <span class="challenge-num" data-testid="challenge-num">Challenge 1 / 10</span>
+        <span class="status-badge" data-testid="challenge-status">not yet</span>
+      </div>
+      <h2 class="challenge-title" data-testid="challenge-title"></h2>
+      <p class="challenge-desc" data-testid="challenge-desc"></p>
+
+      <div class="editor">
+        <label for="locator">Locator expression</label>
+        <div class="input-wrap">
+          <span class="prefix" aria-hidden="true">page.</span>
+          <input id="locator" data-testid="locator-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"
+                 placeholder="getByRole('button', { name: 'Place order' })">
+        </div>
+        <div class="row">
+          <button class="btn primary" type="button" data-testid="check-btn">Check answer</button>
+          <button class="btn" type="button" data-testid="hint-btn" aria-expanded="false" aria-controls="hint">Hint</button>
+          <button class="btn" type="button" data-testid="answer-btn">Show answer</button>
+          <button class="btn" type="button" data-testid="next-btn">Next →</button>
+        </div>
+        <div class="readout" aria-live="polite">
+          <span class="count none" data-testid="match-count">0 matches</span>
+          <span class="error" data-testid="parse-error"></span>
+        </div>
+        <ul class="matches" data-testid="match-list" aria-label="Matched elements"></ul>
+        <div class="feedback" data-testid="feedback" role="status" aria-live="polite"></div>
+        <div class="hint" id="hint" data-testid="hint" hidden></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="panel-label"><span>The ladder</span><span data-testid="points-hint">10 pts semantic · 4 pts CSS</span></p>
+      <ol class="ladder" data-testid="ladder"></ol>
+    </div>
+
+    <div class="card why">
+      <h2>Why role-based locators win</h2>
+      <ul>
+        <li><strong>They read like the user.</strong> <code>getByRole('button', {name: 'Place order'})</code> is how a person (and a screen reader) finds that control. If it breaks, the UI probably broke for real users too.</li>
+        <li><strong>They survive refactors.</strong> Class names like <code>.css-9f3k1</code> are build artefacts; they change when someone swaps a CSS-in-JS library. Roles and labels change only when the product changes.</li>
+        <li><strong>They test accessibility for free.</strong> An unlabeled input simply can't be found by <code>getByLabel</code> — your test fails exactly where an a11y audit would.</li>
+        <li><strong>Test IDs are the escape hatch.</strong> Stable and explicit, but invisible to users. Reach for them when no accessible handle exists (a price readout, a canvas).</li>
+      </ul>
+      <p class="cheat">
+        <span>getByRole</span>(role, {name, exact, disabled, checked, level})<br>
+        <span>getByLabel</span> · <span>getByText</span> · <span>getByPlaceholder</span> · <span>getByTestId</span><br>
+        <span>locator</span>('css') · chain with <span>.</span> · <span>.filter</span>({hasText}) · <span>.first()</span> <span>.last()</span> <span>.nth(i)</span><br>
+        Names: <span>'text'</span> = case-insensitive substring · <span>/regex/i</span> · <span>exact: true</span>
+      </p>
+    </div>
+  </div>
+
+  <!-- ======= Stage: the mock app ======= -->
+  <div class="stage">
+    <p class="panel-label"><span>System under test</span><span>real DOM · try Tab</span></p>
+    <div class="browser">
+      <div class="chrome"><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div><div class="url">https://tallowandpine.example/checkout</div></div>
+      <div id="app" data-testid="mock-app">
+        <header class="tp-header">
+          <a href="#" class="tp-logo css-a81kq">Tallow &amp; Pine <small>outfitters</small></a>
+          <nav aria-label="Primary">
+            <ul><li><a href="#">Shop</a></li><li><a href="#">Journal</a></li><li><a href="#">Help</a></li></ul>
+          </nav>
+        </header>
+        <form class="tp-main" id="checkout" novalidate>
+          <h1>Checkout</h1>
+          <div class="tp-col">
+            <section aria-labelledby="cart-h">
+              <h2 id="cart-h">Your cart</h2>
+              <ul class="cart">
+                <li data-testid="cart-item"><span class="swatch" style="background:#9b7b52" aria-hidden="true"></span><span class="nm">Waxed canvas tote</span><span class="pr">$48.00</span><button type="button" class="x css-r3m0v" aria-label="Remove Waxed canvas tote">Remove</button></li>
+                <li data-testid="cart-item"><span class="swatch" style="background:#2f5d46" aria-hidden="true"></span><span class="nm">Enamel trail mug</span><span class="pr">$22.00</span><button type="button" class="x css-r3m0v" aria-label="Remove Enamel trail mug">Remove</button></li>
+                <li data-testid="cart-item"><span class="swatch" style="background:#b5532f" aria-hidden="true"></span><span class="nm">Wool camp socks</span><span class="pr">$18.00</span><button type="button" class="x css-r3m0v" aria-label="Remove Wool camp socks">Remove</button></li>
+              </ul>
+            </section>
+
+            <fieldset>
+              <legend>Shipping address</legend>
+              <div class="grid2">
+                <div class="fld full"><label for="s-name">Full name</label><input id="s-name" autocomplete="off" value="Juniper Hale"></div>
+                <div class="fld full"><label for="s-street">Street</label><input id="s-street" autocomplete="off" value="14 Larch Row"></div>
+                <div class="fld"><label for="s-city">City</label><input id="s-city" autocomplete="off" value="Bend"></div>
+                <div class="fld"><label for="s-zip">Postcode</label><input id="s-zip" autocomplete="off" value="97701"></div>
+              </div>
+              <button type="button" class="tp-btn css-9f3k1">Save</button>
+            </fieldset>
+
+            <fieldset>
+              <legend>Billing address</legend>
+              <label class="chk"><input type="checkbox" id="same" checked> Same as shipping</label>
+              <div class="grid2">
+                <div class="fld"><label for="b-city">City</label><input id="b-city" autocomplete="off" placeholder="City"></div>
+                <div class="fld"><label for="b-zip">Postcode</label><input id="b-zip" autocomplete="off" placeholder="Postcode"></div>
+              </div>
+              <button type="button" class="tp-btn css-9f3k1" disabled>Save</button>
+            </fieldset>
+
+            <fieldset class="radios">
+              <legend>Delivery</legend>
+              <label><input type="radio" name="ship" checked> Standard <span>free · 5–7 days</span></label>
+              <label><input type="radio" name="ship"> Express <span>$9 · 1–2 days</span></label>
+              <label><input type="radio" name="ship"> Store pickup <span>free · Bend</span></label>
+            </fieldset>
+          </div>
+
+          <div class="tp-col">
+            <fieldset>
+              <legend>Contact</legend>
+              <div class="fld"><label for="email">Email</label><input id="email" type="email" autocomplete="off" value="juniper@example.com"></div>
+              <div class="fld" style="margin-top:8px"><label for="phone">Phone <small>(optional)</small></label><input id="phone" type="tel" autocomplete="off" placeholder="+1 555 0100"></div>
+            </fieldset>
+
+            <aside aria-labelledby="sum-h">
+              <h2 id="sum-h">Order summary</h2>
+              <div class="promo">
+                <input type="text" placeholder="Promo code" class="css-p0x7" autocomplete="off" aria-label="Promo code">
+                <button type="button" class="tp-btn">Apply</button>
+              </div>
+              <dl>
+                <dt>Subtotal</dt><dd>$88.00</dd>
+                <dt>Shipping</dt><dd>Free</dd>
+                <dt>Tax</dt><dd>$7.04</dd>
+                <dt class="tot">Total</dt><dd class="tot" data-testid="order-total">$95.04</dd>
+              </dl>
+              <label class="chk"><input type="checkbox" id="news"> Subscribe to the Field Notes newsletter</label>
+              <label class="chk"><input type="checkbox" id="gift"> This is a gift</label>
+              <button type="submit" class="tp-btn solid css-q2w8e" id="placeOrder">Place order</button>
+            </aside>
+          </div>
+        </form>
+        <footer>
+          <a href="#">Returns</a><a href="#">Privacy</a><a href="#">Contact us</a><span>© Tallow &amp; Pine Outfitters (fictional)</span>
+        </footer>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s, r = document) => r.querySelector(s);
+  const app = $('#app');
+
+  // ---------------------------------------------------------------- Parser
+  class ParseError extends Error {}
+  function parse(src) {
+    let s = src.trim().replace(/;\s*$/, '');
+    s = s.replace(/^await\s+/, '').replace(/^page\s*\./, '');
+    let i = 0;
+    const ws = () => { while (i < s.length && /\s/.test(s[i])) i++; };
+    const fail = (msg) => { throw new ParseError(msg + (i < s.length ? ` (at "${s.slice(i, i + 12)}")` : ' (at end)')); };
+    function ident() {
+      ws(); const m = /^[A-Za-z_$][\w$]*/.exec(s.slice(i));
+      if (!m) fail('Expected a method name'); i += m[0].length; return m[0];
+    }
+    function str() {
+      const q = s[i]; i++; let out = '';
+      while (i < s.length && s[i] !== q) {
+        if (s[i] === '\\' && i + 1 < s.length) { out += s[i + 1]; i += 2; } else out += s[i++];
+      }
+      if (s[i] !== q) fail('Unterminated string'); i++; return out;
+    }
+    function regex() {
+      i++; let body = '', inClass = false;
+      while (i < s.length) {
+        const c = s[i];
+        if (c === '\\') { body += c + (s[i + 1] || ''); i += 2; continue; }
+        if (c === '[') inClass = true; else if (c === ']') inClass = false;
+        else if (c === '/' && !inClass) break;
+        body += c; i++;
+      }
+      if (s[i] !== '/') fail('Unterminated regex'); i++;
+      const fm = /^[dgimsuy]*/.exec(s.slice(i))[0]; i += fm.length;
+      try { return new RegExp(body, fm.replace('g', '')); } catch (e) { fail('Invalid regex: ' + e.message); }
+    }
+    function value() {
+      ws(); const c = s[i];
+      if (c === "'" || c === '"' || c === '`') return str();
+      if (c === '/') return regex();
+      if (c === '{') return obj();
+      const m = /^(-?\d+(\.\d+)?|true|false)/.exec(s.slice(i));
+      if (m) { i += m[0].length; return m[0] === 'true' ? true : m[0] === 'false' ? false : Number(m[0]); }
+      fail('Expected a string, /regex/, number or { options }');
+    }
+    function obj() {
+      i++; const o = {}; ws();
+      while (s[i] !== '}') {
+        ws(); let k;
+        if (s[i] === "'" || s[i] === '"') k = str(); else k = ident();
+        ws(); if (s[i] !== ':') fail(`Expected ":" after "${k}"`); i++;
+        o[k] = value(); ws();
+        if (s[i] === ',') { i++; ws(); } else if (s[i] !== '}') fail('Expected "," or "}"');
+        if (i >= s.length) fail('Unclosed {');
+      }
+      i++; return o;
+    }
+    const steps = [];
+    if (!s) return steps;
+    while (true) {
+      const name = ident(); ws();
+      if (s[i] !== '(') fail(`Expected "(" after ${name}`); i++; ws();
+      const args = [];
+      while (s[i] !== ')') {
+        args.push(value()); ws();
+        if (s[i] === ',') { i++; ws(); } else if (s[i] !== ')') fail('Expected "," or ")"');
+        if (i >= s.length) fail('Unclosed (');
+      }
+      i++; steps.push({ name, args }); ws();
+      if (i >= s.length) break;
+      if (s[i] === '.') { i++; continue; }
+      fail('Unexpected character');
+    }
+    return steps;
+  }
+
+  // ---------------------------------------------------------------- Accessibility model (simplified)
+  const norm = (t) => (t || '').replace(/\s+/g, ' ').trim();
+  function isHidden(el) {
+    for (let n = el; n && n !== app.parentNode; n = n.parentElement) {
+      if (n.hidden || n.getAttribute('aria-hidden') === 'true') return true;
+      const cs = getComputedStyle(n);
+      if (cs.display === 'none' || cs.visibility === 'hidden') return true;
+    }
+    return false;
+  }
+  function roleOf(el) {
+    const explicit = el.getAttribute('role');
+    if (explicit) return explicit.split(/\s+/)[0];
+    const tag = el.tagName.toLowerCase();
+    switch (tag) {
+      case 'button': return 'button';
+      case 'a': return el.hasAttribute('href') ? 'link' : null;
+      case 'input': {
+        const t = (el.getAttribute('type') || 'text').toLowerCase();
+        if (t === 'checkbox') return 'checkbox';
+        if (t === 'radio') return 'radio';
+        if (['button', 'submit', 'reset', 'image'].includes(t)) return 'button';
+        if (t === 'number') return 'spinbutton';
+        if (t === 'range') return 'slider';
+        if (t === 'search') return 'searchbox';
+        if (t === 'hidden' || t === 'password') return null;
+        return 'textbox';
+      }
+      case 'textarea': return 'textbox';
+      case 'select': return el.multiple ? 'listbox' : 'combobox';
+      case 'h1': case 'h2': case 'h3': case 'h4': case 'h5': case 'h6': return 'heading';
+      case 'img': return el.getAttribute('alt') === '' ? 'presentation' : 'img';
+      case 'ul': case 'ol': return 'list';
+      case 'li': return 'listitem';
+      case 'nav': return 'navigation';
+      case 'main': return 'main';
+      case 'header': return el.closest('article,aside,main,nav,section') ? null : 'banner';
+      case 'footer': return el.closest('article,aside,main,nav,section') ? null : 'contentinfo';
+      case 'aside': return 'complementary';
+      case 'section': return (el.hasAttribute('aria-label') || el.hasAttribute('aria-labelledby')) ? 'region' : null;
+      case 'form': return (el.hasAttribute('aria-label') || el.hasAttribute('aria-labelledby')) ? 'form' : null;
+      case 'fieldset': return 'group';
+      case 'dl': return 'list';
+      case 'dt': return 'term';
+      case 'dd': return 'definition';
+      case 'p': return 'paragraph';
+      case 'table': return 'table';
+      case 'tr': return 'row';
+      case 'td': return 'cell';
+      case 'th': return 'columnheader';
+      case 'dialog': return 'dialog';
+      case 'hr': return 'separator';
+      case 'output': return 'status';
+    }
+    return null;
+  }
+  const NAME_FROM_CONTENT = new Set(['button', 'link', 'heading', 'checkbox', 'radio', 'tab', 'option', 'cell', 'columnheader', 'switch', 'menuitem', 'listitem', 'term', 'tooltip']);
+  const CONTROL_TAGS = new Set(['INPUT', 'SELECT', 'TEXTAREA']);
+  function textOf(node, skipControls) {
+    let out = '';
+    for (const c of node.childNodes) {
+      if (c.nodeType === 3) out += c.nodeValue;
+      else if (c.nodeType === 1) {
+        if (c.getAttribute('aria-hidden') === 'true' || c.hidden) continue;
+        if (c.tagName === 'SCRIPT' || c.tagName === 'STYLE') continue;
+        if (skipControls && CONTROL_TAGS.has(c.tagName)) continue;
+        if (c.tagName === 'IMG') { out += ' ' + (c.getAttribute('alt') || '') + ' '; continue; }
+        const inline = /^(SPAN|B|STRONG|EM|I|SMALL|A|CODE|LABEL)$/.test(c.tagName);
+        out += (inline ? '' : ' ') + textOf(c, skipControls) + (inline ? '' : ' ');
+      }
+    }
+    return out;
+  }
+  function labelledBy(el) {
+    const ids = el.getAttribute('aria-labelledby');
+    if (!ids) return null;
+    return norm(ids.split(/\s+/).map(id => { const t = document.getElementById(id); return t ? textOf(t) : ''; }).join(' '));
+  }
+  function labelTexts(el) {
+    const out = [];
+    const lb = labelledBy(el); if (lb) out.push(lb);
+    const al = el.getAttribute('aria-label'); if (al) out.push(norm(al));
+    if (el.labels) for (const l of el.labels) out.push(norm(textOf(l, true)));
+    return out.filter(Boolean);
+  }
+  function accName(el) {
+    const lb = labelledBy(el); if (lb) return lb;
+    const al = el.getAttribute('aria-label'); if (al && norm(al)) return norm(al);
+    const tag = el.tagName;
+    if (CONTROL_TAGS.has(tag)) {
+      const t = (el.getAttribute('type') || '').toLowerCase();
+      if (tag === 'INPUT' && ['submit', 'button', 'reset'].includes(t)) return norm(el.value || (t === 'submit' ? 'Submit' : ''));
+      if (el.labels && el.labels.length) return norm([...el.labels].map(l => textOf(l, true)).join(' '));
+      return norm(el.getAttribute('title') || el.getAttribute('placeholder') || '');
+    }
+    if (tag === 'IMG') return norm(el.getAttribute('alt') || el.getAttribute('title') || '');
+    if (tag === 'FIELDSET') { const lg = el.querySelector(':scope > legend'); if (lg) return norm(textOf(lg)); }
+    const role = roleOf(el);
+    if (role && NAME_FROM_CONTENT.has(role)) return norm(textOf(el));
+    return norm(el.getAttribute('title') || '');
+  }
+  function textMatch(actual, expected, exact) {
+    if (expected instanceof RegExp) return expected.test(actual);
+    const a = norm(actual), e = norm(String(expected));
+    return exact ? a === e : a.toLowerCase().includes(e.toLowerCase());
+  }
+  const isDisabled = (el) => el.matches(':disabled') || !!el.closest('[aria-disabled="true"]');
+  const isChecked = (el) => el.getAttribute('aria-checked') ? el.getAttribute('aria-checked') === 'true' : !!el.checked;
+
+  // ---------------------------------------------------------------- Engine
+  const descendants = (scope) => [...scope.querySelectorAll('*')];
+  function docOrder(list) {
+    const uniq = [...new Set(list)];
+    return uniq.sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1);
+  }
+  function need(args, n, name) {
+    if (args.length < n) throw new ParseError(`${name}() needs ${n === 1 ? 'an argument' : n + ' arguments'}`);
+  }
+  const needText = (v, name) => {
+    if (typeof v !== 'string' && !(v instanceof RegExp)) throw new ParseError(`${name}() expects a string or /regex/`);
+  };
+  const METHODS = {
+    getByRole(scopes, [role, opts = {}]) {
+      if (typeof role !== 'string') throw new ParseError("getByRole() expects a role string, e.g. 'button'");
+      const known = ['name', 'exact', 'disabled', 'checked', 'level', 'includeHidden', 'pressed', 'selected', 'expanded'];
+      for (const k of Object.keys(opts)) if (!known.includes(k)) throw new ParseError(`Unknown getByRole option "${k}"`);
+      return scopes.flatMap(sc => descendants(sc).filter(el => {
+        if (roleOf(el) !== role) return false;
+        if (!opts.includeHidden && isHidden(el)) return false;
+        if (opts.name !== undefined && !textMatch(accName(el), opts.name, opts.exact)) return false;
+        if (opts.disabled !== undefined && isDisabled(el) !== !!opts.disabled) return false;
+        if (opts.checked !== undefined && isChecked(el) !== !!opts.checked) return false;
+        if (opts.level !== undefined && Number(el.tagName[1] || el.getAttribute('aria-level')) !== opts.level) return false;
+        if (opts.pressed !== undefined && (el.getAttribute('aria-pressed') === 'true') !== !!opts.pressed) return false;
+        if (opts.expanded !== undefined && (el.getAttribute('aria-expanded') === 'true') !== !!opts.expanded) return false;
+        return true;
+      }));
+    },
+    getByLabel(scopes, [text, opts = {}]) {
+      needText(text, 'getByLabel');
+      return scopes.flatMap(sc => descendants(sc).filter(el => !isHidden(el) && labelTexts(el).some(t => textMatch(t, text, opts.exact))));
+    },
+    getByPlaceholder(scopes, [text, opts = {}]) {
+      needText(text, 'getByPlaceholder');
+      return scopes.flatMap(sc => descendants(sc).filter(el => el.hasAttribute('placeholder') && !isHidden(el) && textMatch(el.getAttribute('placeholder'), text, opts.exact)));
+    },
+    getByTestId(scopes, [id]) {
+      needText(id, 'getByTestId');
+      return scopes.flatMap(sc => descendants(sc).filter(el => {
+        const v = el.getAttribute('data-testid'); if (v === null) return false;
+        return id instanceof RegExp ? id.test(v) : v === id;
+      }));
+    },
+    getByText(scopes, [text, opts = {}]) {
+      needText(text, 'getByText');
+      return scopes.flatMap(sc => {
+        const hits = descendants(sc).filter(el => !['SCRIPT', 'STYLE'].includes(el.tagName) && !isHidden(el) && textMatch(textOf(el), text, opts.exact));
+        const set = new Set(hits);
+        // keep the innermost matching elements only
+        return hits.filter(el => ![...el.children].some(c => set.has(c)) && !hits.some(h => h !== el && el.contains(h)));
+      });
+    },
+    locator(scopes, [css]) {
+      if (typeof css !== 'string') throw new ParseError("locator() expects a CSS selector string");
+      return scopes.flatMap(sc => {
+        try { return [...sc.querySelectorAll(css)]; }
+        catch { throw new ParseError(`Invalid CSS selector: ${css}`); }
+      });
+    },
+    filter(scopes, [opts = {}]) {
+      return scopes.filter(el => {
+        const t = norm(textOf(el));
+        if (opts.hasText !== undefined && !textMatch(t, opts.hasText, false)) return false;
+        if (opts.hasNotText !== undefined && textMatch(t, opts.hasNotText, false)) return false;
+        return true;
+      });
+    },
+    first: (scopes) => scopes.slice(0, 1),
+    last: (scopes) => scopes.slice(-1),
+    nth(scopes, [n]) {
+      if (typeof n !== 'number') throw new ParseError('nth() expects a number');
+      const k = n < 0 ? scopes.length + n : n; return scopes[k] ? [scopes[k]] : [];
+    },
+  };
+  function run(steps) {
+    let current = [app];
+    for (const st of steps) {
+      const fn = METHODS[st.name];
+      if (!fn) throw new ParseError(`Unknown method "${st.name}". Try getByRole, getByLabel, getByText, getByPlaceholder, getByTestId or locator.`);
+      if (['getByRole', 'getByLabel', 'getByText', 'getByPlaceholder', 'getByTestId', 'locator'].includes(st.name)) need(st.args, 1, st.name);
+      current = docOrder(fn(current, st.args));
+    }
+    return current;
+  }
+  function describe(el) {
+    const role = roleOf(el); const name = accName(el);
+    if (role) return { r: role, n: name ? `"${name}"` : '' };
+    const cls = el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/)[0] : '';
+    return { r: `<${el.tagName.toLowerCase()}${cls}>`, n: norm(textOf(el)).slice(0, 40) };
+  }
+
+  // ---------------------------------------------------------------- Challenges
+  const T = (sel) => () => [...app.querySelectorAll(sel)];
+  const CH = [
+    { title: 'The big green button', desc: 'Select the <b>Place order</b> button — the one thing every checkout test clicks.',
+      target: T('#placeOrder'), answer: "getByRole('button', { name: 'Place order' })",
+      hint: 'Buttons expose the role <code>button</code>; their accessible name is their visible text. <code>getByRole(\'button\', { name: ... })</code> finds it the way a screen reader would.' },
+    { title: 'Label, not layout', desc: 'Select the <b>Email</b> input.',
+      target: T('#email'), answer: "getByLabel('Email')",
+      hint: 'The input is wired to a <code>&lt;label for&gt;</code>. <code>getByLabel</code> follows that association, so the test survives the field moving anywhere in the form.' },
+    { title: 'Pick a speed', desc: 'Select the <b>Express</b> delivery radio button.',
+      target: () => [app.querySelectorAll('input[name=ship]')[1]], answer: "getByRole('radio', { name: 'Express' })",
+      hint: 'Radios are role <code>radio</code>, named by the label that wraps them. A CSS answer here needs <code>:nth-of-type</code> — the most brittle selector there is.' },
+    { title: 'No label? Use the hint text', desc: 'Select the promo code box using its <b>placeholder</b>.',
+      target: T('.promo input'), answer: "getByPlaceholder('Promo code')",
+      hint: '<code>getByPlaceholder</code> matches the grey hint text. Handy — but a placeholder is not a real label, so prefer <code>getByLabel</code> when one exists.' },
+    { title: 'Headline act', desc: 'Select the <b>Order summary</b> heading (and only the heading).',
+      target: T('#sum-h'), answer: "getByRole('heading', { name: 'Order summary' })",
+      hint: '<code>getByText(\'Order summary\')</code> would also work here, but the heading role adds intent: you are asserting document structure, not just a string on screen.' },
+    { title: 'The escape hatch', desc: 'Select the order <b>total</b> amount. It has no role or label — but developers left a test id.',
+      target: T('[data-testid="order-total"]'), answer: "getByTestId('order-total')",
+      hint: 'A <code>&lt;dd&gt;</code> with a price has no useful accessible handle. <code>getByTestId</code> targets <code>data-testid</code>: explicit, stable, and ignored by users.' },
+    { title: 'The disabled Save', desc: 'There are two <b>Save</b> buttons. Select only the <b>disabled</b> one.',
+      target: () => [app.querySelectorAll('fieldset')[1].querySelector('.tp-btn')], answer: "getByRole('button', { name: 'Save', disabled: true })",
+      hint: 'Role filters go beyond the name: <code>{ disabled: true }</code>, <code>{ checked: true }</code>, <code>{ level: 2 }</code>. You are selecting by <em>state</em>, which is what the user perceives.' },
+    { title: 'Three identical “Remove” buttons', desc: 'Select the Remove button for the <b>Enamel trail mug</b>.',
+      target: () => [app.querySelectorAll('.cart .x')[1]], answer: "getByRole('button', { name: 'Remove Enamel trail mug' })",
+      hint: 'Each button carries an <code>aria-label</code> like “Remove Enamel trail mug”, which becomes its accessible name. Alternative: <code>getByRole(\'listitem\').filter({ hasText: \'mug\' }).getByRole(\'button\')</code>.' },
+    { title: 'Regex for the win', desc: 'Select the <b>newsletter</b> checkbox without typing its full label.',
+      target: T('#news'), answer: "getByRole('checkbox', { name: /newsletter/i })",
+      hint: 'Pass a regular expression as the name: <code>/newsletter/i</code>. Great when copy changes (“Field Notes newsletter” → “weekly newsletter”) but intent does not.' },
+    { title: 'Scope it', desc: 'Two fields are labelled <b>City</b>. Select the one in <b>Billing address</b>.',
+      target: T('#b-city'), answer: "getByRole('group', { name: 'Billing address' }).getByLabel('City')",
+      hint: 'A <code>&lt;fieldset&gt;</code> is role <code>group</code>, named by its legend. Chain locators to narrow the search: <code>getByRole(\'group\', ...).getByLabel(\'City\')</code>.' },
+  ];
+
+  const state = CH.map(() => ({ status: 'todo', points: 0, revealed: false }));
+  let idx = 0;
+  let lastMatches = [];
+
+  const el = {
+    input: $('[data-testid="locator-input"]'), count: $('[data-testid="match-count"]'), err: $('[data-testid="parse-error"]'),
+    list: $('[data-testid="match-list"]'), fb: $('[data-testid="feedback"]'), hint: $('[data-testid="hint"]'),
+    hintBtn: $('[data-testid="hint-btn"]'), ans: $('[data-testid="answer-btn"]'), check: $('[data-testid="check-btn"]'), next: $('[data-testid="next-btn"]'),
+    num: $('[data-testid="challenge-num"]'), title: $('[data-testid="challenge-title"]'), desc: $('[data-testid="challenge-desc"]'),
+    status: $('[data-testid="challenge-status"]'), ladder: $('[data-testid="ladder"]'), score: $('[data-testid="score"]'), cleared: $('[data-testid="cleared"]'),
+  };
+
+  function clearHits() { app.querySelectorAll('[data-gym-hit]').forEach(n => { n.removeAttribute('data-gym-hit'); n.classList.remove('is-target'); }); }
+  function evaluate() {
+    clearHits();
+    el.err.textContent = ''; el.list.innerHTML = '';
+    const src = el.input.value;
+    if (!src.trim()) { lastMatches = []; setCount(0); return null; }
+    try {
+      const steps = parse(src);
+      const found = run(steps);
+      lastMatches = found;
+      const targets = new Set(CH[idx].target());
+      found.forEach(n => { n.setAttribute('data-gym-hit', ''); if (targets.has(n)) n.classList.add('is-target'); });
+      setCount(found.length);
+      found.slice(0, 30).forEach(n => {
+        const d = describe(n); const li = document.createElement('li');
+        const r = document.createElement('span'); r.className = 'r'; r.textContent = d.r;
+        const nm = document.createElement('span'); nm.className = 'n'; nm.textContent = d.n ? ' ' + d.n : '';
+        li.append(r, nm); el.list.appendChild(li);
+      });
+      return steps;
+    } catch (e) {
+      lastMatches = [];
+      setCount(0);
+      el.err.textContent = e instanceof ParseError ? e.message : 'Could not evaluate that locator';
+      return null;
+    }
+  }
+  function setCount(n) {
+    el.count.textContent = n === 1 ? '1 match' : `${n} matches`;
+    el.count.className = 'count ' + (n === 0 ? 'none' : n === 1 ? 'one' : 'some');
+    el.count.dataset.count = String(n);
+  }
+
+  function check() {
+    const steps = evaluate();
+    const c = CH[idx], st = state[idx];
+    const targets = c.target();
+    const ok = steps && lastMatches.length === targets.length && targets.every(t => lastMatches.includes(t));
+    el.fb.className = 'feedback show';
+    if (!steps) {
+      el.fb.classList.add('fail');
+      el.fb.innerHTML = '<strong>Nothing to check yet.</strong>Type a locator that parses first.';
+      return;
+    }
+    if (!ok) {
+      el.fb.classList.add('fail');
+      const n = lastMatches.length;
+      const why = n === 0 ? 'It matched nothing — in a real test that is a timeout.'
+        : n > targets.length ? `It matched ${n} elements. Playwright would throw a strict-mode violation on click().`
+        : 'It matched the wrong element.';
+      el.fb.innerHTML = `<strong>Not quite.</strong>${why}`;
+      return;
+    }
+    const usesCss = steps.some(s => s.name === 'locator');
+    let pts = usesCss ? 4 : 10;
+    if (st.revealed) pts = Math.min(pts, 2);
+    const status = usesCss ? 'brittle' : 'pass';
+    if (pts > st.points) { st.points = pts; st.status = status; }
+    else if (st.status === 'todo') st.status = status;
+    el.fb.classList.add(usesCss ? 'brittle' : 'pass');
+    el.fb.innerHTML = usesCss
+      ? `<strong>Passes — but brittle (+${pts}).</strong>CSS classes and structure are implementation details. Try a role, label or text locator for full points.`
+      : `<strong>Clean hit! (+${pts})</strong>${st.revealed ? 'Answer was revealed, so partial credit. ' : ''}That locator describes what the user sees, so it survives refactors.`;
+    renderLadder(); renderScore(); renderStatus();
+  }
+
+  function renderStatus() {
+    const st = state[idx];
+    el.status.className = 'status-badge' + (st.status !== 'todo' ? ' ' + st.status : '');
+    el.status.textContent = st.status === 'pass' ? `cleared · ${st.points} pts` : st.status === 'brittle' ? `brittle · ${st.points} pts` : 'not yet';
+  }
+  function renderScore() {
+    el.score.textContent = state.reduce((a, s) => a + s.points, 0);
+    el.cleared.textContent = state.filter(s => s.status !== 'todo').length;
+  }
+  function renderLadder() {
+    el.ladder.innerHTML = '';
+    CH.forEach((c, k) => {
+      const li = document.createElement('li'); const b = document.createElement('button');
+      b.type = 'button'; b.textContent = String(k + 1); b.dataset.testid = 'ladder-' + (k + 1);
+      b.setAttribute('aria-label', `Challenge ${k + 1}: ${c.title} — ${state[k].status === 'todo' ? 'not cleared' : state[k].status}`);
+      if (state[k].status !== 'todo') b.classList.add(state[k].status);
+      if (k === idx) b.setAttribute('aria-current', 'step');
+      b.addEventListener('click', () => select(k));
+      li.appendChild(b); el.ladder.appendChild(li);
+    });
+  }
+  function select(k) {
+    idx = k;
+    const c = CH[k];
+    el.num.textContent = `Challenge ${k + 1} / ${CH.length}`;
+    el.title.textContent = c.title;
+    el.desc.innerHTML = c.desc;
+    el.hint.hidden = true; el.hint.innerHTML = c.hint; el.hintBtn.setAttribute('aria-expanded', 'false');
+    el.fb.className = 'feedback'; el.fb.textContent = '';
+    el.input.value = '';
+    evaluate(); renderLadder(); renderStatus();
+  }
+
+  let t;
+  el.input.addEventListener('input', () => { clearTimeout(t); t = setTimeout(evaluate, 90); });
+  el.input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(t); check(); } });
+  el.check.addEventListener('click', () => { clearTimeout(t); check(); });
+  el.hintBtn.addEventListener('click', () => {
+    el.hint.hidden = !el.hint.hidden; el.hintBtn.setAttribute('aria-expanded', String(!el.hint.hidden));
+  });
+  el.ans.addEventListener('click', () => {
+    state[idx].revealed = true;
+    el.input.value = CH[idx].answer; evaluate(); el.input.focus();
+    el.hint.hidden = false; el.hintBtn.setAttribute('aria-expanded', 'true');
+  });
+  el.next.addEventListener('click', () => select((idx + 1) % CH.length));
+
+  // Keep the mock app inert: no navigation, no submit.
+  app.addEventListener('click', (e) => { if (e.target.closest('a')) e.preventDefault(); });
+  $('#checkout').addEventListener('submit', (e) => e.preventDefault());
+  $('#same').addEventListener('change', (e) => {
+    // toggling "same as shipping" enables the billing Save button — a live state change to locate against
+    app.querySelectorAll('fieldset')[1].querySelector('.tp-btn').disabled = e.target.checked;
+    evaluate();
+  });
+
+  // Test hook
+  window.__gym = { parse: (s) => parse(s), run: (s) => run(parse(s)).length };
+  select(0);
+})();
+</script>
+</body>
+</html>

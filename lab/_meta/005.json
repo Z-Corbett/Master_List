@@ -1,0 +1,41 @@
+{
+  "id": "005",
+  "slug": "005-agent-loop",
+  "file": "lab/005-agent-loop.html",
+  "title": "Agent Loop — Inside a Coding Agent",
+  "category": "AI & Agents",
+  "tags": [
+    "svg",
+    "simulation",
+    "agents",
+    "tdd",
+    "explainer"
+  ],
+  "description": "A step-through simulation of an AI coding agent working a ticket: a circular Plan → Read → Edit → Run tests → Observe → Done diagram lights up while a scripted transcript, a live diff and a test panel go from red to green. Play, pause, step, change speed, and switch between fixing a failing test, adding a feature test-first, and a refactor that catches its own regression.",
+  "prompt": "Build me a single-file, animated explainer of what a coding agent actually does when it fixes a bug. I want a circular loop diagram — Plan, Read, Edit, Run tests, Observe, Done — that lights up as a scripted session plays in a terminal pane, next to a file-diff pane and a test-results pane that goes red to green. Give it play/pause, step, speed and restart controls, three scenarios (fix a failing test, add a feature, refactor with tests), and running token and tool-call counters. Keep it purely scripted: no network, no model calls, and make the scripts realistic enough that an engineer nods along.",
+  "qa": {
+    "methodology": [
+      "State-machine testing: every scenario is a fixed script, so the oracle for any step N is known in advance (active loop node, test summary, counters) and asserted via data-testid/data-active attributes rather than colours.",
+      "Timing isolated with page.clock: Play is verified by advancing the fake clock and checking step progression, pause stability, and auto-stop at the final step.",
+      "Cumulative-counter checks: tokens and tool calls are asserted at exact values after specific steps and after Restart to catch double-counting on re-render.",
+      "Scenario isolation: switching scenarios mid-run must reset step, counters and test list to the new script's shape (3 vs 4 tests).",
+      "Content oracles on the diff pane: added/removed lines are exposed with diff-add/diff-del test ids so the edit step is checked for the actual code change, not just visibility.",
+      "Visual review at 1280px and 390px for the SVG diagram, terminal overflow and diff horizontal scrolling."
+    ],
+    "risks": [
+      "Play timer racing a manual Step or scenario switch, leading to double advances or a zombie timeout after restart.",
+      "Derived state drift: counters or test statuses computed incrementally instead of replayed from the script would diverge after restart.",
+      "Long diff lines forcing horizontal page scroll on narrow phones.",
+      "Comet rotation spinning backwards or accumulating wrongly when the phase jumps around the loop."
+    ],
+    "playwright": "Stepping was trivial to automate because the page renders all state from a pure replay of the script, so every assertion hangs off data-testid and data-active attributes. The hard part was Play: page.clock.install() on its own keeps the fake clock ticking in real time, so exact step counts after runFor() were flaky on a loaded machine (one mobile run overshot to the end). The fix was install() followed by clock.pauseAt(), so only runFor() moves time; the spec then asserts exact counts, pauses, and proves that another 5 s of fake time changes nothing. The SVG loop is checked through attributes on each node group, not pixels, so toHaveScreenshot was deliberately avoided — the comet and pulse animations would make snapshots noisy. Diff content is asserted by text on diff-add/diff-del rows, which is a stronger oracle than a screenshot.",
+    "coverage": [
+      "Step through the full 'fix' scenario: plan → failing run → … → done, summary red then green, Step disabled at end",
+      "Edit step renders one removed and one added line with the exact fix",
+      "Token and tool-call counters accumulate exactly and reset on Restart",
+      "Play at 2× speed advances on the fake clock, Pause holds position, playback auto-stops at 10/10",
+      "Switching scenarios resets progress and loads the TDD script whose new tests fail first"
+    ]
+  },
+  "a11y": "All controls are native buttons and a labelled select, with Space/→/R shortcuts that don't hijack focused controls; the transcript is a role=\"log\" live region and each step is also announced through a polite live region. Test statuses carry screen-reader text in addition to colour and icon."
+}

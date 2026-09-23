@@ -1,0 +1,35 @@
+{
+  "id": "012",
+  "slug": "012-keyboard-reborn",
+  "file": "lab/012-keyboard-reborn.html",
+  "title": "Keyboard Reborn — CSS Keyboard, Synth & Typing Test",
+  "category": "Audio",
+  "tags": ["css-art", "web-audio", "keyboard-events", "typing-test", "responsive"],
+  "description": "A realistic low-profile aluminum keyboard built entirely from CSS gradients and shadows that mirrors your physical keypresses, with a graphite finish option. Switch to synth mode to play it as a Web Audio instrument with waveforms, octave shift and an oscilloscope, or take a typing test that tracks WPM and accuracy.",
+  "prompt": "Remake my old CSS Apple-style keyboard replica as 'Keyboard Reborn': a beautifully rendered, realistic aluminum low-profile keyboard in pure CSS — no images — where pressing keys on my physical keyboard animates the matching keys. Add a synth mode where the keys play notes through Web Audio (only after a user gesture), and a typing-speed test mode with WPM and accuracy. It has to be responsive: on phones the board scales down and the virtual keys are tappable. No brand logos, one self-contained HTML file.",
+  "qa": {
+    "methodology": [
+      "Event mirroring: keyboard.down/up on letters, modifiers and arrows must toggle the matching key's .down class and update the last-key readout.",
+      "Pointer path: tapping virtual keys works on the touch profile and releases cleanly (no stuck keys).",
+      "Audio gating: the AudioContext must not exist until a key gesture; voices are counted through a small window hook and note frequencies are asserted as text.",
+      "Time-controlled typing test: page.clock pauses time so exactly 60 s separates the first and last keystroke, making WPM an exact oracle.",
+      "Typing error handling: wrong characters are marked, backspace corrects them, accuracy counts every keystroke, and Esc deals a new passage.",
+      "Visual review of both finishes at 1280px and 390px, plus reduced motion (flat board, no caret blink)."
+    ],
+    "risks": [
+      "Stuck keys when a keyup is swallowed (⌘ on macOS, window blur, pointer leaving a key).",
+      "Autoplay policy leaving the AudioContext suspended.",
+      "Space/Tab default actions scrolling the page or stealing focus mid-test.",
+      "Keys becoming too small to tap at 360px."
+    ],
+    "playwright": "Keyboard events are Playwright's strong suit: keyboard.down/up give precise control over held keys, which is exactly what the pressed-state animation needs. Audio can't be heard in CI, so the spec checks the gate (audioState 'none' before a gesture), live voice counts and the displayed pitch instead of sound. Timing was the tricky part: an installed but running clock still counted real typing latency, so the test uses page.clock.pauseAt() plus runFor(60_000) to make WPM deterministic. Typing about 110 characters through real key events is slow under load, so that one test gets a longer timeout and reduced motion to cut paint cost.",
+    "coverage": [
+      "Physical keypress mirroring and release",
+      "Tappable virtual keys and persisted finish toggle",
+      "Synth: gesture-gated audio, pitch mapping, octave shift",
+      "Typing test WPM/accuracy under a controlled clock",
+      "Typing mistakes, backspace and new passage"
+    ]
+  },
+  "a11y": "Modes are an ARIA tablist with arrow-key navigation, and every control is a native button with visible focus. The on-screen keys are real buttons kept out of the tab order because the physical keyboard is the primary input, and readouts sit in aria-live regions with the typing result announced as a status."
+}

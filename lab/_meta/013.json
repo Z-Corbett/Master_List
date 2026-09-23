@@ -1,0 +1,34 @@
+{
+  "id": "013",
+  "slug": "013-mempool-garden",
+  "file": "lab/013-mempool-garden.html",
+  "title": "Mempool Garden — how a block gets built",
+  "category": "Data Viz",
+  "tags": ["canvas", "bitcoin", "simulation", "svg-chart", "seeded-prng"],
+  "description": "A generative data-art simulation of a Bitcoin-style mempool: simulated transactions drift in as glowing seeds sized by vbytes and floated by fee rate, and roughly every ten simulated minutes a miner greedily packs everything above the waterline into a block. You can change the time warp and demand, trigger a fee spike, mine by hand, and watch the fee-rate histogram, next-block estimate and block tower react.",
+  "prompt": "I've been into Bitcoin for a long time and I want a piece of data art about how blocks actually get built. Simulate a mempool locally (no network, and label it clearly as a simulation): transactions drift in as glowing seeds sized by vbytes and coloured by fee rate in sat/vB. Roughly every ten simulated minutes (sped up, with a control) a block is mined by greedily packing the highest fee-rate transactions up to a size limit, and those seeds animate off into a block tower. Show a fee-rate histogram and a next-block estimate, make it deterministic with ?seed=, and keep it one self-contained HTML file.",
+  "qa": {
+    "methodology": [
+      "Correctness first: the block template is checked against an independent greedy-packing oracle written in the spec, not against the page's own function.",
+      "Invariant checks on every mined block: total vsize under the limit, no included tx left in the pool, and no higher-paying leftover that would still have fit.",
+      "Determinism: the same ?seed= must reproduce the identical initial mempool, and a different seed must not.",
+      "Time-dependent behaviour (scheduled blocks, pause) is driven with page.clock, so the ten-minute schedule runs in milliseconds.",
+      "Panel oracles: after a fee spike, 'min fee to get in' must equal the minimum fee rate in the template, and the top histogram bucket must grow.",
+      "Visual review of the canvas at 1280px and 390px by screenshot; pixels are not asserted."
+    ],
+    "risks": [
+      "Frame-rate coupling: large frame gaps (background tabs, fake clocks) would skip or double-mine blocks if the sim were stepped per frame instead of per event.",
+      "Mempool eviction reordering the pool and breaking template determinism.",
+      "Canvas cost growing with pool size and making the page janky on phones."
+    ],
+    "playwright": "The simulation is event-driven in simulated seconds, which made it very automatable: a read-only window.__mempool hook exposes the pool, blocks and template, so assertions compare real data instead of canvas pixels. Randomness is pinned with ?seed= and a mulberry32 PRNG, with a separate visual-only stream so animation never shifts the transaction sequence. Time was the hard part. Running page.clock.runFor over tens of seconds fired thousands of canvas frames and timed out, so the spec pauses the fake clock and uses fastForward, which delivers one large frame whose events are processed in order. toHaveScreenshot was avoided because the seeds bob and drift; the screenshots were reviewed by eye instead.",
+    "coverage": [
+      "Seeded determinism of the initial mempool",
+      "Manual mining matches an independent greedy oracle and respects the size limit",
+      "Automatic mining on the simulated schedule via page.clock",
+      "Pause freezes simulated time and arrivals, and play resumes them",
+      "Fee spike raises the next-block minimum fee and the top histogram bucket"
+    ]
+  },
+  "a11y": "All controls are native buttons, a select and a labelled range. Mined blocks and fee spikes are announced in a polite aria-live region, and the canvas numbers are repeated as text in the estimate panel, histogram titles and block cards."
+}

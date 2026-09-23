@@ -1,0 +1,34 @@
+{
+  "id": "016",
+  "slug": "016-tidewater",
+  "file": "lab/016-tidewater.html",
+  "title": "Tidewater — an ambient sound garden",
+  "category": "Audio",
+  "tags": ["web-audio", "canvas", "generative-music", "convolver", "keyboard"],
+  "description": "A generative ambient music toy: plant stones in a tide pool, and every ripple sweeping out from the centre rings each stone's note. A stone's angle sets its scale degree and its distance from the centre sets its octave. Switch between pentatonic, dorian and lydian, change tempo and reverb (a convolver with a generated impulse), or mute, using a mouse, touch or the keyboard.",
+  "prompt": "Make a generative ambient music toy with Web Audio that only starts after a user gesture. You plant stones on a tide-pool canvas; ripples sweep outward, and each stone plays a note from a chosen scale (pentatonic, dorian or lydian) when a ripple passes it. Give me tempo, reverb (a ConvolverNode with a generated impulse response, no samples) and mute controls, and make the water visuals beautiful. Expose window.__garden with the stones, scale and playing state so the tests never depend on hearing audio. One self-contained file.",
+  "qa": {
+    "methodology": [
+      "The pitch mapping is checked against an independent oracle in the spec (angle to scale degree, distance to octave) for all three scales, including retuning stones that are already planted.",
+      "Ripple and stone timing is tested deterministically: with a paused fake clock at 60 bpm, exactly two hits land in the first three seconds, and no new hits land once play stops and the ripples clear.",
+      "Tempo is tested by comparison (120 bpm must ring more than twice as often as 40 bpm in the same window) instead of by listening.",
+      "Audio is checked structurally: the graph is only built after the Play gesture, and mute ramps the master gain to about 0 when the context is running.",
+      "Keyboard planting via the arrow-key cursor and Enter is asserted down to the stone's pool coordinates.",
+      "Visual review of the pool at 1280px and 390px."
+    ],
+    "risks": [
+      "Autoplay policy: an AudioContext created before a gesture stays suspended.",
+      "Per-frame canvas cost (gradients, glows) starving fake-clock runs and low-end phones; the static layer is cached for this reason.",
+      "Floating-point boundaries between scale sectors and octave bands."
+    ],
+    "playwright": "Audio cannot be heard in CI, so the page exposes what it would play: a hit counter and recent-note list on window.__garden, driven by the same code path that schedules the oscillators. The first version redrew every gradient on every frame, and page.clock.runFor timed out under load. Caching the static pool layer and using sprite glows fixed that. The clock is installed and paused so ripple hits land at exact times. Canvas taps are converted from pool geometry (reported by the hook) into click positions, which works on both the desktop and touch projects. Pixel snapshots were avoided because the caustics animate continuously.",
+    "coverage": [
+      "Planting and lifting stones, and a refused centre tap, with announced notes",
+      "Scale switching retunes all stones (pentatonic, dorian, lydian)",
+      "Ripples ring stones only while playing, with exact hit counts",
+      "Tempo changes how often ripples ring, and mute ramps the master gain down",
+      "Planting and lifting with the keyboard cursor"
+    ]
+  },
+  "a11y": "The pool is a focusable application region with instructions. Arrow keys move a visible cursor that announces the note under it, and Enter or Space plants or lifts a stone. Scale is a radio group, tempo and reverb are labelled ranges with outputs, and mute is an aria-pressed toggle. Planting, lifting and scale changes are announced in a polite live region."
+}

@@ -1,0 +1,736 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rose Window — Generative Stained Glass</title>
+<meta name="description" content="A generative Gothic rose window with radial symmetry, lead came and jewel-tone glass. Move the sun and watch coloured light pools travel across the stone floor.">
+<style>
+  :root {
+    --nave: #14110f;
+    --stone: #2a2521;
+    --stone-hi: #4a4239;
+    --parchment: #efe4cf;
+    --vellum: #c9b99a;
+    --dim: #8f8272;
+    --gold: #d9a441;
+    --gold-hi: #f2c76b;
+    --ruby: #b3122a;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font-family: var(--serif);
+    color: var(--parchment);
+    background:
+      radial-gradient(1200px 600px at 30% -10%, rgba(217, 164, 65, .12), transparent 60%),
+      radial-gradient(900px 700px at 90% 110%, rgba(40, 60, 140, .14), transparent 60%),
+      var(--nave);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  .back {
+    position: fixed; top: 10px; left: 10px; z-index: 20;
+    font: 13px var(--sans); color: var(--vellum); text-decoration: none;
+    background: rgba(20, 17, 15, .82); border: 1px solid rgba(217, 164, 65, .3);
+    padding: 6px 12px; border-radius: 4px;
+  }
+  .back:hover { color: var(--gold-hi); border-color: var(--gold); }
+  :focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 3px; }
+
+  header { text-align: center; padding: 58px 16px 18px; }
+  header .eyebrow { font: 600 11px var(--sans); letter-spacing: .35em; text-transform: uppercase; color: var(--gold); }
+  header h1 { font-weight: 400; font-size: clamp(38px, 7vw, 68px); margin: 8px 0 6px; letter-spacing: .04em; }
+  header h1 span { color: var(--gold-hi); font-style: italic; }
+  header p { margin: 0 auto; max-width: 560px; color: var(--vellum); font-size: 16px; line-height: 1.55; }
+
+  .layout { max-width: 1100px; margin: 0 auto; padding: 0 16px 56px; display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; align-items: start; }
+  @media (max-width: 860px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+  .stage { position: relative; }
+  .frame {
+    position: relative; border-radius: 6px; overflow: hidden;
+    box-shadow: 0 0 0 1px rgba(217, 164, 65, .25), 0 30px 60px -20px rgba(0, 0, 0, .8);
+    background: #0d0b0a;
+  }
+  canvas#scene { display: block; width: 100%; height: auto; aspect-ratio: 1000 / 1250; cursor: pointer; touch-action: manipulation; }
+  .caption { font: 12px var(--sans); color: var(--dim); margin-top: 8px; text-align: center; }
+
+  aside.panel {
+    background: linear-gradient(180deg, rgba(58, 50, 43, .55), rgba(30, 26, 23, .8));
+    border: 1px solid rgba(217, 164, 65, .2); border-radius: 6px; padding: 18px;
+  }
+  @media (min-width: 861px) { aside.panel { position: sticky; top: 16px; } }
+  .panel h2 { font-weight: 400; font-size: 20px; margin: 0 0 4px; }
+  .panel h3 { font: 600 11px var(--sans); letter-spacing: .22em; text-transform: uppercase; color: var(--gold); margin: 18px 0 8px; }
+  .sky { width: 100%; height: auto; display: block; touch-action: none; cursor: grab; border-radius: 4px; }
+  .sky:active { cursor: grabbing; }
+  input[type=range] { width: 100%; accent-color: var(--gold); }
+  .sunrow { display: flex; justify-content: space-between; font: 12px var(--sans); color: var(--dim); }
+  .btns { display: flex; flex-wrap: wrap; gap: 8px; }
+  button.b {
+    font: 600 13px var(--sans); cursor: pointer; color: var(--parchment);
+    background: rgba(20, 17, 15, .6); border: 1px solid rgba(217, 164, 65, .35);
+    padding: 8px 12px; border-radius: 4px;
+  }
+  button.b:hover { border-color: var(--gold-hi); color: var(--gold-hi); }
+  button.b.primary { background: var(--gold); color: #1d1408; border-color: var(--gold); }
+  button.b.primary:hover { background: var(--gold-hi); color: #1d1408; }
+  button.b[aria-pressed="true"] { background: var(--parchment); color: #1d1408; border-color: var(--parchment); }
+  .rings { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .ring-btn {
+    display: flex; align-items: center; gap: 8px; font: 13px var(--sans); color: var(--parchment);
+    background: rgba(20, 17, 15, .5); border: 1px solid rgba(239, 228, 207, .12); border-radius: 4px;
+    padding: 6px 8px; cursor: pointer; text-align: left;
+  }
+  .ring-btn:hover { border-color: var(--gold); }
+  .ring-btn i { width: 18px; height: 18px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 2px #151311, 0 0 8px rgba(255, 255, 255, .12); }
+  .ring-btn small { color: var(--dim); display: block; font-size: 11px; }
+  .meta { font: 12px var(--sans); color: var(--dim); margin-top: 14px; line-height: 1.6; }
+  .meta b { color: var(--vellum); font-weight: 600; }
+  .live { font: 13px var(--sans); color: var(--gold-hi); min-height: 1.4em; margin-top: 10px; }
+  footer { text-align: center; font: 12px var(--sans); color: var(--dim); padding: 0 16px 36px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<a href="../index.html#lab" class="back" data-testid="back-link">← Zac's Lab</a>
+<header>
+  <div class="eyebrow">Generative · Canvas</div>
+  <h1>Rose <span>Window</span></h1>
+  <p>Every seed raises a new Gothic rose: folded symmetry, leaded glass, jewel tones. Walk the sun across the sky and the coloured light walks across the floor.</p>
+</header>
+
+<div class="layout">
+  <div class="stage">
+    <div class="frame">
+      <canvas id="scene" width="1000" height="1250" data-testid="scene" role="img" aria-label="A stained-glass rose window above a stone floor lit by coloured light"></canvas>
+    </div>
+    <div class="caption">Tap or click any pane to recolour its ring.</div>
+  </div>
+
+  <aside class="panel" aria-label="Window controls">
+    <h2>The light</h2>
+    <svg class="sky" id="sky" viewBox="0 0 300 130" data-testid="sky" aria-hidden="true">
+      <defs>
+        <linearGradient id="skyg" x1="0" y1="0" x2="0" y2="1">
+          <stop id="sky-top" offset="0" stop-color="#27345e"/>
+          <stop id="sky-bot" offset="1" stop-color="#d98a4a"/>
+        </linearGradient>
+        <radialGradient id="sung"><stop offset="0" stop-color="#fff6d8"/><stop offset=".55" stop-color="#ffd27a"/><stop offset="1" stop-color="#ffb347" stop-opacity="0"/></radialGradient>
+      </defs>
+      <rect x="0" y="0" width="300" height="130" fill="url(#skyg)"/>
+      <path d="M20 112 A130 95 0 0 1 280 112" fill="none" stroke="rgba(255,255,255,.28)" stroke-dasharray="3 5"/>
+      <path d="M0 112 L40 104 L70 110 L110 100 L150 108 L200 98 L240 108 L300 102 L300 130 L0 130Z" fill="#14110f"/>
+      <text x="16" y="126" font-size="10" fill="#c9b99a" font-family="Segoe UI, sans-serif">E</text>
+      <text x="278" y="126" font-size="10" fill="#c9b99a" font-family="Segoe UI, sans-serif">W</text>
+      <circle id="sun-halo" r="22" fill="url(#sung)"/>
+      <circle id="sun" r="8" fill="#fff3c4"/>
+    </svg>
+    <label for="sunr" class="sunrow" style="margin-top:8px"><span>Sun position</span><span id="sun-time" data-testid="sun-time">Noon</span></label>
+    <input type="range" id="sunr" data-testid="sun-slider" min="0" max="100" step="1" value="30">
+    <div class="btns" style="margin-top:8px">
+      <button class="b" type="button" id="play" data-testid="play-day">Play a day</button>
+    </div>
+
+    <h3>Tracery</h3>
+    <div class="btns" role="group" aria-label="Symmetry folds">
+      <button class="b" type="button" data-folds="8" data-testid="fold-8" aria-pressed="false">8-fold</button>
+      <button class="b" type="button" data-folds="12" data-testid="fold-12" aria-pressed="false">12-fold</button>
+      <button class="b" type="button" data-folds="16" data-testid="fold-16" aria-pressed="false">16-fold</button>
+    </div>
+
+    <h3>Glass</h3>
+    <div class="rings" id="rings" data-testid="rings"></div>
+
+    <h3>Window</h3>
+    <div class="btns">
+      <button class="b primary" type="button" id="regen" data-testid="new-window">New window</button>
+      <button class="b" type="button" id="dl" data-testid="download">Download PNG</button>
+    </div>
+    <div class="live" aria-live="polite" id="live" data-testid="status"></div>
+    <div class="meta">Seed <b data-testid="seed" id="seed-out">—</b> · <b id="fold-out">—</b>-fold · <b id="ring-out">—</b> rings<br>Share it: the URL keeps <code>?seed=</code>.</div>
+  </aside>
+</div>
+<footer>Rose Window · a Lab experiment by Zac Corbett · drawn from scratch on canvas, no images.</footer>
+
+<script>
+(() => {
+  'use strict';
+  // ---------- utilities ----------
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  const TAU = Math.PI * 2;
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const GLASS = [
+    { name: 'ruby', hex: '#b3122a' }, { name: 'sapphire', hex: '#1846b8' }, { name: 'emerald', hex: '#13815a' },
+    { name: 'amber', hex: '#e39a1c' }, { name: 'amethyst', hex: '#6d2ea0' }, { name: 'cobalt', hex: '#0f2f8c' },
+    { name: 'rose', hex: '#cf2f6f' }, { name: 'teal', hex: '#0d7f86' }, { name: 'gold', hex: '#e8c24a' }
+  ];
+  const hexRgb = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+  function shade(hex, k) { // k>0 lighten toward white, k<0 darken toward black
+    const c = hexRgb(hex).map((v) => (k >= 0 ? v + (255 - v) * k : v * (1 + k)));
+    return `rgb(${c.map((v) => Math.round(Math.max(0, Math.min(255, v)))).join(',')})`;
+  }
+  const P = (r, a) => [Math.cos(a) * r, Math.sin(a) * r];
+
+  // ---------- state ----------
+  const params = new URLSearchParams(location.search);
+  let seed = Number.parseInt(params.get('seed'), 10);
+  if (!Number.isFinite(seed)) seed = Math.floor(Math.random() * 1e6);
+  let foldsOverride = [8, 12, 16].includes(Number(params.get('folds'))) ? Number(params.get('folds')) : null;
+  let sunT = 0.3;
+  let design = null;
+
+  // ---------- generation ----------
+  function generate(seed, foldsOverride) {
+    const r = mulberry32(seed);
+    const pick = [8, 12, 16][Math.floor(r() * 3)];
+    const folds = foldsOverride || pick;
+    const count = 4 + Math.floor(r() * 2);
+    const types = ['sector', 'petal', 'roundel', 'trefoil', 'lancet'];
+    const weights = Array.from({ length: count }, () => 0.7 + r() * 0.8);
+    const wsum = weights.reduce((a, b) => a + b, 0);
+    const inner = 0.15 + r() * 0.05, outer = 1;
+    const rings = [];
+    let prevType = null;
+    let edge = inner;
+    const used = new Set();
+    const center = { kind: 'oculus', r0: 0, r1: inner, primary: Math.floor(r() * GLASS.length), secondary: 0, star: r() < 0.5 ? folds / 2 : folds };
+    center.secondary = (center.primary + 3 + Math.floor(r() * 4)) % GLASS.length;
+    rings.push(center);
+    for (let i = 0; i < count; i++) {
+      let type;
+      do { type = types[Math.floor(r() * types.length)]; } while (type === prevType);
+      prevType = type;
+      const w = (weights[i] / wsum) * (outer - inner);
+      let primary;
+      do { primary = Math.floor(r() * GLASS.length); } while (used.has(primary) && used.size < GLASS.length - 1 && r() < 0.8);
+      used.add(primary);
+      let secondary = (primary + 2 + Math.floor(r() * 5)) % GLASS.length;
+      const jitter = Array.from({ length: folds * 2 }, () => r() * 0.2 - 0.1);
+      rings.push({ kind: type, r0: edge, r1: edge + w, primary, secondary, offset: r() < 0.5 ? 0 : 0.5, jitter });
+      edge += w;
+    }
+    const noiseSeed = Math.floor(r() * 1e9);
+    return { seed, folds, rings, noiseSeed };
+  }
+
+  // ---------- window renderer (offscreen) ----------
+  const S = 800, WR = 380, GR = 342; // canvas size, outer stone radius, glass radius
+  const win = document.createElement('canvas'); win.width = win.height = S;
+  const glassOnly = document.createElement('canvas'); glassOnly.width = glassOnly.height = S;
+  const wctx = win.getContext('2d');
+  let noiseCanvas = null;
+
+  function makeNoise(nseed) {
+    const r = mulberry32(nseed);
+    const small = document.createElement('canvas'); small.width = small.height = 160;
+    const sc = small.getContext('2d');
+    const img = sc.createImageData(160, 160);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const v = 90 + r() * 90;
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255;
+    }
+    sc.putImageData(img, 0, 0);
+    const big = document.createElement('canvas'); big.width = big.height = S;
+    const bc = big.getContext('2d');
+    bc.imageSmoothingEnabled = true;
+    bc.drawImage(small, 0, 0, S, S);
+    // fine seeds and bubbles
+    for (let i = 0; i < 2600; i++) {
+      bc.fillStyle = r() < 0.5 ? 'rgba(255,255,255,.35)' : 'rgba(0,0,0,.3)';
+      bc.beginPath(); bc.arc(r() * S, r() * S, r() * 1.6 + 0.3, 0, TAU); bc.fill();
+    }
+    // streaks, like hand-blown cylinder glass
+    bc.globalAlpha = 0.08;
+    for (let i = 0; i < 70; i++) {
+      bc.strokeStyle = r() < 0.5 ? '#fff' : '#000'; bc.lineWidth = 1 + r() * 3;
+      const y = r() * S;
+      bc.beginPath(); bc.moveTo(0, y); bc.bezierCurveTo(S * 0.3, y + r() * 40 - 20, S * 0.7, y + r() * 40 - 20, S, y + r() * 20 - 10); bc.stroke();
+    }
+    return big;
+  }
+
+  function sectorPath(c, r0, r1, a0, a1) {
+    c.beginPath(); c.arc(0, 0, r1, a0, a1); c.arc(0, 0, r0, a1, a0, true); c.closePath();
+  }
+  function archPath(c, r0, r1, a0, a1) {
+    const am = (a0 + a1) / 2, rm = r0 + (r1 - r0) * 0.72;
+    const A = P(r0, a0), B = P(r0, a1), T = P(r1, am);
+    const C1 = P(rm, a0), C2 = P(rm, a1);
+    c.beginPath(); c.moveTo(A[0], A[1]);
+    c.quadraticCurveTo(C1[0], C1[1], T[0], T[1]);
+    c.quadraticCurveTo(C2[0], C2[1], B[0], B[1]);
+    c.arc(0, 0, r0, a1, a0, true); c.closePath();
+  }
+  function glassFill(c, hex, j, cx, cy, rad) {
+    const g = c.createRadialGradient(cx - rad * 0.25, cy - rad * 0.25, rad * 0.05, cx, cy, rad * 1.1);
+    g.addColorStop(0, shade(hex, 0.32 + j));
+    g.addColorStop(0.6, shade(hex, j * 0.5));
+    g.addColorStop(1, shade(hex, -0.35 + j));
+    c.fillStyle = g; c.fill();
+  }
+  const leadQueue = [];
+  function lead(path) { leadQueue.push(path); }
+
+  function renderWindow() {
+    const c = wctx;
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.clearRect(0, 0, S, S);
+    c.translate(S / 2, S / 2);
+    leadQueue.length = 0;
+    const { folds, rings } = design;
+    const step = TAU / folds;
+
+    // backing glass so no gaps
+    c.beginPath(); c.arc(0, 0, GR, 0, TAU); c.fillStyle = '#10131f'; c.fill();
+
+    rings.forEach((ring, ri) => {
+      const r0 = ring.r0 * GR, r1 = ring.r1 * GR, rm = (r0 + r1) / 2;
+      const prim = GLASS[ring.primary].hex, sec = GLASS[ring.secondary].hex;
+      if (ring.kind === 'oculus') {
+        c.beginPath(); c.arc(0, 0, r1, 0, TAU); glassFill(c, sec, 0, 0, 0, r1);
+        lead((k) => { k.beginPath(); k.arc(0, 0, r1, 0, TAU); });
+        const n = ring.star;
+        c.beginPath();
+        for (let i = 0; i <= n * 2; i++) {
+          const a = -Math.PI / 2 + (i * Math.PI) / n; const rr = i % 2 ? r1 * 0.42 : r1 * 0.9;
+          const p = P(rr, a); i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]);
+        }
+        c.closePath(); glassFill(c, prim, 0.05, 0, 0, r1);
+        const starPath = new Path2D();
+        for (let i = 0; i <= n * 2; i++) {
+          const a = -Math.PI / 2 + (i * Math.PI) / n; const rr = i % 2 ? r1 * 0.42 : r1 * 0.9;
+          const p = P(rr, a); i ? starPath.lineTo(p[0], p[1]) : starPath.moveTo(p[0], p[1]);
+        }
+        starPath.closePath();
+        lead((k) => { k.beginPath(); k.stroke(starPath); });
+        c.beginPath(); c.arc(0, 0, r1 * 0.2, 0, TAU); glassFill(c, GLASS[(ring.primary + 4) % GLASS.length].hex, 0.1, 0, 0, r1 * 0.2);
+        lead((k) => { k.beginPath(); k.arc(0, 0, r1 * 0.2, 0, TAU); });
+        return;
+      }
+      const off = ring.offset * step - Math.PI / 2;
+      for (let k = 0; k < folds; k++) {
+        const a0 = off + k * step, a1 = a0 + step, am = (a0 + a1) / 2;
+        const j = ring.jitter[k] || 0, j2 = ring.jitter[k + folds] || 0;
+        const mc = P(rm, am);
+        // background sector
+        sectorPath(c, r0, r1, a0, a1);
+        const bgHex = ring.kind === 'sector' && k % 2 === 0 ? prim : sec;
+        glassFill(c, bgHex, j, mc[0], mc[1], (r1 - r0) * 0.9);
+        lead((x) => sectorPath(x, r0, r1, a0, a1));
+        if (ring.kind === 'sector') {
+          const rs = r0 + (r1 - r0) * 0.55;
+          sectorPath(c, rs, r1, a0 + step * 0.18, a1 - step * 0.18);
+          glassFill(c, bgHex === prim ? sec : prim, j2, mc[0], mc[1], (r1 - r0));
+          lead((x) => sectorPath(x, rs, r1, a0 + step * 0.18, a1 - step * 0.18));
+        } else if (ring.kind === 'petal') {
+          const pad = step * 0.06;
+          archPath(c, r0 + 2, r1 - 3, a0 + pad, a1 - pad);
+          glassFill(c, prim, j2, mc[0], mc[1], (r1 - r0) * 0.7);
+          lead((x) => archPath(x, r0 + 2, r1 - 3, a0 + pad, a1 - pad));
+          // small eye
+          const e = P(r0 + (r1 - r0) * 0.45, am), er = Math.min((r1 - r0) * 0.12, rm * step * 0.12);
+          c.beginPath(); c.arc(e[0], e[1], er, 0, TAU); glassFill(c, sec, 0.15, e[0], e[1], er);
+          lead((x) => { x.beginPath(); x.arc(e[0], e[1], er, 0, TAU); });
+        } else if (ring.kind === 'roundel') {
+          const rad = Math.min((r1 - r0) / 2, rm * Math.sin(step / 2)) * 0.84;
+          c.beginPath(); c.arc(mc[0], mc[1], rad, 0, TAU); glassFill(c, prim, j2, mc[0], mc[1], rad);
+          lead((x) => { x.beginPath(); x.arc(mc[0], mc[1], rad, 0, TAU); });
+          c.beginPath(); c.arc(mc[0], mc[1], rad * 0.45, 0, TAU); glassFill(c, sec, 0.2, mc[0], mc[1], rad * 0.45);
+          lead((x) => { x.beginPath(); x.arc(mc[0], mc[1], rad * 0.45, 0, TAU); });
+          // quatrefoil spokes
+          lead((x) => {
+            x.beginPath();
+            for (let q = 0; q < 4; q++) {
+              const a = am + (q * Math.PI) / 2; const p1 = P(rad * 0.45, a), p2 = P(rad, a);
+              x.moveTo(mc[0] + p1[0], mc[1] + p1[1]); x.lineTo(mc[0] + p2[0], mc[1] + p2[1]);
+            }
+          });
+        } else if (ring.kind === 'trefoil') {
+          const size = Math.min((r1 - r0) / 2, rm * Math.sin(step / 2)) * 0.9;
+          const lr = size * 0.48;
+          for (let q = 0; q < 3; q++) {
+            const a = am + Math.PI + (q * TAU) / 3; const p = P(size - lr, a);
+            c.beginPath(); c.arc(mc[0] + p[0], mc[1] + p[1], lr, 0, TAU); glassFill(c, prim, j2 + q * 0.04, mc[0] + p[0], mc[1] + p[1], lr);
+            lead((x) => { x.beginPath(); x.arc(mc[0] + p[0], mc[1] + p[1], lr, 0, TAU); });
+          }
+          c.beginPath(); c.arc(mc[0], mc[1], lr * 0.4, 0, TAU); glassFill(c, GLASS[8].hex, 0, mc[0], mc[1], lr * 0.4);
+          lead((x) => { x.beginPath(); x.arc(mc[0], mc[1], lr * 0.4, 0, TAU); });
+        } else if (ring.kind === 'lancet') {
+          const half = step / 2, pad = step * 0.05;
+          [[a0 + pad, am - pad * 0.5], [am + pad * 0.5, a1 - pad]].forEach(([b0, b1], q) => {
+            archPath(c, r0 + 2, r1 - 4, b0, b1);
+            glassFill(c, prim, j2 - q * 0.06, mc[0], mc[1], (r1 - r0) * 0.8);
+            lead((x) => archPath(x, r0 + 2, r1 - 4, b0, b1));
+          });
+          void half;
+        }
+      }
+      lead((x) => { x.beginPath(); x.arc(0, 0, r1, 0, TAU); });
+    });
+
+    // texture, clipped to glass
+    c.save();
+    c.beginPath(); c.arc(0, 0, GR, 0, TAU); c.clip();
+    c.globalCompositeOperation = 'overlay'; c.globalAlpha = 0.45;
+    c.drawImage(noiseCanvas, -S / 2, -S / 2);
+    c.restore();
+
+    // lead came: dark core then a soft highlight
+    c.lineJoin = 'round'; c.lineCap = 'round';
+    c.strokeStyle = '#141210'; c.lineWidth = 5.5;
+    leadQueue.forEach((fn) => { fn(c); c.stroke(); });
+    c.save(); c.translate(-0.8, -0.8);
+    c.strokeStyle = 'rgba(120,112,100,.55)'; c.lineWidth = 1.1;
+    leadQueue.forEach((fn) => { fn(c); c.stroke(); });
+    c.restore();
+
+    // keep a glass-only copy for projecting light onto the floor
+    { const g = glassOnly.getContext('2d'); g.clearRect(0, 0, S, S); g.drawImage(win, 0, 0); }
+
+    // stone tracery surround with cusping
+    c.beginPath(); c.arc(0, 0, WR, 0, TAU); c.arc(0, 0, GR, 0, TAU, true);
+    const sg = c.createRadialGradient(0, 0, GR, 0, 0, WR);
+    sg.addColorStop(0, '#6b6053'); sg.addColorStop(0.35, '#8c7f6d'); sg.addColorStop(0.7, '#5a5046'); sg.addColorStop(1, '#3a332c');
+    c.fillStyle = sg; c.fill();
+    const cusps = folds * 2;
+    for (let i = 0; i < cusps; i++) {
+      const a = (i / cusps) * TAU - Math.PI / 2;
+      const p = P(GR + 2, a); const cr = GR * Math.sin(Math.PI / cusps) * 0.95;
+      c.beginPath(); c.arc(p[0], p[1], cr, a + Math.PI / 2, a - Math.PI / 2, false);
+      c.fillStyle = '#6b6053'; c.fill();
+      c.strokeStyle = 'rgba(0,0,0,.45)'; c.lineWidth = 1.5; c.stroke();
+    }
+    [GR + 10, WR - 14, WR - 4].forEach((rr, i) => {
+      c.beginPath(); c.arc(0, 0, rr, 0, TAU);
+      c.strokeStyle = i === 1 ? 'rgba(255,240,210,.18)' : 'rgba(0,0,0,.4)'; c.lineWidth = 2; c.stroke();
+    });
+    c.setTransform(1, 0, 0, 1, 0, 0);
+  }
+
+  // ---------- scene ----------
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const CX = 500, CY = 400, RS = 330;   // window centre & outer radius on scene
+  const FY = 860;                       // floor line
+  const base = document.createElement('canvas'); base.width = W; base.height = H;
+  const bctx = base.getContext('2d');
+  let wallCanvas = null;
+  let beam = null;
+
+  function sunAngle(t) { return Math.PI * (0.08 + 0.84 * t); }
+  function elevation(t) { return Math.sin(sunAngle(t)); }
+
+  function makeWall() {
+    const wc = document.createElement('canvas'); wc.width = W; wc.height = H;
+    const c = wc.getContext('2d');
+    const r = mulberry32(design.seed ^ 0x5bd1e995);
+    c.fillStyle = '#3a342e'; c.fillRect(0, 0, W, FY);
+    const rowH = 52;
+    for (let y = 0, row = 0; y < FY; y += rowH, row++) {
+      let x = row % 2 ? -60 : 0;
+      while (x < W) {
+        const bw = 110 + r() * 70;
+        const l = 44 + r() * 14;
+        c.fillStyle = `hsl(30, ${8 + r() * 6}%, ${l * 0.55}%)`;
+        c.fillRect(x + 2, y + 2, bw - 4, rowH - 4);
+        c.fillStyle = 'rgba(255,240,220,.05)'; c.fillRect(x + 2, y + 2, bw - 4, 3);
+        x += bw;
+      }
+    }
+    // floor
+    const fg = c.createLinearGradient(0, FY, 0, H);
+    fg.addColorStop(0, '#221e1a'); fg.addColorStop(1, '#3b342d');
+    c.fillStyle = fg; c.fillRect(0, FY, W, H - FY);
+    c.strokeStyle = 'rgba(0,0,0,.55)'; c.lineWidth = 2;
+    const VX = CX, VY = FY - 520;
+    for (let i = -12; i <= 12; i++) {
+      const bx = CX + i * 150;
+      const t = (FY - VY) / (H - VY);
+      c.beginPath(); c.moveTo(VX + (bx - VX) * t, FY); c.lineTo(bx, H); c.stroke();
+    }
+    let y = FY + 14, gap = 22;
+    while (y < H) { c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); y += gap; gap *= 1.35; }
+    // floor tone variation
+    for (let i = 0; i < 90; i++) {
+      c.fillStyle = `rgba(${r() < 0.5 ? '255,235,210' : '0,0,0'},${r() * 0.05})`;
+      c.beginPath(); c.ellipse(r() * W, FY + r() * (H - FY), 40 + r() * 90, 8 + r() * 20, 0, 0, TAU); c.fill();
+    }
+    // skirting shadow & window recess
+    const sk = c.createLinearGradient(0, FY - 30, 0, FY + 40);
+    sk.addColorStop(0, 'rgba(0,0,0,0)'); sk.addColorStop(0.45, 'rgba(0,0,0,.55)'); sk.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = sk; c.fillRect(0, FY - 30, W, 70);
+    c.beginPath(); c.arc(CX, CY, RS + 26, 0, TAU);
+    const rg = c.createRadialGradient(CX, CY, RS - 10, CX, CY, RS + 30);
+    rg.addColorStop(0, '#0b0908'); rg.addColorStop(0.8, '#1d1916'); rg.addColorStop(1, 'rgba(29,25,22,0)');
+    c.fillStyle = rg; c.fill();
+    // label stone
+    c.fillStyle = 'rgba(0,0,0,.25)'; c.fillRect(CX - 120, FY - 110, 240, 44);
+    c.fillStyle = 'rgba(239,228,207,.35)'; c.font = 'italic 22px Palatino, Georgia, serif'; c.textAlign = 'center';
+    c.fillText(`Rosa · ${design.seed}`, CX, FY - 80);
+    return wc;
+  }
+
+  function poolGeometry(t) {
+    const el = elevation(t);
+    const px = CX + (0.5 - t) * 780;
+    const py = FY + 70 + (1 - el) * 250;
+    const w = RS * 2 * (0.78 + 0.35 * (1 - el));
+    const h = w * (0.2 + 0.2 * (1 - el));
+    const skew = (0.5 - t) * 1.4;
+    return { px, py, w, h, skew, el };
+  }
+
+  function renderBase() {
+    const c = bctx;
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; c.filter = 'none';
+    c.drawImage(wallCanvas, 0, 0);
+    const g = poolGeometry(sunT);
+    const el = g.el;
+
+    // window, darker when the sun is low, with a glint on the sun side
+    const scale = (RS * 2) / (WR * 2);
+    c.save();
+    c.translate(CX, CY); c.scale(scale, scale);
+    c.drawImage(win, -S / 2, -S / 2);
+    c.restore();
+    c.save();
+    c.beginPath(); c.arc(CX, CY, GR * scale, 0, TAU); c.clip();
+    c.fillStyle = `rgba(8,6,12,${(0.5 * (1 - el)).toFixed(3)})`; c.fillRect(CX - RS, CY - RS, RS * 2, RS * 2);
+    const sa = sunAngle(sunT);
+    const gx = CX - Math.cos(sa) * RS * 0.7, gy = CY - Math.sin(sa) * RS * 0.5;
+    const glow = c.createRadialGradient(gx, gy, 10, gx, gy, RS * 1.1);
+    glow.addColorStop(0, `rgba(255,236,190,${(0.28 * el + 0.08).toFixed(3)})`); glow.addColorStop(1, 'rgba(255,236,190,0)');
+    c.globalCompositeOperation = 'screen'; c.fillStyle = glow; c.fillRect(CX - RS, CY - RS, RS * 2, RS * 2);
+    c.restore();
+
+    // light beam volume: from window to pool
+    const topL = [CX - RS * 0.85, CY], topR = [CX + RS * 0.85, CY];
+    const botL = [g.px - g.w / 2, g.py], botR = [g.px + g.w / 2, g.py];
+    beam = [topL, topR, botR, botL];
+    c.save();
+    c.globalCompositeOperation = 'screen';
+    const bg = c.createLinearGradient(CX, CY, g.px, g.py);
+    bg.addColorStop(0, `rgba(255,220,170,${(0.1 * el + 0.02).toFixed(3)})`);
+    bg.addColorStop(1, `rgba(255,220,170,${(0.04 * el).toFixed(3)})`);
+    c.fillStyle = bg;
+    c.beginPath(); beam.forEach((p, i) => (i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]))); c.closePath(); c.fill();
+    c.restore();
+
+    // coloured pools on the floor: the window projected, sheared, blurred
+    c.save();
+    c.beginPath(); c.rect(0, FY, W, H - FY); c.clip();
+    c.globalCompositeOperation = 'screen';
+    c.globalAlpha = 0.35 + 0.6 * el;
+    c.filter = `blur(${(5 + (1 - el) * 6).toFixed(1)}px) saturate(1.6) brightness(1.3)`;
+    c.translate(g.px, g.py);
+    c.transform(1, 0, g.skew, 1, 0, 0);
+    c.scale(g.w / (GR * 2), g.h / (GR * 2));
+    c.beginPath(); c.arc(0, 0, GR, 0, TAU); c.clip();
+    c.drawImage(glassOnly, -S / 2, -S / 2);
+    c.restore();
+    c.save();
+    c.globalCompositeOperation = 'screen';
+    const pg = c.createRadialGradient(g.px, g.py, 0, g.px, g.py, g.w * 0.6);
+    pg.addColorStop(0, `rgba(255,230,190,${(0.12 * el).toFixed(3)})`); pg.addColorStop(1, 'rgba(255,230,190,0)');
+    c.fillStyle = pg; c.fillRect(0, FY, W, H - FY);
+    c.restore();
+
+    // room vignette
+    const vg = c.createRadialGradient(CX, H * 0.45, H * 0.3, CX, H * 0.5, H * 0.8);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.55)');
+    c.fillStyle = vg; c.fillRect(0, 0, W, H);
+
+    canvas.dataset.poolX = Math.round(g.px);
+    canvas.dataset.poolY = Math.round(g.py);
+  }
+
+  // dust motes drifting through the beam
+  const motes = Array.from({ length: 70 }, (_, i) => { const r = mulberry32(900 + i); return { u: r(), v: r(), s: 0.6 + r() * 1.8, sp: 0.2 + r() * 0.6, ph: r() * TAU }; });
+  function drawFrame(time) {
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.drawImage(base, 0, 0);
+    if (reduce || !beam) return;
+    const el = elevation(sunT);
+    ctx.save();
+    ctx.beginPath(); beam.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); ctx.closePath(); ctx.clip();
+    ctx.globalCompositeOperation = 'screen';
+    const [tl, tr, br, bl] = beam;
+    for (const m of motes) {
+      const v = (m.v + (time / 1000) * 0.01 * m.sp) % 1;
+      const u = m.u + Math.sin(time / 1500 + m.ph) * 0.02;
+      const x1 = tl[0] + (tr[0] - tl[0]) * u, y1 = tl[1] + (tr[1] - tl[1]) * u;
+      const x2 = bl[0] + (br[0] - bl[0]) * u, y2 = bl[1] + (br[1] - bl[1]) * u;
+      const x = x1 + (x2 - x1) * v, y = y1 + (y2 - y1) * v;
+      ctx.fillStyle = `rgba(255,238,200,${(0.25 + 0.35 * el) * (0.5 + 0.5 * Math.sin(time / 700 + m.ph))})`;
+      ctx.beginPath(); ctx.arc(x, y, m.s, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
+  }
+  function loop(ts) { drawFrame(ts); if (!reduce) requestAnimationFrame(loop); }
+
+  // ---------- UI ----------
+  const sunIn = document.getElementById('sunr');
+  const live = document.getElementById('live');
+  function sunLabel(t) {
+    const hour = 6 + t * 12; const h = Math.floor(hour), m = Math.round((hour - h) * 60 / 15) * 15;
+    const hh = (h + (m === 60 ? 1 : 0)), mm = m === 60 ? 0 : m;
+    const ap = hh >= 12 ? 'pm' : 'am'; const h12 = ((hh + 11) % 12) + 1;
+    return `${h12}:${String(mm).padStart(2, '0')} ${ap}`;
+  }
+  function updateSky() {
+    const a = sunAngle(sunT);
+    const x = 150 - 130 * Math.cos(a), y = 112 - 95 * Math.sin(a);
+    for (const id of ['sun', 'sun-halo']) { const el = document.getElementById(id); el.setAttribute('cx', x.toFixed(1)); el.setAttribute('cy', y.toFixed(1)); }
+    const el = Math.sin(a);
+    document.getElementById('sky-top').setAttribute('stop-color', `hsl(${220 - el * 10}, ${40 + el * 20}%, ${18 + el * 30}%)`);
+    document.getElementById('sky-bot').setAttribute('stop-color', `hsl(${25 + el * 170}, ${70 - el * 20}%, ${50 + el * 15}%)`);
+    document.getElementById('sun-time').textContent = sunLabel(sunT);
+    sunIn.setAttribute('aria-valuetext', `${sunLabel(sunT)}, sun ${sunT < 0.5 ? 'in the east' : sunT > 0.5 ? 'in the west' : 'overhead'}`);
+  }
+  function setSun(t) {
+    sunT = Math.max(0, Math.min(1, t));
+    sunIn.value = Math.round(sunT * 100);
+    updateSky(); renderBase(); drawFrame(performance.now());
+  }
+  sunIn.addEventListener('input', () => setSun(sunIn.valueAsNumber / 100));
+
+  const sky = document.getElementById('sky');
+  let dragging = false;
+  function skyToT(e) {
+    const r = sky.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width) * 300, y = ((e.clientY - r.top) / r.height) * 130;
+    let a = Math.atan2((112 - y) / 95, (150 - x) / 130);
+    if (a < 0) a = x < 150 ? 0 : Math.PI;
+    return (a / Math.PI - 0.08) / 0.84;
+  }
+  sky.addEventListener('pointerdown', (e) => { dragging = true; try { sky.setPointerCapture(e.pointerId); } catch (_) { /* noop */ } setSun(skyToT(e)); });
+  sky.addEventListener('pointermove', (e) => { if (dragging) setSun(skyToT(e)); });
+  const stopDrag = () => { dragging = false; };
+  sky.addEventListener('pointerup', stopDrag); sky.addEventListener('pointercancel', stopDrag);
+
+  let playTimer = null;
+  document.getElementById('play').addEventListener('click', (e) => {
+    const btn = e.currentTarget;
+    if (playTimer) { clearInterval(playTimer); playTimer = null; btn.textContent = 'Play a day'; return; }
+    let t = 0; btn.textContent = 'Stop';
+    const inc = reduce ? 0.1 : 0.004, every = reduce ? 500 : 30;
+    playTimer = setInterval(() => {
+      t += inc; setSun(t);
+      if (t >= 1) { clearInterval(playTimer); playTimer = null; btn.textContent = 'Play a day'; }
+    }, every);
+  });
+
+  function ringName(i) { return i === 0 ? 'Oculus' : `Ring ${i}`; }
+  function renderRingButtons() {
+    const box = document.getElementById('rings');
+    box.textContent = '';
+    design.rings.forEach((ring, i) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'ring-btn';
+      b.dataset.testid = ''; b.setAttribute('data-testid', `ring-btn-${i}`);
+      b.dataset.color = GLASS[ring.primary].name;
+      b.setAttribute('aria-label', `${ringName(i)}: ${GLASS[ring.primary].name} ${ring.kind}. Activate to recolour.`);
+      b.innerHTML = `<i style="background:${GLASS[ring.primary].hex}"></i><span>${ringName(i)}<small>${GLASS[ring.primary].name} · ${ring.kind}</small></span>`;
+      b.addEventListener('click', () => recolor(i, true));
+      box.appendChild(b);
+    });
+  }
+  function recolor(i, focusBack) {
+    const ring = design.rings[i];
+    ring.primary = (ring.primary + 1) % GLASS.length;
+    if (ring.primary === ring.secondary) ring.primary = (ring.primary + 1) % GLASS.length;
+    renderWindow(); renderBase(); drawFrame(performance.now());
+    renderRingButtons();
+    if (focusBack) { const b = document.querySelector(`[data-testid="ring-btn-${i}"]`); if (b) b.focus(); }
+    live.textContent = `${ringName(i)} is now ${GLASS[ring.primary].name}.`;
+  }
+
+  function hitRing(cssX, cssY) {
+    const r = canvas.getBoundingClientRect();
+    const x = (cssX / r.width) * W, y = (cssY / r.height) * H;
+    const d = Math.hypot(x - CX, y - CY) * (WR / RS); // into window-canvas units
+    if (d > GR) return -1;
+    const u = d / GR;
+    return design.rings.findIndex((ring) => u >= ring.r0 && u < ring.r1);
+  }
+  canvas.addEventListener('click', (e) => {
+    const r = canvas.getBoundingClientRect();
+    const i = hitRing(e.clientX - r.left, e.clientY - r.top);
+    if (i >= 0) recolor(i, false);
+  });
+
+  function build(newSeed) {
+    seed = newSeed;
+    design = generate(seed, foldsOverride);
+    noiseCanvas = makeNoise(design.noiseSeed);
+    wallCanvas = makeWall();
+    renderWindow(); renderBase(); drawFrame(performance.now());
+    renderRingButtons();
+    document.getElementById('seed-out').textContent = seed;
+    document.getElementById('fold-out').textContent = design.folds;
+    document.getElementById('ring-out').textContent = design.rings.length - 1;
+    document.querySelectorAll('[data-folds]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.folds) === design.folds)));
+    canvas.dataset.seed = seed; canvas.dataset.folds = design.folds;
+    canvas.setAttribute('aria-label', `Rose window, seed ${seed}: ${design.folds}-fold symmetry with ${design.rings.length - 1} rings of ${design.rings.map((r) => GLASS[r.primary].name).join(', ')} glass`);
+    try {
+      const u = new URL(location.href); u.searchParams.set('seed', seed);
+      if (foldsOverride) u.searchParams.set('folds', foldsOverride); else u.searchParams.delete('folds');
+      history.replaceState(null, '', u);
+    } catch (_) { /* file:// or sandbox */ }
+  }
+
+  document.getElementById('regen').addEventListener('click', () => {
+    const next = mulberry32(seed + 7919)();
+    foldsOverride = null;
+    build(Math.floor(next * 1e6));
+    live.textContent = `New window raised — seed ${seed}.`;
+  });
+  document.querySelectorAll('[data-folds]').forEach((b) => b.addEventListener('click', () => {
+    foldsOverride = Number(b.dataset.folds);
+    build(seed);
+    live.textContent = `Tracery redrawn with ${foldsOverride}-fold symmetry.`;
+  }));
+  document.getElementById('dl').addEventListener('click', () => {
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `rose-window-${seed}.png`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      live.textContent = 'PNG saved.';
+    }, 'image/png');
+  });
+
+  // test/debug hook: CSS-pixel point in the middle of ring i (top of the window)
+  window.__rose = {
+    get design() { return design; },
+    ringPoint(i) {
+      const ring = design.rings[i]; const r = canvas.getBoundingClientRect();
+      const u = i === 0 ? ring.r1 * 0.3 : (ring.r0 + ring.r1) / 2;
+      const d = (u * GR * RS) / WR;
+      return { x: (CX / W) * r.width, y: ((CY - d) / H) * r.height };
+    },
+    hitRing
+  };
+
+  build(seed);
+  setSun(sunT);
+  if (!reduce) requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

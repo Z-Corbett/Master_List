@@ -1,0 +1,41 @@
+{
+  "id": "006",
+  "slug": "006-prompt-diff",
+  "file": "lab/006-prompt-diff.html",
+  "title": "Prompt Diff — Compare & Lint Prompt Versions",
+  "category": "AI & Agents",
+  "tags": [
+    "diff",
+    "lcs",
+    "prompt-engineering",
+    "url-state",
+    "linting"
+  ],
+  "description": "A review tool for prompt changes: paste a before and after version to get a word-level diff (inline or side by side), a rough chars ÷ 4 token estimate for each, and a five-rule lint report card for vague wording, missing output format, missing examples, contradictions and run-on sentences. Both prompts are stored in the URL hash, so a copied link reopens the exact comparison.",
+  "prompt": "Build me a single-file tool for reviewing prompt changes the way I review code. Two textareas, version A and B, with a word-level diff that highlights insertions and deletions, inline or side by side. Show a rough token estimate for each using the chars/4 heuristic and label it clearly as an estimate. Add a 'prompt lint' panel with rule checks: ambiguous words like maybe or some, missing output format, missing examples, conflicting instructions, and very long sentences. Make the whole state shareable through the URL hash, and preload it with a good before/after example so it makes its point the moment it opens.",
+  "qa": {
+    "methodology": [
+      "Oracle-based unit-style checks through the UI: token estimates are compared against Math.ceil(value.length / 4) computed in the test from the textarea itself, not hard-coded.",
+      "Minimal-pair diff tests: two prompts that differ by exactly one word must produce exactly one <ins> and one <del> with those words, and identical input must report 100% similarity.",
+      "Rule-by-rule lint verification: a deliberately bad prompt must trip each targeted rule, and a rewritten prompt must clear all five, asserted through per-rule data-status attributes.",
+      "Round-trip persistence: state is written to the hash, the URL is opened in a fresh page, and both textareas plus the view mode must be restored, including non-ASCII text to exercise the UTF-8 base64 path.",
+      "Symmetry check: Swap must invert the added/removed counts, a cheap metamorphic test of the diff direction.",
+      "Visual review of wrapped highlights at 390px to make sure long deletions don't overflow horizontally."
+    ],
+    "risks": [
+      "UTF-8 handling in the base64 hash (emoji or smart quotes throwing in atob/btoa).",
+      "LCS cost on very long prompts; the DP table is O(n·m), so the code trims common prefix/suffix and falls back to a block replace above 4M cells.",
+      "Whitespace and newline attribution in inline mode producing doubled or missing line breaks around changes.",
+      "Lint heuristics producing false positives that make a good prompt look bad (e.g. 'some' inside another word)."
+    ],
+    "playwright": "This page is almost entirely deterministic text-in/text-out, so it is very friendly to Playwright: fill() on labelled textareas, then assert on data-testid counters and on the text of ins/del elements. The fiddly part was the debounced hash write, which is why the spec clicks the Share button (it flushes the hash immediately) and then uses toHaveURL with a regex instead of waiting on a timer. Clipboard permissions differ between the desktop and mobile projects, so the page falls back to execCommand and the test only asserts the toast wording, not clipboard contents. No screenshots are used; the ins/del markup is a stronger oracle than pixels for a diff.",
+    "coverage": [
+      "Preloaded example: diff renders, token estimates match chars ÷ 4, A grades F with 5 warnings, B grades A",
+      "One-word change produces exactly one insertion and one deletion; identical text reports 100% similar",
+      "Each lint rule flips between warn and pass for crafted inputs",
+      "Share link round-trips both prompts (with unicode) and the split view into a new page",
+      "Swap exchanges the textareas and inverts added/removed counts"
+    ]
+  },
+  "a11y": "Both textareas have visible labels, every action is a native button with a visible focus ring, and the view toggle uses aria-pressed. Diff statistics, lint scores and the copy confirmation are polite live regions, and each lint row includes screen-reader text for pass or warning rather than relying on colour."
+}

@@ -1,0 +1,624 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Loop — Inside a Coding Agent</title>
+<meta name="description" content="A step-through, animated simulation of an AI coding agent fixing a bug: watch the plan, read, edit, run, observe loop drive a terminal, a diff and a test suite from red to green.">
+<style>
+  :root {
+    --bg: #0c111b;
+    --bg-2: #111827;
+    --panel: #151d2c;
+    --panel-2: #1a2437;
+    --line: #26324a;
+    --ink: #e6ebf5;
+    --ink-dim: #9aa6bd;
+    --ink-faint: #64728c;
+    --amber: #ffb547;
+    --amber-soft: rgba(255, 181, 71, .16);
+    --green: #5fdc8f;
+    --green-soft: rgba(95, 220, 143, .13);
+    --red: #ff6b6b;
+    --red-soft: rgba(255, 107, 107, .13);
+    --cyan: #6cc7ff;
+    --violet: #b69cff;
+    --mono: ui-monospace, "SFMono-Regular", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background:
+      radial-gradient(1200px 600px at 85% -10%, rgba(108, 199, 255, .08), transparent 60%),
+      radial-gradient(900px 500px at -10% 110%, rgba(255, 181, 71, .07), transparent 60%),
+      var(--bg);
+    color: var(--ink);
+    font: 15px/1.5 var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  a { color: var(--cyan); }
+  :focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; border-radius: 6px; }
+  .back {
+    position: fixed; top: 12px; left: 12px; z-index: 20;
+    font: 600 12px/1 var(--mono); letter-spacing: .02em;
+    color: var(--ink-dim); text-decoration: none;
+    background: rgba(17, 24, 39, .85); border: 1px solid var(--line);
+    padding: 8px 11px; border-radius: 999px; backdrop-filter: blur(6px);
+  }
+  .back:hover { color: var(--amber); border-color: var(--amber); }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 60px 20px 40px; }
+  header.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 24px; margin-bottom: 20px; }
+  .eyebrow { font: 600 11px/1 var(--mono); letter-spacing: .18em; text-transform: uppercase; color: var(--amber); margin: 0 0 10px; }
+  h1 { font-size: clamp(28px, 4.4vw, 44px); line-height: 1.05; margin: 0; letter-spacing: -.02em; font-weight: 750; }
+  h1 span { color: var(--ink-faint); font-weight: 500; }
+  .lede { color: var(--ink-dim); margin: 10px 0 0; max-width: 60ch; }
+
+  .scenarios { display: flex; flex-wrap: wrap; gap: 8px; }
+  .scenarios button {
+    font: 600 13px/1.2 var(--sans); color: var(--ink-dim); cursor: pointer;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 9px 13px; text-align: left; transition: border-color .2s, color .2s, background .2s;
+  }
+  .scenarios button small { display: block; font: 500 11px/1.3 var(--mono); color: var(--ink-faint); margin-top: 3px; }
+  .scenarios button[aria-pressed="true"] { color: var(--ink); border-color: var(--amber); background: linear-gradient(180deg, var(--amber-soft), transparent); }
+  .scenarios button:hover { color: var(--ink); }
+
+  .layout { display: grid; grid-template-columns: minmax(300px, 380px) 1fr; gap: 18px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); min-width: 0; }
+  .card-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); font: 600 11px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); }
+  .dots { display: inline-flex; gap: 5px; }
+  .dots i { width: 9px; height: 9px; border-radius: 50%; background: #2c3852; display: block; }
+
+  /* ---- Loop diagram ---- */
+  .loop-card { padding: 14px 14px 16px; }
+  .loop-svg { width: 100%; height: auto; display: block; max-width: 340px; margin: 0 auto; }
+  .track { fill: none; stroke: var(--line); stroke-width: 2; stroke-dasharray: 3 7; }
+  .arc-done { fill: none; stroke: var(--amber); stroke-width: 2.5; stroke-linecap: round; opacity: .55; }
+  .node circle.bg { fill: var(--panel-2); stroke: var(--line); stroke-width: 2; transition: fill .35s, stroke .35s; }
+  .node text { fill: var(--ink-dim); font: 600 11px var(--sans); text-anchor: middle; transition: fill .35s; pointer-events: none; }
+  .node .glyph { fill: none; stroke: var(--ink-faint); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: stroke .35s; }
+  .node.visited circle.bg { stroke: #4a5a7a; }
+  .node.visited .glyph { stroke: var(--ink-dim); }
+  .node.active circle.bg { fill: #2a2413; stroke: var(--amber); }
+  .node.active .glyph { stroke: var(--amber); }
+  .node.active text { fill: var(--ink); }
+  .node.active .halo { opacity: 1; animation: pulse 1.6s ease-out infinite; }
+  .node .halo { fill: none; stroke: var(--amber); stroke-width: 2; opacity: 0; transform-box: fill-box; transform-origin: center; }
+  .node[data-phase="done"].active circle.bg { fill: #122a1d; stroke: var(--green); }
+  .node[data-phase="done"].active .glyph { stroke: var(--green); }
+  .node[data-phase="done"].active .halo { stroke: var(--green); }
+  @keyframes pulse { 0% { transform: scale(1); opacity: .9; } 100% { transform: scale(1.45); opacity: 0; } }
+  .comet-arm { transition: transform .7s cubic-bezier(.6, .05, .25, 1); transform-origin: 160px 160px; }
+  .comet { fill: var(--amber); filter: drop-shadow(0 0 6px var(--amber)); }
+  .center-phase { font: 700 20px var(--sans); fill: var(--ink); text-anchor: middle; }
+  .center-sub { font: 500 11px var(--mono); fill: var(--ink-faint); text-anchor: middle; letter-spacing: .08em; }
+
+  .task { margin: 12px 2px 0; padding: 12px 14px; border-radius: 10px; background: var(--bg-2); border: 1px dashed var(--line); font-size: 13.5px; color: var(--ink-dim); }
+  .task b { color: var(--ink); font-weight: 650; }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+  .stat { background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; min-width: 0; }
+  .stat .k { font: 600 10px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); }
+  .stat .v { font: 700 20px/1.2 var(--mono); margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .stat.tok .v { color: var(--violet); }
+  .stat.tool .v { color: var(--cyan); }
+  .meter { height: 4px; background: #202a3e; border-radius: 4px; margin-top: 7px; overflow: hidden; }
+  .meter i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--violet), var(--cyan)); transition: width .5s; }
+
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
+  .btn {
+    font: 650 13px/1 var(--sans); color: var(--ink); cursor: pointer;
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 9px;
+    padding: 10px 13px; display: inline-flex; align-items: center; gap: 7px; min-height: 40px;
+  }
+  .btn:hover:not(:disabled) { border-color: #3d4d6d; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn.primary { background: var(--amber); color: #1c1405; border-color: var(--amber); }
+  .btn svg { width: 14px; height: 14px; fill: currentColor; }
+  .speed { display: inline-flex; align-items: center; gap: 6px; font: 600 12px var(--mono); color: var(--ink-faint); margin-left: auto; }
+  .speed select { font: 600 13px var(--mono); color: var(--ink); background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 8px; min-height: 40px; }
+  .kbd-hint { font: 500 11px var(--mono); color: var(--ink-faint); margin: 10px 2px 0; }
+  kbd { font: inherit; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; color: var(--ink-dim); }
+
+  /* ---- Terminal ---- */
+  .right { display: grid; grid-template-rows: auto auto; gap: 18px; min-width: 0; }
+  .term-body {
+    height: 340px; overflow-y: auto; padding: 12px 14px 16px;
+    font: 13px/1.55 var(--mono); background: #0a0e16; border-radius: 0 0 var(--radius) var(--radius);
+    scrollbar-width: thin; scrollbar-color: #2c3852 transparent;
+  }
+  .ln { white-space: pre-wrap; word-break: break-word; margin: 0; }
+  .ln.new { animation: lnIn .35s ease-out both; }
+  @keyframes lnIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  .ln.agent { color: var(--ink); }
+  .ln.agent::before { content: "◆ "; color: var(--amber); }
+  .ln.think { color: var(--ink-faint); font-style: italic; }
+  .ln.think::before { content: "… "; }
+  .ln.tool { color: var(--cyan); }
+  .ln.tool::before { content: "⚙ "; }
+  .ln.cmd { color: var(--ink); }
+  .ln.cmd::before { content: "$ "; color: var(--green); }
+  .ln.out { color: var(--ink-dim); }
+  .ln.err { color: var(--red); }
+  .ln.ok { color: var(--green); }
+  .ln.sep { border-top: 1px dashed #1f2a40; margin: 8px 0; height: 0; }
+  .ln .ph { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; padding: 1px 6px; border-radius: 4px; background: var(--amber-soft); color: var(--amber); margin-right: 6px; font-style: normal; }
+  .cursor { display: inline-block; width: 8px; height: 15px; background: var(--amber); vertical-align: -2px; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .empty { color: var(--ink-faint); }
+
+  .lower { display: grid; grid-template-columns: 1.35fr 1fr; gap: 18px; min-width: 0; }
+  .diff-body { font: 12.5px/1.6 var(--mono); padding: 8px 0 10px; overflow-x: auto; min-height: 200px; }
+  .diff-file { color: var(--ink-dim); text-transform: none; letter-spacing: 0; font-weight: 600; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dl { display: grid; grid-template-columns: 34px 16px 1fr; white-space: pre; padding-right: 12px; min-width: max-content; }
+  .dl .n { color: var(--ink-faint); text-align: right; padding-right: 8px; user-select: none; }
+  .dl .s { color: var(--ink-faint); user-select: none; }
+  .dl.add { background: var(--green-soft); }
+  .dl.add .s, .dl.add .c { color: #a8f0c4; }
+  .dl.del { background: var(--red-soft); }
+  .dl.del .s, .dl.del .c { color: #ffb0b0; text-decoration: line-through; text-decoration-color: rgba(255, 107, 107, .45); }
+  .dl.hunk .c { color: var(--violet); }
+  .badge { font: 700 10px/1 var(--mono); padding: 4px 7px; border-radius: 999px; letter-spacing: .08em; }
+  .badge.read { color: var(--cyan); background: rgba(108, 199, 255, .12); }
+  .badge.edit { color: var(--amber); background: var(--amber-soft); }
+
+  .tests-body { padding: 8px 12px 12px; }
+  .summary { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; margin: 4px 0 10px; font: 700 13px var(--mono); background: var(--bg-2); border: 1px solid var(--line); transition: background .4s, border-color .4s, color .4s; }
+  .summary[data-state="fail"] { color: var(--red); border-color: rgba(255, 107, 107, .4); background: var(--red-soft); }
+  .summary[data-state="pass"] { color: var(--green); border-color: rgba(95, 220, 143, .4); background: var(--green-soft); }
+  .summary[data-state="idle"] { color: var(--ink-faint); }
+  .bar { display: flex; height: 6px; border-radius: 6px; overflow: hidden; background: #202a3e; margin-bottom: 10px; }
+  .bar i { display: block; height: 100%; transition: width .5s; }
+  .bar .p { background: var(--green); }
+  .bar .f { background: var(--red); }
+  .tlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .tlist li { display: grid; grid-template-columns: 20px 1fr; gap: 8px; align-items: start; font: 12.5px/1.4 var(--mono); color: var(--ink-dim); }
+  .tlist .ic { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 800; background: #202a3e; color: var(--ink-faint); }
+  .tlist li[data-status="pass"] .ic { background: var(--green-soft); color: var(--green); }
+  .tlist li[data-status="fail"] .ic { background: var(--red-soft); color: var(--red); }
+  .tlist li[data-status="fail"] { color: #ffc9c9; }
+  .tlist li.flip .ic { animation: pop .45s ease-out; }
+  @keyframes pop { 40% { transform: scale(1.35); } }
+
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  footer { color: var(--ink-faint); font-size: 12.5px; margin-top: 22px; text-align: center; }
+
+  @media (max-width: 960px) {
+    .layout { grid-template-columns: 1fr; }
+    .loop-wrap { display: grid; grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 680px) {
+    .lower { grid-template-columns: 1fr; }
+    .term-body { height: 280px; font-size: 12px; }
+    .wrap { padding: 56px 14px 32px; }
+    .speed { margin-left: 0; }
+    .scenarios { width: 100%; }
+    .scenarios button { flex: 1 1 140px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+    .cursor { animation: none; }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <p class="eyebrow">Simulation · scripted, no network</p>
+      <h1>Agent Loop <span>— inside a coding agent</span></h1>
+      <p class="lede">A coding agent doesn't write the fix in one shot. It plans, reads, edits, runs the tests and looks at what happened — then goes around again. Step through a real-shaped session and watch every turn of the loop.</p>
+    </div>
+    <div class="scenarios" role="group" aria-label="Choose a scenario" data-testid="scenarios">
+      <button type="button" data-scenario="fix" data-testid="scenario-fix" aria-pressed="true">Fix a failing test<small>cart.js · 3 tests</small></button>
+      <button type="button" data-scenario="feature" data-testid="scenario-feature" aria-pressed="false">Add a feature<small>cli.js · TDD</small></button>
+      <button type="button" data-scenario="refactor" data-testid="scenario-refactor" aria-pressed="false">Refactor with tests<small>reports.js · 4 tests</small></button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <section class="card loop-card" aria-labelledby="loop-h">
+      <h2 id="loop-h" class="sr">Agent loop diagram</h2>
+      <div class="loop-wrap">
+        <svg class="loop-svg" viewBox="0 0 320 320" role="img" aria-labelledby="loop-title" data-testid="loop-diagram">
+          <title id="loop-title">Loop: Plan, Read, Edit, Run tests, Observe, Done</title>
+          <circle class="track" cx="160" cy="160" r="118"></circle>
+          <path class="arc-done" id="arcDone" d=""></path>
+          <g class="comet-arm" id="cometArm"><circle class="comet" cx="160" cy="42" r="5"></circle></g>
+          <g id="nodes"></g>
+          <text class="center-sub" x="160" y="140" id="centerStep">STEP 0 / 0</text>
+          <text class="center-phase" x="160" y="168" id="centerPhase" data-testid="phase-label">Ready</text>
+          <text class="center-sub" x="160" y="190" id="centerLoop">ITERATION 0</text>
+        </svg>
+      </div>
+
+      <div class="task" data-testid="task"><b>Task:</b> <span id="taskText"></span></div>
+
+      <div class="stats">
+        <div class="stat tok"><div class="k">Tokens</div><div class="v" data-testid="tokens" id="tokens">0</div><div class="meter" aria-hidden="true"><i id="tokMeter"></i></div></div>
+        <div class="stat tool"><div class="k">Tool calls</div><div class="v" data-testid="tool-calls" id="tools">0</div></div>
+        <div class="stat"><div class="k">Step</div><div class="v" data-testid="step-count" id="stepCount">0/0</div></div>
+      </div>
+
+      <div class="controls">
+        <button type="button" class="btn primary" id="playBtn" data-testid="play" aria-label="Play">
+          <svg viewBox="0 0 16 16" aria-hidden="true" id="playIcon"><path d="M4 2.5v11l9-5.5z"/></svg><span id="playText">Play</span>
+        </button>
+        <button type="button" class="btn" id="stepBtn" data-testid="step">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2.5v11l7-5.5zM11 2.5h2v11h-2z"/></svg>Step
+        </button>
+        <button type="button" class="btn" id="restartBtn" data-testid="restart">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2a6 6 0 1 1-5.66 4h2.2A4 4 0 1 0 8 4v2.5L4.5 3.25 8 0z"/></svg>Restart
+        </button>
+        <label class="speed">Speed
+          <select id="speed" data-testid="speed">
+            <option value="0.5">0.5×</option>
+            <option value="1" selected>1×</option>
+            <option value="2">2×</option>
+            <option value="4">4×</option>
+          </select>
+        </label>
+      </div>
+      <p class="kbd-hint"><kbd>Space</kbd> play/pause · <kbd>→</kbd> step · <kbd>R</kbd> restart</p>
+    </section>
+
+    <div class="right">
+      <section class="card" aria-labelledby="term-h">
+        <div class="card-h"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><h2 id="term-h" style="font:inherit;margin:0">agent session</h2><span id="modelTag">sim-agent · temp 0</span></div>
+        <div class="term-body" id="term" role="log" aria-live="polite" aria-label="Agent transcript" data-testid="terminal" tabindex="0"></div>
+      </section>
+
+      <div class="lower">
+        <section class="card" aria-labelledby="diff-h">
+          <div class="card-h"><h2 id="diff-h" style="font:inherit;margin:0">workspace</h2><span class="diff-file" id="diffFile" data-testid="diff-file">no file open</span><span class="badge" id="diffBadge" hidden></span></div>
+          <div class="diff-body" id="diff" data-testid="diff" tabindex="0" aria-label="File view"></div>
+        </section>
+        <section class="card" aria-labelledby="tests-h">
+          <div class="card-h"><h2 id="tests-h" style="font:inherit;margin:0">test results</h2><span id="runCount">0 runs</span></div>
+          <div class="tests-body">
+            <div class="summary" id="summary" data-testid="test-summary" data-state="idle" aria-live="polite">Not run yet</div>
+            <div class="bar" aria-hidden="true"><i class="p" id="barP" style="width:0"></i><i class="f" id="barF" style="width:0"></i></div>
+            <ul class="tlist" id="tlist" data-testid="test-list"></ul>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+  <p class="sr" aria-live="polite" id="announce"></p>
+  <footer>Everything here is a pre-written script — no model is called and nothing leaves your browser. Token counts are illustrative.</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const PHASES = [
+    { id: 'plan', label: 'Plan', glyph: 'M-7 -4h14M-7 0h10M-7 4h6' },
+    { id: 'read', label: 'Read', glyph: 'M-8 -5c3-1.5 5-1.5 8 0v10c-3-1.5-5-1.5-8 0zM0 -5c3-1.5 5-1.5 8 0v10c-3-1.5-5-1.5-8 0z' },
+    { id: 'edit', label: 'Edit', glyph: 'M-6 6l2-6 8-8 4 4-8 8zM2 -6l4 4' },
+    { id: 'run', label: 'Run tests', glyph: 'M-4 -7l10 7-10 7z' },
+    { id: 'observe', label: 'Observe', glyph: 'M-9 0c4-6 14-6 18 0-4 6-14 6-18 0zM0 -2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 1 1 0-5' },
+    { id: 'done', label: 'Done', glyph: 'M-6 0l4 4 8-8' }
+  ];
+  const PHASE_IDX = Object.fromEntries(PHASES.map((p, i) => [p.id, i]));
+
+  // ---------- Scripted scenarios ----------
+  const L = (t, text) => ({ t, text });
+  const SCENARIOS = {
+    fix: {
+      task: 'The test <code>applies percentage discount</code> is failing in <code>src/cart.js</code>. Make it pass without breaking anything else.',
+      tests: ['sums line items', 'applies percentage discount', 'rejects expired codes'],
+      steps: [
+        { phase: 'plan', tokens: 612, lines: [L('agent', 'Goal: make the failing discount test pass with the smallest safe change.'), L('think', 'First reproduce the failure so I trust the signal, then read the code under test.')] },
+        { phase: 'run', tokens: 388, tool: true, lines: [L('tool', 'run_command'), L('cmd', 'npm test -- cart'), L('out', ' PASS  sums line items'), L('err', ' FAIL  applies percentage discount'), L('err', '   Expected: 90'), L('err', '   Received: 100'), L('out', ' PASS  rejects expired codes')], tests: { 'sums line items': 'pass', 'applies percentage discount': 'fail', 'rejects expired codes': 'pass' } },
+        { phase: 'observe', tokens: 540, lines: [L('agent', 'Reproduced. Total is exactly the undiscounted price — the discount is computed but never applied.')] },
+        { phase: 'read', tokens: 1340, tool: true, lines: [L('tool', 'read_file src/cart.js'), L('out', '  32 lines read')], file: { name: 'src/cart.js', mode: 'read', lines: [
+          ['@', '@@ src/cart.js  lines 8-18 @@'], [' ', 'export function total(cart, code) {', 8], [' ', '  let total = cart.items', 9], [' ', '    .reduce((sum, i) => sum + i.price * i.qty, 0);', 10], [' ', '', 11], [' ', '  if (code && !isExpired(code)) {', 12], [' ', '    // apply the percentage off', 13], [' ', '    applyDiscount(total, code);', 14], [' ', '  }', 15], [' ', '  return round2(total);', 16], [' ', '}', 17]] } },
+        { phase: 'read', tokens: 410, tool: true, lines: [L('tool', 'grep -n "applyDiscount" src/'), L('out', '  src/cart.js:14:    applyDiscount(total, code);'), L('out', '  src/discount.js:3: export const applyDiscount = (t, c) => t * (1 - c.pct / 100);')] },
+        { phase: 'plan', tokens: 702, lines: [L('agent', 'applyDiscount is pure — it returns a new total. Line 14 discards the return value.'), L('think', 'One caller only, so assigning the result is safe. No need to touch discount.js.')] },
+        { phase: 'edit', tokens: 486, tool: true, lines: [L('tool', 'edit_file src/cart.js  (1 line changed)')], file: { name: 'src/cart.js', mode: 'edit', lines: [
+          ['@', '@@ -12,5 +12,5 @@'], [' ', '  if (code && !isExpired(code)) {', 12], [' ', '    // apply the percentage off', 13], ['-', '    applyDiscount(total, code);', 14], ['+', '    total = applyDiscount(total, code);', 14], [' ', '  }', 15], [' ', '  return round2(total);', 16]] } },
+        { phase: 'run', tokens: 352, tool: true, lines: [L('tool', 'run_command'), L('cmd', 'npm test -- cart'), L('ok', ' PASS  sums line items'), L('ok', ' PASS  applies percentage discount'), L('ok', ' PASS  rejects expired codes')], tests: { 'sums line items': 'pass', 'applies percentage discount': 'pass', 'rejects expired codes': 'pass' } },
+        { phase: 'observe', tokens: 430, lines: [L('agent', '3/3 green. The expired-code test still passes, so the guard on line 12 is intact.')] },
+        { phase: 'done', tokens: 318, lines: [L('agent', 'Done. Fixed a discarded return value in cart.js (1 line). Root cause: applyDiscount is pure but was called for its side effect.')] }
+      ]
+    },
+    feature: {
+      task: 'Add a <code>--json</code> flag to <code>todo list</code> so scripts can consume the output. Write the tests first.',
+      tests: ['lists todos as text', '--json prints valid JSON', '--json includes done flag'],
+      steps: [
+        { phase: 'plan', tokens: 740, lines: [L('agent', 'Plan: pin the new behaviour with tests, watch them fail, then implement.'), L('think', 'Keep the text output byte-for-byte identical so existing users are unaffected.')] },
+        { phase: 'read', tokens: 1510, tool: true, lines: [L('tool', 'read_file src/cli.js'), L('out', '  41 lines read')], file: { name: 'src/cli.js', mode: 'read', lines: [
+          ['@', '@@ src/cli.js  lines 20-28 @@'], [' ', "program.command('list')", 20], [' ', "  .description('show todos')", 21], [' ', '  .action(() => {', 22], [' ', '    for (const t of store.all()) {', 23], [' ', "      console.log(`${t.done ? '✔' : ' '} ${t.title}`);", 24], [' ', '    }', 25], [' ', '  });', 26]] } },
+        { phase: 'edit', tokens: 820, tool: true, lines: [L('tool', 'edit_file test/cli.test.js  (+14 lines)')], file: { name: 'test/cli.test.js', mode: 'edit', lines: [
+          ['@', '@@ -30,0 +31,8 @@'], ['+', "test('--json prints valid JSON', () => {", 31], ['+', "  const out = run('list --json');", 32], ['+', '  expect(() => JSON.parse(out)).not.toThrow();', 33], ['+', '});', 34], ['+', "test('--json includes done flag', () => {", 35], ['+', "  const [first] = JSON.parse(run('list --json'));", 36], ['+', "  expect(first).toHaveProperty('done', true);", 37], ['+', '});', 38]] } },
+        { phase: 'run', tokens: 364, tool: true, lines: [L('tool', 'run_command'), L('cmd', 'npm test -- cli'), L('out', ' PASS  lists todos as text'), L('err', ' FAIL  --json prints valid JSON'), L('err', '   SyntaxError: Unexpected token ✔'), L('err', ' FAIL  --json includes done flag')], tests: { 'lists todos as text': 'pass', '--json prints valid JSON': 'fail', '--json includes done flag': 'fail' } },
+        { phase: 'observe', tokens: 395, lines: [L('agent', 'Red for the right reason: the flag is ignored and plain text comes back.')] },
+        { phase: 'edit', tokens: 910, tool: true, lines: [L('tool', 'edit_file src/cli.js  (+5 −1)')], file: { name: 'src/cli.js', mode: 'edit', lines: [
+          ['@', '@@ -20,7 +20,11 @@'], [' ', "program.command('list')", 20], [' ', "  .description('show todos')", 21], ['-', '  .action(() => {', 22], ['+', "  .option('--json', 'machine-readable output')", 22], ['+', '  .action((opts) => {', 23], ['+', '    if (opts.json) {', 24], ['+', '      const rows = store.all().map(t => ({ title: t.title }));', 25], ['+', '      return console.log(JSON.stringify(rows));', 26], ['+', '    }', 27], [' ', '    for (const t of store.all()) {', 28]] } },
+        { phase: 'run', tokens: 372, tool: true, lines: [L('tool', 'run_command'), L('cmd', 'npm test -- cli'), L('ok', ' PASS  lists todos as text'), L('ok', ' PASS  --json prints valid JSON'), L('err', ' FAIL  --json includes done flag'), L('err', '   Expected property "done"')], tests: { 'lists todos as text': 'pass', '--json prints valid JSON': 'pass', '--json includes done flag': 'fail' } },
+        { phase: 'observe', tokens: 450, lines: [L('agent', 'Progress: 2/3. I only mapped the title — the done flag is missing from each row.')] },
+        { phase: 'edit', tokens: 402, tool: true, lines: [L('tool', 'edit_file src/cli.js  (1 line changed)')], file: { name: 'src/cli.js', mode: 'edit', lines: [
+          ['@', '@@ -25,1 +25,1 @@'], ['-', '      const rows = store.all().map(t => ({ title: t.title }));', 25], ['+', '      const rows = store.all().map(({ title, done }) => ({ title, done }));', 25]] } },
+        { phase: 'run', tokens: 360, tool: true, lines: [L('tool', 'run_command'), L('cmd', 'npm test -- cli'), L('ok', ' PASS  lists todos as text'), L('ok', ' PASS  --json prints valid JSON'), L('ok', ' PASS  --json includes done flag')], tests: { 'lists todos as text': 'pass', '--json prints valid JSON': 'pass', '--json includes done flag': 'pass' } },
+        { phase: 'done', tokens: 344, lines: [L('agent', 'Done. `todo list --json` emits [{ title, done }]. Text output unchanged; 2 new tests guard the flag.')] }
+      ]
+    },
+    refactor: {
+      task: 'Three report functions in <code>src/reports.js</code> each format dates by hand. Extract one <code>formatDate()</code> helper — behaviour must not change.',
+      tests: ['daily report header', 'weekly range label', 'monthly title', 'dates render in UTC'],
+      steps: [
+        { phase: 'plan', tokens: 690, lines: [L('agent', 'Refactor rule #1: get a green baseline before touching anything.')] },
+        { phase: 'run', tokens: 340, tool: true, lines: [L('tool', 'run_command'), L('cmd', 'npm test -- reports'), L('ok', ' PASS  daily report header'), L('ok', ' PASS  weekly range label'), L('ok', ' PASS  monthly title'), L('ok', ' PASS  dates render in UTC')], tests: { 'daily report header': 'pass', 'weekly range label': 'pass', 'monthly title': 'pass', 'dates render in UTC': 'pass' } },
+        { phase: 'read', tokens: 1620, tool: true, lines: [L('tool', 'read_file src/reports.js'), L('out', '  88 lines read · 3 near-identical blocks found')], file: { name: 'src/reports.js', mode: 'read', lines: [
+          ['@', '@@ src/reports.js  lines 5-9 @@'], [' ', 'export function daily(d) {', 5], [' ', "  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');", 6], [' ', "  const dd = String(d.getUTCDate()).padStart(2, '0');", 7], [' ', '  return `Daily · ${d.getUTCFullYear()}-${mm}-${dd}`;', 8], [' ', '}', 9]] } },
+        { phase: 'edit', tokens: 1180, tool: true, lines: [L('tool', 'edit_file src/reports.js  (+5 −9)')], file: { name: 'src/reports.js', mode: 'edit', lines: [
+          ['@', '@@ -1,9 +1,10 @@'], ['+', 'const pad = n => String(n).padStart(2, "0");', 1], ['+', 'export const formatDate = d =>', 2], ['+', '  `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;', 3], [' ', '', 4], [' ', 'export function daily(d) {', 5], ['-', "  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');", 6], ['-', "  const dd = String(d.getUTCDate()).padStart(2, '0');", 7], ['-', '  return `Daily · ${d.getUTCFullYear()}-${mm}-${dd}`;', 8], ['+', '  return `Daily · ${formatDate(d)}`;', 6], [' ', '}', 7]] } },
+        { phase: 'run', tokens: 366, tool: true, lines: [L('tool', 'run_command'), L('cmd', 'npm test -- reports'), L('ok', ' PASS  daily report header'), L('ok', ' PASS  weekly range label'), L('ok', ' PASS  monthly title'), L('err', ' FAIL  dates render in UTC'), L('err', '   Expected: "2026-03-01"  Received: "2026-02-28"')], tests: { 'daily report header': 'pass', 'weekly range label': 'pass', 'monthly title': 'pass', 'dates render in UTC': 'fail' } },
+        { phase: 'observe', tokens: 610, lines: [L('agent', 'Behaviour changed. The originals used getUTC*; my helper used local-time getters.'), L('think', 'This is exactly why the baseline run mattered — the refactor was not a pure move.')] },
+        { phase: 'edit', tokens: 470, tool: true, lines: [L('tool', 'edit_file src/reports.js  (1 line changed)')], file: { name: 'src/reports.js', mode: 'edit', lines: [
+          ['@', '@@ -2,2 +2,2 @@'], [' ', 'export const formatDate = d =>', 2], ['-', '  `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;', 3], ['+', '  `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;', 3]] } },
+        { phase: 'run', tokens: 352, tool: true, lines: [L('tool', 'run_command'), L('cmd', 'npm test -- reports'), L('ok', ' PASS  daily report header'), L('ok', ' PASS  weekly range label'), L('ok', ' PASS  monthly title'), L('ok', ' PASS  dates render in UTC')], tests: { 'daily report header': 'pass', 'weekly range label': 'pass', 'monthly title': 'pass', 'dates render in UTC': 'pass' } },
+        { phase: 'observe', tokens: 380, lines: [L('agent', 'Back to 4/4. Same results as the baseline, 9 duplicated lines gone.')] },
+        { phase: 'done', tokens: 300, lines: [L('agent', 'Done. formatDate() now backs daily/weekly/monthly. Caught and fixed a UTC regression before it shipped.')] }
+      ]
+    }
+  };
+
+  // ---------- DOM ----------
+  const $ = (id) => document.getElementById(id);
+  const term = $('term'), diff = $('diff'), tlist = $('tlist'), summary = $('summary');
+  const playBtn = $('playBtn'), stepBtn = $('stepBtn'), restartBtn = $('restartBtn'), speedSel = $('speed');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const NS = 'http://www.w3.org/2000/svg';
+  const CX = 160, CY = 160, R = 118;
+  const angleOf = (i) => (-90 + i * 60);
+  const pt = (deg, r = R) => { const a = deg * Math.PI / 180; return [CX + r * Math.cos(a), CY + r * Math.sin(a)]; };
+
+  // Build nodes
+  const nodeEls = {};
+  const nodesG = $('nodes');
+  PHASES.forEach((p, i) => {
+    const [x, y] = pt(angleOf(i));
+    const g = document.createElementNS(NS, 'g');
+    g.setAttribute('class', 'node');
+    g.setAttribute('data-phase', p.id);
+    g.setAttribute('data-testid', 'loop-node-' + p.id);
+    g.setAttribute('data-active', 'false');
+    g.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})`);
+    g.innerHTML = `<circle class="halo" r="27"></circle><circle class="bg" r="27"></circle><path class="glyph" transform="translate(0 -5)" d="${p.glyph}"></path><text y="15">${p.label}</text>`;
+    nodesG.appendChild(g);
+    nodeEls[p.id] = g;
+  });
+
+  // ---------- State ----------
+  let scenarioKey = 'fix';
+  let idx = -1;           // index of last executed step
+  let playing = false;
+  let timer = null;
+  let cometDeg = 0;       // cumulative rotation so the comet always moves forward
+  let runs = 0;
+
+  const sc = () => SCENARIOS[scenarioKey];
+  const totalTokens = (s) => s.steps.reduce((a, st) => a + st.tokens, 0);
+
+  function escapeHtml(s) { return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+  function derive(upto) {
+    const s = sc();
+    let tokens = 0, tools = 0, file = null, runsN = 0;
+    const status = Object.fromEntries(s.tests.map((t) => [t, 'pending']));
+    const visited = new Set();
+    let loops = 0;
+    for (let i = 0; i <= upto; i++) {
+      const st = s.steps[i];
+      tokens += st.tokens;
+      if (st.tool) tools++;
+      if (st.file) file = st.file;
+      if (st.tests) { Object.assign(status, st.tests); runsN++; }
+      if (st.phase === 'plan' || (st.phase === 'edit' && (i === 0 || s.steps[i - 1].phase === 'observe'))) loops++;
+      visited.add(st.phase);
+    }
+    return { tokens, tools, file, status, visited, runsN, loops: Math.max(loops, upto >= 0 ? 1 : 0) };
+  }
+
+  function renderTerminal(fromIdx) {
+    const s = sc();
+    if (fromIdx === 0 || idx < 0) term.innerHTML = '';
+    if (idx < 0) {
+      term.innerHTML = '<p class="ln empty">agent idle — press Play or Step to start the session.</p><span class="cursor" aria-hidden="true"></span>';
+      return;
+    }
+    const cur = term.querySelector('.cursor'); if (cur) cur.remove();
+    const frag = document.createDocumentFragment();
+    for (let i = fromIdx; i <= idx; i++) {
+      const st = s.steps[i];
+      if (i > 0) { const sep = document.createElement('div'); sep.className = 'ln sep'; frag.appendChild(sep); }
+      st.lines.forEach((ln, j) => {
+        const p = document.createElement('p');
+        p.className = 'ln ' + ln.t + (i === idx ? ' new' : '');
+        if (i === idx && !reduceMotion.matches) p.style.animationDelay = (j * 90) + 'ms';
+        p.innerHTML = (j === 0 ? `<span class="ph">${PHASES[PHASE_IDX[st.phase]].label}</span>` : '') + escapeHtml(ln.text);
+        frag.appendChild(p);
+      });
+    }
+    term.appendChild(frag);
+    const c = document.createElement('span'); c.className = 'cursor'; c.setAttribute('aria-hidden', 'true');
+    term.appendChild(c);
+    term.scrollTop = term.scrollHeight;
+  }
+
+  function renderDiff(file) {
+    const badge = $('diffBadge');
+    if (!file) {
+      $('diffFile').textContent = 'no file open';
+      badge.hidden = true;
+      diff.innerHTML = '<div class="dl"><span class="n"></span><span class="s"></span><span class="c" style="color:var(--ink-faint)">The agent hasn’t opened a file yet.</span></div>';
+      diff.dataset.mode = 'none';
+      return;
+    }
+    $('diffFile').textContent = file.name;
+    badge.hidden = false;
+    badge.textContent = file.mode === 'edit' ? 'EDITED' : 'READ';
+    badge.className = 'badge ' + file.mode;
+    diff.dataset.mode = file.mode;
+    diff.innerHTML = file.lines.map(([k, text, n]) => {
+      const cls = k === '+' ? 'add' : k === '-' ? 'del' : k === '@' ? 'hunk' : '';
+      const sign = k === '@' || k === ' ' ? '' : k;
+      return `<div class="dl ${cls}" ${k === '+' ? 'data-testid="diff-add"' : k === '-' ? 'data-testid="diff-del"' : ''}><span class="n">${n || ''}</span><span class="s">${sign}</span><span class="c">${escapeHtml(text)}</span></div>`;
+    }).join('');
+  }
+
+  let prevStatus = {};
+  function renderTests(status, runsN) {
+    const names = sc().tests;
+    tlist.innerHTML = '';
+    let p = 0, f = 0;
+    names.forEach((name, i) => {
+      const s = status[name];
+      if (s === 'pass') p++; else if (s === 'fail') f++;
+      const li = document.createElement('li');
+      li.dataset.status = s;
+      li.dataset.testid = 'test-row';
+      li.setAttribute('data-testid', 'test-row');
+      if (prevStatus[name] && prevStatus[name] !== s) li.classList.add('flip');
+      li.innerHTML = `<span class="ic" aria-hidden="true">${s === 'pass' ? '✓' : s === 'fail' ? '✕' : '·'}</span><span>${escapeHtml(name)}<span class="sr"> — ${s}</span></span>`;
+      tlist.appendChild(li);
+    });
+    prevStatus = { ...status };
+    const n = names.length;
+    $('barP').style.width = (p / n * 100) + '%';
+    $('barF').style.width = (f / n * 100) + '%';
+    $('runCount').textContent = runsN + (runsN === 1 ? ' run' : ' runs');
+    if (runsN === 0) { summary.dataset.state = 'idle'; summary.textContent = 'Not run yet'; }
+    else if (f > 0) { summary.dataset.state = 'fail'; summary.textContent = `✕ ${f} failed · ${p} passed`; }
+    else { summary.dataset.state = 'pass'; summary.textContent = `✓ ${p} passed · 0 failed`; }
+  }
+
+  function arcPath(fromDeg, toDeg) {
+    if (toDeg <= fromDeg) return '';
+    const [x1, y1] = pt(fromDeg), [x2, y2] = pt(toDeg);
+    const large = toDeg - fromDeg > 180 ? 1 : 0;
+    return `M${x1.toFixed(1)} ${y1.toFixed(1)} A${R} ${R} 0 ${large} 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+  }
+
+  function renderLoop(d) {
+    const s = sc();
+    const cur = idx >= 0 ? s.steps[idx].phase : null;
+    PHASES.forEach((p) => {
+      const el = nodeEls[p.id];
+      const active = p.id === cur;
+      el.classList.toggle('active', active);
+      el.classList.toggle('visited', d.visited.has(p.id) && !active);
+      el.setAttribute('data-active', String(active));
+    });
+    // Comet always travels clockwise to the current phase
+    if (cur) {
+      const target = PHASE_IDX[cur] * 60;
+      const curMod = ((cometDeg % 360) + 360) % 360;
+      let delta = target - curMod; if (delta < 0) delta += 360;
+      cometDeg += delta;
+    } else { cometDeg = 0; }
+    $('cometArm').style.transform = `rotate(${cometDeg}deg)`;
+    $('arcDone').setAttribute('d', cur ? arcPath(-90, -90 + PHASE_IDX[cur] * 60) : '');
+    $('centerPhase').textContent = cur ? PHASES[PHASE_IDX[cur]].label : 'Ready';
+    $('centerStep').textContent = `STEP ${idx + 1} / ${s.steps.length}`;
+    $('centerLoop').textContent = `ITERATION ${idx >= 0 ? d.loops : 0}`;
+  }
+
+  function render(fromIdx) {
+    const s = sc();
+    const d = idx >= 0 ? derive(idx) : { tokens: 0, tools: 0, file: null, status: Object.fromEntries(s.tests.map((t) => [t, 'pending'])), visited: new Set(), runsN: 0, loops: 0 };
+    renderTerminal(fromIdx);
+    renderDiff(d.file);
+    renderTests(d.status, d.runsN);
+    renderLoop(d);
+    $('tokens').textContent = d.tokens.toLocaleString('en-US');
+    $('tokMeter').style.width = (d.tokens / totalTokens(s) * 100).toFixed(1) + '%';
+    $('tools').textContent = d.tools;
+    $('stepCount').textContent = `${idx + 1}/${s.steps.length}`;
+    const atEnd = idx >= s.steps.length - 1;
+    stepBtn.disabled = atEnd;
+    document.body.dataset.done = String(atEnd);
+    if (idx >= 0) {
+      const st = s.steps[idx];
+      $('announce').textContent = `Step ${idx + 1} of ${s.steps.length}: ${PHASES[PHASE_IDX[st.phase]].label}. ${st.lines[0].text}`;
+    }
+  }
+
+  // ---------- Playback ----------
+  const BASE_DELAY = 1600;
+  function delay() { return BASE_DELAY / parseFloat(speedSel.value || '1'); }
+
+  function setPlaying(on) {
+    playing = on;
+    clearTimeout(timer); timer = null;
+    playBtn.setAttribute('aria-label', on ? 'Pause' : 'Play');
+    playBtn.setAttribute('aria-pressed', String(on));
+    $('playText').textContent = on ? 'Pause' : (idx >= sc().steps.length - 1 ? 'Replay' : 'Play');
+    $('playIcon').innerHTML = on ? '<path d="M3.5 2.5h3v11h-3zM9.5 2.5h3v11h-3z"/>' : '<path d="M4 2.5v11l9-5.5z"/>';
+    if (on) schedule();
+  }
+  function schedule() {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      if (!playing) return;
+      advance();
+      if (idx >= sc().steps.length - 1) setPlaying(false); else schedule();
+    }, delay());
+  }
+  function advance() {
+    const s = sc();
+    if (idx >= s.steps.length - 1) return false;
+    idx++;
+    render(idx);
+    return true;
+  }
+  function restart() {
+    setPlaying(false);
+    idx = -1; prevStatus = {};
+    render(0);
+    $('playText').textContent = 'Play';
+  }
+  function togglePlay() {
+    if (playing) { setPlaying(false); return; }
+    if (idx >= sc().steps.length - 1) { idx = -1; prevStatus = {}; render(0); }
+    if (idx < 0) { advance(); }
+    setPlaying(true);
+  }
+  function pickScenario(key) {
+    if (!SCENARIOS[key]) return;
+    scenarioKey = key;
+    document.querySelectorAll('[data-scenario]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.scenario === key)));
+    $('taskText').innerHTML = sc().task;
+    restart();
+  }
+
+  playBtn.addEventListener('click', togglePlay);
+  stepBtn.addEventListener('click', () => { if (playing) setPlaying(false); advance(); if (idx >= sc().steps.length - 1) setPlaying(false); });
+  restartBtn.addEventListener('click', restart);
+  speedSel.addEventListener('change', () => { if (playing) schedule(); });
+  document.querySelectorAll('[data-scenario]').forEach((b) => b.addEventListener('click', () => pickScenario(b.dataset.scenario)));
+
+  document.addEventListener('keydown', (e) => {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    const tag = (e.target && e.target.tagName) || '';
+    if (tag === 'SELECT' || tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (e.key === ' ' && tag !== 'BUTTON') { e.preventDefault(); togglePlay(); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); stepBtn.click(); }
+    else if (e.key === 'r' || e.key === 'R') { restart(); }
+  });
+
+  // Initial scenario from ?scenario= (handy for demos and tests)
+  let initial = 'fix';
+  try { const q = new URLSearchParams(location.search).get('scenario'); if (q && SCENARIOS[q]) initial = q; } catch (e) { /* ignore */ }
+  pickScenario(initial);
+  window.__agentLoop = { get step() { return idx; }, get playing() { return playing; }, get scenario() { return scenarioKey; } };
+})();
+</script>
+</body>
+</html>

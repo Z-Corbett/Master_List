@@ -1,0 +1,41 @@
+{
+  "id": "008",
+  "slug": "008-magic-city-coffee",
+  "file": "lab/008-magic-city-coffee.html",
+  "title": "Magic City Coffee Finder — Birmingham Coffee Quiz",
+  "category": "Tools",
+  "tags": [
+    "quiz",
+    "scoring",
+    "svg",
+    "a11y",
+    "forms"
+  ],
+  "description": "A five-question quiz (vibe, drink, wifi, neighborhood, time of day) that scores eleven invented Birmingham, Alabama coffee shops out of 100 and reveals your top match with a what-to-order card. A 'why this match' breakdown shows the points earned in each category, with runner-ups, back navigation and a restart.",
+  "prompt": "Reboot my old Birmingham coffee-finder quiz as a single self-contained page. Five animated questions — vibe, drink, how much you need wifi, neighborhood, and time of day — that score a list of about ten fictional Birmingham coffee shops (invent the names; no real businesses) and reveal a top match with a result card, runner-ups, and a 'why this match' breakdown so the scoring isn't a black box. Make it feel warm and hand-made, with SVG illustrations that look hand-drawn, and make sure the whole thing works from the keyboard with back and restart.",
+  "qa": {
+    "methodology": [
+      "Scoring oracles derived by hand from the shop table: a 'perfect' answer set must yield exactly 100/100 for one shop, and a mixed set must yield a known partial score (75) with the expected categories marked as misses.",
+      "Ranking invariants: runner-up data-score values must be in descending order and never exceed the winner's score.",
+      "Navigation state machine: Next is disabled until a choice is made, Back restores the previously checked radio, Change answers returns to question 5, and Start over clears every answer.",
+      "Keyboard path on desktop: focus lands on each question heading, arrow keys move and select within the native radio group, and Enter advances.",
+      "Animations are neutralised with emulateMedia({ reducedMotion: 'reduce' }) so the assertions never race the slide and reveal transitions.",
+      "Visual review at 1280px and 390px for option-card wrapping, result layout and the rough-filter SVG illustrations."
+    ],
+    "risks": [
+      "Tie-breaking between shops with equal scores changing the winner if the shop order changes (ties resolve deterministically by table order).",
+      "Re-rendering a question losing the previously selected radio when navigating back.",
+      "Focus management scrolling the page unexpectedly on mobile when a new question renders.",
+      "Weight or partial-credit tweaks silently changing results without anyone noticing, which is why the spec pins exact scores."
+    ],
+    "playwright": "The quiz is pure state with no randomness or timers, so it automates cleanly: role-free data-testid locators on each option label, native radio inputs for toBeChecked(), and exact text assertions on the score and per-category points. The only timing risk was the CSS slide and reveal animations, handled by emulating reduced motion in beforeEach rather than adding waits. The keyboard test is skipped on the mobile project because a touch device has no hardware Tab/Arrow flow; everything else runs on both. Screenshots were used only for manual visual review, not as assertions, because the SVG displacement filter renders slightly differently across GPUs.",
+    "coverage": [
+      "Perfect answers → The Quiet Kiln at 100/100 with five full-credit rows",
+      "Mixed answers → Railyard Cold Bar at 75 with wifi and hours flagged as misses; runner-ups sorted descending",
+      "Next gated on selection; Back preserves the chosen answer",
+      "Keyboard: Tab into the radio group, ArrowDown selects, Enter advances, heading receives focus (desktop)",
+      "Change answers re-scores from question 5; Start over resets to the intro with no selections"
+    ]
+  },
+  "a11y": "Each question is a fieldset of native radio inputs whose legend holds the question heading, so arrow keys, Tab and Enter all work and screen readers announce the group. Focus moves to each new heading, progress is announced through a polite live region, and the score bars carry text labels with the points."
+}

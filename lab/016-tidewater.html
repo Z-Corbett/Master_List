@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tidewater — an ambient sound garden</title>
+<meta name="description" content="A generative ambient music toy: plant stones in a tide pool, and every ripple that sweeps outward plays each stone's note from a pentatonic, dorian or lydian scale, with tempo, reverb and mute controls.">
+<style>
+  :root {
+    --deep: #041a1f;
+    --pool: #0a3b41;
+    --foam: #dff7ef;
+    --ink: #e8f4ef;
+    --muted: #93b8b0;
+    --kelp: #6cc6a8;
+    --sun: #f6c177;
+    --panel: rgba(6, 30, 34, .78);
+    --line: rgba(160, 230, 210, .18);
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --sans: "Avenir Next", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    --mono: ui-monospace, "SF Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    min-height: 100vh; color: var(--ink); font-family: var(--sans); overflow-x: hidden;
+    background:
+      radial-gradient(900px 600px at 70% -10%, #0f4a4a 0%, transparent 60%),
+      radial-gradient(700px 500px at 0% 100%, #1b2c3a 0%, transparent 60%),
+      var(--deep);
+  }
+  :focus-visible { outline: 2px solid var(--sun); outline-offset: 3px; }
+  a.back {
+    position: fixed; top: 10px; left: 10px; z-index: 30; font: 600 12px/1 var(--sans); color: var(--muted);
+    text-decoration: none; padding: 8px 11px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line);
+    backdrop-filter: blur(6px);
+  }
+  a.back:hover { color: var(--ink); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 56px 20px 40px; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; align-items: start; }
+  header { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; }
+  h1 { margin: 0; font: 500 clamp(30px, 5vw, 48px)/1 var(--serif); letter-spacing: -.01em; }
+  h1 em { color: var(--kelp); }
+  header p { margin: 0; color: var(--muted); font-size: 15px; max-width: 56ch; line-height: 1.5; }
+  .pool-wrap { position: relative; width: 100%; max-width: 760px; aspect-ratio: 1 / 1; margin: 0 auto; }
+  canvas#pool { width: 100%; height: 100%; display: block; border-radius: 50%; touch-action: manipulation; cursor: crosshair; }
+  canvas#pool:focus-visible { outline: 3px solid var(--sun); outline-offset: 6px; }
+  .hint {
+    position: absolute; left: 50%; bottom: 10%; transform: translateX(-50%); pointer-events: none; text-align: center;
+    font: 13px/1.4 var(--sans); color: rgba(232,244,239,.8); text-shadow: 0 1px 8px rgba(0,0,0,.5); transition: opacity .6s; width: 80%;
+  }
+  aside { display: flex; flex-direction: column; gap: 16px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 16px; backdrop-filter: blur(8px); }
+  .panel h2 { margin: 0 0 12px; font: 600 11px/1 var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  button {
+    font: 600 14px/1 var(--sans); color: var(--ink); background: rgba(108,198,168,.12); border: 1px solid var(--line);
+    border-radius: 12px; padding: 11px 14px; cursor: pointer; min-height: 42px;
+  }
+  button:hover { border-color: var(--kelp); }
+  .play { width: 100%; font-size: 16px; padding: 14px; background: linear-gradient(180deg, #7ad6b6, #3f9c86); color: #04201c; border: 0; display: flex; align-items: center; justify-content: center; gap: 10px; }
+  .play[data-playing="true"] { background: linear-gradient(180deg, #f6c177, #d68f4c); }
+  .play svg { width: 16px; height: 16px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .row button { flex: 1; }
+  button[aria-pressed="true"].toggle { background: rgba(246,193,119,.18); border-color: var(--sun); color: var(--sun); }
+  .field { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px 10px; margin-top: 12px; font-size: 13px; color: var(--muted); }
+  .field input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--kelp); }
+  .field output { font: 12px var(--mono); color: var(--ink); }
+  .scales { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; border: 0; padding: 0; margin: 0; }
+  .scales legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .scales label { position: relative; }
+  .scales input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+  .scales span { display: block; text-align: center; padding: 10px 4px; border-radius: 10px; border: 1px solid var(--line); font-size: 13px; font-weight: 600; color: var(--muted); }
+  .scales input:checked + span { background: var(--kelp); color: #04201c; border-color: var(--kelp); }
+  .scales input:focus-visible + span { outline: 2px solid var(--sun); outline-offset: 2px; }
+  .notes { font: 12px/1.6 var(--mono); color: var(--muted); min-height: 3.2em; }
+  .notes b { color: var(--sun); font-weight: 600; }
+  .legend-list { margin: 8px 0 0; padding: 0; list-style: none; font-size: 12.5px; color: var(--muted); line-height: 1.6; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  @media (max-width: 860px) {
+    .wrap { grid-template-columns: minmax(0, 1fr); padding: 54px 16px 32px; }
+    aside { display: grid; grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) { .hint { transition: none; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+
+<div class="wrap">
+  <header>
+    <h1>Tide<em>water</em></h1>
+    <p>An ambient sound garden. Plant stones in the pool; each ripple that washes over a stone rings its note. Around the rim sets the note, nearer the centre sounds higher.</p>
+  </header>
+
+  <div class="pool-wrap">
+    <canvas id="pool" data-testid="pool" tabindex="0" role="application"
+      aria-label="Tide pool. Click or tap to plant or lift a stone. With the keyboard, arrow keys move the cursor and Enter plants or lifts a stone."
+      aria-describedby="poolHelp"></canvas>
+    <div class="hint" id="hint" aria-hidden="true">Tap the water to plant a stone, then press Play</div>
+    <p class="sr" id="poolHelp">Stones play when a ripple from the centre reaches them.</p>
+  </div>
+
+  <aside>
+    <section class="panel" aria-labelledby="hPlay">
+      <h2 id="hPlay">Tide</h2>
+      <button type="button" class="play" id="play" data-testid="play" data-playing="false">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path id="playIcon" d="M3 1.5v13l11-6.5z" fill="currentColor"/></svg>
+        <span id="playLabel">Play</span>
+      </button>
+      <div class="row">
+        <button type="button" class="toggle" id="mute" data-testid="mute" aria-pressed="false">Mute</button>
+        <button type="button" id="scatter" data-testid="scatter">Scatter</button>
+        <button type="button" id="clear" data-testid="clear">Clear</button>
+      </div>
+      <label class="field" for="tempo">Tempo <output id="tempoOut" for="tempo" data-testid="tempo-out">60 bpm</output>
+        <input type="range" id="tempo" data-testid="tempo" min="30" max="120" step="1" value="60">
+      </label>
+      <label class="field" for="reverb">Reverb <output id="reverbOut" for="reverb">55%</output>
+        <input type="range" id="reverb" data-testid="reverb" min="0" max="100" step="1" value="55">
+      </label>
+    </section>
+
+    <section class="panel" aria-labelledby="hScale">
+      <h2 id="hScale">Scale · root D</h2>
+      <fieldset class="scales" data-testid="scales">
+        <legend>Scale</legend>
+        <label><input type="radio" name="scale" value="pentatonic" checked data-testid="scale-pentatonic"><span>Pentatonic</span></label>
+        <label><input type="radio" name="scale" value="dorian" data-testid="scale-dorian"><span>Dorian</span></label>
+        <label><input type="radio" name="scale" value="lydian" data-testid="scale-lydian"><span>Lydian</span></label>
+      </fieldset>
+      <ul class="legend-list">
+        <li>Angle around the rim → scale degree</li>
+        <li>Inner / middle / outer ring → octave 5 / 4 / 3</li>
+      </ul>
+    </section>
+
+    <section class="panel" aria-labelledby="hNotes">
+      <h2 id="hNotes">Recently rung</h2>
+      <div class="notes" id="notes" data-testid="recent-notes">Silence, for now.</div>
+      <div class="notes" data-testid="stone-count" id="stoneCount">0 stones</div>
+    </section>
+  </aside>
+</div>
+
+<div class="sr" aria-live="polite" id="live" data-testid="announcer"></div>
+
+<script>
+(() => {
+  'use strict';
+  // ---------- PRNG ----------
+  const sp = new URLSearchParams(location.search).get('seed');
+  let seed = sp !== null && /^\d+$/.test(sp) ? Number(sp) >>> 0 : (Math.random() * 2 ** 32) >>> 0;
+  const rand = () => { seed |= 0; seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+
+  // ---------- music ----------
+  const SCALES = {
+    pentatonic: [0, 2, 4, 7, 9],
+    dorian: [0, 2, 3, 5, 7, 9, 10],
+    lydian: [0, 2, 4, 6, 7, 9, 11],
+  };
+  const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  const ROOT = 50; // D3
+  const midiName = m => NAMES[m % 12] + (Math.floor(m / 12) - 1);
+  const midiFreq = m => 440 * Math.pow(2, (m - 69) / 12);
+  const MAX_STONES = 24;
+
+  const state = { scale: 'pentatonic', playing: false, muted: false, bpm: 60, reverb: 0.55, stones: [], rings: [], hits: 0, recent: [], cursor: { x: 0.5, y: 0.3 }, cursorVisible: false };
+
+  // geometry in normalised pool space: centre (0,0), radius 1 == pool edge
+  function noteAt(nx, ny) {
+    const d = Math.hypot(nx, ny);
+    const ang = (Math.atan2(nx, -ny) + Math.PI * 2) % (Math.PI * 2); // 0 at 12 o'clock, clockwise
+    const deg = SCALES[state.scale];
+    const sector = Math.min(deg.length - 1, Math.floor(ang / (Math.PI * 2 / deg.length)));
+    const band = d < 0.36 ? 2 : d < 0.66 ? 1 : 0;
+    const midi = ROOT + 12 * band + deg[sector];
+    return { midi, name: midiName(midi), freq: midiFreq(midi), sector, band };
+  }
+  function retune() { for (const s of state.stones) Object.assign(s, noteAt(s.x, s.y)); }
+
+  // ---------- audio ----------
+  let ac = null, master = null, dry = null, wet = null, convolver = null;
+  function impulse(ctx, seconds, decay) {
+    const len = Math.floor(ctx.sampleRate * seconds);
+    const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = buf.getChannelData(ch);
+      for (let i = 0; i < len; i++) {
+        const t = i / len;
+        // early reflections, then a smooth exponential tail
+        const early = i < ctx.sampleRate * 0.08 && Math.random() < 0.004 ? (Math.random() * 2 - 1) * 0.8 : 0;
+        d[i] = ((Math.random() * 2 - 1) * Math.pow(1 - t, decay)) * 0.6 + early;
+      }
+    }
+    return buf;
+  }
+  function ensureAudio() {
+    if (ac) return ac;
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    try {
+      ac = new Ctx();
+      master = ac.createGain(); master.gain.value = state.muted ? 0 : 0.8;
+      const comp = ac.createDynamicsCompressor(); comp.threshold.value = -18; comp.ratio.value = 3;
+      dry = ac.createGain(); wet = ac.createGain();
+      convolver = ac.createConvolver(); convolver.buffer = impulse(ac, 4.2, 2.6);
+      master.connect(dry); master.connect(convolver); convolver.connect(wet);
+      dry.connect(comp); wet.connect(comp); comp.connect(ac.destination);
+      setReverb(state.reverb);
+    } catch (_) { ac = null; }
+    return ac;
+  }
+  function setReverb(v) {
+    state.reverb = v;
+    if (!ac) return;
+    const t = ac.currentTime;
+    dry.gain.setTargetAtTime(1 - v * 0.6, t, 0.05);
+    wet.gain.setTargetAtTime(v * 1.4, t, 0.05);
+  }
+  function setMuted(m) {
+    state.muted = m;
+    if (ac) master.gain.setTargetAtTime(m ? 0 : 0.8, ac.currentTime, 0.04);
+  }
+  function voice(freq, pan, strength) {
+    if (!ac || ac.state !== 'running') return;
+    const t = ac.currentTime + 0.01;
+    const g = ac.createGain();
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1800 + freq * 1.5; lp.Q.value = 0.4;
+    const p = ac.createStereoPanner ? ac.createStereoPanner() : null;
+    const o1 = ac.createOscillator(); o1.type = 'sine'; o1.frequency.value = freq;
+    const o2 = ac.createOscillator(); o2.type = 'triangle'; o2.frequency.value = freq * 2; o2.detune.value = 4;
+    const g2 = ac.createGain(); g2.gain.value = 0.18;
+    const amp = 0.16 * strength;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(amp, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 3.2);
+    o1.connect(g); o2.connect(g2); g2.connect(g); g.connect(lp);
+    if (p) { p.pan.value = pan; lp.connect(p); p.connect(master); } else lp.connect(master);
+    o1.start(t); o2.start(t); o1.stop(t + 3.3); o2.stop(t + 3.3);
+  }
+
+  // ---------- canvas ----------
+  const cv = document.getElementById('pool');
+  const ctx = cv.getContext('2d');
+  const MONO = getComputedStyle(document.documentElement).getPropertyValue('--mono') || 'monospace';
+  let S = 1, DPR = 1, R = 1;
+  function resize() {
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    const r = cv.getBoundingClientRect();
+    S = Math.max(1, r.width);
+    cv.width = Math.round(S * DPR); cv.height = Math.round(S * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    R = S / 2 * 0.9;
+  }
+  const toPx = (nx, ny) => [S / 2 + nx * R, S / 2 + ny * R];
+  const toN = (px, py) => [(px - S / 2) / R, (py - S / 2) / R];
+
+  // decorative: caustic light blobs & rim pebbles
+  const caustics = Array.from({ length: 34 }, () => ({ a: rand() * 6.28, r: Math.sqrt(rand()), s: 0.05 + rand() * 0.12, sp: 0.05 + rand() * 0.12, ph: rand() * 6.28 }));
+  const rim = Array.from({ length: 70 }, (_, i) => ({ a: (i / 70) * Math.PI * 2 + rand() * 0.05, r: 1.02 + rand() * 0.06, s: 0.035 + rand() * 0.045, tone: rand() }));
+  const STONE_HUES = [168, 190, 210, 36, 14, 280, 130];
+
+  // static layer (sand, water, guides, rim, labels) is cached and only rebuilt on resize / scale change
+  const bg = document.createElement('canvas');
+  const bgx = bg.getContext('2d');
+  let bgKey = '';
+  function buildBackground() {
+    const key = `${S}|${DPR}|${state.scale}`;
+    if (key === bgKey) return;
+    bgKey = key;
+    bg.width = Math.round(S * DPR); bg.height = Math.round(S * DPR);
+    const g = bgx;
+    g.setTransform(DPR, 0, 0, DPR, 0, 0);
+    g.clearRect(0, 0, S, S);
+    const cx = S / 2, cy = S / 2;
+    const sand = g.createRadialGradient(cx, cy, R * 0.9, cx, cy, S * 0.52);
+    sand.addColorStop(0, '#2a4a45'); sand.addColorStop(1, '#122624');
+    g.fillStyle = sand; g.beginPath(); g.arc(cx, cy, S / 2, 0, Math.PI * 2); g.fill();
+    const wg = g.createRadialGradient(cx - R * 0.2, cy - R * 0.3, R * 0.05, cx, cy, R);
+    wg.addColorStop(0, '#1d7a78'); wg.addColorStop(0.55, '#0e5057'); wg.addColorStop(1, '#07313a');
+    g.fillStyle = wg; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fill();
+    const deg = SCALES[state.scale];
+    g.strokeStyle = 'rgba(223,247,239,.07)'; g.lineWidth = 1;
+    for (let i = 0; i < deg.length; i++) {
+      const a = i / deg.length * Math.PI * 2;
+      g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.sin(a) * R, cy - Math.cos(a) * R); g.stroke();
+    }
+    g.setLineDash([2, 6]);
+    for (const b of [0.36, 0.66]) { g.beginPath(); g.arc(cx, cy, b * R, 0, Math.PI * 2); g.stroke(); }
+    g.setLineDash([]);
+    for (const p of rim) {
+      const x = cx + Math.sin(p.a) * p.r * R, y = cy - Math.cos(p.a) * p.r * R, s = p.s * R;
+      g.fillStyle = `hsl(170, ${8 + p.tone * 10}%, ${16 + p.tone * 16}%)`;
+      g.beginPath(); g.ellipse(x, y, s, s * 0.75, p.a, 0, Math.PI * 2); g.fill();
+    }
+    g.font = `600 ${Math.max(10, Math.round(S / 56))}px ${MONO}`;
+    g.fillStyle = 'rgba(223,247,239,.65)'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (let i = 0; i < deg.length; i++) {
+      const a = (i + 0.5) / deg.length * Math.PI * 2;
+      g.fillText(NAMES[(ROOT + deg[i]) % 12], cx + Math.sin(a) * R * 0.86, cy - Math.cos(a) * R * 0.86);
+    }
+  }
+  // one soft caustic sprite, reused for every light blob
+  const causticSprite = document.createElement('canvas');
+  causticSprite.width = causticSprite.height = 64;
+  (() => {
+    const g = causticSprite.getContext('2d');
+    const rg = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    rg.addColorStop(0, 'rgba(160,240,220,.12)'); rg.addColorStop(1, 'rgba(160,240,220,0)');
+    g.fillStyle = rg; g.fillRect(0, 0, 64, 64);
+  })();
+
+  function draw(now) {
+    const t = now / 1000;
+    buildBackground();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.drawImage(bg, 0, 0);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    const cx = S / 2, cy = S / 2;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.clip();
+    // caustics
+    ctx.globalCompositeOperation = 'lighter';
+    for (const c of caustics) {
+      const a = c.a + (reduced.matches ? 0 : t * c.sp);
+      const rr = c.r * R * (0.9 + 0.1 * Math.sin(t * 0.7 + c.ph));
+      const s = c.s * R * 2;
+      ctx.drawImage(causticSprite, cx + Math.cos(a) * rr - s / 2, cy + Math.sin(a) * rr - s / 2, s, s);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    // ripples: bright crest with a darker trough just inside it
+    for (const ring of state.rings) {
+      const rp = ring.r * R;
+      if (rp <= 0) continue;
+      const life = 1 - ring.r / 1.05;
+      ctx.lineWidth = 2.2;
+      ctx.strokeStyle = `rgba(223,247,239,${(0.55 * life).toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(cx, cy, rp, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = `rgba(4,26,31,${(0.25 * life).toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(cx, cy, Math.max(0, rp - 5), 0, Math.PI * 2); ctx.stroke();
+    }
+    // stone echoes
+    for (const s of state.stones) {
+      if (s.echo > 0) {
+        const [x, y] = toPx(s.x, s.y);
+        const e = 1 - s.echo;
+        ctx.strokeStyle = `hsla(${STONE_HUES[s.sector % STONE_HUES.length]},80%,80%,${(s.echo * 0.7).toFixed(3)})`;
+        ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, 10 + e * 46, 0, Math.PI * 2); ctx.stroke();
+      }
+    }
+    // centre drop, pulsing on each beat
+    const beat = state.playing && state.rings.length ? Math.max(0, 1 - state.rings[state.rings.length - 1].r * 6) : 0;
+    ctx.globalAlpha = 0.55 + 0.45 * beat;
+    const cs = R * 0.24;
+    ctx.drawImage(glowSprite, cx - cs / 2, cy - cs / 2, cs, cs);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#fbe3b8'; ctx.beginPath(); ctx.arc(cx, cy, 4 + beat * 3, 0, Math.PI * 2); ctx.fill();
+    // stones
+    ctx.font = `600 ${Math.max(10, Math.round(S / 60))}px ${MONO}`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    for (const s of state.stones) {
+      const [x, y] = toPx(s.x, s.y);
+      const hue = STONE_HUES[s.sector % STONE_HUES.length];
+      const size = (13 - s.band * 1.5) * (1 + s.glow * 0.18) * Math.max(0.8, S / 600);
+      ctx.fillStyle = 'rgba(0,0,0,.28)';
+      ctx.beginPath(); ctx.ellipse(x + 3, y + 4, size * 1.15, size * 0.85, s.rot, 0, Math.PI * 2); ctx.fill();
+      const sg = ctx.createRadialGradient(x - size * 0.4, y - size * 0.4, 1, x, y, size * 1.2);
+      sg.addColorStop(0, `hsl(${hue},${30 + s.glow * 50}%,${78 + s.glow * 12}%)`);
+      sg.addColorStop(1, `hsl(${hue},${22 + s.glow * 40}%,${32 + s.glow * 20}%)`);
+      ctx.fillStyle = sg;
+      ctx.beginPath(); ctx.ellipse(x, y, size * 1.15, size * 0.85, s.rot, 0, Math.PI * 2); ctx.fill();
+      if (s.glow > 0.02) {
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = s.glow;
+        ctx.drawImage(glowSprite, x - size * 3, y - size * 3, size * 6, size * 6);
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+      }
+      ctx.fillStyle = 'rgba(232,244,239,.85)';
+      ctx.fillText(s.name, x, y + size + 4);
+    }
+    // keyboard cursor
+    if (state.cursorVisible) {
+      const [x, y] = toPx(state.cursor.x, state.cursor.y);
+      ctx.strokeStyle = '#f6c177'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, 16, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x - 24, y); ctx.lineTo(x - 18, y); ctx.moveTo(x + 18, y); ctx.lineTo(x + 24, y);
+      ctx.moveTo(x, y - 24); ctx.lineTo(x, y - 18); ctx.moveTo(x, y + 18); ctx.lineTo(x, y + 24); ctx.stroke();
+      const n = noteAt(state.cursor.x, state.cursor.y);
+      ctx.fillStyle = '#f6c177'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(n.name, x + 22, y - 16);
+    }
+    ctx.restore();
+  }
+  const glowSprite = document.createElement('canvas');
+  glowSprite.width = glowSprite.height = 64;
+  (() => {
+    const g = glowSprite.getContext('2d');
+    const rg = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    rg.addColorStop(0, 'rgba(246,193,119,.9)'); rg.addColorStop(1, 'rgba(246,193,119,0)');
+    g.fillStyle = rg; g.fillRect(0, 0, 64, 64);
+  })();
+
+  // ---------- simulation ----------
+  let last = null, sinceRing = 0;
+  const beatSec = () => 60 / state.bpm;
+  function frame(now) {
+    if (last === null) last = now;
+    const dt = Math.min(0.1, Math.max(0, (now - last) / 1000));
+    last = now;
+    step(dt);
+    draw(now);
+    requestAnimationFrame(frame);
+  }
+  function step(dt) {
+    if (state.playing) {
+      sinceRing += dt;
+      if (sinceRing >= beatSec()) { sinceRing -= beatSec(); state.rings.push({ r: 0, id: ++ringId }); }
+    }
+    const speed = 1.05 / (beatSec() * 3.2); // a ripple crosses the pool in ~3 beats
+    for (const ring of state.rings) {
+      const prev = ring.r;
+      ring.r += speed * dt;
+      for (const s of state.stones) {
+        const d = Math.hypot(s.x, s.y);
+        if (d > prev && d <= ring.r) ring_hit(s, 1 - d * 0.35);
+      }
+    }
+    state.rings = state.rings.filter(r => r.r < 1.05);
+    for (const s of state.stones) { s.glow = Math.max(0, s.glow - dt * 1.6); s.echo = Math.max(0, s.echo - dt * 0.9); }
+  }
+  let ringId = 0;
+  function ring_hit(s, strength) {
+    s.glow = 1; s.echo = 1;
+    state.hits++;
+    state.recent.push(s.name);
+    if (state.recent.length > 12) state.recent.shift();
+    voice(s.freq, Math.max(-1, Math.min(1, s.x)), strength);
+    renderNotes();
+  }
+  const notesEl = document.getElementById('notes');
+  let notesTimer = 0;
+  function renderNotes() {
+    if (notesTimer) return;
+    notesTimer = setTimeout(() => {
+      notesTimer = 0;
+      const r = state.recent.slice(-8);
+      notesEl.innerHTML = r.length ? r.map((n, i) => i === r.length - 1 ? `<b>${n}</b>` : n).join(' · ') : 'Silence, for now.';
+    }, 120);
+  }
+
+  // ---------- interaction ----------
+  const live = document.getElementById('live');
+  const hint = document.getElementById('hint');
+  function updateCount() {
+    document.getElementById('stoneCount').textContent = `${state.stones.length} stone${state.stones.length === 1 ? '' : 's'}${state.stones.length >= MAX_STONES ? ' (pool is full)' : ''}`;
+    hint.style.opacity = state.stones.length ? '0' : '1';
+  }
+  function plantOrLift(nx, ny) {
+    if (Math.hypot(nx, ny) > 0.96) return null;
+    const hitR = 0.07;
+    const idx = state.stones.findIndex(s => Math.hypot(s.x - nx, s.y - ny) < hitR);
+    if (idx >= 0) {
+      const [s] = state.stones.splice(idx, 1);
+      live.textContent = `Lifted the ${s.name} stone. ${state.stones.length} left.`;
+      updateCount();
+      return { lifted: s };
+    }
+    if (Math.hypot(nx, ny) < 0.1) { live.textContent = 'The centre is where the ripples start. Plant a little further out.'; return null; }
+    if (state.stones.length >= MAX_STONES) { live.textContent = 'The pool is full. Lift a stone first.'; return null; }
+    const s = { x: nx, y: ny, glow: 0.8, echo: 0, rot: rand() * Math.PI, ...noteAt(nx, ny) };
+    state.stones.push(s);
+    live.textContent = `Planted a stone: ${s.name}. ${state.stones.length} stone${state.stones.length === 1 ? '' : 's'}.`;
+    updateCount();
+    return { planted: s };
+  }
+  cv.addEventListener('pointerdown', e => {
+    const r = cv.getBoundingClientRect();
+    const [nx, ny] = toN(e.clientX - r.left, e.clientY - r.top);
+    state.cursorVisible = false;
+    plantOrLift(nx, ny);
+  });
+  cv.addEventListener('keydown', e => {
+    const step = e.shiftKey ? 0.02 : 0.06;
+    const c = state.cursor;
+    let used = true;
+    if (e.key === 'ArrowLeft') c.x -= step; else if (e.key === 'ArrowRight') c.x += step;
+    else if (e.key === 'ArrowUp') c.y -= step; else if (e.key === 'ArrowDown') c.y += step;
+    else if (e.key === 'Enter' || e.key === ' ') plantOrLift(c.x, c.y);
+    else used = false;
+    if (!used) return;
+    e.preventDefault();
+    const d = Math.hypot(c.x, c.y);
+    if (d > 0.92) { c.x *= 0.92 / d; c.y *= 0.92 / d; }
+    state.cursorVisible = true;
+    if (e.key.startsWith('Arrow')) live.textContent = `Cursor on ${noteAt(c.x, c.y).name}.`;
+  });
+  cv.addEventListener('focus', () => { state.cursorVisible = true; });
+  cv.addEventListener('blur', () => { state.cursorVisible = false; });
+
+  const playBtn = document.getElementById('play');
+  function setPlaying(p) {
+    if (p) {
+      const a = ensureAudio();
+      if (a && a.state === 'suspended') a.resume().catch(() => {});
+      sinceRing = beatSec(); // first ripple right away
+    }
+    state.playing = p;
+    playBtn.dataset.playing = String(p);
+    document.getElementById('playLabel').textContent = p ? 'Pause' : 'Play';
+    document.getElementById('playIcon').setAttribute('d', p ? 'M3 1.5h3.5v13H3zM9.5 1.5H13v13H9.5z' : 'M3 1.5v13l11-6.5z');
+    live.textContent = p ? `Tide running at ${state.bpm} bpm.` : 'Tide paused. The last ripples fade out.';
+  }
+  playBtn.addEventListener('click', () => setPlaying(!state.playing));
+  const muteBtn = document.getElementById('mute');
+  muteBtn.addEventListener('click', () => {
+    setMuted(!state.muted);
+    muteBtn.setAttribute('aria-pressed', String(state.muted));
+    muteBtn.textContent = state.muted ? 'Muted' : 'Mute';
+    live.textContent = state.muted ? 'Sound muted. Ripples keep going silently.' : 'Sound on.';
+  });
+  document.getElementById('clear').addEventListener('click', () => { state.stones = []; updateCount(); live.textContent = 'All stones lifted.'; });
+  document.getElementById('scatter').addEventListener('click', () => {
+    let n = 0, guard = 0;
+    while (n < 7 && state.stones.length < MAX_STONES && guard++ < 200) {
+      const a = rand() * Math.PI * 2, d = 0.18 + rand() * 0.72;
+      const nx = Math.sin(a) * d, ny = -Math.cos(a) * d;
+      if (state.stones.some(s => Math.hypot(s.x - nx, s.y - ny) < 0.14)) continue;
+      state.stones.push({ x: nx, y: ny, glow: 0.8, echo: 0, rot: rand() * Math.PI, ...noteAt(nx, ny) }); n++;
+    }
+    updateCount();
+    live.textContent = `Scattered ${n} stones. ${state.stones.length} in the pool.`;
+  });
+  const tempo = document.getElementById('tempo');
+  tempo.addEventListener('input', () => { state.bpm = Number(tempo.value); document.getElementById('tempoOut').textContent = state.bpm + ' bpm'; });
+  const rev = document.getElementById('reverb');
+  rev.addEventListener('input', () => { setReverb(Number(rev.value) / 100); document.getElementById('reverbOut').textContent = rev.value + '%'; });
+  document.querySelectorAll('input[name=scale]').forEach(r => r.addEventListener('change', () => {
+    if (!r.checked) return;
+    state.scale = r.value; retune();
+    live.textContent = `Scale: ${r.value}. Stones now ring ${state.stones.map(s => s.name).join(', ') || 'nothing yet'}.`;
+  }));
+
+  // test / debugging hook (never needed to hear anything)
+  window.__garden = {
+    get stones() { return state.stones.map(s => ({ x: +s.x.toFixed(4), y: +s.y.toFixed(4), note: s.name, midi: s.midi, freq: +s.freq.toFixed(3) })); },
+    get scale() { return state.scale; },
+    get playing() { return state.playing; },
+    get muted() { return state.muted; },
+    get bpm() { return state.bpm; },
+    get hits() { return state.hits; },
+    get recent() { return state.recent.slice(); },
+    get rings() { return state.rings.length; },
+    get audio() { return ac ? { state: ac.state, master: master.gain.value, wet: wet.gain.value } : null; },
+    geometry() { const r = cv.getBoundingClientRect(); return { left: r.left, top: r.top, size: S, radius: R }; },
+    noteAt: (x, y) => noteAt(x, y).name,
+  };
+
+  resize();
+  addEventListener('resize', resize);
+  updateCount();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

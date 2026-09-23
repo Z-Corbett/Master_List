@@ -1,0 +1,35 @@
+{
+  "id": "011",
+  "slug": "011-regex-rodeo",
+  "file": "lab/011-regex-rodeo.html",
+  "title": "Regex Rodeo — Regex Tester & Test Runner",
+  "category": "QA & Testing",
+  "tags": ["regex", "web-worker", "test-runner", "education", "localstorage"],
+  "description": "A regex tester that reports like a test suite: write a pattern, list should-match and should-not-match cases, and get pass/fail rows with highlighted capture groups plus a plain-English breakdown of every token. It includes a clickable cheat-sheet and eight challenge rounds, and runs every match in a Web Worker with a 750 ms budget to catch catastrophic backtracking.",
+  "prompt": "Build 'Regex Rodeo': a regex tester that doubles as a test runner. I enter a pattern and flags plus a list of 'should match' and 'should NOT match' cases, and each case shows pass/fail like a test report with its capture groups highlighted. Add a plain-English explanation of the pattern's tokens, a cheat-sheet, and about eight challenge rounds (emails, US ZIP codes, ISO dates, hex colours and so on) that remember when I've won them. Guard against catastrophic backtracking: run matching in a Web Worker created from a Blob URL with a timeout, kill it if it overruns, and show a clear warning. Single HTML file, no dependencies.",
+  "qa": {
+    "methodology": [
+      "Test-report oracle: summary data-pass/data-fail counts and per-row data-status for mixed passing and failing cases, then a re-run after fixing the pattern.",
+      "Capture-group rendering: group spans carry data-testid group-N and the captured values are listed per case.",
+      "Explanation tokenizer checked against anchors, classes, quantifiers, non-capturing groups and alternation, including flag-dependent wording (^ under the m flag).",
+      "Robustness: an uncompilable pattern shows a friendly error and leaves cases 'not run'; the (a+)+$ trap must trip the 750 ms worker budget and the UI must keep working afterwards.",
+      "Persistence: a challenge round counts as won only when its original cases all pass, and the win survives a reload via guarded localStorage."
+    ],
+    "risks": [
+      "Worker termination races: a late result from a killed worker overwriting a newer run.",
+      "Highlight rendering of nested, optional or zero-width groups.",
+      "Tokenizer mis-explaining escapes inside character classes or lazy quantifiers.",
+      "Blob-URL workers blocked by a stricter CSP on a future host (there is an unguarded inline fallback)."
+    ],
+    "playwright": "Most assertions target data-* state (data-pass, data-status) rather than colours, which keeps the report tests exact. The catastrophic-backtracking case uses real time on purpose: the 750 ms watchdog is a real setTimeout racing a real Worker, so page.clock is not installed and the assertion simply allows up to 5 s for the warning. Debounced inputs are handled by Playwright's auto-retrying expects rather than fixed sleeps. localStorage is cleared in beforeEach so the persistence test starts from zero, and the win is then verified across page.reload(). No screenshots — every behaviour has a text or attribute oracle.",
+    "coverage": [
+      "Pass/fail report counts and failure reasons",
+      "Capture group highlighting and listing",
+      "Plain-English explanation, flag sensitivity and cheat-sheet insertion",
+      "Friendly compile errors with cases left unrun",
+      "Catastrophic backtracking timeout and recovery",
+      "Challenge round win and persistence"
+    ]
+  },
+  "a11y": "Pattern, flags and case lists are labelled native controls, and the summary is an aria-live region; each report row has a visually hidden 'Pass'/'Fail' prefix so results are not conveyed by colour alone. Compile errors and the timeout warning use role=alert, and challenge rounds are buttons with aria-pressed."
+}

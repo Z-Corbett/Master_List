@@ -1,0 +1,33 @@
+{
+  "id": "003",
+  "slug": "003-bug-bash",
+  "file": "lab/003-bug-bash.html",
+  "title": "Bug Bash — squash bugs before they ship",
+  "category": "Games",
+  "tags": ["canvas", "game", "web-audio", "procedural", "localStorage"],
+  "description": "An arcade canvas game where procedurally drawn beetles crawl down a scrolling code editor toward a red production line. Tap to squash regressions, zig-zagging race conditions, teleporting heisenbugs and memory leaks that grow until you hit them three times, and chain combos across levels to beat your stored high score.",
+  "prompt": "Build 'Bug Bash', a polished arcade game on a single canvas. Bugs are beetles drawn procedurally (animated legs, antennae, shells) and crawl across a stylised code-editor background toward a 'production' line. Click or tap to squash them. Give me species with real personalities: a basic regression, a fast zig-zagging race condition, a heisenbug that teleports, and a memory leak that keeps growing and needs several hits. Add score, a combo multiplier, three lives, levels that unlock species and speed things up, pause on P or a button, a start screen and a game-over screen, and a high score saved in localStorage. Expose a small window.__game hook (state, spawn(type, x, y), pause, plus whatever else deterministic tests need) so I can write real Playwright tests against it.",
+  "qa": {
+    "methodology": [
+      "Test through a narrow, explicit hook: window.__game exposes read-only state plus spawn/hold/step/pause, so tests set up exact scenarios instead of chasing randomly moving sprites.",
+      "Real input, not shortcuts: squashes go through actual pointer events at canvas coordinates, so hit-testing, the touch-padding radius and coordinate mapping are all exercised on desktop and on a touch device.",
+      "Deterministic time: hold() freezes movement, auto-spawn and combo decay, and step(ms) advances the simulation in fixed 1/60 s ticks, which removes the dependence on frame rate and wall-clock time.",
+      "Rules as oracles: combo arithmetic (10×1 + 10×2 + 10×3 = 60), leak HP, level threshold, life loss on escape, and game-over high-score persistence across a reload.",
+      "Manual visual review at 1280px and 390px of the start screen, sprites and HUD, plus a reduced-motion pass (no scrolling background, shake or floating text drift)."
+    ],
+    "risks": [
+      "Coordinate mapping between CSS pixels and the DPR-scaled backing store drifting on high-density screens, so taps miss.",
+      "Frame-rate-dependent logic (combo timers, teleport intervals) behaving differently on slow devices.",
+      "localStorage throwing in private mode and breaking the game-over flow (guarded with try/catch)."
+    ],
+    "playwright": "Canvas games are the classic 'hard to automate' case: there's no DOM for the sprites and everything moves. Rather than pixel-diffing, the page ships a deliberate test seam (window.__game) and the spec reads state with page.evaluate. The first attempt used page.clock.install() to freeze time, but because the fake clock also controls requestAnimationFrame, Playwright's actionability checks on the canvas stalled intermittently under load. Switching to a game-level hold() plus a fixed-step step(ms), and clicking through page.mouse at the canvas bounding box plus game coordinates, made the spec deterministic on both Desktop Chrome and the touch-enabled Pixel 7. Audio is never asserted: it only starts after a gesture and is treated as non-essential output.",
+    "coverage": [
+      "Start screen content and transition to play",
+      "Pointer squashes, combo multiplier maths, miss resets combo",
+      "Memory leak needs three hits; ten squashes trigger level 2",
+      "Escapes cost lives; game over; high score persisted and restored after reload",
+      "Pause/resume via P key and via buttons; paused simulation does not advance"
+    ]
+  },
+  "a11y": "All menus use real buttons with visible focus, P or Escape pauses, and Space squashes the bug closest to production, so the game can be played from the keyboard alone. Level changes and game over are announced through an aria-live region, and lives are exposed as a labelled image ('2 lives left')."
+}

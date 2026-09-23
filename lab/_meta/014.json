@@ -1,0 +1,34 @@
+{
+  "id": "014",
+  "slug": "014-day-night",
+  "file": "lab/014-day-night.html",
+  "title": "Day & Night 2.0 — a toggle grown into a valley",
+  "category": "Generative",
+  "tags": ["svg", "animation", "accessibility", "time", "switch"],
+  "description": "A remake of my old day/night toggle as a full illustrated SVG landscape: flipping the tactile switch time-lapses the valley through sunset or dawn, with stars coming out one by one, fireflies waking up, cabin windows lighting and the lake reflecting it all. A real-time mode paints the sky from your local clock, with approximate seasonal sunrise and sunset.",
+  "prompt": "Remake my old Day/Night toggle button, but grow it into a whole scene. I want a big, tactile, satisfying switch that moves an illustrated landscape (SVG hills, a lake with reflections, a sun and moon on an arc, stars, fireflies at night, clouds) between day and night. The transitions should be carefully choreographed, not a crossfade. Add a real-time mode that sets the sky from the visitor's local clock using Date, so it can be tested with a fake clock. The toggle has to be a proper accessible switch with role=\"switch\" and aria-checked. One self-contained file, no libraries.",
+  "qa": {
+    "methodology": [
+      "State-based oracles: the scene exposes hour, daylight, visible-star and lit-firefly counts via window.__scene, so tests assert what the sky is doing rather than colours.",
+      "Time is fully controlled: page.clock is installed at fixed local times (22:30, 12:45, 05:30) and paused, so real-time mode is deterministic.",
+      "Transition choreography is checked mid-flight (still animating, hour past midnight) and at rest (exactly 13:00, stars gone).",
+      "Accessibility: the switch is located by role and name, toggled with Space and Enter, and its aria-checked state is asserted after each change.",
+      "Reduced motion is emulated to prove the time-lapse is skipped and the change is instant.",
+      "Visual review at 1280px and 390px, plus a dusk screenshot taken through the setHour debug hook."
+    ],
+    "risks": [
+      "Timezone and date assumptions: sunrise and sunset depend on the day of year and the runner's local timezone.",
+      "Animation timing: real time leaking into a fake clock that has not been paused makes the mid-transition check flaky.",
+      "SVG filter and <use> reflection cost on low-end phones."
+    ],
+    "playwright": "Role-based locators made the switch easy to test: getByRole('switch', { name: 'Daylight' }) plus aria-checked is the real accessibility contract. Time was the hard part. The first run was flaky because page.clock.install() lets time keep flowing, so under load the 3.2 s transition sometimes finished on its own. Every test now installs the clock and then pauses it, and all motion goes through runFor or fastForward. Real-time mode is tested by fast-forwarding three hours across sunrise, then checking that the switch flips and the announcer reports it. Screenshots were reviewed by hand instead of with toHaveScreenshot, because cloud drift and firefly blinking are meant to be continuous.",
+    "coverage": [
+      "Real-time mode at night: switch unchecked, stars and fireflies visible, local time shown",
+      "Real-time mode at midday: daylight, sun visible, no stars or fireflies",
+      "Switch click time-lapses forward through dawn and moves to manual mode",
+      "Space and Enter toggle the switch, and reduced motion makes the change instant",
+      "Clock-driven sunrise in real-time mode after returning from manual"
+    ]
+  },
+  "a11y": "The toggle is a native button with role=\"switch\", an accessible name and aria-checked. It works with Space and Enter and has a visible focus ring. Mode is a labelled radio group, the scene SVG is aria-hidden decoration, and every state change is announced in a polite live region."
+}

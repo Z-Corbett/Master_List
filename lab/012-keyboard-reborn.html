@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Keyboard Reborn — CSS Keyboard, Synth &amp; Typing Test</title>
+<meta name="description" content="A realistic low-profile aluminum keyboard drawn entirely in CSS. Physical keypresses animate the matching keys, synth mode turns the board into a Web Audio instrument, and a typing test measures WPM and accuracy.">
+<style>
+  :root {
+    --desk-a: #eeece8;
+    --desk-b: #d4d7dc;
+    --ink: #1c1e22;
+    --ink-2: #555a63;
+    --ink-3: #8a9099;
+    --accent: #ff5a1f;
+    --accent-2: #2a6df4;
+    --ok: #1f9d55;
+    --bad: #d93b30;
+    --u: min(54px, calc((100vw - 40px) / 15.3));
+    --g: calc(var(--u) * 0.12);
+    /* silver */
+    --body-a: #e9ebee; --body-b: #c3c7cd; --body-edge: #a9aeb5;
+    --cap-a: #ffffff; --cap-b: #f1f2f4; --cap-edge: #d6d9de; --cap-ink: #5b6068;
+    --well: #b7bcc3;
+    --sans: -apple-system, "Segoe UI", system-ui, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  }
+  body.graphite {
+    --body-a: #5b6068; --body-b: #3a3e44; --body-edge: #2a2d31;
+    --cap-a: #34373c; --cap-b: #2b2e32; --cap-edge: #1d1f22; --cap-ink: #d5d8dd;
+    --well: #26292d;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font-family: var(--sans); color: var(--ink);
+    background:
+      radial-gradient(900px 500px at 50% 0%, rgba(255, 255, 255, .8), transparent 70%),
+      linear-gradient(180deg, var(--desk-a), var(--desk-b));
+    min-height: 100vh; overflow-x: hidden;
+  }
+  .back {
+    position: fixed; top: 10px; left: 10px; z-index: 20; font-size: 13px; color: var(--ink-2);
+    text-decoration: none; background: rgba(255, 255, 255, .8); border: 1px solid rgba(0, 0, 0, .1);
+    padding: 6px 11px; border-radius: 8px; backdrop-filter: blur(6px);
+  }
+  .back:hover { color: var(--ink); border-color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+
+  header { text-align: center; padding: 58px 16px 10px; }
+  header .eyebrow { font-size: 12px; letter-spacing: .3em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  header h1 { font-size: clamp(34px, 6vw, 58px); font-weight: 700; letter-spacing: -.035em; margin: 6px 0 6px; }
+  header h1 span { font-weight: 300; color: var(--ink-3); }
+  header p { color: var(--ink-2); max-width: 560px; margin: 0 auto; line-height: 1.5; }
+
+  .wrap { max-width: 960px; margin: 0 auto; padding: 14px 16px 60px; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .tabs { display: inline-flex; background: rgba(255, 255, 255, .6); border: 1px solid rgba(0, 0, 0, .08); border-radius: 12px; padding: 4px; gap: 2px; }
+  .tabs button { font: 600 14px var(--sans); border: 0; background: transparent; color: var(--ink-2); padding: 8px 14px; border-radius: 9px; cursor: pointer; }
+  .tabs button[aria-selected="true"] { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .15); }
+  .ghost { font: 600 13px var(--sans); border: 1px solid rgba(0, 0, 0, .12); background: rgba(255, 255, 255, .6); color: var(--ink-2); padding: 8px 12px; border-radius: 10px; cursor: pointer; }
+  .ghost:hover { color: var(--ink); border-color: rgba(0, 0, 0, .3); }
+  .ghost[aria-pressed="true"] { background: var(--ink); color: #fff; }
+
+  .panel { background: rgba(255, 255, 255, .65); border: 1px solid rgba(0, 0, 0, .07); border-radius: 16px; padding: 16px 18px; margin-bottom: 22px; min-height: 120px; box-shadow: 0 10px 30px -18px rgba(0, 0, 0, .35); }
+  .panel[hidden] { display: none; }
+  .readout { display: flex; gap: 16px; flex-wrap: wrap; align-items: baseline; }
+  .big { font: 700 clamp(26px, 5vw, 40px) var(--mono); letter-spacing: -.02em; }
+  .muted { color: var(--ink-3); font-size: 13px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .synth-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 16px; align-items: center; }
+  @media (max-width: 640px) { .synth-grid { grid-template-columns: minmax(0, 1fr); } }
+  canvas#scope { width: 100%; height: 84px; display: block; background: #15171a; border-radius: 10px; }
+  .seg { display: inline-flex; border: 1px solid rgba(0, 0, 0, .12); border-radius: 10px; overflow: hidden; }
+  .seg button { font: 600 12px var(--sans); background: rgba(255, 255, 255, .7); border: 0; border-right: 1px solid rgba(0, 0, 0, .08); padding: 7px 10px; cursor: pointer; color: var(--ink-2); }
+  .seg button:last-child { border-right: 0; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+
+  .passage { font: clamp(16px, 2.4vw, 21px)/1.7 var(--mono); color: var(--ink-3); word-break: break-word; margin: 4px 0 12px; }
+  .passage .c { color: var(--ink); }
+  .passage .w { color: #fff; background: var(--bad); border-radius: 3px; }
+  .passage .cur { box-shadow: inset 0 -3px 0 var(--accent); color: var(--ink); animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { box-shadow: inset 0 -3px 0 transparent; } }
+  .stats { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; color: var(--ink-2); }
+  .stats b { font: 700 22px var(--mono); color: var(--ink); display: block; }
+  .result { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: #15171a; color: #fff; display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+  .result[hidden] { display: none; }
+  .result strong { font: 700 24px var(--mono); color: #ffd2bf; }
+
+  /* ---------- the keyboard ---------- */
+  .stage { display: flex; justify-content: center; perspective: 1400px; }
+  .kb {
+    position: relative; padding: calc(var(--u) * .34) calc(var(--u) * .34) calc(var(--u) * .4);
+    border-radius: calc(var(--u) * .22);
+    background:
+      repeating-linear-gradient(90deg, rgba(255, 255, 255, .05) 0 1px, rgba(0, 0, 0, .025) 1px 2px),
+      linear-gradient(180deg, var(--body-a), var(--body-b));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, .7), inset 0 -2px 0 var(--body-edge),
+      0 calc(var(--u) * .08) 0 var(--body-edge),
+      0 calc(var(--u) * .5) calc(var(--u) * .8) calc(var(--u) * -.25) rgba(0, 0, 0, .45);
+    transform: rotateX(14deg); transform-origin: 50% 100%;
+    touch-action: manipulation; user-select: none; -webkit-user-select: none;
+  }
+  .kb .well { background: var(--well); border-radius: calc(var(--u) * .08); padding: calc(var(--g) * .5); box-shadow: inset 0 1px 2px rgba(0, 0, 0, .25); }
+  .krow { display: flex; gap: var(--g); margin-bottom: var(--g); }
+  .krow:last-child { margin-bottom: 0; }
+  .key {
+    --w: 1; --h: 1;
+    position: relative; flex: none; width: calc(var(--u) * var(--w) - var(--g)); height: calc(var(--u) * var(--h) - var(--g));
+    border: 0; padding: 0; margin: 0; cursor: pointer; font-family: var(--sans); color: var(--cap-ink);
+    background: linear-gradient(180deg, var(--cap-a), var(--cap-b));
+    border-radius: calc(var(--u) * .09);
+    box-shadow: 0 1px 0 var(--cap-edge), 0 calc(var(--u) * .045) 0 var(--cap-edge), 0 calc(var(--u) * .06) calc(var(--u) * .05) rgba(0, 0, 0, .25);
+    transform: translateY(0); transition: transform 60ms ease-out, box-shadow 60ms ease-out, background-color 60ms;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .key::before { /* subtle concave sheen */
+    content: ""; position: absolute; inset: 8% 6% 18%; border-radius: inherit;
+    background: radial-gradient(120% 90% at 50% 0%, rgba(255, 255, 255, .55), transparent 60%); pointer-events: none; opacity: .6;
+  }
+  body.graphite .key::before { opacity: .12; }
+  .key .lb { position: absolute; font-size: calc(var(--u) * .27); line-height: 1; pointer-events: none; }
+  .key .lb.c { inset: 0; display: grid; place-items: center; }
+  .key .lb.t { top: 16%; left: 0; right: 0; text-align: center; font-size: calc(var(--u) * .22); }
+  .key .lb.b { bottom: 18%; left: 0; right: 0; text-align: center; font-size: calc(var(--u) * .25); }
+  .key.mod .lb { font-size: calc(var(--u) * .18); bottom: 14%; }
+  .key.mod.l .lb { left: 12%; } .key.mod.r .lb { right: 12%; text-align: right; }
+  .key.mod .lb.sym { top: 14%; bottom: auto; font-size: calc(var(--u) * .2); }
+  .key.fk .lb { font-size: calc(var(--u) * .17); }
+  .key.arrow .lb { font-size: calc(var(--u) * .2); }
+  .key .led { position: absolute; top: 14%; left: 12%; width: calc(var(--u) * .08); height: calc(var(--u) * .08); border-radius: 50%; background: rgba(0, 0, 0, .15); }
+  .key .led.on { background: #3ddc6e; box-shadow: 0 0 6px #3ddc6e; }
+  .key .note {
+    position: absolute; right: 7%; bottom: 8%; font: 700 calc(var(--u) * .15) var(--mono); padding: 0 .3em; border-radius: 3px;
+    color: #fff; background: hsl(var(--hue, 20) 80% 50%); opacity: 0; transform: scale(.8); transition: opacity .15s, transform .15s; pointer-events: none;
+  }
+  body.synth .key .note { opacity: 1; transform: none; }
+  .key.down {
+    transform: translateY(calc(var(--u) * .04));
+    box-shadow: 0 0 0 var(--cap-edge), 0 calc(var(--u) * .01) 0 var(--cap-edge), 0 1px 1px rgba(0, 0, 0, .25);
+    background: linear-gradient(180deg, var(--cap-b), var(--cap-b));
+    filter: brightness(.94);
+  }
+  body.synth .key.down[data-midi] { background: hsl(var(--hue) 85% 72%); color: #1c1e22; }
+  body.type .key.next { box-shadow: 0 0 0 2px var(--accent), 0 calc(var(--u) * .045) 0 var(--cap-edge); }
+  .arrows { display: flex; flex-direction: column; gap: calc(var(--g) * .5); }
+  .arrows .key { --h: .5; height: calc(var(--u) * .5 - var(--g) * .75); }
+  .fnrow .key { --h: .55; }
+  .brand { position: absolute; left: 50%; bottom: calc(var(--u) * .1); transform: translateX(-50%); font-size: calc(var(--u) * .14); letter-spacing: .3em; color: rgba(0, 0, 0, .25); text-transform: uppercase; white-space: nowrap; }
+  body.graphite .brand { color: rgba(255, 255, 255, .22); }
+  .hint { text-align: center; color: var(--ink-3); font-size: 13px; margin-top: 22px; }
+  footer { text-align: center; color: var(--ink-3); font-size: 12px; padding: 0 16px 36px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  @media (prefers-reduced-motion: reduce) {
+    .key, .key .note { transition: none; }
+    .passage .cur { animation: none; }
+    .kb { transform: none; }
+  }
+</style>
+</head>
+<body>
+<a href="../index.html#lab" class="back" data-testid="back-link">← Zac's Lab</a>
+<header>
+  <div class="eyebrow">Pure CSS · Web Audio</div>
+  <h1>Keyboard <span>Reborn</span></h1>
+  <p>A remake of an old experiment: a thin aluminum keyboard built from CSS, not pixels. Type on your real keyboard and watch it answer — then play it, or race it.</p>
+</header>
+
+<div class="wrap">
+  <div class="toolbar">
+    <div class="tabs" role="tablist" aria-label="Mode">
+      <button role="tab" id="tab-play" data-mode="play" data-testid="mode-play" aria-selected="true" aria-controls="panel-play">Play</button>
+      <button role="tab" id="tab-synth" data-mode="synth" data-testid="mode-synth" aria-selected="false" aria-controls="panel-synth" tabindex="-1">Synth</button>
+      <button role="tab" id="tab-type" data-mode="type" data-testid="mode-type" aria-selected="false" aria-controls="panel-type" tabindex="-1">Typing test</button>
+    </div>
+    <button class="ghost" type="button" id="theme" data-testid="theme-toggle" aria-pressed="false">Graphite finish</button>
+  </div>
+
+  <section class="panel" id="panel-play" role="tabpanel" aria-labelledby="tab-play">
+    <div class="readout" aria-live="polite">
+      <div><div class="muted">Last key</div><div class="big" data-testid="last-key" id="last-key">—</div></div>
+      <div><div class="muted">event.key</div><div class="big" id="last-char" data-testid="last-char" style="color:var(--accent)">—</div></div>
+      <div><div class="muted">Presses</div><div class="big" id="presses" data-testid="presses">0</div></div>
+    </div>
+    <p class="muted" style="margin:10px 0 0">Press anything on your keyboard, or tap the keys below. Caps Lock lights its LED. Browser shortcuts still work in this mode.</p>
+  </section>
+
+  <section class="panel" id="panel-synth" role="tabpanel" aria-labelledby="tab-synth" hidden>
+    <div class="synth-grid">
+      <div>
+        <div class="readout" aria-live="polite">
+          <div><div class="muted">Note</div><div class="big" data-testid="note-readout" id="note">—</div></div>
+          <div><div class="muted">Octave</div><div class="big" data-testid="octave" id="octave">0</div></div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <div class="seg" role="group" aria-label="Waveform">
+            <button type="button" data-wave="triangle" aria-pressed="true" data-testid="wave-triangle">Triangle</button>
+            <button type="button" data-wave="sine" aria-pressed="false" data-testid="wave-sine">Sine</button>
+            <button type="button" data-wave="sawtooth" aria-pressed="false" data-testid="wave-sawtooth">Saw</button>
+            <button type="button" data-wave="square" aria-pressed="false" data-testid="wave-square">Square</button>
+          </div>
+          <div class="seg" role="group" aria-label="Octave">
+            <button type="button" id="oct-down" data-testid="oct-down" aria-label="Octave down">−</button>
+            <button type="button" id="oct-up" data-testid="oct-up" aria-label="Octave up">+</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <canvas id="scope" width="600" height="84" aria-hidden="true"></canvas>
+        <p class="muted" style="margin:8px 0 0" id="audio-note" data-testid="audio-status">Sound starts on your first key press. Home row = white keys, row above = sharps, bottom row = the octave below.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-type" role="tabpanel" aria-labelledby="tab-type" hidden>
+    <div class="passage" id="passage" data-testid="passage" aria-label="Passage to type"></div>
+    <div class="stats" aria-live="off">
+      <div>WPM<b data-testid="wpm" id="wpm">0</b></div>
+      <div>Accuracy<b data-testid="accuracy" id="acc">100%</b></div>
+      <div>Time<b data-testid="timer" id="timer">0:00</b></div>
+      <div style="margin-left:auto;align-self:center"><button class="ghost" type="button" id="restart" data-testid="restart">New passage <span class="muted">(Esc)</span></button></div>
+    </div>
+    <div class="result" id="result" data-testid="result" role="status" hidden></div>
+  </section>
+
+  <div class="stage">
+    <div class="kb" id="kb" data-testid="keyboard" role="group" aria-label="Virtual keyboard — mirrors your physical keys; tap to press">
+      <div class="well" id="well"></div>
+      <div class="brand" aria-hidden="true">zc · low profile</div>
+    </div>
+  </div>
+  <p class="hint" id="hint">Tip: on a phone, tap the keys directly — the board scales to fit.</p>
+</div>
+<footer>Keyboard Reborn · a Lab experiment by Zac Corbett · every key is a &lt;button&gt; styled with gradients and shadows.</footer>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- layout ----------
+  // [code, label, width, class] or [code, top, bottom] for dual-legend keys
+  const L = (s) => s.split('').map((c) => ['Key' + c, c]);
+  const F = Array.from({ length: 12 }, (_, i) => ['F' + (i + 1), 'F' + (i + 1), 1, 'fk']);
+  const ROWS = [
+    { cls: 'fnrow', keys: [['Escape', 'esc', 1.5, 'mod l'], ...F, ['Eject', '⏏', 1, 'fk']] },
+    { keys: [['Backquote', '~', '`'], ['Digit1', '!', '1'], ['Digit2', '@', '2'], ['Digit3', '#', '3'], ['Digit4', '$', '4'], ['Digit5', '%', '5'], ['Digit6', '^', '6'], ['Digit7', '&', '7'], ['Digit8', '*', '8'], ['Digit9', '(', '9'], ['Digit0', ')', '0'], ['Minus', '_', '-'], ['Equal', '+', '='], ['Backspace', 'delete', 1.5, 'mod r']] },
+    { keys: [['Tab', 'tab', 1.5, 'mod l'], ...L('QWERTYUIOP'), ['BracketLeft', '{', '['], ['BracketRight', '}', ']'], ['Backslash', '|', '\\']] },
+    { keys: [['CapsLock', 'caps lock', 1.75, 'mod l caps'], ...L('ASDFGHJKL'), ['Semicolon', ':', ';'], ['Quote', '"', "'"], ['Enter', 'return', 1.75, 'mod r']] },
+    { keys: [['ShiftLeft', 'shift', 2.25, 'mod l'], ...L('ZXCVBNM'), ['Comma', '<', ','], ['Period', '>', '.'], ['Slash', '?', '/'], ['ShiftRight', 'shift', 2.25, 'mod r']] },
+    { keys: [['Fn', 'fn', 1, 'mod l'], ['ControlLeft', 'control', 1, 'mod l'], ['AltLeft', 'option', 1, 'mod l', 'alt'], ['MetaLeft', 'command', 1.25, 'mod r', '⌘'], ['Space', '', 5], ['MetaRight', 'command', 1.25, 'mod l', '⌘'], ['AltRight', 'option', 1, 'mod l', 'alt'], 'ARROWS'] }
+  ];
+  const keyEls = new Map();
+  function makeKey([code, a, b, cls, sym]) {
+    const el = document.createElement('button');
+    el.type = 'button'; el.className = 'key'; el.tabIndex = -1;
+    el.dataset.code = code; el.setAttribute('data-testid', 'key-' + code);
+    let w = 1;
+    if (typeof b === 'number') { w = b; el.className += ' ' + (cls || ''); el.innerHTML = `${sym ? `<span class="lb sym">${sym}</span>` : ''}<span class="lb ${cls && cls.includes('mod') ? '' : 'c'}">${a}</span>`; }
+    else if (b !== undefined) el.innerHTML = `<span class="lb t">${a === '&' ? '&amp;' : a === '<' ? '&lt;' : a === '>' ? '&gt;' : a}</span><span class="lb b">${b}</span>`;
+    else el.innerHTML = `<span class="lb c">${a}</span>`;
+    if (code === 'CapsLock') el.insertAdjacentHTML('afterbegin', '<span class="led" id="caps-led"></span>');
+    el.style.setProperty('--w', w);
+    el.setAttribute('aria-label', code === 'Space' ? 'space' : (typeof b === 'number' ? a : (b !== undefined ? b : a)) || code);
+    el.insertAdjacentHTML('beforeend', '<span class="note"></span>');
+    keyEls.set(code, el);
+    return el;
+  }
+  const well = $('well');
+  ROWS.forEach((r) => {
+    const row = document.createElement('div');
+    row.className = 'krow ' + (r.cls || '');
+    r.keys.forEach((k) => {
+      if (k === 'ARROWS') {
+        row.appendChild(makeKey(['ArrowLeft', '◀', 1, 'arrow']));
+        const col = document.createElement('div'); col.className = 'arrows';
+        col.appendChild(makeKey(['ArrowUp', '▲', 1, 'arrow'])); col.appendChild(makeKey(['ArrowDown', '▼', 1, 'arrow']));
+        row.appendChild(col);
+        row.appendChild(makeKey(['ArrowRight', '▶', 1, 'arrow']));
+      } else row.appendChild(makeKey(k));
+    });
+    well.appendChild(row);
+  });
+
+  // char <-> code for virtual typing and the "next key" guide
+  const charOf = {}; // code -> [lower, shifted]
+  ROWS.forEach((r) => r.keys.forEach((k) => {
+    if (!Array.isArray(k)) return;
+    const [code, a, b] = k;
+    if (/^Key[A-Z]$/.test(code)) charOf[code] = [a.toLowerCase(), a];
+    else if (typeof b === 'string') charOf[code] = [b, a];
+  }));
+  charOf.Space = [' ', ' '];
+  const codeOfChar = {};
+  Object.entries(charOf).forEach(([code, [lo, up]]) => { codeOfChar[lo] = code; if (!(up in codeOfChar)) codeOfChar[up] = code; });
+
+  // ---------- modes ----------
+  let mode = 'play';
+  const tabs = [...document.querySelectorAll('[role="tab"]')];
+  function setMode(m, focus) {
+    mode = m;
+    tabs.forEach((t) => {
+      const on = t.dataset.mode === m;
+      t.setAttribute('aria-selected', String(on)); t.tabIndex = on ? 0 : -1;
+      $('panel-' + t.dataset.mode).hidden = !on;
+      if (on && focus) t.focus();
+    });
+    document.body.classList.toggle('synth', m === 'synth');
+    document.body.classList.toggle('type', m === 'type');
+    releaseAll();
+    if (m === 'type') resetTest(false);
+    else clearNext();
+  }
+  tabs.forEach((t, i) => {
+    t.addEventListener('click', () => setMode(t.dataset.mode));
+    t.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        e.preventDefault(); e.stopPropagation();
+        const n = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+        setMode(n.dataset.mode, true);
+      }
+    });
+  });
+  $('theme').addEventListener('click', (e) => {
+    const on = document.body.classList.toggle('graphite');
+    e.currentTarget.setAttribute('aria-pressed', String(on));
+    e.currentTarget.textContent = on ? 'Silver finish' : 'Graphite finish';
+    try { localStorage.setItem('kb-reborn-theme', on ? 'graphite' : 'silver'); } catch (_) { /* ignore */ }
+  });
+  try { if (localStorage.getItem('kb-reborn-theme') === 'graphite') $('theme').click(); } catch (_) { /* ignore */ }
+
+  // ---------- press / release ----------
+  const down = new Set();
+  let presses = 0;
+  function press(code, key) {
+    const el = keyEls.get(code);
+    if (el) el.classList.add('down');
+    if (down.has(code)) return; // auto-repeat
+    down.add(code);
+    presses++;
+    $('last-key').textContent = code;
+    $('last-char').textContent = key === ' ' ? '␣' : (key || '—');
+    $('presses').textContent = presses;
+    if (mode === 'synth') noteOn(code);
+  }
+  function release(code) {
+    const el = keyEls.get(code);
+    if (el) el.classList.remove('down');
+    down.delete(code);
+    if (mode === 'synth') noteOff(code);
+  }
+  function releaseAll() { [...down].forEach(release); keyEls.forEach((el) => el.classList.remove('down')); }
+
+  const isInteractive = (t) => t && t.closest && t.closest('button:not(.key), a, input, select, textarea');
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.metaKey) { if (e.code) press(e.code, e.key); return; }
+    const code = e.code || '';
+    $('caps-led').classList.toggle('on', !!(e.getModifierState && e.getModifierState('CapsLock')));
+    if (mode === 'type') {
+      if (e.key === 'Escape') { e.preventDefault(); resetTest(true); press(code, e.key); return; }
+      if (e.key === 'Tab') { press(code, e.key); return; }
+      if (isInteractive(e.target) && e.key === 'Enter') return;
+      if (e.key === 'Backspace') { e.preventDefault(); typeChar(null); }
+      else if (e.key.length === 1) { e.preventDefault(); typeChar(e.key); }
+    } else if (mode === 'synth') {
+      if (isInteractive(e.target) && (e.key === ' ' || e.key === 'Enter' || e.key === 'Tab')) { /* let buttons work */ }
+      else if (noteFor(code) != null || code === 'Space') e.preventDefault();
+    } else if (code === 'Space' && !isInteractive(e.target)) e.preventDefault();
+    press(code, e.key);
+  });
+  document.addEventListener('keyup', (e) => {
+    $('caps-led').classList.toggle('on', !!(e.getModifierState && e.getModifierState('CapsLock')));
+    release(e.code);
+    if (e.key === 'Meta') releaseAll(); // macOS swallows keyups while ⌘ is held
+  });
+  window.addEventListener('blur', releaseAll);
+
+  // virtual keys (mouse, pen, touch)
+  let shiftLatch = false;
+  const kb = $('kb');
+  kb.addEventListener('pointerdown', (e) => {
+    const el = e.target.closest('.key');
+    if (!el) return;
+    e.preventDefault();
+    const code = el.dataset.code;
+    try { el.setPointerCapture(e.pointerId); } catch (_) { /* noop */ }
+    const pair = charOf[code];
+    const ch = pair ? pair[shiftLatch ? 1 : 0] : code === 'Backspace' ? 'Backspace' : code;
+    press(code, ch);
+    if (mode === 'type') {
+      if (code === 'ShiftLeft' || code === 'ShiftRight') { shiftLatch = !shiftLatch; }
+      else if (code === 'Backspace') typeChar(null);
+      else if (code === 'Escape') resetTest(true);
+      else if (pair) { typeChar(ch); shiftLatch = false; }
+    }
+    const up = () => { release(code); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); el.removeEventListener('lostpointercapture', up); };
+    el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('lostpointercapture', up);
+  });
+
+  // ---------- synth ----------
+  const WHITE = { KeyA: 0, KeyS: 2, KeyD: 4, KeyF: 5, KeyG: 7, KeyH: 9, KeyJ: 11, KeyK: 12, KeyL: 14, Semicolon: 16, Quote: 17 };
+  const BLACK = { KeyW: 1, KeyE: 3, KeyT: 6, KeyY: 8, KeyU: 10, KeyO: 13, KeyP: 15, BracketRight: 18 };
+  const LOW = { KeyZ: -12, KeyX: -10, KeyC: -8, KeyV: -7, KeyB: -5, KeyN: -3, KeyM: -1, Comma: 0, Period: 2, Slash: 4 };
+  const NAMES = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+  let octave = 0, wave = 'triangle';
+  function noteFor(code) {
+    const off = code in WHITE ? WHITE[code] : code in BLACK ? BLACK[code] : code in LOW ? LOW[code] : null;
+    return off == null ? null : 60 + off + octave * 12;
+  }
+  const noteName = (m) => NAMES[m % 12] + (Math.floor(m / 12) - 1);
+  function labelNotes() {
+    keyEls.forEach((el, code) => {
+      const m = noteFor(code);
+      const tag = el.querySelector('.note');
+      if (m == null) { delete el.dataset.midi; tag.textContent = ''; tag.style.display = 'none'; return; }
+      el.dataset.midi = m; tag.style.display = '';
+      tag.textContent = noteName(m).replace(/-?\d+$/, '');
+      el.style.setProperty('--hue', String((m % 12) * 30));
+    });
+    $('octave').textContent = (octave > 0 ? '+' : '') + octave;
+  }
+  labelNotes();
+
+  let actx = null, master = null, analyser = null;
+  const voices = new Map();
+  function ensureAudio() {
+    if (actx) { if (actx.state === 'suspended') actx.resume(); return actx; }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) { $('audio-note').textContent = 'Web Audio is not available in this browser — the keys will still light up.'; return null; }
+    actx = new AC();
+    master = actx.createGain(); master.gain.value = 0.55;
+    const comp = actx.createDynamicsCompressor();
+    const delay = actx.createDelay(1); delay.delayTime.value = 0.26;
+    const fb = actx.createGain(); fb.gain.value = 0.28;
+    const wet = actx.createGain(); wet.gain.value = 0.18;
+    analyser = actx.createAnalyser(); analyser.fftSize = 1024;
+    master.connect(comp); master.connect(delay); delay.connect(fb); fb.connect(delay); delay.connect(wet); wet.connect(comp);
+    comp.connect(analyser); analyser.connect(actx.destination);
+    $('audio-note').textContent = 'Synth is live. Home row = white keys, row above = sharps, bottom row = the octave below.';
+    return actx;
+  }
+  function noteOn(code) {
+    const m = noteFor(code);
+    if (m == null) return;
+    const f = 440 * Math.pow(2, (m - 69) / 12);
+    $('note').textContent = `${noteName(m)} · ${f.toFixed(1)} Hz`;
+    const c = ensureAudio();
+    if (!c || voices.has(code)) return;
+    const t = c.currentTime;
+    const osc = c.createOscillator(); osc.type = wave; osc.frequency.value = f;
+    const sub = c.createOscillator(); sub.type = 'sine'; sub.frequency.value = f / 2;
+    const subG = c.createGain(); subG.gain.value = 0.25;
+    const filt = c.createBiquadFilter(); filt.type = 'lowpass'; filt.frequency.value = Math.min(9000, f * 8); filt.Q.value = 0.7;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.3, t + 0.01);
+    g.gain.setTargetAtTime(0.16, t + 0.01, 0.3);
+    osc.connect(filt); sub.connect(subG); subG.connect(filt); filt.connect(g); g.connect(master);
+    osc.start(t); sub.start(t);
+    voices.set(code, { osc, sub, g });
+    kickScope();
+  }
+  function noteOff(code) {
+    const v = voices.get(code);
+    if (!v || !actx) return;
+    const t = actx.currentTime;
+    v.g.gain.cancelScheduledValues(t);
+    v.g.gain.setValueAtTime(v.g.gain.value, t);
+    v.g.gain.setTargetAtTime(0, t, 0.09);
+    v.osc.stop(t + 0.6); v.sub.stop(t + 0.6);
+    voices.delete(code);
+  }
+  document.querySelectorAll('[data-wave]').forEach((b) => b.addEventListener('click', () => {
+    wave = b.dataset.wave;
+    document.querySelectorAll('[data-wave]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  }));
+  $('oct-down').addEventListener('click', () => { octave = Math.max(-2, octave - 1); labelNotes(); });
+  $('oct-up').addEventListener('click', () => { octave = Math.min(2, octave + 1); labelNotes(); });
+
+  const scope = $('scope'), sctx = scope.getContext('2d');
+  let scopeUntil = 0, scopeRaf = 0;
+  function drawScope() {
+    sctx.fillStyle = '#15171a'; sctx.fillRect(0, 0, scope.width, scope.height);
+    sctx.strokeStyle = 'rgba(255,255,255,.07)'; sctx.beginPath(); sctx.moveTo(0, 42); sctx.lineTo(600, 42); sctx.stroke();
+    if (!analyser) return;
+    const buf = new Uint8Array(analyser.fftSize);
+    analyser.getByteTimeDomainData(buf);
+    sctx.strokeStyle = '#ff7a45'; sctx.lineWidth = 2; sctx.beginPath();
+    for (let i = 0; i < 600; i++) {
+      const v = buf[Math.floor((i / 600) * buf.length)] / 128 - 1;
+      const y = 42 - v * 36;
+      i ? sctx.lineTo(i, y) : sctx.moveTo(i, y);
+    }
+    sctx.stroke();
+  }
+  function kickScope() {
+    scopeUntil = performance.now() + 900;
+    if (reduce) { setTimeout(drawScope, 60); return; }
+    if (!scopeRaf) {
+      const tick = () => {
+        drawScope();
+        if (voices.size || performance.now() < scopeUntil) scopeRaf = requestAnimationFrame(tick);
+        else scopeRaf = 0;
+      };
+      scopeRaf = requestAnimationFrame(tick);
+    }
+  }
+  drawScope();
+
+  // ---------- typing test ----------
+  const PASSAGES = [
+    'the old aluminum keyboard was thin enough to slide under a door, and it still clicks like rain on a tin roof.',
+    'good tests read like a story. arrange the world, act once, and assert the thing a user would actually notice.',
+    'a quiet desk, a warm cup of coffee, and a keyboard that answers every tap. that is the whole morning ritual.',
+    'type steady rather than fast. accuracy compounds, and speed arrives on its own once your hands trust the keys.',
+    'every key on this board is made of css and a little patience. no pictures were harmed in the making of it.'
+  ];
+  const seedParam = Number.parseInt(new URLSearchParams(location.search).get('seed'), 10);
+  let pIndex = Number.isFinite(seedParam) ? Math.abs(seedParam) % PASSAGES.length : Math.floor(Math.random() * PASSAGES.length);
+  const T = { text: '', typed: [], pos: 0, keystrokes: 0, errors: 0, start: 0, end: 0, timer: 0 };
+  function resetTest(next) {
+    if (next) pIndex = (pIndex + 1) % PASSAGES.length;
+    clearInterval(T.timer);
+    Object.assign(T, { text: PASSAGES[pIndex], typed: [], pos: 0, keystrokes: 0, errors: 0, start: 0, end: 0, timer: 0 });
+    $('passage').dataset.text = T.text;
+    $('result').hidden = true;
+    renderTest();
+  }
+  function elapsed() { return T.start ? ((T.end || Date.now()) - T.start) / 1000 : 0; }
+  function correctCount() { let n = 0; for (let i = 0; i < T.pos; i++) if (T.typed[i] === T.text[i]) n++; return n; }
+  function wpm() { const s = elapsed(); return s > 0 ? Math.round((correctCount() / 5) / (s / 60)) : 0; }
+  function accuracy() { return T.keystrokes ? Math.round(((T.keystrokes - T.errors) / T.keystrokes) * 100) : 100; }
+  function typeChar(ch) {
+    if (T.end) return;
+    if (ch === null) { if (T.pos > 0) { T.pos--; T.typed.length = T.pos; } renderTest(); return; }
+    if (!T.start) { T.start = Date.now(); T.timer = setInterval(renderStats, 250); }
+    T.keystrokes++;
+    if (ch !== T.text[T.pos]) T.errors++;
+    T.typed[T.pos] = ch; T.pos++;
+    if (T.pos >= T.text.length) finish();
+    renderTest();
+  }
+  function finish() {
+    T.end = Date.now(); clearInterval(T.timer);
+    const s = elapsed();
+    const r = $('result');
+    r.hidden = false;
+    r.innerHTML = `<strong data-testid="final-wpm">${wpm()} WPM</strong><span>${accuracy()}% accuracy</span><span>${fmtTime(s)}</span><span class="muted" style="color:#aab">Esc or “New passage” for another run</span>`;
+  }
+  const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  function renderStats() {
+    $('wpm').textContent = wpm();
+    $('acc').textContent = accuracy() + '%';
+    $('timer').textContent = fmtTime(elapsed());
+  }
+  const escH = (c) => (c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '&' ? '&amp;' : c);
+  function renderTest() {
+    let html = '';
+    for (let i = 0; i < T.text.length; i++) {
+      const c = T.text[i];
+      if (i < T.pos) html += T.typed[i] === c ? `<span class="c">${escH(c)}</span>` : `<span class="w">${T.typed[i] === ' ' ? '·' : escH(c)}</span>`;
+      else if (i === T.pos && !T.end) html += `<span class="cur">${escH(c)}</span>`;
+      else html += escH(c);
+    }
+    $('passage').innerHTML = html;
+    renderStats();
+    clearNext();
+    if (!T.end && mode === 'type') {
+      const code = codeOfChar[T.text[T.pos]];
+      if (code && keyEls.get(code)) keyEls.get(code).classList.add('next');
+    }
+  }
+  function clearNext() { keyEls.forEach((el) => el.classList.remove('next')); }
+  $('restart').addEventListener('click', () => resetTest(true));
+
+  // test / debug hook
+  window.__kb = { audioState: () => (actx ? actx.state : 'none'), voices: () => voices.size, get mode() { return mode; } };
+
+  const initial = new URLSearchParams(location.search).get('mode');
+  if (['play', 'synth', 'type'].includes(initial)) setMode(initial);
+})();
+</script>
+</body>
+</html>

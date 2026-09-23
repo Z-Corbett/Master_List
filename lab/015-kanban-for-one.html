@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kanban for One — a personal board</title>
+<meta name="description" content="A polished single-person kanban board with pointer and touch drag-and-drop, keyboard moves, WIP limits, tags, inline editing, search, local persistence and JSON export/import.">
+<style>
+  :root {
+    --paper: #f4efe4;
+    --paper2: #ebe4d4;
+    --card: #fffdf8;
+    --ink: #1f1c17;
+    --ink2: #5b5448;
+    --line: #d8cfbc;
+    --accent: #2b59c3;
+    --warn: #c77d0a;
+    --over: #c2362f;
+    --shadow: 0 1px 0 rgba(60,45,20,.08), 0 2px 6px rgba(60,45,20,.08);
+    --serif: Charter, "Bitstream Charter", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+    --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "SF Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #16150f; --paper2: #1f1d16; --card: #26241c; --ink: #f1ebdc; --ink2: #b3aa96; --line: #3a372c;
+      --accent: #8fb0ff; --warn: #f0b24a; --over: #ff7a6e; --shadow: 0 1px 0 rgba(0,0,0,.4), 0 2px 8px rgba(0,0,0,.35);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 15px;
+    background-image: radial-gradient(rgba(120,100,60,.08) 1px, transparent 1px); background-size: 22px 22px;
+    min-height: 100vh; overflow-x: hidden;
+  }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  a.back {
+    position: fixed; top: 10px; left: 10px; z-index: 60; font: 600 12px/1 var(--sans);
+    color: var(--ink2); text-decoration: none; padding: 7px 10px; border-radius: 6px;
+    background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow);
+  }
+  a.back:hover { color: var(--ink); }
+  header {
+    max-width: 1360px; margin: 0 auto; padding: 54px 20px 12px;
+    display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: flex-end; justify-content: space-between;
+  }
+  h1 { font: 700 clamp(28px, 4.6vw, 42px)/1 var(--serif); margin: 0; letter-spacing: -.015em; }
+  h1 small { display: block; font: 500 14px/1.4 var(--sans); color: var(--ink2); letter-spacing: 0; margin-top: 8px; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .search { position: relative; }
+  .search input {
+    font: 14px var(--sans); color: var(--ink); background: var(--card); border: 1px solid var(--line);
+    border-radius: 8px; padding: 9px 10px 9px 32px; width: 220px; max-width: 100%;
+  }
+  .search svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); opacity: .55; }
+  button, .btn {
+    font: 600 13px/1 var(--sans); color: var(--ink); background: var(--card); border: 1px solid var(--line);
+    border-radius: 8px; padding: 9px 12px; cursor: pointer; box-shadow: var(--shadow); min-height: 36px;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  button:hover, .btn:hover { border-color: var(--ink2); }
+  .count-note { font: 12px var(--mono); color: var(--ink2); min-width: 9ch; }
+  .help { max-width: 1360px; margin: 0 auto; padding: 0 20px 10px; color: var(--ink2); font-size: 12.5px; }
+  kbd { font: 11px var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 1px 5px; background: var(--card); }
+
+  .board {
+    max-width: 1360px; margin: 0 auto; padding: 8px 20px 60px;
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; align-items: start;
+  }
+  .col {
+    background: var(--paper2); border: 1px solid var(--line); border-radius: 14px; padding: 12px 10px 10px;
+    display: flex; flex-direction: column; min-height: 220px; transition: background .2s, border-color .2s;
+  }
+  .col.drop-target { border-color: var(--accent); background: color-mix(in srgb, var(--paper2) 85%, var(--accent)); }
+  .col-head { display: flex; align-items: center; gap: 8px; padding: 2px 4px 10px; }
+  .col-head h2 { font: 700 15px/1.2 var(--serif); margin: 0; flex: 1; display: flex; align-items: center; gap: 8px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .wip { font: 600 12px var(--mono); color: var(--ink2); padding: 3px 7px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); white-space: nowrap; }
+  .col[data-wip="at"] .wip { color: var(--warn); border-color: var(--warn); }
+  .col[data-wip="over"] { border-color: var(--over); background-image: repeating-linear-gradient(-45deg, transparent 0 10px, color-mix(in srgb, var(--over) 8%, transparent) 10px 20px); }
+  .col[data-wip="over"] .wip { color: #fff; background: var(--over); border-color: var(--over); }
+  .limit { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--ink2); }
+  .limit input { width: 44px; font: 12px var(--mono); padding: 3px 4px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--ink); }
+  .over-note { display: none; font-size: 12px; color: var(--over); font-weight: 600; margin: -4px 4px 8px; }
+  .col[data-wip="over"] .over-note { display: block; }
+  ol.cards { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; min-height: 40px; flex: 1; }
+
+  .card {
+    position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 10px 10px 16px; box-shadow: var(--shadow); cursor: grab; user-select: none;
+    display: grid; grid-template-columns: 1fr auto; gap: 6px 8px; align-items: start;
+  }
+  .card::before { content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 4px; border-radius: 0 3px 3px 0; background: var(--stripe, var(--line)); }
+  .card:focus-visible { outline-offset: 1px; }
+  .card.src { opacity: .35; border-style: dashed; box-shadow: none; }
+  .card[hidden] { display: none; }
+  .card .title { font-size: 14px; line-height: 1.35; overflow-wrap: anywhere; }
+  .card .tags { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; }
+  .chip { font: 600 10.5px/1 var(--sans); letter-spacing: .02em; padding: 4px 7px; border-radius: 999px; color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); }
+  .card .tools { display: flex; gap: 2px; opacity: .0; transition: opacity .15s; }
+  .card:hover .tools, .card:focus-within .tools { opacity: 1; }
+  .icon-btn { min-height: 28px; padding: 4px 6px; box-shadow: none; border-color: transparent; background: transparent; color: var(--ink2); font-size: 12px; }
+  .icon-btn:hover { border-color: var(--line); color: var(--ink); }
+  .grip { touch-action: none; cursor: grab; padding: 4px 4px; color: var(--ink2); display: inline-flex; border-radius: 6px; }
+  .ghost { position: fixed; z-index: 100; pointer-events: none; margin: 0; transform-origin: 30px 20px; box-shadow: 0 16px 40px rgba(40,30,10,.28); rotate: 2deg; cursor: grabbing; }
+  body.dragging, body.dragging * { cursor: grabbing !important; }
+
+  .card form { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px; }
+  .card form input[type=text] { font: 14px var(--sans); padding: 7px 8px; border-radius: 6px; border: 1px solid var(--accent); background: var(--card); color: var(--ink); width: 100%; }
+  .tag-picks { display: flex; flex-wrap: wrap; gap: 4px; }
+  .tag-picks button { min-height: 28px; padding: 5px 8px; font-size: 11px; box-shadow: none; color: var(--c); border-color: color-mix(in srgb, var(--c) 40%, transparent); }
+  .tag-picks button[aria-pressed="true"] { background: var(--c); color: #fff; border-color: var(--c); }
+  .form-row { display: flex; gap: 6px; justify-content: flex-end; }
+  .primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .add { margin-top: 8px; width: 100%; justify-content: center; box-shadow: none; background: transparent; border-style: dashed; color: var(--ink2); }
+  .add-form { margin-top: 8px; display: flex; gap: 6px; }
+  .add-form input { flex: 1; min-width: 0; font: 14px var(--sans); padding: 8px; border-radius: 8px; border: 1px solid var(--accent); background: var(--card); color: var(--ink); }
+  .empty-col { font-size: 12.5px; color: var(--ink2); text-align: center; padding: 16px 6px; border: 1px dashed var(--line); border-radius: 10px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--ink); color: var(--paper); padding: 10px 14px; border-radius: 10px; font-size: 13px; box-shadow: 0 10px 30px rgba(0,0,0,.25); z-index: 90; max-width: calc(100vw - 32px); opacity: 0; pointer-events: none; transition: opacity .2s; }
+  .toast.show { opacity: 1; }
+
+  @media (max-width: 1000px) { .board { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 620px) {
+    header, .help { padding-left: 16px; padding-right: 16px; }
+    .board { grid-template-columns: minmax(0, 1fr); padding: 8px 16px 60px; }
+    .col { min-height: 0; }
+    .search input { width: 100%; }
+    .search { flex: 1 1 100%; }
+    .card .tools { opacity: 1; }
+  }
+  @media (hover: none) { .card .tools { opacity: 1; } }
+  @media (hover: hover) and (min-width: 621px) {
+    .card { grid-template-columns: 1fr; }
+    .card .tools { position: absolute; right: 6px; top: 6px; background: var(--card); border-radius: 8px; box-shadow: -10px 0 10px var(--card); }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } .ghost { rotate: 0deg; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+
+<header>
+  <h1>Kanban for One<small>A calm board for one person's week. Drag, or drive it from the keyboard.</small></h1>
+  <div class="toolbar">
+    <label class="search"><span class="sr">Search cards</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input type="search" id="q" placeholder="Filter by text or #tag" data-testid="search" autocomplete="off">
+    </label>
+    <span class="count-note" id="shown" data-testid="shown-count" aria-live="polite"></span>
+    <button type="button" id="export" data-testid="export">Export JSON</button>
+    <label class="btn" for="importFile" data-testid="import-label">Import JSON</label>
+    <input type="file" id="importFile" accept="application/json,.json" class="sr" data-testid="import">
+    <button type="button" id="reset" data-testid="reset">Reset sample</button>
+  </div>
+</header>
+<p class="help">Keyboard: focus a card, then <kbd>[</kbd> / <kbd>]</kbd> or <kbd>Alt</kbd>+<kbd>←</kbd>/<kbd>→</kbd> to move between columns, <kbd>Alt</kbd>+<kbd>↑</kbd>/<kbd>↓</kbd> to reorder, arrows to move focus, <kbd>Enter</kbd> to edit, <kbd>Delete</kbd> to remove.</p>
+
+<main class="board" id="board" data-testid="board"></main>
+
+<div class="sr" aria-live="assertive" id="live" data-testid="announcer"></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(() => {
+  'use strict';
+  const STORE = 'kanban-for-one.v1';
+  const TAGS = {
+    design:   { label: 'design',   c: '#7c5cff' },
+    bug:      { label: 'bug',      c: '#d9373b' },
+    writing:  { label: 'writing',  c: '#1f8a64' },
+    admin:    { label: 'admin',    c: '#8a6d3b' },
+    learning: { label: 'learning', c: '#1c6fd1' },
+    health:   { label: 'health',   c: '#d9730d' },
+  };
+  const COLS = [
+    { id: 'backlog', title: 'Backlog', color: '#8a8173', limit: 0 },
+    { id: 'doing',   title: 'Doing',   color: '#2b59c3', limit: 3 },
+    { id: 'review',  title: 'Review',  color: '#b8860b', limit: 2 },
+    { id: 'done',    title: 'Done',    color: '#1f8a64', limit: 0 },
+  ];
+  function sample() {
+    const cards = {};
+    const add = (id, title, tags) => { cards[id] = { id, title, tags }; return id; };
+    return {
+      version: 1, nextId: 20,
+      columns: [
+        { id: 'backlog', limit: 0, cards: [
+          add('c1', 'Sketch the Tidewater ripple visuals', ['design']),
+          add('c2', 'Renew the portfolio domain', ['admin']),
+          add('c3', 'Read Mastering Bitcoin, chapter 6', ['learning']),
+          add('c4', 'Book a dentist appointment', ['health', 'admin']),
+          add('c5', 'Draft a post on flaky-test triage', ['writing']) ] },
+        { id: 'doing', limit: 3, cards: [
+          add('c6', 'Fix the flaky login spec on mobile', ['bug']),
+          add('c7', 'Write QA notes for Mempool Garden', ['writing']) ] },
+        { id: 'review', limit: 2, cards: [
+          add('c8', 'Lab index card hover states', ['design']) ] },
+        { id: 'done', limit: 0, cards: [
+          add('c9', 'Morning run ×3 this week', ['health']),
+          add('c10', 'Set up Playwright mobile project', ['learning']) ] },
+      ],
+      cards,
+    };
+  }
+
+  // ---------- state & persistence ----------
+  let state = load() || sample();
+  function load() {
+    try { const raw = localStorage.getItem(STORE); if (!raw) return null; const s = JSON.parse(raw); return validate(s) ? s : null; }
+    catch (_) { return null; }
+  }
+  function save() { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (_) { /* storage unavailable: board still works in-memory */ } }
+  function validate(s) {
+    if (!s || typeof s !== 'object' || !Array.isArray(s.columns) || typeof s.cards !== 'object' || !s.cards) return false;
+    const ids = s.columns.map(c => c && c.id);
+    if (COLS.some(c => !ids.includes(c.id))) return false;
+    for (const col of s.columns) {
+      if (!Array.isArray(col.cards)) return false;
+      for (const id of col.cards) { const c = s.cards[id]; if (!c || typeof c.title !== 'string' || !Array.isArray(c.tags)) return false; }
+    }
+    return true;
+  }
+  function normalise(s) {
+    const out = { version: 1, nextId: Number(s.nextId) || 1, columns: [], cards: {} };
+    let max = 0;
+    for (const def of COLS) {
+      const src = s.columns.find(c => c.id === def.id);
+      const col = { id: def.id, limit: Math.max(0, Math.min(99, parseInt(src.limit, 10) || 0)), cards: [] };
+      for (const id of src.cards) {
+        if (out.cards[id]) continue;
+        const c = s.cards[id];
+        out.cards[id] = { id: String(id), title: String(c.title).slice(0, 200), tags: c.tags.filter(t => TAGS[t]) };
+        col.cards.push(String(id));
+        const n = parseInt(String(id).replace(/\D/g, ''), 10); if (n > max) max = n;
+      }
+      out.columns.push(col);
+    }
+    out.nextId = Math.max(out.nextId, max + 1);
+    return out;
+  }
+  state = normalise(state);
+
+  const $ = id => document.getElementById(id);
+  const board = $('board'), live = $('live');
+  const colOf = id => state.columns.find(c => c.cards.includes(id));
+  const colDef = id => COLS.find(c => c.id === id);
+  let filter = '';
+  let editing = null;      // card id being edited
+  let adding = null;       // column id with open add form
+
+  function announce(msg) { live.textContent = ''; requestAnimationFrame(() => { live.textContent = msg; }); live.dataset.last = msg; }
+  function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 2200); }
+
+  function wipState(col) {
+    if (!col.limit) return 'none';
+    if (col.cards.length > col.limit) return 'over';
+    if (col.cards.length === col.limit) return 'at';
+    return 'ok';
+  }
+  function matches(card) {
+    if (!filter) return true;
+    const q = filter.toLowerCase().trim();
+    return q.split(/\s+/).every(term => term.startsWith('#')
+      ? card.tags.some(t => t.startsWith(term.slice(1)))
+      : card.title.toLowerCase().includes(term) || card.tags.some(t => t.includes(term)));
+  }
+  const esc = s => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+
+  // ---------- render ----------
+  function render(focusId) {
+    const active = focusId || (document.activeElement && document.activeElement.closest && document.activeElement.closest('.card')?.dataset.id);
+    let shown = 0, total = 0;
+    board.innerHTML = state.columns.map(col => {
+      const def = colDef(col.id);
+      const ws = wipState(col);
+      const cards = col.cards.map(id => state.cards[id]);
+      total += cards.length;
+      const visible = cards.filter(matches); shown += visible.length;
+      const wipText = col.limit ? `${col.cards.length} / ${col.limit}` : String(col.cards.length);
+      return `<section class="col" data-col="${col.id}" data-testid="col-${col.id}" data-wip="${ws}" aria-labelledby="h-${col.id}">
+        <div class="col-head">
+          <h2 id="h-${col.id}"><span class="dot" style="background:${def.color}"></span>${def.title}</h2>
+          <span class="wip" data-testid="wip-${col.id}" title="Cards / WIP limit">${wipText}</span>
+          <label class="limit" title="WIP limit (0 = none)">limit <input type="number" min="0" max="99" value="${col.limit || ''}" placeholder="–" data-limit="${col.id}" data-testid="limit-${col.id}" aria-label="WIP limit for ${def.title}"></label>
+        </div>
+        <p class="over-note" data-testid="over-${col.id}">Over the WIP limit — finish something first.</p>
+        <ol class="cards" data-list="${col.id}" aria-label="${def.title} cards">
+          ${cards.length ? cards.map(c => cardHTML(c, matches(c))).join('') : `<li class="empty-col">Nothing here yet.</li>`}
+        </ol>
+        ${adding === col.id
+          ? `<form class="add-form" data-add="${col.id}"><label class="sr" for="add-${col.id}">New card title</label><input id="add-${col.id}" type="text" maxlength="200" placeholder="What needs doing?" data-testid="add-input"><button class="primary" type="submit">Add</button></form>`
+          : `<button type="button" class="add" data-open-add="${col.id}" data-testid="add-${col.id}">+ Add card</button>`}
+      </section>`;
+    }).join('');
+    $('shown').textContent = filter ? `${shown} of ${total} shown` : `${total} cards`;
+    if (adding) { const i = $('add-' + adding); i && i.focus(); }
+    else if (editing) { const i = board.querySelector(`.card[data-id="${editing}"] input[type=text]`); i && i.focus(); }
+    else if (active) { const c = board.querySelector(`.card[data-id="${active}"]`); c && c.focus({ preventScroll: false }); }
+  }
+  function cardHTML(c, visible) {
+    const stripe = c.tags.length ? TAGS[c.tags[0]].c : 'var(--line)';
+    const chips = c.tags.map(t => `<span class="chip" style="--c:${TAGS[t].c}">#${t}</span>`).join('');
+    const col = colOf(c.id);
+    const pos = col.cards.indexOf(c.id) + 1;
+    if (editing === c.id) {
+      return `<li class="card" data-id="${c.id}" data-testid="card" style="--stripe:${stripe}" tabindex="-1">
+        <form data-edit="${c.id}">
+          <label class="sr" for="edit-${c.id}">Card title</label>
+          <input type="text" id="edit-${c.id}" value="${esc(c.title)}" maxlength="200" data-testid="edit-input">
+          <div class="tag-picks" role="group" aria-label="Tags">${Object.keys(TAGS).map(t => `<button type="button" data-tag="${t}" aria-pressed="${c.tags.includes(t)}" style="--c:${TAGS[t].c}" data-testid="tag-${t}">#${t}</button>`).join('')}</div>
+          <div class="form-row"><button type="button" data-cancel>Cancel</button><button type="submit" class="primary" data-testid="save-edit">Save</button></div>
+        </form></li>`;
+    }
+    return `<li class="card" data-id="${c.id}" data-testid="card" tabindex="0" ${visible ? '' : 'hidden'} style="--stripe:${stripe}"
+        aria-label="${esc(c.title)}. ${c.tags.length ? 'Tags ' + c.tags.join(', ') + '. ' : ''}${colDef(col.id).title}, ${pos} of ${col.cards.length}.">
+      <span class="title" data-testid="card-title">${esc(c.title)}</span>
+      <span class="tools">
+        <button type="button" class="icon-btn" data-edit-btn tabindex="-1" aria-label="Edit ${esc(c.title)}">Edit</button>
+        <button type="button" class="icon-btn" data-del-btn tabindex="-1" aria-label="Delete ${esc(c.title)}">✕</button>
+        <span class="grip" data-testid="grip" aria-hidden="true" title="Drag"><svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor"><circle cx="3" cy="3" r="1.6"/><circle cx="9" cy="3" r="1.6"/><circle cx="3" cy="8" r="1.6"/><circle cx="9" cy="8" r="1.6"/><circle cx="3" cy="13" r="1.6"/><circle cx="9" cy="13" r="1.6"/></svg></span>
+      </span>
+      ${chips ? `<span class="tags">${chips}</span>` : ''}
+    </li>`;
+  }
+
+  // ---------- mutations ----------
+  function wipMessage(col) {
+    const ws = wipState(col), def = colDef(col.id);
+    if (ws === 'over') return ` ${def.title} is over its WIP limit (${col.cards.length} of ${col.limit}).`;
+    if (ws === 'at') return ` ${def.title} is at its WIP limit.`;
+    return '';
+  }
+  function moveCard(id, toColId, toIndex, how) {
+    const from = colOf(id), to = state.columns.find(c => c.id === toColId);
+    if (!from || !to) return;
+    const fromIdx = from.cards.indexOf(id);
+    from.cards.splice(fromIdx, 1);
+    const idx = Math.max(0, Math.min(to.cards.length, toIndex));
+    to.cards.splice(idx, 0, id);
+    save(); render(id);
+    const same = from === to;
+    if (same && fromIdx === idx) return;
+    announce(`${same ? 'Reordered' : 'Moved'} “${state.cards[id].title}” ${same ? 'in' : 'to'} ${colDef(to.id).title}, position ${idx + 1} of ${to.cards.length}.${wipMessage(to)}`);
+  }
+  function shiftColumn(id, dir) {
+    const ci = state.columns.indexOf(colOf(id));
+    const ni = ci + dir;
+    if (ni < 0 || ni >= state.columns.length) { announce(`“${state.cards[id].title}” is already in ${colDef(state.columns[ci].id).title}.`); return; }
+    moveCard(id, state.columns[ni].id, state.columns[ni].cards.length, 'key');
+  }
+  function shiftOrder(id, dir) {
+    const col = colOf(id), i = col.cards.indexOf(id);
+    if (i + dir < 0 || i + dir >= col.cards.length) return;
+    moveCard(id, col.id, i + dir, 'key');
+  }
+  function deleteCard(id) {
+    const col = colOf(id), i = col.cards.indexOf(id), title = state.cards[id].title;
+    col.cards.splice(i, 1); delete state.cards[id];
+    save();
+    const next = col.cards[Math.min(i, col.cards.length - 1)];
+    render(next);
+    if (!next) { const b = board.querySelector(`[data-open-add="${col.id}"]`); b && b.focus(); }
+    announce(`Deleted “${title}”.`);
+  }
+
+  // ---------- events: clicks & forms ----------
+  board.addEventListener('click', e => {
+    const t = e.target;
+    const openAdd = t.closest('[data-open-add]');
+    if (openAdd) { adding = openAdd.dataset.openAdd; editing = null; render(); return; }
+    const card = t.closest('.card');
+    if (t.closest('[data-edit-btn]') && card) { editing = card.dataset.id; adding = null; render(); return; }
+    if (t.closest('[data-del-btn]') && card) { deleteCard(card.dataset.id); return; }
+    const tagBtn = t.closest('[data-tag]');
+    if (tagBtn) { tagBtn.setAttribute('aria-pressed', String(tagBtn.getAttribute('aria-pressed') !== 'true')); return; }
+    if (t.closest('[data-cancel]')) { const id = editing; editing = null; render(id); return; }
+  });
+  board.addEventListener('dblclick', e => {
+    const card = e.target.closest('.card');
+    if (card && !editing && !e.target.closest('button')) { editing = card.dataset.id; render(); }
+  });
+  board.addEventListener('submit', e => {
+    e.preventDefault();
+    const f = e.target;
+    if (f.dataset.add) {
+      const input = f.querySelector('input'); const title = input.value.trim();
+      const colId = f.dataset.add;
+      if (!title) { adding = null; render(); return; }
+      const id = 'c' + (state.nextId++);
+      state.cards[id] = { id, title, tags: [] };
+      state.columns.find(c => c.id === colId).cards.push(id);
+      save(); render();
+      announce(`Added “${title}” to ${colDef(colId).title}.${wipMessage(colOf(id))}`);
+      return;
+    }
+    if (f.dataset.edit) {
+      const id = f.dataset.edit, c = state.cards[id];
+      const title = f.querySelector('input[type=text]').value.trim();
+      if (title) c.title = title;
+      c.tags = [...f.querySelectorAll('[data-tag][aria-pressed="true"]')].map(b => b.dataset.tag);
+      editing = null; save(); render(id);
+      announce(`Saved “${c.title}”${c.tags.length ? ' with tags ' + c.tags.join(', ') : ''}.`);
+    }
+  });
+  board.addEventListener('keydown', e => {
+    if (e.target.matches('.add-form input') && e.key === 'Escape') { const col = adding; adding = null; render(); const b = board.querySelector(`[data-open-add="${col}"]`); b && b.focus(); return; }
+    if (e.target.closest('form[data-edit]') && e.key === 'Escape') { const id = editing; editing = null; render(id); return; }
+  });
+  board.addEventListener('change', e => {
+    const inp = e.target.closest('[data-limit]');
+    if (!inp) return;
+    const col = state.columns.find(c => c.id === inp.dataset.limit);
+    col.limit = Math.max(0, Math.min(99, parseInt(inp.value, 10) || 0));
+    save(); render();
+    const again = board.querySelector(`[data-limit="${col.id}"]`); again && again.focus();
+    announce(`${colDef(col.id).title} WIP limit ${col.limit ? 'set to ' + col.limit : 'removed'}.${wipMessage(col)}`);
+  });
+
+  // ---------- keyboard on cards ----------
+  board.addEventListener('keydown', e => {
+    const card = e.target.closest('.card');
+    if (!card || e.target !== card || editing) return;
+    const id = card.dataset.id;
+    const k = e.key;
+    if (k === ']' || (e.altKey && k === 'ArrowRight')) { e.preventDefault(); shiftColumn(id, 1); return; }
+    if (k === '[' || (e.altKey && k === 'ArrowLeft')) { e.preventDefault(); shiftColumn(id, -1); return; }
+    if (e.altKey && k === 'ArrowUp') { e.preventDefault(); shiftOrder(id, -1); return; }
+    if (e.altKey && k === 'ArrowDown') { e.preventDefault(); shiftOrder(id, 1); return; }
+    if (k === 'Enter' || k === 'F2') { e.preventDefault(); editing = id; render(); return; }
+    if (k === 'Delete') { e.preventDefault(); deleteCard(id); return; }
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(k)) {
+      e.preventDefault();
+      const visibleIn = colId => [...board.querySelectorAll(`[data-list="${colId}"] .card:not([hidden])`)];
+      const colId = colOf(id).id;
+      const list = visibleIn(colId), i = list.indexOf(card);
+      if (k === 'ArrowUp' && i > 0) list[i - 1].focus();
+      if (k === 'ArrowDown' && i < list.length - 1) list[i + 1].focus();
+      if (k === 'ArrowLeft' || k === 'ArrowRight') {
+        const ci = state.columns.findIndex(c => c.id === colId);
+        for (let n = ci + (k === 'ArrowRight' ? 1 : -1); n >= 0 && n < state.columns.length; n += (k === 'ArrowRight' ? 1 : -1)) {
+          const other = visibleIn(state.columns[n].id);
+          if (other.length) { other[Math.min(i, other.length - 1)].focus(); break; }
+        }
+      }
+    }
+  });
+
+  // ---------- pointer drag & drop (mouse: whole card, touch/pen: grip) ----------
+  let drag = null;
+  board.addEventListener('pointerdown', e => {
+    if (editing || e.button !== 0) return;
+    const card = e.target.closest('.card');
+    if (!card) return;
+    const onGrip = !!e.target.closest('.grip');
+    if (!onGrip && (e.target.closest('button, input, a') || e.pointerType !== 'mouse')) return;
+    drag = { id: card.dataset.id, card, x0: e.clientX, y0: e.clientY, started: false, pid: e.pointerId };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
+    if (onGrip) e.preventDefault();
+  });
+  function startDrag(e) {
+    const r = drag.card.getBoundingClientRect();
+    const ghost = drag.card.cloneNode(true);
+    ghost.classList.add('ghost'); ghost.removeAttribute('data-testid'); ghost.removeAttribute('tabindex');
+    ghost.style.width = r.width + 'px'; ghost.style.left = r.left + 'px'; ghost.style.top = r.top + 'px';
+    document.body.appendChild(ghost);
+    drag.ghost = ghost; drag.dx = e.clientX - r.left; drag.dy = e.clientY - r.top;
+    drag.card.classList.add('src');
+    drag.started = true;
+    document.body.classList.add('dragging');
+    board.querySelectorAll('.empty-col').forEach(n => n.remove());
+  }
+  function listAt(x, y) {
+    const lists = [...board.querySelectorAll('ol.cards')];
+    let best = null, bd = Infinity;
+    for (const l of lists) {
+      const r = l.closest('.col').getBoundingClientRect();
+      const dx = x < r.left ? r.left - x : x > r.right ? x - r.right : 0;
+      const dy = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;
+      const d = dx * dx + dy * dy;
+      if (d < bd) { bd = d; best = l; }
+    }
+    return best;
+  }
+  function onMove(e) {
+    if (!drag || e.pointerId !== drag.pid) return;
+    if (!drag.started) {
+      if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 6) return;
+      startDrag(e);
+    }
+    e.preventDefault();
+    drag.ghost.style.left = (e.clientX - drag.dx) + 'px';
+    drag.ghost.style.top = (e.clientY - drag.dy) + 'px';
+    const list = listAt(e.clientX, e.clientY);
+    board.querySelectorAll('.col.drop-target').forEach(c => c.classList.remove('drop-target'));
+    if (!list) return;
+    list.closest('.col').classList.add('drop-target');
+    const others = [...list.querySelectorAll('.card:not(.src)')];
+    const before = others.find(c => { const r = c.getBoundingClientRect(); return e.clientY < r.top + r.height / 2; });
+    if (before) { if (before.previousElementSibling !== drag.card) list.insertBefore(drag.card, before); }
+    else if (list.lastElementChild !== drag.card) list.appendChild(drag.card);
+    // auto-scroll near the viewport edges (stacked columns on phones)
+    const edge = 60;
+    if (e.clientY < edge) window.scrollBy(0, -12); else if (e.clientY > innerHeight - edge) window.scrollBy(0, 12);
+  }
+  function endListeners() {
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    window.removeEventListener('pointercancel', onCancel);
+    document.body.classList.remove('dragging');
+  }
+  function onUp(e) {
+    if (!drag || e.pointerId !== drag.pid) return;
+    const d = drag; drag = null; endListeners();
+    if (!d.started) return;
+    d.ghost.remove();
+    const list = d.card.closest('ol.cards');
+    const idx = [...list.querySelectorAll('.card')].indexOf(d.card);
+    moveCard(d.id, list.dataset.list, idx, 'drag');
+  }
+  function onCancel() {
+    if (!drag) return;
+    const d = drag; drag = null; endListeners();
+    if (d.ghost) d.ghost.remove();
+    render(d.id);
+  }
+
+  // ---------- toolbar ----------
+  $('q').addEventListener('input', e => { filter = e.target.value; render(); e.target.focus(); });
+  $('export').addEventListener('click', () => {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'kanban-for-one.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast('Board exported as kanban-for-one.json');
+    announce('Board exported.');
+  });
+  $('importFile').addEventListener('change', async e => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      if (!validate(data)) throw new Error('shape');
+      state = normalise(data); editing = adding = null; save(); render();
+      const n = Object.keys(state.cards).length;
+      toast(`Imported ${n} cards.`); announce(`Imported board with ${n} cards.`);
+    } catch (_) {
+      toast('That file is not a Kanban for One board.'); announce('Import failed: that file is not a Kanban for One board.');
+    }
+  });
+  $('reset').addEventListener('click', () => {
+    if (!confirm('Replace the board with the sample cards?')) return;
+    state = normalise(sample()); editing = adding = null; save(); render(); announce('Board reset to the sample cards.');
+  });
+
+  window.__kanban = {
+    get state() { return JSON.parse(JSON.stringify(state)); },
+    column(id) { const c = state.columns.find(c => c.id === id); return c ? c.cards.map(i => state.cards[i].title) : []; },
+  };
+  render();
+})();
+</script>
+</body>
+</html>

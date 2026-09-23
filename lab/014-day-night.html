@@ -1,0 +1,540 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Day &amp; Night 2.0 — an illustrated day/night switch</title>
+<meta name="description" content="A remake of an old day/night toggle button, grown into a full illustrated landscape: flip a tactile switch and watch the sun set, stars come out, fireflies wake up and the lake reflect it all — or let your local clock drive the sky.">
+<style>
+  :root {
+    --ink: #f4f1ea;
+    --muted: #b9bfd6;
+    --dock: rgba(12, 16, 38, .62);
+    --dock-line: rgba(255,255,255,.14);
+    --accent: #ffc857;
+    --sans: "Avenir Next", Avenir, "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --mono: ui-monospace, "SF Mono", Consolas, "Liberation Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: #0b1026; color: var(--ink); font-family: var(--sans);
+    overflow: hidden; min-height: 100svh;
+  }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+  a.back {
+    position: fixed; top: 10px; left: 10px; z-index: 20;
+    font: 600 12px/1 var(--sans); color: var(--ink); text-decoration: none;
+    padding: 8px 11px; border-radius: 999px; background: var(--dock); border: 1px solid var(--dock-line);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  }
+  a.back:hover { background: rgba(12,16,38,.85); }
+  .scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .title {
+    position: fixed; top: 52px; left: 14px; z-index: 5; max-width: min(420px, calc(100vw - 28px));
+    text-shadow: 0 1px 12px rgba(0,0,0,.35);
+    pointer-events: none;
+  }
+  .title h1 { font: 600 clamp(28px, 5vw, 46px)/1 var(--serif); margin: 0; letter-spacing: -.01em; }
+  .title h1 span { font-style: italic; font-weight: 500; color: var(--accent); }
+  .title p { margin: 8px 0 0; font-size: 14px; line-height: 1.45; color: rgba(255,255,255,.88); }
+
+  .dock {
+    position: fixed; z-index: 10; left: 50%; bottom: max(18px, env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    display: flex; align-items: center; gap: 20px; flex-wrap: wrap; justify-content: center;
+    padding: 14px 18px; border-radius: 22px; width: max-content; max-width: calc(100vw - 24px);
+    background: var(--dock); border: 1px solid var(--dock-line);
+    backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2);
+    box-shadow: 0 20px 50px rgba(0,0,0,.35);
+  }
+  /* --- the switch --- */
+  .switch {
+    --w: 168px; --h: 78px; --k: 62px; --pad: 8px;
+    position: relative; width: var(--w); height: var(--h); border-radius: 999px; padding: 0;
+    border: 0; cursor: pointer; flex: none; -webkit-tap-highlight-color: transparent;
+    background: linear-gradient(180deg, #0f1638, #26306a);
+    box-shadow: inset 0 4px 10px rgba(0,0,0,.55), inset 0 -2px 0 rgba(255,255,255,.08), 0 2px 0 rgba(255,255,255,.12);
+    overflow: hidden; transition: background .6s ease;
+  }
+  .switch[aria-checked="true"] { background: linear-gradient(180deg, #4aa3f0, #9fd6f7); }
+  .switch .tr-stars, .switch .tr-clouds { position: absolute; inset: 0; transition: opacity .5s, transform .6s cubic-bezier(.3,1.4,.5,1); pointer-events: none; }
+  .switch .tr-stars { opacity: 1; background:
+      radial-gradient(1.5px 1.5px at 22% 30%, #fff 60%, transparent), radial-gradient(1px 1px at 38% 62%, #fff 60%, transparent),
+      radial-gradient(1.5px 1.5px at 30% 78%, #fff 60%, transparent), radial-gradient(1px 1px at 48% 22%, #fff 60%, transparent),
+      radial-gradient(1.2px 1.2px at 14% 55%, #fff 60%, transparent), radial-gradient(1px 1px at 56% 70%, #fff 60%, transparent); }
+  .switch .tr-clouds { opacity: 0; transform: translateY(20px); background:
+      radial-gradient(14px 10px at 30% 70%, #fff 70%, transparent 72%), radial-gradient(18px 13px at 44% 64%, #fff 70%, transparent 72%),
+      radial-gradient(12px 9px at 56% 74%, #fff 70%, transparent 72%), radial-gradient(10px 7px at 60% 40%, rgba(255,255,255,.8) 70%, transparent 72%); }
+  .switch[aria-checked="true"] .tr-stars { opacity: 0; transform: translateY(-16px); }
+  .switch[aria-checked="true"] .tr-clouds { opacity: 1; transform: none; }
+  .knob {
+    position: absolute; top: var(--pad); left: var(--pad); width: var(--k); height: var(--k); border-radius: 999px;
+    background: radial-gradient(circle at 35% 30%, #fbfbf6, #d7d9e4 70%);
+    box-shadow: 0 6px 14px rgba(0,0,0,.45), inset -6px -6px 0 rgba(0,0,0,.08);
+    transition: left .55s cubic-bezier(.34,1.56,.64,1), width .18s ease, background .5s ease, box-shadow .5s ease;
+  }
+  .knob i { position: absolute; border-radius: 50%; background: rgba(120,126,150,.45); transition: opacity .4s, transform .5s; }
+  .knob i:nth-child(1) { width: 14px; height: 14px; left: 14px; top: 16px; }
+  .knob i:nth-child(2) { width: 9px; height: 9px; left: 36px; top: 34px; }
+  .knob i:nth-child(3) { width: 6px; height: 6px; left: 22px; top: 42px; }
+  .switch[aria-checked="true"] .knob {
+    left: calc(var(--w) - var(--k) - var(--pad));
+    background: radial-gradient(circle at 38% 34%, #fff6c9, #ffd23f 55%, #ff9f1c);
+    box-shadow: 0 0 0 7px rgba(255,210,63,.25), 0 0 26px rgba(255,190,40,.8), 0 6px 14px rgba(120,70,0,.35);
+  }
+  .switch[aria-checked="true"] .knob i { opacity: 0; transform: scale(.2); }
+  .switch:active .knob { width: calc(var(--k) + 14px); }
+  .switch[aria-checked="true"]:active .knob { left: calc(var(--w) - var(--k) - var(--pad) - 14px); }
+  .switch:focus-visible { outline-offset: 5px; }
+
+  .side { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .state-label { font: 600 16px/1.1 var(--sans); }
+  .state-label small { display: block; font: 12px/1.4 var(--mono); color: var(--muted); margin-top: 4px; font-weight: 400; }
+  fieldset.mode { border: 0; margin: 0; padding: 3px; display: inline-flex; border-radius: 999px; background: rgba(255,255,255,.08); border: 1px solid var(--dock-line); }
+  fieldset.mode legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .mode label { position: relative; }
+  .mode input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+  .mode span { display: block; padding: 7px 13px; border-radius: 999px; font: 600 12px/1 var(--sans); color: var(--muted); transition: background .25s, color .25s; }
+  .mode input:checked + span { background: var(--ink); color: #141a3a; }
+  .mode input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  .star { animation: tw 3.2s ease-in-out infinite; }
+  @keyframes tw { 50% { fill-opacity: .35; } }
+  .ripple { animation: rip 6s linear infinite; }
+  @keyframes rip { to { transform: translateX(-120px); } }
+  .sunrays { transform-origin: 0 0; animation: spin 60s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 560px) {
+    .dock { gap: 12px; padding: 10px 12px; bottom: 12px; width: calc(100vw - 24px); flex-wrap: nowrap; justify-content: flex-start; }
+    .state-label small { font-size: 11px; }
+    .mode span { padding: 7px 10px; }
+    .switch { --w: 112px; --h: 58px; --k: 44px; --pad: 7px; }
+    .knob i:nth-child(1) { left: 9px; top: 9px; width: 11px; height: 11px; }
+    .knob i:nth-child(2) { left: 25px; top: 24px; width: 7px; height: 7px; }
+    .knob i:nth-child(3) { left: 13px; top: 30px; width: 5px; height: 5px; }
+    .title p { font-size: 13px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .star, .ripple, .sunrays { animation: none; }
+    .knob, .switch, .switch .tr-stars, .switch .tr-clouds, .mode span { transition: none; }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+
+<svg class="scene" id="scene" data-testid="scene" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+  <defs>
+    <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop id="skyTop" offset="0" stop-color="#070b1f"/>
+      <stop id="skyMid" offset=".55" stop-color="#141c45"/>
+      <stop id="skyBot" offset="1" stop-color="#1b2350"/>
+    </linearGradient>
+    <radialGradient id="sunGlow">
+      <stop offset="0" stop-color="#fff6c9" stop-opacity="1"/>
+      <stop offset=".25" stop-color="#ffd23f" stop-opacity=".9"/>
+      <stop offset="1" stop-color="#ff9f1c" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="moonGlow">
+      <stop offset="0" stop-color="#e9edff" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#e9edff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="fly">
+      <stop offset="0" stop-color="#fbffb0"/>
+      <stop offset=".35" stop-color="#d7ff6a" stop-opacity=".8"/>
+      <stop offset="1" stop-color="#b6ff3a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="lakeShade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity=".05"/>
+      <stop offset="1" stop-color="#000" stop-opacity=".45"/>
+    </linearGradient>
+    <mask id="moonMask">
+      <rect x="-60" y="-60" width="120" height="120" fill="#fff"/>
+      <circle cx="16" cy="-10" r="34" fill="#000"/>
+    </mask>
+    <clipPath id="lakeClip"><rect x="0" y="610" width="1600" height="290"/></clipPath>
+    <filter id="wobble" x="0" y="0" width="1" height="1">
+      <feTurbulence type="fractalNoise" baseFrequency="0.004 0.12" numOctaves="1" seed="4" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="9" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+  </defs>
+
+  <!-- everything above the waterline; re-used, mirrored, as the lake reflection -->
+  <g id="world">
+    <rect x="-10" y="-10" width="1620" height="640" fill="url(#skyGrad)"/>
+    <g id="stars" data-testid="stars"></g>
+    <g id="moon" data-testid="moon">
+      <circle r="120" fill="url(#moonGlow)"/>
+      <g mask="url(#moonMask)">
+        <circle r="38" fill="#f1efe4"/>
+        <circle cx="-12" cy="8" r="6" fill="#d9d5c4"/>
+        <circle cx="-4" cy="-14" r="4" fill="#d9d5c4"/>
+      </g>
+    </g>
+    <g id="sun" data-testid="sun">
+      <circle r="150" fill="url(#sunGlow)" opacity=".55"/>
+      <g class="sunrays" id="rays"></g>
+      <circle r="44" fill="#ffd23f"/>
+      <circle r="44" fill="#fff3b0" opacity=".45" transform="translate(-8 -8) scale(.7)"/>
+    </g>
+    <g id="clouds"></g>
+    <path id="hillFar" d="M0 520 C120 470 230 450 360 480 C470 505 540 430 690 420 C820 410 900 480 1010 470 C1130 460 1220 400 1350 410 C1460 420 1540 470 1600 460 L1600 620 L0 620 Z" fill="#1c2748"/>
+    <path id="hillMid" d="M0 580 C140 540 260 520 400 560 C520 594 620 540 760 548 C880 555 980 600 1120 580 C1250 562 1340 520 1460 530 C1530 536 1570 552 1600 556 L1600 620 L0 620 Z" fill="#151d3a"/>
+    <g id="pines"></g>
+  </g>
+
+  <!-- lake -->
+  <g clip-path="url(#lakeClip)">
+    <rect x="0" y="610" width="1600" height="290" id="lakeBase" fill="#101a3c"/>
+    <use href="#world" transform="translate(0 1230) scale(1 -1)" opacity=".62" filter="url(#wobble)"/>
+    <rect x="0" y="610" width="1600" height="290" fill="url(#lakeShade)"/>
+    <rect x="0" y="610" width="1600" height="290" id="lakeTint" fill="#0a1233" opacity=".35"/>
+    <g id="glint" data-testid="glint" opacity="0"></g>
+    <g id="ripples" opacity=".5"></g>
+  </g>
+
+  <!-- foreground shore -->
+  <path id="shore" d="M0 790 C160 760 300 772 440 800 C560 824 680 780 820 790 C980 802 1100 830 1250 812 C1380 796 1500 776 1600 786 L1600 900 L0 900 Z" fill="#0d142b"/>
+  <g id="cabin" transform="translate(1180 700)">
+    <path id="cabinRoof" d="M-10 40 L70 -18 L150 40 Z" fill="#241a2b"/>
+    <rect id="cabinWall" x="4" y="38" width="132" height="84" fill="#2c2233"/>
+    <rect id="chimney" x="104" y="-14" width="16" height="36" fill="#241a2b"/>
+    <rect class="win" x="24" y="60" width="28" height="26" rx="2" fill="#ffcf6b"/>
+    <rect class="win" x="88" y="60" width="28" height="26" rx="2" fill="#ffcf6b"/>
+    <rect x="58" y="78" width="24" height="44" rx="2" fill="#1b1420"/>
+  </g>
+  <g id="reeds"></g>
+  <g id="flies" data-testid="fireflies"></g>
+</svg>
+
+<div class="title">
+  <h1>Day <span>&amp;</span> Night 2.0</h1>
+  <p>My old day/night button, grown up into a whole valley. Flip the switch, or let your local clock paint the sky.</p>
+</div>
+
+<div class="dock" role="group" aria-label="Scene controls">
+  <button type="button" class="switch" id="sw" role="switch" aria-checked="false" aria-label="Daylight" data-testid="daynight-switch">
+    <span class="tr-stars"></span><span class="tr-clouds"></span>
+    <span class="knob"><i></i><i></i><i></i></span>
+  </button>
+  <div class="side">
+    <div class="state-label" data-testid="state-label"><span id="stateText">Night</span>
+      <small id="readout" data-testid="readout">--:--</small>
+    </div>
+    <fieldset class="mode" data-testid="mode">
+      <legend>Sky mode</legend>
+      <label><input type="radio" name="mode" value="manual" data-testid="mode-manual"><span>Manual</span></label>
+      <label><input type="radio" name="mode" value="realtime" data-testid="mode-realtime" checked><span>Real time</span></label>
+    </fieldset>
+  </div>
+</div>
+<div class="sr" aria-live="polite" id="live" data-testid="announcer"></div>
+
+<script>
+(() => {
+  'use strict';
+  const NS = 'http://www.w3.org/2000/svg';
+  const $ = id => document.getElementById(id);
+  const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+
+  // seeded PRNG (?seed=) for the star field, clouds and fireflies
+  const sp = new URLSearchParams(location.search).get('seed');
+  let seed = sp !== null && /^\d+$/.test(sp) ? Number(sp) >>> 0 : 20260922;
+  const rand = () => { seed |= 0; seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+
+  // ---------- colour helpers ----------
+  const hex2 = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+  const mix = (a, b, t) => { const A = hex2(a), B = hex2(b); return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
+  const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+  const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a)); return t * t * (3 - 2 * t); };
+
+  // ---------- build the scene ----------
+  const HORIZON = 620;
+  const starsG = $('stars'), stars = [];
+  for (let i = 0; i < 110; i++) {
+    const x = rand() * 1600, y = rand() * rand() * 470 + 10;
+    const r = rand() < 0.1 ? 2.2 : 0.7 + rand() * 1.1;
+    const c = el('circle', { cx: x.toFixed(1), cy: y.toFixed(1), r: r.toFixed(2), fill: rand() < 0.15 ? '#ffe7c4' : '#ffffff', class: 'star', opacity: 0 }, starsG);
+    c.style.animationDelay = (-rand() * 3.2).toFixed(2) + 's';
+    c.style.animationDuration = (2.4 + rand() * 2.4).toFixed(2) + 's';
+    // each star appears at a slightly different point of dusk, so they come out one by one
+    stars.push({ node: c, th: -0.02 - rand() * 0.2 - (r < 1 ? 0.06 : 0) });
+  }
+  const rays = $('rays');
+  for (let i = 0; i < 12; i++) el('rect', { x: -3, y: -84, width: 6, height: 22, rx: 3, fill: '#ffe07a', opacity: .7, transform: `rotate(${i * 30})` }, rays);
+
+  const cloudsG = $('clouds'), clouds = [];
+  for (let i = 0; i < 6; i++) {
+    const g = el('g', {}, cloudsG);
+    const w = 90 + rand() * 120, parts = 4 + Math.floor(rand() * 3);
+    const shade = el('g', {}, g), lite = el('g', {}, g);
+    for (let k = 0; k < parts; k++) {
+      const cx = (k / (parts - 1) - 0.5) * w, cy = -Math.sin(Math.PI * k / (parts - 1)) * 18 - rand() * 8, r = 20 + rand() * 18;
+      el('circle', { cx, cy: cy + 6, r }, shade);
+      el('circle', { cx: cx - 4, cy, r: r * 0.92 }, lite);
+    }
+    clouds.push({ g, shade, lite, x: rand() * 1800 - 100, y: 90 + rand() * 260, s: 0.6 + rand() * 0.6, v: 4 + rand() * 8 });
+  }
+
+  const pinesG = $('pines');
+  const pine = (x, base, h, parent) => el('path', { d: `M${x} ${base - h} L${x + h * 0.28} ${base} L${x - h * 0.28} ${base} Z` }, parent);
+  for (let i = 0; i < 26; i++) { const x = 40 + i * 62 + rand() * 30; pine(x, 612 - rand() * 8, 26 + rand() * 30, pinesG); }
+
+  const ripplesG = $('ripples');
+  for (let i = 0; i < 26; i++) {
+    const y = 630 + rand() * 150, x = rand() * 1700, w = 30 + rand() * 90;
+    const r = el('rect', { x, y, width: w, height: 1.6, rx: .8, fill: '#fff', opacity: (0.15 + rand() * 0.35).toFixed(2), class: 'ripple' }, ripplesG);
+    r.style.animationDuration = (5 + rand() * 7).toFixed(1) + 's';
+    r.style.animationDelay = (-rand() * 6).toFixed(1) + 's';
+  }
+
+  // glitter path on the water under the sun / moon
+  const glintG = $('glint'), glints = [];
+  for (let i = 0; i < 16; i++) {
+    const y = 624 + i * i * 0.75 + i * 4, w = 70 - i * 3 + rand() * 30;
+    const r = el('rect', { x: (-w / 2 + (rand() - 0.5) * 30).toFixed(1), y: y.toFixed(1), width: w.toFixed(1), height: 2.4 + i * 0.12, rx: 1.2, class: 'ripple' }, glintG);
+    r.style.animationDuration = (3 + rand() * 3).toFixed(1) + 's';
+    r.style.animationDirection = i % 2 ? 'reverse' : 'normal';
+    glints.push(r);
+  }
+
+  const reedsG = $('reeds');
+  for (let i = 0; i < 70; i++) {
+    const x = (i < 35 ? 20 + i * 11 : 700 + (i - 35) * 12) + rand() * 8;
+    const base = 800 + rand() * 30, h = 30 + rand() * 60, bend = (rand() - 0.5) * 18;
+    el('path', { d: `M${x} ${base} Q${x + bend * 0.3} ${base - h * 0.6} ${x + bend} ${base - h}`, stroke: '#0b1124', 'stroke-width': 2.2, fill: 'none', 'stroke-linecap': 'round', class: 'reed' }, reedsG);
+  }
+
+  const fliesG = $('flies'), flies = [];
+  for (let i = 0; i < 22; i++) {
+    const c = el('circle', { r: 9, fill: 'url(#fly)', opacity: 0 }, fliesG);
+    flies.push({ node: c, x: 80 + rand() * 1440, y: 680 + rand() * 180, ph: rand() * 6.28, sp: 0.3 + rand() * 0.6, blink: 1 + rand() * 2 });
+  }
+
+  // ---------- solar model ----------
+  // sunrise/sunset from the day of year (approximate, mid-northern latitude)
+  function solarTimes(date) {
+    const start = new Date(date.getFullYear(), 0, 0);
+    const doy = Math.floor((date - start) / 864e5);
+    const len = 12 + 3 * Math.sin(2 * Math.PI * (doy - 80) / 365);
+    const noon = 12.9;
+    return { rise: noon - len / 2, set: noon + len / 2 };
+  }
+  let sunTimes = solarTimes(new Date());
+
+  // elevation in [-1, 1]; positive = sun up. Returns sun & moon arc fractions too.
+  function sky(h) {
+    h = ((h % 24) + 24) % 24;
+    const { rise, set } = sunTimes;
+    if (h >= rise && h <= set) {
+      const f = (h - rise) / (set - rise);
+      return { elev: Math.sin(Math.PI * f), sunF: f, moonF: null };
+    }
+    const nightLen = 24 - (set - rise);
+    const f = ((h - set + 24) % 24) / nightLen;
+    return { elev: -Math.sin(Math.PI * f), sunF: null, moonF: f };
+  }
+
+  // ---------- render ----------
+  const state = { hour: 23, mode: 'realtime', animating: false, daylight: 0 };
+  const PAL = {
+    night: { top: '#050817', mid: '#10173d', bot: '#1d2656', far: '#1a2346', mid2: '#121a36', shore: '#0a1026', lake: '#0c1433', pine: '#0d1430' },
+    day:   { top: '#2f7fd6', mid: '#78b8ea', bot: '#cfeaf7', far: '#8ab59a', mid2: '#5a9467', shore: '#35643d', lake: '#3f86b8', pine: '#2f5a3a' },
+    dusk:  { top: '#2c2f6d', mid: '#b9608a', bot: '#ffa25a' },
+  };
+  const arcX = f => 230 + f * 1140;
+  const arcY = f => HORIZON - 140 - Math.sin(Math.PI * f) * 390;
+
+  let lastKey = '';
+  function render() {
+    const s = sky(state.hour);
+    const e = s.elev;
+    const p = smooth(-0.12, 0.28, e);                 // daylight 0..1
+    const warm = Math.exp(-Math.pow((e - 0.02) / 0.16, 2)); // sunset/sunrise glow
+    state.daylight = p;
+    const key = state.hour.toFixed(3);
+    if (key === lastKey) return;
+    lastKey = key;
+
+    const top = mix(mix(PAL.night.top, PAL.day.top, p), PAL.dusk.top, warm * 0.55);
+    const mid = mix(mix(PAL.night.mid, PAL.day.mid, p), PAL.dusk.mid, warm * 0.8);
+    const bot = mix(mix(PAL.night.bot, PAL.day.bot, p), PAL.dusk.bot, warm * 0.9);
+    $('skyTop').setAttribute('stop-color', top);
+    $('skyMid').setAttribute('stop-color', mid);
+    $('skyBot').setAttribute('stop-color', bot);
+    const tint = c => mix(c, PAL.dusk.bot, warm * 0.18);
+    $('hillFar').setAttribute('fill', tint(mix(PAL.night.far, PAL.day.far, p)));
+    $('hillMid').setAttribute('fill', tint(mix(PAL.night.mid2, PAL.day.mid2, p)));
+    $('pines').setAttribute('fill', mix(PAL.night.pine, PAL.day.pine, p));
+    $('shore').setAttribute('fill', mix(PAL.night.shore, PAL.day.shore, p));
+    $('lakeBase').setAttribute('fill', mix(PAL.night.lake, PAL.day.lake, p));
+    $('lakeTint').setAttribute('opacity', (0.45 - p * 0.3).toFixed(3));
+    document.querySelectorAll('.reed').forEach(r => r.setAttribute('stroke', mix('#0b1124', '#2c5433', p)));
+    $('cabinWall').setAttribute('fill', mix('#2c2233', '#9a5a3c', p));
+    $('cabinRoof').setAttribute('fill', mix('#1c1522', '#5b3a2e', p));
+    $('chimney').setAttribute('fill', mix('#1c1522', '#5b3a2e', p));
+    const winOn = 1 - smooth(0.05, 0.45, p);
+    document.querySelectorAll('.win').forEach(w => { w.setAttribute('fill', mix('#3b5566', '#ffcf6b', winOn)); });
+
+    // sun & moon on their arcs
+    const sun = $('sun'), moon = $('moon');
+    const glint = $('glint');
+    if (s.sunF !== null) {
+      sun.setAttribute('transform', `translate(${arcX(s.sunF).toFixed(1)} ${arcY(s.sunF).toFixed(1)})`);
+      sun.setAttribute('opacity', smooth(-0.02, 0.08, e).toFixed(3));
+      moon.setAttribute('opacity', 0);
+      glint.setAttribute('transform', `translate(${arcX(s.sunF).toFixed(1)} 0)`);
+      glint.setAttribute('fill', mix('#fff4c2', '#ffb45e', warm));
+      glint.setAttribute('opacity', (smooth(-0.02, 0.1, e) * (0.35 + 0.45 * warm)).toFixed(3));
+    } else {
+      moon.setAttribute('transform', `translate(${arcX(s.moonF).toFixed(1)} ${arcY(s.moonF).toFixed(1)})`);
+      moon.setAttribute('opacity', smooth(0.02, 0.1, -e).toFixed(3));
+      sun.setAttribute('opacity', 0);
+      glint.setAttribute('transform', `translate(${arcX(s.moonF).toFixed(1)} 0)`);
+      glint.setAttribute('fill', '#dfe6ff');
+      glint.setAttribute('opacity', (smooth(0.02, 0.12, -e) * 0.45).toFixed(3));
+    }
+    // stars, staggered
+    let visible = 0;
+    for (const st of stars) {
+      const o = smooth(st.th + 0.06, st.th - 0.04, e);
+      if (o > 0.5) visible++;
+      st.node.setAttribute('opacity', o.toFixed(3));
+    }
+    starsG.dataset.visible = String(visible);
+    // clouds: bright white by day, slate by night, peach at sunset
+    const cl = mix(mix('#39426e', '#ffffff', p), '#ffc9a3', warm * 0.6);
+    const cs = mix(mix('#262c52', '#d9e6f2', p), '#d98a7a', warm * 0.6);
+    for (const c of clouds) { c.lite.setAttribute('fill', cl); c.shade.setAttribute('fill', cs); c.g.setAttribute('opacity', (0.55 + 0.4 * p).toFixed(2)); }
+
+    document.documentElement.style.setProperty('--sky', top);
+    document.querySelector('meta[name=theme-color]')?.setAttribute('content', top);
+  }
+
+  // ---------- continuous bits: clouds & fireflies ----------
+  let lastT = null;
+  function tick(now) {
+    const dt = lastT === null ? 0 : Math.min(0.1, (now - lastT) / 1000);
+    lastT = now;
+    const still = reduced.matches;
+    if (!still) for (const c of clouds) { c.x += c.v * dt; if (c.x > 1760) c.x = -160; }
+    for (const c of clouds) c.g.setAttribute('transform', `translate(${c.x.toFixed(1)} ${c.y.toFixed(1)}) scale(${c.s.toFixed(2)})`);
+    const nightness = 1 - smooth(0.0, 0.35, state.daylight);
+    const t = now / 1000;
+    let lit = 0;
+    for (const f of flies) {
+      const x = still ? f.x : f.x + Math.sin(t * f.sp + f.ph) * 40;
+      const y = still ? f.y : f.y + Math.cos(t * f.sp * 1.3 + f.ph) * 18;
+      const blink = still ? 0.8 : 0.35 + 0.65 * Math.pow(Math.max(0, Math.sin(t * f.blink + f.ph)), 2);
+      const o = nightness * blink;
+      if (o > 0.05) lit++;
+      f.node.setAttribute('cx', x.toFixed(1)); f.node.setAttribute('cy', y.toFixed(1));
+      f.node.setAttribute('opacity', o.toFixed(3));
+    }
+    fliesG.dataset.lit = String(lit);
+    requestAnimationFrame(tick);
+  }
+
+  // ---------- transitions ----------
+  const DAY_HOUR = 13, NIGHT_HOUR = 22.5;
+  let anim = null;
+  function animateTo(target, duration) {
+    // always move forward through time, so day→night passes sunset and night→day passes dawn
+    let from = state.hour;
+    let to = target;
+    while (to <= from) to += 24;
+    if (to - from > 24) to -= 24;
+    if (reduced.matches || duration === 0 || Math.abs(to - from) < 0.01) {
+      anim = null; state.hour = ((to % 24) + 24) % 24; state.animating = false; render(); return;
+    }
+    anim = { from, to, start: performance.now(), duration };
+    state.animating = true;
+    requestAnimationFrame(step);
+  }
+  function step(now) {
+    if (!anim) return;
+    const k = clamp((now - anim.start) / anim.duration);
+    const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+    state.hour = (anim.from + (anim.to - anim.from) * e) % 24;
+    render();
+    if (k < 1) requestAnimationFrame(step);
+    else { anim = null; state.animating = false; state.hour = ((state.hour % 24) + 24) % 24; render(); }
+  }
+
+  // ---------- controls ----------
+  const sw = $('sw'), live = $('live');
+  const pad = n => String(Math.floor(n)).padStart(2, '0');
+  const fmtHour = h => { h = ((h % 24) + 24) % 24; return pad(h) + ':' + pad((h % 1) * 60); };
+  function localHour() { const d = new Date(); return d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600; }
+  function isDayAt(h) { return sky(h).elev > 0.02; }
+
+  function syncUI(announce) {
+    const targetHour = anim ? anim.to : state.hour;
+    const day = isDayAt(targetHour);
+    sw.setAttribute('aria-checked', String(day));
+    $('stateText').textContent = day ? 'Day' : 'Night';
+    const base = state.mode === 'realtime' ? `Local ${fmtHour(localHour())}` : 'Manual';
+    $('readout').textContent = `${base} · sunrise ${fmtHour(sunTimes.rise)} · sunset ${fmtHour(sunTimes.set)}`;
+    document.querySelectorAll('input[name=mode]').forEach(i => { i.checked = i.value === state.mode; });
+    if (announce) live.textContent = announce;
+  }
+
+  sw.addEventListener('click', () => {
+    const goingDay = sw.getAttribute('aria-checked') !== 'true';
+    state.mode = 'manual';
+    animateTo(goingDay ? DAY_HOUR : NIGHT_HOUR, 3200);
+    try { navigator.vibrate && navigator.vibrate(12); } catch (_) {}
+    syncUI(goingDay ? 'Daylight. The sun is up over the valley.' : 'Night. Stars and fireflies are out.');
+  });
+
+  document.querySelectorAll('input[name=mode]').forEach(inp => inp.addEventListener('change', () => {
+    if (!inp.checked) return;
+    state.mode = inp.value;
+    if (state.mode === 'realtime') {
+      sunTimes = solarTimes(new Date());
+      animateTo(localHour(), 2600);
+      syncUI(`Real-time sky: local time ${fmtHour(localHour())}, ${isDayAt(localHour()) ? 'daytime' : 'night-time'}.`);
+    } else {
+      syncUI('Manual mode. Use the switch to change day and night.');
+    }
+  }));
+
+  // real-time mode: follow the clock
+  setInterval(() => {
+    if (state.mode !== 'realtime' || anim) { syncUI(); return; }
+    const wasDay = isDayAt(state.hour);
+    sunTimes = solarTimes(new Date());
+    state.hour = localHour();
+    render();
+    const nowDay = isDayAt(state.hour);
+    syncUI(wasDay !== nowDay ? (nowDay ? 'The sun has risen.' : 'The sun has set.') : undefined);
+  }, 10000);
+
+  // ---------- test hook ----------
+  window.__scene = {
+    get hour() { return state.hour; },
+    get daylight() { return state.daylight; },
+    get mode() { return state.mode; },
+    get animating() { return state.animating; },
+    get starsVisible() { return Number(starsG.dataset.visible || 0); },
+    get firefliesLit() { return Number(fliesG.dataset.lit || 0); },
+    get sunrise() { return sunTimes.rise; },
+    get sunset() { return sunTimes.set; },
+    // jump the manual sky to an hour (handy for screenshots and debugging)
+    setHour(h) { state.mode = 'manual'; anim = null; state.animating = false; state.hour = ((h % 24) + 24) % 24; render(); syncUI(); },
+  };
+
+  state.hour = localHour();
+  render();
+  syncUI();
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

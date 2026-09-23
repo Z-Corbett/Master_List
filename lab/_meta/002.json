@@ -1,0 +1,33 @@
+{
+  "id": "002",
+  "slug": "002-flaky",
+  "file": "lab/002-flaky.html",
+  "title": "Flaky — A Test Suite Weather Report",
+  "category": "QA & Testing",
+  "tags": ["canvas", "simulation", "heatmap", "flaky-tests", "seeded-prng"],
+  "description": "A seeded simulator of a 24-test end-to-end suite where each test has a hidden flake probability and cause: timing, network, animation, shared state, order dependence, or one real product race. Run it 1, 10 or 100 times to build a pass/fail heatmap, then flip retries, quarantine and shuffle to see how each one changes the forecast, and click any test to get a diagnosis and a code fix.",
+  "prompt": "Make me 'Flaky: A Test Suite Weather Report'. Simulate a suite of about 24 fictional end-to-end tests, each with a hidden flake probability and cause (timing, network, animation, shared state, order dependence), plus one that's actually a real product bug. Buttons run the suite 1, 10 or 100 times and animate a runs-by-tests heatmap with a suite-verdict row on top. Show flake-rate stats and a weather-style forecast of the chance the suite goes green. Add a retry toggle that shows how retries hide flakiness (and what they cost in CI minutes), a quarantine toggle, and a shuffle toggle that exposes order-dependent tests. Clicking a test should open a diagnosis panel with the evidence, a typical error, the likely root cause and a concrete Playwright fix. Seed it via ?seed= so it's reproducible.",
+  "qa": {
+    "methodology": [
+      "Determinism first: a mulberry32 PRNG seeded from ?seed= always consumes the same random numbers per run, whatever the toggles, so the same seed gives the same history and the spec can compare two page loads exactly.",
+      "Metamorphic oracles instead of hard-coded numbers: turning retries on must raise suite-green and leave first-try failures unchanged; turning quarantine on must quarantine exactly the flaky count and reach 100% green.",
+      "Model invariants: stable tests never fail; order-dependent tests fail only when shuffled after their polluting sibling, so with shuffle off they are 0%.",
+      "Content correctness: the diagnosis panel shows the right cause and fix for representative tests, including the 'real bug' case that must warn against quarantine.",
+      "Visual check at 1280px and 390px for heatmap row alignment against the DOM name and rate columns, with the reduced-motion path used in tests."
+    ],
+    "risks": [
+      "Canvas rows drifting out of alignment with the DOM name list when the row-height token or the suite-row offset changes.",
+      "Toggles accidentally changing how much randomness is consumed, which would silently break seed reproducibility.",
+      "Quarantine membership being computed from a stale history after reset or a new seed."
+    ],
+    "playwright": "The heatmap is a canvas, so the spec never reads pixels. Every number the canvas encodes is also rendered as DOM text (per-test fail % and the stat tiles), and the tests assert on that through data-testid. ?seed= made the simulation reproducible, but the stronger technique was metamorphic assertions (retries raise green and leave first-try failures unchanged), which stay true if the model's probabilities are retuned. The reveal animation is requestAnimationFrame-driven, so emulateMedia({ reducedMotion: 'reduce' }) makes it render instantly rather than needing page.clock. Screenshot comparison was avoided on purpose: a 2,400-cell canvas with anti-aliasing is a poor oracle, and a screenshot diff wouldn't explain what went wrong.",
+    "coverage": [
+      "Seed reproducibility across two page loads",
+      "Run ×1/×10/×100 accumulation, forecast, reset",
+      "Retries masking flakiness (metamorphic check)",
+      "Quarantine count equals flaky count, 100% green, real-bug warning",
+      "Diagnosis panel content; order-dependent test green with shuffle off"
+    ]
+  },
+  "a11y": "Test names are real toggle buttons (aria-pressed) whose accessible names include the observed failure rate and quarantine status, and all toggles are labelled checkboxes. The forecast, stats and diagnosis are aria-live regions, and the canvas has a summarising aria-label, so the heatmap's information never depends on color alone (failures also carry a cross glyph)."
+}

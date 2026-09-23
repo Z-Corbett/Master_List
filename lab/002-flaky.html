@@ -1,0 +1,706 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flaky — A Test Suite Weather Report</title>
+<meta name="description" content="A flaky-test simulator: run a 24-test suite 1, 10 or 100 times, watch a pass/fail heatmap build, toggle retries and quarantine to see how they mask flakiness, and click any test to diagnose its root cause and fix.">
+<style>
+  :root {
+    --bg: #0d1424;
+    --bg-2: #131c30;
+    --bg-3: #1b2640;
+    --line: #26334f;
+    --ink: #e7edf8;
+    --ink-2: #aab6cd;
+    --ink-3: #74829e;
+    --sun: #ffd166;
+    --pass: #3d8ee0;
+    --fail: #e8466a;
+    --retry: #d9a326;
+    --quar: #4a5670;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --display: "Avenir Next Condensed", "Arial Narrow", "Roboto Condensed", "Segoe UI", system-ui, sans-serif;
+    --mono: ui-monospace, "SFMono-Regular", "Cascadia Code", Menlo, Consolas, monospace;
+    --rh: 22px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background:
+      radial-gradient(1200px 500px at 85% -10%, rgba(255,209,102,.10), transparent 60%),
+      radial-gradient(900px 500px at -10% 10%, rgba(61,142,224,.12), transparent 60%),
+      var(--bg);
+    color: var(--ink); font-family: var(--sans); line-height: 1.45; overflow-x: hidden; min-height: 100vh;
+  }
+  :focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
+  button { font: inherit; cursor: pointer; }
+  .back {
+    position: fixed; top: 12px; left: 12px; z-index: 50; text-decoration: none;
+    font: 600 12px/1 var(--sans); color: var(--ink-2); background: rgba(13,20,36,.8);
+    border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; backdrop-filter: blur(6px);
+  }
+  .back:hover { color: var(--sun); }
+  .wrap { max-width: 1320px; margin: 0 auto; padding: 56px 20px 40px; }
+
+  /* ----- Masthead / forecast ----- */
+  .mast { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 20px; align-items: stretch; }
+  .title-block .kicker { font: 700 12px var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--sun); }
+  .title-block h1 { font: 800 clamp(34px, 6vw, 60px)/.95 var(--display); letter-spacing: -.01em; margin: 8px 0 10px; }
+  .title-block h1 em { font-style: normal; color: var(--sun); }
+  .title-block p { color: var(--ink-2); max-width: 56ch; margin: 0; }
+  .forecast {
+    background: linear-gradient(160deg, #1a2744, #111a2e); border: 1px solid var(--line); border-radius: 18px;
+    padding: 18px 20px; display: flex; gap: 16px; align-items: center; position: relative; overflow: hidden;
+  }
+  .forecast svg.wx { width: 96px; height: 96px; flex: none; }
+  .forecast .big { font: 800 44px/1 var(--display); }
+  .forecast .big small { font-size: 18px; color: var(--ink-2); font-weight: 600; }
+  .forecast .cond { font: 700 16px var(--sans); margin-top: 4px; }
+  .forecast .sub { color: var(--ink-2); font-size: 13px; margin-top: 4px; }
+
+  /* ----- Controls ----- */
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin: 22px 0 16px; padding: 12px 14px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 14px; }
+  .run-group { display: flex; gap: 6px; align-items: center; }
+  .run-group .lbl { font: 700 11px var(--mono); color: var(--ink-3); letter-spacing: .1em; text-transform: uppercase; margin-right: 4px; }
+  .btn { border: 1px solid var(--line); background: var(--bg-3); color: var(--ink); border-radius: 10px; padding: 8px 14px; font-weight: 700; font-size: 14px; }
+  .btn:hover { border-color: #3a4a6e; }
+  .btn.sun { background: var(--sun); border-color: var(--sun); color: #2b2000; }
+  .btn.sun:hover { background: #ffdc85; }
+  .btn.ghost { background: transparent; }
+  .btn:disabled { opacity: .5; cursor: progress; }
+  .toggles { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+  .switch { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--ink-2); cursor: pointer; user-select: none; }
+  .switch input { appearance: none; -webkit-appearance: none; width: 36px; height: 20px; border-radius: 20px; background: #2b3858; position: relative; margin: 0; cursor: pointer; transition: background .2s; flex: none; }
+  .switch input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #cfd8ea; transition: transform .2s; }
+  .switch input:checked { background: var(--sun); }
+  .switch input:checked::after { transform: translateX(16px); background: #2b2000; }
+  .switch input:focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
+  .seed { margin-left: auto; font: 12px var(--mono); color: var(--ink-3); display: flex; align-items: center; gap: 8px; }
+  .seed b { color: var(--ink-2); }
+
+  /* ----- Stats ----- */
+  .stats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .stat { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; min-width: 0; }
+  .stat .k { font: 600 11px var(--sans); color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; }
+  .stat .v { font: 800 26px/1.15 var(--display); margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .stat .d { font-size: 11.5px; color: var(--ink-3); }
+
+  /* ----- Main area ----- */
+  .main { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
+  .board { background: var(--bg-2); border: 1px solid var(--line); border-radius: 16px; padding: 14px; min-width: 0; }
+  .board-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+  .board-head h2 { margin: 0; font: 800 18px var(--display); letter-spacing: .02em; }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--ink-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; position: relative; }
+  .legend i.fail::after { content: "×"; position: absolute; inset: -3px 0 0; font: 700 11px/1 var(--sans); color: #fff; text-align: center; }
+  .grid { display: grid; grid-template-columns: 200px minmax(0, 1fr) 48px; column-gap: 10px; }
+  .names, .rates { list-style: none; margin: 0; padding: 0; }
+  .names li, .rates li { height: var(--rh); display: flex; align-items: center; }
+  .names li.suite, .rates li.suite { font: 800 12px var(--mono); color: var(--sun); letter-spacing: .05em; margin-bottom: 6px; }
+  .names button {
+    all: unset; box-sizing: border-box; width: 100%; height: calc(var(--rh) - 2px); padding: 0 6px; border-radius: 5px;
+    font: 12px var(--mono); color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+  }
+  .names button:hover { background: var(--bg-3); color: var(--ink); }
+  .names button:focus-visible { outline: 2px solid var(--sun); }
+  .names button[aria-pressed="true"] { background: rgba(255,209,102,.14); color: var(--sun); }
+  .names button.q { text-decoration: line-through; text-decoration-color: rgba(170,182,205,.5); color: var(--ink-3); }
+  .rates li { font: 700 12px var(--mono); justify-content: flex-end; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .rates li.hot { color: var(--fail); }
+  .rates li.warm { color: var(--retry); }
+  .canvas-wrap { position: relative; min-width: 0; }
+  canvas#heat { display: block; width: 100%; touch-action: pan-y; }
+  .axis { display: flex; justify-content: space-between; font: 11px var(--mono); color: var(--ink-3); margin-top: 6px; }
+  .tip {
+    position: absolute; pointer-events: none; z-index: 5; background: #0a0f1c; border: 1px solid var(--line); border-radius: 8px;
+    padding: 7px 9px; font-size: 12px; color: var(--ink); white-space: nowrap; box-shadow: 0 10px 24px rgba(0,0,0,.4); opacity: 0; transition: opacity .1s;
+  }
+  .tip.on { opacity: 1; }
+  .empty[hidden] { display: none; }
+  .empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ink-3); font-size: 14px; text-align: center; padding: 20px; pointer-events: none; }
+
+  /* ----- Side ----- */
+  .side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .panel { background: var(--bg-2); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+  .panel h2 { margin: 0 0 10px; font: 800 16px var(--display); letter-spacing: .03em; }
+  .diag-empty { color: var(--ink-3); font-size: 14px; }
+  .diag-name { font: 700 14px var(--mono); overflow-wrap: anywhere; }
+  .diag-file { font: 12px var(--mono); color: var(--ink-3); margin-top: 2px; }
+  .badge { display: inline-block; font: 800 11px var(--sans); letter-spacing: .06em; text-transform: uppercase; padding: 4px 8px; border-radius: 6px; margin: 10px 0 6px; }
+  .diag-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 8px 0 12px; }
+  .diag-grid div { background: var(--bg-3); border-radius: 8px; padding: 6px 8px; }
+  .diag-grid b { display: block; font: 800 18px var(--display); }
+  .diag-grid span { font-size: 11px; color: var(--ink-3); }
+  .diag h3 { font: 700 12px var(--sans); text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); margin: 12px 0 4px; }
+  .diag p { margin: 0; font-size: 13.5px; color: var(--ink-2); }
+  .diag pre { margin: 6px 0 0; background: #0a0f1c; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font: 11.5px/1.5 var(--mono); color: #c9d4ea; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .diag pre.err { color: #ff9fb2; }
+  .diag .row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .causes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .causes li { display: grid; grid-template-columns: 108px minmax(0, 1fr) 36px; gap: 8px; align-items: center; font-size: 12.5px; color: var(--ink-2); }
+  .causes .bar { height: 10px; background: var(--bg-3); border-radius: 5px; overflow: hidden; }
+  .causes .bar i { display: block; height: 100%; border-radius: 0 4px 4px 0; background: var(--fail); transition: width .5s ease; }
+  .causes b { font: 700 12px var(--mono); text-align: right; color: var(--ink); }
+  .note { font-size: 12.5px; color: var(--ink-3); margin: 10px 0 0; }
+
+  @media (max-width: 1100px) {
+    .main { grid-template-columns: minmax(0, 1fr); }
+    .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  @media (max-width: 720px) {
+    .wrap { padding: 52px 12px 32px; }
+    .mast { grid-template-columns: minmax(0, 1fr); }
+    .forecast svg.wx { width: 72px; height: 72px; }
+    .forecast .big { font-size: 36px; }
+    .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid { grid-template-columns: 118px minmax(0, 1fr) 38px; column-gap: 6px; }
+    .names button { font-size: 11px; padding: 0 3px; }
+    .seed { margin-left: 0; }
+    .board { padding: 10px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+<a href="../index.html#lab" class="back" data-testid="back-link">← Zac's Lab</a>
+
+<div class="wrap">
+  <header class="mast">
+    <div class="title-block">
+      <div class="kicker">CI Weather Service · Harbor Tickets monorepo</div>
+      <h1>Flaky: a test suite <em>weather report</em></h1>
+      <p>Twenty-four end-to-end tests. Some are rock solid, some flake on timing, network, animation, shared state or test order — and one hides a genuine race in the product. Run the suite, watch the storm roll in, and see what retries and quarantine really do to the forecast.</p>
+    </div>
+    <section class="forecast" aria-label="Suite forecast" aria-live="polite">
+      <svg class="wx" viewBox="0 0 100 100" aria-hidden="true" data-testid="forecast-icon"></svg>
+      <div>
+        <div class="big" data-testid="forecast-pct">—<small></small></div>
+        <div class="cond" data-testid="forecast-cond">No data yet</div>
+        <div class="sub" data-testid="forecast-sub">Run the suite to get a forecast.</div>
+      </div>
+    </section>
+  </header>
+
+  <div class="controls" role="group" aria-label="Suite controls">
+    <div class="run-group">
+      <span class="lbl">Run suite</span>
+      <button class="btn sun" type="button" data-testid="run-1" data-n="1">×1</button>
+      <button class="btn sun" type="button" data-testid="run-10" data-n="10">×10</button>
+      <button class="btn sun" type="button" data-testid="run-100" data-n="100">×100</button>
+      <button class="btn ghost" type="button" data-testid="reset">Reset</button>
+    </div>
+    <div class="toggles">
+      <label class="switch"><input type="checkbox" data-testid="toggle-retries"> Retry failures (up to 2×)</label>
+      <label class="switch"><input type="checkbox" data-testid="toggle-quarantine"> Quarantine flaky tests</label>
+      <label class="switch"><input type="checkbox" data-testid="toggle-shuffle" checked> Shuffle test order</label>
+    </div>
+    <div class="seed">seed <b data-testid="seed">—</b><button class="btn ghost" type="button" data-testid="reseed" style="padding:4px 10px;font-size:12px">new seed</button></div>
+  </div>
+
+  <div class="stats" aria-live="polite">
+    <div class="stat"><div class="k">Runs</div><div class="v" data-testid="stat-runs">0</div><div class="d">suite executions</div></div>
+    <div class="stat"><div class="k">Suite green</div><div class="v" data-testid="stat-green">—</div><div class="d">runs with no red</div></div>
+    <div class="stat"><div class="k">First-try fails</div><div class="v" data-testid="stat-firsttry">—</div><div class="d">of all test executions</div></div>
+    <div class="stat"><div class="k">Masked by retry</div><div class="v" data-testid="stat-masked">0</div><div class="d" data-testid="stat-masked-d">retries off</div></div>
+    <div class="stat"><div class="k">Flaky tests</div><div class="v" data-testid="stat-flaky">0</div><div class="d">mixed pass/fail history</div></div>
+    <div class="stat"><div class="k">Quarantined</div><div class="v" data-testid="stat-quarantined">0</div><div class="d">excluded from verdict</div></div>
+  </div>
+
+  <div class="main">
+    <section class="board" aria-labelledby="board-h">
+      <div class="board-head">
+        <h2 id="board-h">Heatmap · tests × runs</h2>
+        <div class="legend" aria-label="Legend">
+          <span><i style="background:var(--pass)"></i>pass</span>
+          <span><i class="fail" style="background:var(--fail)"></i>fail</span>
+          <span><i style="background:var(--retry)"></i>passed on retry</span>
+          <span><i style="background:var(--quar)"></i>quarantined</span>
+        </div>
+      </div>
+      <div class="grid">
+        <ol class="names" data-testid="test-list" aria-label="Tests — select one to diagnose"></ol>
+        <div class="canvas-wrap">
+          <canvas id="heat" data-testid="heatmap" role="img" aria-label="Pass/fail heatmap"></canvas>
+          <div class="empty" data-testid="heat-empty">Press ×10 to run the suite ten times.</div>
+          <div class="tip" data-testid="tooltip" role="tooltip"></div>
+        </div>
+        <ol class="rates" aria-label="First-try failure rate per test"></ol>
+      </div>
+      <div class="grid"><span></span><div class="axis"><span data-testid="axis-start">run —</span><span>latest 100 runs shown · newest →</span></div><span></span></div>
+    </section>
+
+    <aside class="side">
+      <section class="panel diag" aria-labelledby="diag-h" data-testid="diagnosis" aria-live="polite">
+        <h2 id="diag-h">Diagnosis</h2>
+        <p class="diag-empty">Select a test name to see its evidence, the likely root cause and a fix.</p>
+      </section>
+      <section class="panel" aria-labelledby="causes-h">
+        <h2 id="causes-h">First-try failures by cause</h2>
+        <ul class="causes" data-testid="causes"></ul>
+        <p class="note">Causes are this simulator's ground truth. In a real pipeline you infer them from the evidence — that's the diagnosis panel's job.</p>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s, r = document) => r.querySelector(s);
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ------------------------------------------------------------ PRNG
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  const qsSeed = new URLSearchParams(location.search).get('seed');
+  let seed = qsSeed !== null && /^\d+$/.test(qsSeed) ? Number(qsSeed) : (Date.now() % 100000);
+  let rng = mulberry32(seed);
+
+  // ------------------------------------------------------------ The suite
+  const CAUSES = {
+    timing:  { label: 'Timing',          color: '#d9a326' },
+    network: { label: 'Network',         color: '#3d8ee0' },
+    anim:    { label: 'Animation',       color: '#a77de8' },
+    shared:  { label: 'Shared state',    color: '#e87a3a' },
+    order:   { label: 'Order dependence',color: '#3fb8a8' },
+    bug:     { label: 'Real product bug',color: '#e8466a' },
+    stable:  { label: 'Stable',          color: '#5b6a88' },
+  };
+  const TESTS = [
+    { name: 'login › shows error on bad password', file: 'auth/login.spec.ts', cause: 'stable', p: 0, dur: 2.1 },
+    { name: 'search › results appear after debounce', file: 'search/search.spec.ts', cause: 'timing', p: .12, dur: 3.4,
+      err: "Error: expect(received).toHaveCount(expected)\n  Expected: 5  Received: 0\n    at search.spec.ts:41 — after waitForTimeout(300)",
+      diag: 'Fails when the 300 ms debounce + API response exceeds the hard-coded sleep on a loaded CI runner.',
+      fix: 'Delete the fixed sleep and use a web-first assertion that retries until the results render.',
+      code: "- await page.waitForTimeout(300);\n- expect(await rows.count()).toBe(5);\n+ await expect(rows).toHaveCount(5);" },
+    { name: 'checkout › applies promo code', file: 'checkout/promo.spec.ts', cause: 'network', p: .06, dur: 4.2,
+      err: "TimeoutError: locator.click: Timeout 5000ms exceeded\n  waiting for getByRole('button', { name: 'Apply' }) to be enabled\n  (pricing-service responded 503)",
+      diag: 'Hits the shared staging pricing service, which occasionally returns 503 under load from other pipelines.',
+      fix: 'Stub the pricing endpoint for UI tests and cover the real integration in a separate contract test.',
+      code: "await page.route('**/api/pricing/promo', r =>\n  r.fulfill({ json: { code: 'HARBOR10', discount: 0.1 } }));" },
+    { name: 'toast › auto-dismisses after 3s', file: 'ui/toast.spec.ts', cause: 'timing', p: .08, dur: 3.9,
+      err: "Error: expect(locator).toBeHidden() failed\n  toast still visible after 3500ms (timer throttled)",
+      diag: 'Relies on wall-clock time; background-tab throttling and slow runners stretch the 3 s timer.',
+      fix: 'Control time instead of waiting for it — install a fake clock and fast-forward.',
+      code: "await page.clock.install();\nawait page.getByRole('button', { name: 'Save' }).click();\nawait page.clock.runFor(3000);\nawait expect(toast).toBeHidden();" },
+    { name: 'modal › closes on Escape', file: 'ui/modal.spec.ts', cause: 'anim', p: .09, dur: 1.8,
+      err: "Error: expect(locator).toBeHidden() failed\n  Escape pressed during 250ms open transition — focus not yet in dialog",
+      diag: 'Keyboard input lands while the open transition is still running, before focus moves into the dialog.',
+      fix: 'Wait for the dialog to be ready (focused) before pressing keys, and run with reduced motion in CI.',
+      code: "await page.emulateMedia({ reducedMotion: 'reduce' });\nawait expect(dialog).toBeFocused();\nawait page.keyboard.press('Escape');" },
+    { name: 'signup › validates email format', file: 'auth/signup.spec.ts', cause: 'stable', p: 0, dur: 1.6 },
+    { name: 'cart › badge shows item count', file: 'cart/badge.spec.ts', cause: 'shared', p: .18, dur: 2.7,
+      err: "Error: expect(locator).toHaveText('2')\n  Received: '5'  — cart belongs to qa+shared@harbor.test",
+      diag: 'All parallel workers log in as the same seeded user, so other tests add items to the same cart.',
+      fix: 'Give each worker its own account via a worker-scoped fixture and reset the cart in setup.',
+      code: "export const test = base.extend({\n  user: [async ({}, use, info) =>\n    use(await createUser(`qa+w${info.workerIndex}`)), { scope: 'worker' }],\n});" },
+    { name: 'settings › default theme is light', file: 'settings/theme.spec.ts', cause: 'order', dep: 'settings › switch to dark theme', p: 0, dur: 1.4,
+      err: "Error: expect(locator).toHaveAttribute('data-theme', 'light')\n  Received: 'dark'",
+      diag: 'Passes in file order. When shuffled after the dark-theme test, the saved preference leaks through the reused storage state.',
+      fix: 'Never share mutable storage state between tests; start each from a clean context or reset the preference in beforeEach.',
+      code: "test.beforeEach(async ({ request }) => {\n  await request.put('/api/me/preferences', { data: { theme: 'light' } });\n});" },
+    { name: 'feed › infinite scroll loads page 2', file: 'feed/scroll.spec.ts', cause: 'network', p: .10, dur: 5.1,
+      err: "Error: expect(locator).toHaveCount(40)\n  Received: 20 — scroll fired before /api/feed?page=2 resolved",
+      diag: 'The assertion races the second page request; slow responses leave only the first 20 items.',
+      fix: 'Tie the assertion to the network event that matters.',
+      code: "const page2 = page.waitForResponse(/api\\/feed\\?page=2/);\nawait list.evaluate(el => el.scrollTo(0, el.scrollHeight));\nawait page2;\nawait expect(items).toHaveCount(40);" },
+    { name: 'settings › switch to dark theme', file: 'settings/theme.spec.ts', cause: 'stable', p: 0, dur: 1.5 },
+    { name: 'carousel › next slide shows item 2', file: 'ui/carousel.spec.ts', cause: 'anim', p: .14, dur: 2.2,
+      err: "Error: locator.click: element is not stable — waiting for animation to finish\n  intercepted by <div class=\"slide is-leaving\">",
+      diag: 'Clicks land on the outgoing slide mid-transition, which intercepts the pointer event.',
+      fix: 'Assert on the resulting state rather than timing the click; disable CSS animation for tests.',
+      code: "await page.addStyleTag({ content: '*{transition:none!important;animation:none!important}' });\nawait next.click();\nawait expect(slide2).toBeInViewport();" },
+    { name: 'pricing › annual toggle updates totals', file: 'pricing/toggle.spec.ts', cause: 'stable', p: 0, dur: 1.9 },
+    { name: 'payments › 3-D Secure frame loads', file: 'payments/3ds.spec.ts', cause: 'network', p: .15, dur: 7.8,
+      err: "TimeoutError: frameLocator('#challenge').getByRole('button')\n  third-party sandbox took 9.4s to respond",
+      diag: 'Depends on a third-party payment sandbox outside your control, with unpredictable latency.',
+      fix: 'Mock the challenge frame in the UI suite; run one real sandbox smoke test nightly with its own SLA.',
+      code: "await page.route('https://sandbox.pay.example/**', r =>\n  r.fulfill({ path: 'fixtures/3ds-challenge.html' }));" },
+    { name: 'inbox › mark all as read', file: 'inbox/read.spec.ts', cause: 'shared', p: .12, dur: 2.5,
+      err: "Error: expect(locator).toHaveText('0 unread')\n  Received: '1 unread' — new message seeded by notifications.spec",
+      diag: 'Another spec seeds messages into the same inbox while this one runs.',
+      fix: 'Create uniquely-named test data per test and assert only on data you own.',
+      code: "const subject = `read-test-${test.info().testId}`;\nawait seedMessage({ subject });\nawait expect(inbox.getByText(subject)).toHaveClass(/read/);" },
+    { name: 'onboarding › skip tour', file: 'onboarding/tour.spec.ts', cause: 'stable', p: 0, dur: 1.7 },
+    { name: 'session › refreshes token before expiry', file: 'auth/session.spec.ts', cause: 'timing', p: .05, dur: 6.3,
+      err: "Error: expect(received).toBe(true)\n  token refreshed at T+59.2s, assertion checked at T+59.0s",
+      diag: 'Waits in real time for a near-expiry refresh; small scheduler jitter flips the outcome.',
+      fix: 'Fake the clock and jump to just past the refresh threshold.',
+      code: "await page.clock.install({ time: new Date('2026-01-01T09:00:00') });\nawait page.clock.fastForward('01:00');\nawait expect(refreshCall).toBeTruthy();" },
+    { name: 'onboarding › shows welcome tour', file: 'onboarding/tour.spec.ts', cause: 'order', dep: 'onboarding › skip tour', p: 0, dur: 2.0,
+      err: "Error: expect(getByRole('dialog', { name: 'Welcome' })).toBeVisible()\n  dialog never appeared — 'tourSkipped' flag already set",
+      diag: "Only fails when 'skip tour' ran first in the same worker — the skipped flag persists in the shared account.",
+      fix: 'Make the test independent: create a fresh user, or explicitly reset the flag in setup.',
+      code: "test.use({ storageState: { cookies: [], origins: [] } });\nconst user = await createUser({ tourSkipped: false });" },
+    { name: 'menu › submenu opens on hover', file: 'ui/menu.spec.ts', cause: 'anim', p: .07, dur: 1.6,
+      err: "Error: locator.click: Timeout — submenu closed while pointer moved diagonally",
+      diag: 'The hover-intent delay collapses the submenu when the pointer path crosses a sibling item.',
+      fix: 'Hover the trigger, wait for the submenu, then act on it — or drive the menu by keyboard.',
+      code: "await trigger.hover();\nawait expect(submenu).toBeVisible();\nawait submenu.getByRole('menuitem', { name: 'Billing' }).click();" },
+    { name: '404 › shows a helpful page', file: 'misc/notfound.spec.ts', cause: 'stable', p: 0, dur: 1.2 },
+    { name: 'export › CSV download completes', file: 'reports/export.spec.ts', cause: 'timing', p: .10, dur: 5.6,
+      err: "Error: ENOENT: no such file 'report.csv'\n  read from disk 1000ms after click — file still streaming",
+      diag: 'Reads the file after a fixed delay instead of waiting for the download to finish.',
+      fix: 'Use the download event and wait for its path.',
+      code: "const [download] = await Promise.all([\n  page.waitForEvent('download'),\n  page.getByRole('button', { name: 'Export CSV' }).click(),\n]);\nconst file = await download.path();" },
+    { name: 'checkout › double-click places one order', file: 'checkout/submit.spec.ts', cause: 'bug', p: .07, dur: 4.8,
+      err: "Error: expect(orders).toHaveLength(1)\n  Received: 2 — two POST /api/orders within 38ms",
+      diag: 'Not a test problem. The Place order button is not disabled until the first request returns, so a fast double-click creates two orders.',
+      fix: 'Fix the product: disable on submit and add an idempotency key server-side. Do NOT quarantine this one — the flake is the bug report.',
+      code: "// app code\nbutton.disabled = true;\nawait fetch('/api/orders', {\n  method: 'POST', headers: { 'Idempotency-Key': cartId }, body });" },
+    { name: 'profile › avatar upload preview', file: 'profile/avatar.spec.ts', cause: 'network', p: .04, dur: 3.1,
+      err: "Error: expect(img).toHaveAttribute('src', /blob:/)\n  upload to image CDN timed out (staging)",
+      diag: 'Upload goes to a real staging CDN that is intermittently slow.',
+      fix: 'Intercept the upload and return a fixture; test the CDN contract separately.',
+      code: "await page.route('**/upload', r => r.fulfill({ json: { url: '/fixtures/avatar.png' } }));" },
+    { name: 'auth › password reset email sent', file: 'auth/reset.spec.ts', cause: 'stable', p: 0, dur: 2.4 },
+    { name: 'admin › rename team', file: 'admin/team.spec.ts', cause: 'shared', p: .10, dur: 2.6,
+      err: "Error: expect(heading).toHaveText('Team Orca')\n  Received: 'Team Narwhal' — renamed concurrently by admin/permissions.spec",
+      diag: 'Two specs mutate the same seeded team in parallel.',
+      fix: 'Create a throwaway team per test, or mark the file serial if the shared fixture is unavoidable.',
+      code: "const team = await api.createTeam({ name: `t-${Date.now()}` });\nawait page.goto(`/admin/teams/${team.id}`);" },
+  ];
+  const STABLE_TEXT = {
+    diag: 'No inconsistent outcomes: it passes deterministically, independent of timing, data and order.',
+    fix: 'Nothing to fix. Keep it that way: web-first assertions, isolated data, no fixed sleeps.',
+  };
+  const N = TESTS.length;
+  const idxByName = Object.fromEntries(TESTS.map((t, i) => [t.name, i]));
+  TESTS.forEach(t => { if (t.dep) t.depIdx = idxByName[t.dep]; });
+
+  // ------------------------------------------------------------ Simulation state
+  // Every run stores all three attempts for every test, so toggling retries re-interprets history deterministically.
+  let runs = [];          // { a1: Uint8Array, a2, a3 }  1 = pass
+  let revealed = 0;       // columns revealed by the animation
+  let selected = -1;
+  const opts = { retries: false, quarantine: false, shuffle: true };
+
+  function runOnce() {
+    const order = [...Array(N).keys()];
+    // Always consume the same randomness so toggles never shift the stream.
+    for (let i = N - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      if (opts.shuffle) [order[i], order[j]] = [order[j], order[i]];
+    }
+    const pos = new Array(N); order.forEach((t, k) => pos[t] = k);
+    const a1 = new Uint8Array(N), a2 = new Uint8Array(N), a3 = new Uint8Array(N);
+    for (let i = 0; i < N; i++) {
+      const t = TESTS[i];
+      const r1 = rng(), r2 = rng(), r3 = rng();
+      if (t.cause === 'order') {
+        a1[i] = pos[t.depIdx] < pos[i] ? 0 : 1; // polluted state from the dependency
+        a2[i] = 1; a3[i] = 1;                   // retries run in a fresh worker
+      } else {
+        a1[i] = r1 >= t.p ? 1 : 0; a2[i] = r2 >= t.p ? 1 : 0; a3[i] = r3 >= t.p ? 1 : 0;
+      }
+    }
+    runs.push({ a1, a2, a3 });
+  }
+
+  // outcome: 'pass' | 'fail' | 'retry'
+  function outcome(run, i) {
+    if (run.a1[i]) return 'pass';
+    if (!opts.retries) return 'fail';
+    return (run.a2[i] || run.a3[i]) ? 'retry' : 'fail';
+  }
+  function testStats(i) {
+    let fails = 0, passes = 0, rescued = 0, hardFails = 0;
+    for (const r of runs) {
+      if (r.a1[i]) passes++; else fails++;
+      const o = outcome(r, i);
+      if (o === 'retry') rescued++; else if (o === 'fail') hardFails++;
+    }
+    return { fails, passes, rescued, hardFails, rate: runs.length ? fails / runs.length : 0 };
+  }
+  function quarantineSet() {
+    const q = new Set();
+    if (!opts.quarantine) return q;
+    for (let i = 0; i < N; i++) {
+      const s = testStats(i);
+      if (s.fails > 0 && s.passes > 0) q.add(i);
+    }
+    return q;
+  }
+  function suitePass(run, q) {
+    for (let i = 0; i < N; i++) if (!q.has(i) && outcome(run, i) === 'fail') return false;
+    return true;
+  }
+
+  // ------------------------------------------------------------ DOM
+  const names = $('.names'), rates = $('.rates');
+  function buildRows() {
+    names.innerHTML = '<li class="suite" aria-hidden="true">SUITE VERDICT</li>';
+    rates.innerHTML = '<li class="suite" aria-hidden="true">fail%</li>';
+    TESTS.forEach((t, i) => {
+      const li = document.createElement('li');
+      const b = document.createElement('button');
+      b.type = 'button'; b.textContent = t.name; b.title = t.name;
+      b.dataset.testid = 'test-' + i; b.setAttribute('aria-pressed', 'false');
+      b.addEventListener('click', () => selectTest(i));
+      li.appendChild(b); names.appendChild(li);
+      const r = document.createElement('li'); r.dataset.testid = 'rate-' + i; r.textContent = '—'; rates.appendChild(r);
+    });
+  }
+
+  const canvas = $('#heat'), ctx = canvas.getContext('2d');
+  const COLS = 100;
+  let geom = { w: 0, h: 0, rh: 22, cw: 1 };
+  function sizeCanvas() {
+    const rh = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--rh')) || 22;
+    const w = canvas.parentElement.clientWidth;
+    const h = rh * (N + 1) + 6;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+    canvas.style.height = h + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    geom = { w, h, rh, cw: w / COLS };
+  }
+  const COLORS = { pass: '#3d8ee0', fail: '#e8466a', retry: '#d9a326', quar: '#4a5670', empty: '#1b2640' };
+  function viewRange() {
+    const end = revealed; const start = Math.max(0, end - COLS);
+    return { start, end };
+  }
+  function draw() {
+    const { w, h, rh, cw } = geom;
+    ctx.clearRect(0, 0, w, h);
+    const q = quarantineSet();
+    const { start, end } = viewRange();
+    const gap = cw >= 5 ? 1 : 0;
+    // empty track
+    for (let row = 0; row <= N; row++) {
+      const y = row === 0 ? 0 : row * rh + 6;
+      ctx.fillStyle = COLORS.empty;
+      ctx.fillRect(0, y + 2, w, rh - 4);
+    }
+    for (let c = start; c < end; c++) {
+      const run = runs[c]; const x = (c - start) * cw;
+      // suite verdict row
+      ctx.fillStyle = suitePass(run, q) ? COLORS.pass : COLORS.fail;
+      ctx.fillRect(x, 2, Math.max(1, cw - gap), rh - 4);
+      for (let i = 0; i < N; i++) {
+        const o = outcome(run, i);
+        const y = (i + 1) * rh + 6;
+        let col = COLORS[o];
+        if (q.has(i)) { ctx.globalAlpha = o === 'pass' ? .35 : .9; col = o === 'pass' ? COLORS.pass : COLORS.quar; }
+        ctx.fillStyle = col;
+        ctx.fillRect(x, y + 2, Math.max(1, cw - gap), rh - 4);
+        ctx.globalAlpha = 1;
+        if (o === 'fail' && !q.has(i) && cw >= 6) { // secondary encoding: a cross on failures
+          ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 1.2;
+          const cx = x + (cw - gap) / 2, cy = y + rh / 2, s = Math.min(cw, rh) * .18;
+          ctx.beginPath(); ctx.moveTo(cx - s, cy - s); ctx.lineTo(cx + s, cy + s); ctx.moveTo(cx + s, cy - s); ctx.lineTo(cx - s, cy + s); ctx.stroke();
+        }
+      }
+    }
+    if (selected >= 0) {
+      ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 1.5;
+      ctx.strokeRect(.75, (selected + 1) * rh + 6 + 1, w - 1.5, rh - 2);
+    }
+    $('[data-testid="heat-empty"]').hidden = runs.length > 0;
+    $('[data-testid="axis-start"]').textContent = end ? `run ${start + 1}` : 'run —';
+  }
+
+  // animation: reveal columns progressively
+  let animId = 0;
+  function animateTo(target) {
+    cancelAnimationFrame(animId);
+    if (reduce || target - revealed <= 1) { revealed = target; draw(); return; }
+    const from = revealed, total = target - from;
+    const dur = Math.min(1600, 180 + total * 14); const t0 = performance.now();
+    const step = (now) => {
+      const k = Math.min(1, (now - t0) / dur);
+      revealed = from + Math.round(total * (1 - Math.pow(1 - k, 2)));
+      draw();
+      if (k < 1) animId = requestAnimationFrame(step); else revealed = target;
+    };
+    animId = requestAnimationFrame(step);
+  }
+
+  function pct(x, d = 0) { return (x * 100).toFixed(d) + '%'; }
+  function updateStats() {
+    const q = quarantineSet();
+    const R = runs.length;
+    let green = 0, first = 0, masked = 0, retrySecs = 0;
+    const byCause = {};
+    for (const r of runs) {
+      if (suitePass(r, q)) green++;
+      for (let i = 0; i < N; i++) {
+        if (!r.a1[i]) {
+          first++; byCause[TESTS[i].cause] = (byCause[TESTS[i].cause] || 0) + 1;
+          if (opts.retries) { retrySecs += TESTS[i].dur * (r.a2[i] ? 1 : 2); if (outcome(r, i) === 'retry') masked++; }
+        }
+      }
+    }
+    let flaky = 0;
+    for (let i = 0; i < N; i++) { const s = testStats(i); if (s.fails && s.passes) flaky++; }
+    const set = (id, v) => { $(`[data-testid="${id}"]`).textContent = v; };
+    set('stat-runs', R);
+    set('stat-green', R ? pct(green / R) : '—');
+    set('stat-firsttry', R ? pct(first / (R * N), 1) : '—');
+    set('stat-masked', masked);
+    set('stat-masked-d', opts.retries ? `+${(retrySecs / 60).toFixed(1)} CI min retrying` : 'retries off');
+    set('stat-flaky', flaky);
+    set('stat-quarantined', q.size);
+    // per-row rates & quarantine styling
+    for (let i = 0; i < N; i++) {
+      const s = testStats(i); const li = $(`[data-testid="rate-${i}"]`);
+      li.textContent = R ? pct(s.rate) : '—';
+      li.className = s.rate >= .1 ? 'hot' : s.rate > 0 ? 'warm' : '';
+      const b = $(`[data-testid="test-${i}"]`);
+      b.classList.toggle('q', q.has(i));
+      b.setAttribute('aria-label', `${TESTS[i].name}${R ? `, fails first try ${pct(s.rate)} of runs` : ''}${q.has(i) ? ', quarantined' : ''}`);
+    }
+    // causes
+    const causes = $('[data-testid="causes"]'); causes.innerHTML = '';
+    const max = Math.max(1, ...Object.values(byCause));
+    ['timing', 'network', 'anim', 'shared', 'order', 'bug'].forEach(c => {
+      const n = byCause[c] || 0; const li = document.createElement('li');
+      li.innerHTML = `<span>${CAUSES[c].label}</span><span class="bar"><i style="width:${(n / max) * 100}%;background:${CAUSES[c].color}"></i></span><b>${n}</b>`;
+      li.dataset.testid = 'cause-' + c;
+      causes.appendChild(li);
+    });
+    updateForecast(R ? green / R : null, q);
+    canvas.setAttribute('aria-label', R ? `Heatmap of ${R} runs: suite green ${pct(green / R)}, ${first} first-try failures across ${flaky} flaky tests.` : 'Empty heatmap — no runs yet');
+    if (selected >= 0) renderDiag();
+  }
+
+  // ------------------------------------------------------------ Forecast
+  const ICONS = {
+    sun: '<circle cx="50" cy="50" r="18" fill="#ffd166"/><g stroke="#ffd166" stroke-width="5" stroke-linecap="round">' +
+      [0, 45, 90, 135, 180, 225, 270, 315].map(a => { const r = a * Math.PI / 180; return `<line x1="${50 + Math.cos(r) * 27}" y1="${50 + Math.sin(r) * 27}" x2="${50 + Math.cos(r) * 36}" y2="${50 + Math.sin(r) * 36}"/>`; }).join('') + '</g>',
+    partly: '<circle cx="38" cy="38" r="15" fill="#ffd166"/><g stroke="#ffd166" stroke-width="4" stroke-linecap="round"><line x1="38" y1="12" x2="38" y2="17"/><line x1="12" y1="38" x2="17" y2="38"/><line x1="20" y1="20" x2="23.5" y2="23.5"/><line x1="56" y1="20" x2="52.5" y2="23.5"/></g>' +
+      '<path d="M34 76h38a14 14 0 0 0 0-28 20 20 0 0 0-38 4 12 12 0 0 0 0 24z" fill="#cfd8ea"/>',
+    rain: '<path d="M26 60h48a15 15 0 0 0 0-30 22 22 0 0 0-42 4 13 13 0 0 0-6 26z" fill="#9aa8c4"/>' +
+      '<g stroke="#3d8ee0" stroke-width="4" stroke-linecap="round"><line x1="36" y1="70" x2="32" y2="82"/><line x1="52" y1="70" x2="48" y2="82"/><line x1="68" y1="70" x2="64" y2="82"/></g>',
+    storm: '<path d="M26 56h48a15 15 0 0 0 0-30 22 22 0 0 0-42 4 13 13 0 0 0-6 26z" fill="#6f7d9a"/>' +
+      '<path d="M52 58 40 76h10l-6 16 18-22H52l6-12z" fill="#ffd166"/><g stroke="#e8466a" stroke-width="4" stroke-linecap="round"><line x1="30" y1="66" x2="26" y2="78"/><line x1="72" y1="66" x2="68" y2="78"/></g>',
+    none: '<circle cx="50" cy="50" r="30" fill="none" stroke="#3a4a6e" stroke-width="4" stroke-dasharray="6 7"/>',
+  };
+  function updateForecast(g, q) {
+    const icon = $('[data-testid="forecast-icon"]');
+    const pctEl = $('[data-testid="forecast-pct"]'), cond = $('[data-testid="forecast-cond"]'), sub = $('[data-testid="forecast-sub"]');
+    if (g === null) { icon.innerHTML = ICONS.none; pctEl.innerHTML = '—<small></small>'; cond.textContent = 'No data yet'; sub.textContent = 'Run the suite to get a forecast.'; icon.dataset.wx = 'none'; return; }
+    let k, c, s;
+    if (g >= .9) { k = 'sun'; c = 'Clear skies'; s = 'Merge with confidence.'; }
+    else if (g >= .7) { k = 'partly'; c = 'Partly cloudy'; s = 'Expect the occasional red build and a re-run.'; }
+    else if (g >= .4) { k = 'rain'; c = 'Scattered failures'; s = 'Developers are learning to ignore red. That is the real cost.'; }
+    else { k = 'storm'; c = 'Thunderstorms'; s = 'Red is the default. Nobody trusts this pipeline.'; }
+    if (opts.retries && g >= .7) s = 'Looks sunny — but retries are hiding the clouds. Check “masked”.';
+    if (q.size && [...q].includes(idxByName['checkout › double-click places one order'])) s = 'Quarantine is hiding a real product bug. Check the checkout test.';
+    icon.innerHTML = ICONS[k]; icon.dataset.wx = k;
+    pctEl.innerHTML = `${Math.round(g * 100)}%<small> chance of green</small>`;
+    cond.textContent = c; sub.textContent = s;
+  }
+
+  // ------------------------------------------------------------ Diagnosis
+  function esc(s) { return String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch])); }
+  function selectTest(i) {
+    selected = selected === i ? -1 : i;
+    document.querySelectorAll('.names button').forEach((b, k) => b.setAttribute('aria-pressed', String(k === selected)));
+    renderDiag(); draw();
+  }
+  function renderDiag() {
+    const panel = $('[data-testid="diagnosis"]');
+    if (selected < 0) { panel.innerHTML = '<h2 id="diag-h">Diagnosis</h2><p class="diag-empty">Select a test name to see its evidence, the likely root cause and a fix.</p>'; return; }
+    const t = TESTS[selected], s = testStats(selected), cause = CAUSES[t.cause];
+    const q = quarantineSet();
+    const observed = runs.length ? pct(s.rate, 1) : '—';
+    const truth = t.cause === 'order' ? (opts.shuffle ? '≈50% (order)' : '0% (fixed order)') : pct(t.p);
+    const d = t.cause === 'stable' ? STABLE_TEXT : t;
+    let verdict;
+    if (!runs.length) verdict = 'No runs yet — evidence will appear here.';
+    else if (s.fails === 0) verdict = t.cause === 'stable' ? 'Consistently green.' : `No failures observed in ${runs.length} runs — but that does not prove it is stable. The hidden cause is shown below.`;
+    else verdict = `Failed on first try in ${s.fails} of ${runs.length} runs.` + (opts.retries ? ` Retries rescued ${s.rescued}; ${s.hardFails} still went red.` : '');
+    panel.innerHTML = `
+      <h2 id="diag-h">Diagnosis</h2>
+      <div class="diag-name" data-testid="diag-name">${esc(t.name)}</div>
+      <div class="diag-file">${esc(t.file)} · ~${t.dur.toFixed(1)}s</div>
+      <span class="badge" data-testid="diag-cause" style="background:${cause.color}22;color:${cause.color};border:1px solid ${cause.color}66">${cause.label}</span>
+      ${q.has(selected) ? '<span class="badge" style="background:#4a567044;color:#aab6cd;margin-left:6px">quarantined</span>' : ''}
+      <div class="diag-grid">
+        <div><b data-testid="diag-observed">${observed}</b><span>observed</span></div>
+        <div><b data-testid="diag-truth">${truth}</b><span>true rate</span></div>
+        <div><b>${s.rescued}</b><span>retry-rescued</span></div>
+      </div>
+      <p data-testid="diag-verdict">${esc(verdict)}</p>
+      ${t.err ? `<h3>Typical failure</h3><pre class="err">${esc(t.err)}</pre>` : ''}
+      <h3>Likely root cause</h3><p>${esc(d.diag)}</p>
+      <h3>Fix</h3><p data-testid="diag-fix">${esc(d.fix)}</p>
+      ${t.code ? `<pre>${esc(t.code)}</pre>` : ''}`;
+  }
+
+  // ------------------------------------------------------------ Tooltip
+  const tip = $('[data-testid="tooltip"]');
+  function hideTip() { tip.classList.remove('on'); }
+  canvas.addEventListener('pointermove', (e) => {
+    if (!runs.length) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left, y = e.clientY - rect.top;
+    const { start, end } = viewRange();
+    const c = start + Math.floor(x / geom.cw);
+    if (c < start || c >= end) return hideTip();
+    const row = y < geom.rh ? 0 : Math.floor((y - 6) / geom.rh);
+    const run = runs[c]; let text;
+    if (row <= 0) text = `<b>Run #${c + 1}</b> · suite ${suitePass(run, quarantineSet()) ? 'green' : 'red'}`;
+    else {
+      const i = row - 1; if (i >= N) return hideTip();
+      const o = outcome(run, i);
+      const label = o === 'pass' ? 'passed' : o === 'retry' ? 'failed, then passed on retry' : 'failed';
+      text = `<b>Run #${c + 1}</b> · ${esc(TESTS[i].name)}<br>${label}${quarantineSet().has(i) ? ' (quarantined)' : ''}`;
+    }
+    tip.innerHTML = text; tip.classList.add('on');
+    const tw = tip.offsetWidth; const left = Math.min(Math.max(0, x + 12), rect.width - tw);
+    tip.style.left = left + 'px'; tip.style.top = Math.max(0, y - 44) + 'px';
+  });
+  canvas.addEventListener('pointerleave', hideTip);
+  canvas.addEventListener('click', (e) => {
+    const rect = canvas.getBoundingClientRect(); const y = e.clientY - rect.top;
+    const row = Math.floor((y - 6) / geom.rh) - 1;
+    if (row >= 0 && row < N && y > geom.rh) selectTest(row);
+  });
+
+  // ------------------------------------------------------------ Controls
+  function run(n) {
+    for (let k = 0; k < n; k++) runOnce();
+    updateStats(); animateTo(runs.length);
+  }
+  document.querySelectorAll('[data-n]').forEach(b => b.addEventListener('click', () => run(Number(b.dataset.n))));
+  function reset(newSeed) {
+    if (newSeed !== undefined) seed = newSeed;
+    rng = mulberry32(seed); runs = []; revealed = 0; cancelAnimationFrame(animId);
+    $('[data-testid="seed"]').textContent = seed;
+    updateStats(); draw();
+  }
+  $('[data-testid="reset"]').addEventListener('click', () => reset());
+  $('[data-testid="reseed"]').addEventListener('click', () => reset(Math.floor(Math.random() * 100000)));
+  const bind = (id, key) => $(`[data-testid="${id}"]`).addEventListener('change', (e) => { opts[key] = e.target.checked; updateStats(); draw(); });
+  bind('toggle-retries', 'retries');
+  bind('toggle-quarantine', 'quarantine');
+  bind('toggle-shuffle', 'shuffle');
+
+  let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { sizeCanvas(); draw(); }, 80); });
+
+  buildRows();
+  sizeCanvas();
+  reset(seed);
+
+  // Read-only test hook
+  window.__flaky = {
+    get seed() { return seed; },
+    summary() { const q = quarantineSet(); return { runs: runs.length, green: runs.filter(r => suitePass(r, q)).length, quarantined: q.size }; },
+    outcome(r, i) { return runs[r] ? outcome(runs[r], i) : null; },
+  };
+})();
+</script>
+</body>
+</html>
