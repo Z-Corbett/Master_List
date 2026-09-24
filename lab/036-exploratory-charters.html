@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Exploratory Testing Charters — Session-Based Test Kit</title>
+<meta name="description" content="A session-based exploratory testing kit: draw charter cards (Explore an area with resources to discover information), run a timeboxed session with a test / bug / setup split, capture quick-tagged notes, and get an end-of-session report with findings by tag and a coverage heat strip. Sessions are saved in your browser.">
+<style>
+  :root {
+    --manila: #f1e4c8;
+    --manila-2: #e6d4ae;
+    --brown: #3b2616;
+    --brown-2: #6a4a30;
+    --brown-3: #9a7a5c;
+    --mustard: #d9a21b;
+    --orange: #cf5a1e;
+    --olive: #6b7a2a;
+    --teal: #1f6f6b;
+    --card: #fffdf6;
+    --rule: #b9d3e6;
+    --red: #d8453a;
+    --display: "Cooper Black", "Cooper Std", "Bookman Old Style", Bookman, "URW Bookman", Georgia, serif;
+    --type: "Courier Prime", "Courier New", Courier, ui-monospace, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body {
+    background: var(--manila); color: var(--brown); font-family: var(--sans); line-height: 1.45; overflow-x: hidden;
+    background-image: repeating-linear-gradient(90deg, rgba(59,38,22,.035) 0 2px, transparent 2px 9px);
+  }
+  :focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  select, input, textarea, pre { max-width: 100%; }
+  .back {
+    position: fixed; top: 12px; left: 12px; z-index: 50; text-decoration: none; color: var(--manila);
+    font: 700 12px/1 var(--sans); background: var(--brown); border-radius: 999px; padding: 7px 12px;
+  }
+  .back:hover { background: var(--orange); }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 60px 18px 48px; }
+  .stripes { height: 14px; margin: 0 0 18px; background: linear-gradient(var(--mustard) 0 33%, var(--orange) 33% 66%, var(--brown-2) 66%); border-radius: 3px; }
+  header.top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px 24px; margin-bottom: 18px; }
+  h1 { margin: 0; font: 400 clamp(32px, 5.6vw, 60px)/.95 var(--display); letter-spacing: -.01em; color: var(--brown); }
+  h1 span { color: var(--orange); }
+  .sub { margin: 8px 0 0; color: var(--brown-2); max-width: 62ch; }
+  .clock-note { font: 12px var(--type); color: var(--brown-3); }
+
+  .grid { display: grid; grid-template-columns: 280px minmax(0, 1fr) 340px; gap: 18px; align-items: start; }
+  .box { background: rgba(255,253,246,.55); border: 2px solid var(--brown); border-radius: 12px; padding: 14px; min-width: 0; }
+  .box h2 { margin: 0 0 10px; font: 400 21px var(--display); display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .box h2 small { font: 12px var(--type); color: var(--brown-3); }
+
+  /* deck */
+  .deck { position: relative; height: 170px; margin: 4px 6px 14px; }
+  .deck .c { position: absolute; inset: 0; background: var(--card); border: 1.5px solid var(--brown-2); border-radius: 8px; box-shadow: 0 2px 0 var(--brown-3); }
+  .deck .c:nth-child(1) { transform: rotate(-5deg) translate(-4px, 6px); }
+  .deck .c:nth-child(2) { transform: rotate(3deg) translate(3px, 3px); }
+  .deck .c.top { display: grid; place-items: center; text-align: center; padding: 14px;
+    background: var(--orange); color: var(--manila); border-color: var(--brown);
+    background-image: repeating-linear-gradient(45deg, rgba(255,255,255,.1) 0 8px, transparent 8px 16px); }
+  .deck .c.top b { font: 400 26px/1 var(--display); display: block; }
+  .deck .c.top span { font: 12px var(--type); }
+  .deck.empty .c.top { background: var(--manila-2); color: var(--brown-3); background-image: none; }
+  .btn { border: 2px solid var(--brown); background: var(--card); border-radius: 999px; padding: 6px 14px; font-weight: 700; font-size: 14px; }
+  .btn:hover { background: var(--mustard); }
+  .btn.go { background: var(--teal); color: #fff; border-color: var(--teal); }
+  .btn.go:hover { background: #185856; }
+  .btn.stop { background: var(--orange); color: #fff; border-color: var(--orange); }
+  .btn:disabled { opacity: .45; cursor: default; background: var(--card); color: var(--brown); border-color: var(--brown); }
+  .btn.sm { padding: 3px 10px; font-size: 12.5px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .drawn { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; max-height: 260px; overflow: auto; }
+  .drawn li button { width: 100%; text-align: left; border: 1px dashed var(--brown-3); background: transparent; border-radius: 6px; padding: 6px 8px; font: 12.5px/1.35 var(--type); }
+  .drawn li button:hover { background: var(--card); }
+
+  /* charter card */
+  .charter {
+    background: var(--card); border-radius: 6px; padding: 18px 20px 20px; position: relative; box-shadow: 0 10px 24px rgba(59,38,22,.18), 0 1px 0 var(--brown-3);
+    background-image: linear-gradient(transparent 46px, var(--red) 46px 48px, transparent 48px), repeating-linear-gradient(transparent 0 27px, var(--rule) 27px 28px);
+    background-position: 0 0, 0 48px; background-repeat: no-repeat, repeat; background-size: 100% 100%, 100% calc(100% - 48px);
+  }
+  .charter.flip { animation: flip .45s ease; }
+  @keyframes flip { from { transform: perspective(700px) rotateY(80deg); opacity: .3; } to { transform: none; opacity: 1; } }
+  .charter .kicker { font: 700 12px var(--type); letter-spacing: .14em; text-transform: uppercase; color: var(--red); }
+  .charter .sentence { font: 400 clamp(18px, 2.2vw, 23px)/1.45 var(--type); margin: 18px 0 12px; overflow-wrap: anywhere; }
+  .charter .sentence em { font-style: normal; background: linear-gradient(transparent 60%, rgba(217,162,27,.45) 60%); }
+  .fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .fields label { display: grid; gap: 2px; font: 700 11px var(--type); text-transform: uppercase; letter-spacing: .08em; color: var(--brown-2); min-width: 0; }
+  .fields input, .note-in input, select { width: 100%; min-width: 0; border: 1.5px solid var(--brown-3); border-radius: 5px; background: #fff; padding: 6px 8px; font: 14px var(--sans); text-transform: none; letter-spacing: 0; color: var(--brown); }
+  .empty-charter { font: 15px var(--type); color: var(--brown-3); margin: 26px 0 10px; }
+
+  /* timer */
+  .session { margin-top: 16px; display: grid; gap: 12px; }
+  .timer { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: center; background: var(--brown); color: var(--manila); border-radius: 12px; padding: 14px 16px; }
+  .digits { font: 700 clamp(38px, 6vw, 56px)/1 var(--type); letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+  .digits.over { color: var(--mustard); }
+  .tmeta { min-width: 0; display: grid; gap: 6px; font-size: 13px; }
+  .bar { height: 10px; background: rgba(241,228,200,.2); border-radius: 5px; overflow: hidden; display: flex; }
+  .bar i { display: block; height: 100%; }
+  .bar .T { background: var(--mustard); } .bar .B { background: var(--orange); } .bar .S { background: #8fb3b0; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font: 12px var(--type); }
+  .legend span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; background: var(--c); }
+  .seg { display: flex; flex-wrap: wrap; border: 2px solid var(--brown); border-radius: 999px; overflow: hidden; width: fit-content; max-width: 100%; }
+  .seg button { border: 0; background: var(--card); padding: 5px 12px; font-weight: 700; font-size: 13px; border-right: 2px solid var(--brown); }
+  .seg button:last-child { border-right: 0; }
+  .seg button[aria-checked=true] { background: var(--brown); color: var(--manila); }
+  .areas { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { border: 1.5px solid var(--brown-3); background: var(--card); border-radius: 999px; padding: 3px 10px; font-size: 12.5px; font-weight: 600; }
+  .chip[aria-checked=true] { background: var(--teal); border-color: var(--teal); color: #fff; }
+  .lbl { font: 700 11px var(--type); text-transform: uppercase; letter-spacing: .1em; color: var(--brown-2); margin: 0 0 5px; }
+  .banner { background: var(--mustard); border: 2px solid var(--brown); border-radius: 8px; padding: 8px 12px; font-weight: 700; }
+  .timebox select { width: auto; }
+
+  /* notes */
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .tag { border: 2px solid var(--tc); color: var(--tc); background: var(--card); border-radius: 6px; padding: 3px 10px; font-weight: 800; font-size: 12.5px; text-transform: uppercase; letter-spacing: .04em; }
+  .tag[aria-checked=true] { background: var(--tc); color: #fff; }
+  .t-bug { --tc: #c0392b; } .t-question { --tc: #1f6f6b; } .t-idea { --tc: #6b7a2a; } .t-risk { --tc: #b86e00; }
+  .note-in { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+  .notes { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; max-height: 420px; overflow: auto; }
+  .notes li { background: var(--card); border-left: 5px solid var(--tc); border-radius: 4px; padding: 6px 9px; font-size: 13.5px; display: grid; gap: 2px; box-shadow: 0 1px 0 var(--manila-2); }
+  .notes .meta { font: 11.5px var(--type); color: var(--brown-3); display: flex; gap: 8px; flex-wrap: wrap; }
+  .notes .meta b { color: var(--tc); text-transform: uppercase; }
+  .notes .txt { overflow-wrap: anywhere; }
+  .hint { font-size: 12px; color: var(--brown-3); margin: 6px 0 0; }
+
+  /* report */
+  .report { margin-top: 20px; background: var(--card); border: 2px solid var(--brown); border-radius: 12px; padding: 18px; box-shadow: 6px 6px 0 var(--mustard); }
+  .report h2 { margin: 0; font: 400 26px var(--display); }
+  .rgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 14px; }
+  .rgrid > div { min-width: 0; }
+  .rgrid h3, .report h3 { margin: 0 0 6px; font: 700 12px var(--type); text-transform: uppercase; letter-spacing: .1em; color: var(--brown-2); }
+  .kpi { font: 700 30px var(--type); }
+  .kpi small { font-size: 14px; color: var(--brown-3); }
+  .split { height: 22px; border-radius: 4px; overflow: hidden; display: flex; border: 1.5px solid var(--brown); }
+  .split i { display: grid; place-items: center; font: 700 11px var(--type); color: var(--brown); min-width: 0; overflow: hidden; }
+  .split .T { background: var(--mustard); } .split .B { background: var(--orange); color: #fff; } .split .S { background: #8fb3b0; }
+  .counts { display: flex; flex-wrap: wrap; gap: 6px; }
+  .count { border: 2px solid var(--tc); border-radius: 6px; padding: 3px 8px; font: 700 13px var(--type); color: var(--tc); }
+  .heat { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 3px; margin-top: 4px; }
+  .heat div { min-height: 58px; border-radius: 4px; border: 1.5px solid var(--brown); padding: 4px; font: 10.5px/1.2 var(--type); display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; min-width: 0; overflow-wrap: anywhere; }
+  .heat b { font-size: 13px; }
+  .findings { margin: 8px 0 0; padding-left: 18px; font-size: 13.5px; }
+  .findings li { margin: 2px 0; overflow-wrap: anywhere; }
+  .history { margin-top: 20px; }
+  .hist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .hist li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; background: var(--card); border: 1.5px solid var(--brown-3); border-radius: 8px; padding: 7px 10px; font-size: 13px; }
+  .hist li span { min-width: 0; overflow-wrap: anywhere; }
+  .status { font: 12px var(--type); color: var(--teal); }
+
+  @media (max-width: 1100px) {
+    .grid { grid-template-columns: 260px minmax(0, 1fr); }
+    .notes-box { grid-column: 1 / -1; }
+  }
+  @media (max-width: 720px) {
+    .wrap { padding: 56px 10px 40px; }
+    .grid { grid-template-columns: minmax(0, 1fr); }
+    .deck-box { order: 2; }
+    .notes-box { order: 3; }
+    .fields { grid-template-columns: minmax(0, 1fr); }
+    .rgrid { grid-template-columns: minmax(0, 1fr); }
+    .heat { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .deck { height: 130px; }
+    .timer { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .charter.flip { animation: none; }
+    *, *::before, *::after { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <div class="stripes" aria-hidden="true"></div>
+  <header class="top">
+    <div>
+      <h1>Exploratory <span>Charters</span></h1>
+      <p class="sub">Session-based exploratory testing for the fictional <b>Larkspur Library</b> app. Draw a charter, set a timebox, then explore — tagging what you find as you go. When the session ends you get a debrief report.</p>
+    </div>
+    <div class="clock-note" data-testid="seed-note"></div>
+  </header>
+
+  <div class="grid">
+    <section class="box deck-box" aria-labelledby="h-deck">
+      <h2 id="h-deck">The deck <small data-testid="deck-count"></small></h2>
+      <div class="deck" id="deck" aria-hidden="true"><div class="c"></div><div class="c"></div><div class="c top"><div><b>Charter</b><span>draw to begin</span></div></div></div>
+      <div class="row">
+        <button type="button" class="btn" data-testid="draw">Draw a card</button>
+        <button type="button" class="btn sm" data-testid="blank">Write my own</button>
+      </div>
+      <h3 class="lbl" style="margin-top:14px">Drawn this sitting</h3>
+      <ul class="drawn" id="drawn" data-testid="drawn"></ul>
+    </section>
+
+    <section class="box" aria-labelledby="h-charter">
+      <h2 id="h-charter">Charter <small data-testid="phase">no session</small></h2>
+      <div class="charter" id="card" data-testid="charter-card">
+        <div class="kicker">Mission</div>
+        <p class="sentence" id="sentence" data-testid="charter" aria-live="polite"></p>
+        <p class="empty-charter" id="no-charter">Draw a card from the deck, or write your own.</p>
+        <div class="fields" id="fields" hidden>
+          <label>Explore <input type="text" id="f-area" data-testid="f-area"></label>
+          <label>With <input type="text" id="f-res" data-testid="f-res"></label>
+          <label>To discover <input type="text" id="f-info" data-testid="f-info"></label>
+        </div>
+      </div>
+
+      <div class="session">
+        <div class="row timebox">
+          <label for="timebox" class="lbl" style="margin:0">Timebox</label>
+          <select id="timebox" data-testid="timebox"><option value="30">30 min</option><option value="45" selected>45 min</option><option value="60">60 min</option><option value="90">90 min</option></select>
+          <button type="button" class="btn go" data-testid="start">Start session</button>
+          <button type="button" class="btn" data-testid="pause" hidden>Pause</button>
+          <button type="button" class="btn stop" data-testid="end" hidden>End &amp; debrief</button>
+        </div>
+        <div class="timer" data-testid="timer-box">
+          <div class="digits" data-testid="elapsed">00:00</div>
+          <div class="tmeta">
+            <div><span data-testid="remaining">45:00 left</span> · <span data-testid="run-state">idle</span></div>
+            <div class="bar" id="tbar" aria-hidden="true"></div>
+            <div class="legend"><span style="--c:var(--mustard)">Test <b data-testid="split-T">0:00</b></span><span style="--c:var(--orange)">Bug <b data-testid="split-B">0:00</b></span><span style="--c:#8fb3b0">Setup <b data-testid="split-S">0:00</b></span></div>
+          </div>
+        </div>
+        <div class="banner" data-testid="timebox-banner" role="status" hidden>Timebox reached — wrap up your current thread and debrief.</div>
+        <div>
+          <p class="lbl" id="mode-lab">Right now I'm doing</p>
+          <div class="seg" role="radiogroup" aria-labelledby="mode-lab" id="modes">
+            <button type="button" role="radio" data-mode="T" data-testid="mode-T" aria-checked="true">Test &amp; explore</button>
+            <button type="button" role="radio" data-mode="B" data-testid="mode-B" aria-checked="false">Bug investigation</button>
+            <button type="button" role="radio" data-mode="S" data-testid="mode-S" aria-checked="false">Setup</button>
+          </div>
+        </div>
+        <div>
+          <p class="lbl" id="area-lab">Area in focus (feeds the coverage strip)</p>
+          <div class="areas" role="radiogroup" aria-labelledby="area-lab" id="areas"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="box notes-box" aria-labelledby="h-notes">
+      <h2 id="h-notes">Notes <small data-testid="note-count">0</small></h2>
+      <div class="tags" role="radiogroup" aria-label="Note tag" id="tags">
+        <button type="button" role="radio" class="tag t-bug" data-tag="bug" data-testid="tag-bug" aria-checked="true">Bug</button>
+        <button type="button" role="radio" class="tag t-question" data-tag="question" data-testid="tag-question" aria-checked="false">Question</button>
+        <button type="button" role="radio" class="tag t-idea" data-tag="idea" data-testid="tag-idea" aria-checked="false">Idea</button>
+        <button type="button" role="radio" class="tag t-risk" data-tag="risk" data-testid="tag-risk" aria-checked="false">Risk</button>
+      </div>
+      <form class="note-in" id="note-form">
+        <input type="text" id="note" data-testid="note-input" aria-label="Note" placeholder="What did you notice?" autocomplete="off">
+        <button type="submit" class="btn sm" data-testid="add-note">Add</button>
+      </form>
+      <p class="hint">Shortcut: start with <code>b:</code> <code>q:</code> <code>i:</code> or <code>r:</code> to tag while typing. Notes need a running session.</p>
+      <ul class="notes" id="notes" data-testid="notes" aria-live="polite"></ul>
+    </section>
+  </div>
+
+  <section class="report" id="report" data-testid="report" hidden aria-labelledby="h-report" tabindex="-1"></section>
+
+  <section class="box history" aria-labelledby="h-hist">
+    <h2 id="h-hist">Past sessions <small>saved in this browser</small></h2>
+    <ul class="hist" id="hist" data-testid="history"></ul>
+    <p class="hint" id="hist-empty">No sessions yet.</p>
+  </section>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const $$ = (s) => [...document.querySelectorAll(s)];
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  /* ------------ seeded deck ------------ */
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const qs = new URLSearchParams(location.search);
+  const seedParam = qs.get('seed');
+  const seed = seedParam != null && /^\d+$/.test(seedParam) ? Number(seedParam) : (Math.random() * 1e9) >>> 0;
+  const rng = mulberry32(seed);
+  $('[data-testid=seed-note]').textContent = 'deck seed ' + seed;
+
+  const AREAS = ['Search', 'Catalogue record', 'Holds', 'Loans & renewals', 'Account & PIN', 'Events calendar', 'Notifications', 'Offline mode'];
+  const RES = ['a screen reader', 'a throttled 3G connection', 'two accounts signed in at once', 'a 320px-wide viewport', 'keyboard only', 'an expired library card', 'a borrower with 50 active loans', 'the device clock set to another time zone', 'titles in Welsh, Greek and emoji', 'airplane mode toggled mid-action'];
+  const INFO = ['how failures are explained to the user', 'whether data stays consistent', 'where the limits and boundaries are', 'barriers for assistive technology', 'performance cliffs', 'surprising permission or privacy behaviour', 'confusing or contradictory wording', 'what state survives a reload'];
+  function buildDeck() {
+    const seen = new Set(), deck = [];
+    while (deck.length < 12) {
+      const c = { area: AREAS[Math.floor(rng() * AREAS.length)], res: RES[Math.floor(rng() * RES.length)], info: INFO[Math.floor(rng() * INFO.length)] };
+      const k = c.area + '|' + c.res;
+      if (seen.has(k)) continue;
+      seen.add(k); deck.push(c);
+    }
+    return deck;
+  }
+  let deck = buildDeck();
+  const drawn = [];
+
+  /* ------------ persistent state ------------ */
+  const KEY = 'charters.v1';
+  let store = { history: [], current: null, charter: null, timebox: 45 };
+  try { store = Object.assign(store, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { /* ignore */ }
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) { /* ignore */ } };
+  let tag = 'bug';
+
+  const sentenceOf = (c) => `Explore <em>${esc(c.area || '…')}</em> with <em>${esc(c.res || '…')}</em> to discover <em>${esc(c.info || '…')}</em>.`;
+  const plain = (c) => `Explore ${c.area} with ${c.res} to discover ${c.info}.`;
+  const mmss = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); const m = Math.floor(s / 60); return String(m).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
+  const mshort = (ms) => { const s = Math.floor(ms / 1000); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+  const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+  /* ------------ session engine ------------ */
+  function accrue(ss, now) {
+    if (!ss || !ss.running) return;
+    const d = Math.max(0, now - ss.since);
+    ss.acc[ss.mode] += d;
+    ss.areaAcc[ss.area] = (ss.areaAcc[ss.area] || 0) + d;
+    ss.since = now;
+  }
+  const elapsed = (ss) => ss ? ss.acc.T + ss.acc.B + ss.acc.S + (ss.running ? Math.max(0, Date.now() - ss.since) : 0) : 0;
+  const liveAcc = (ss) => { const a = { ...ss.acc }; if (ss.running) a[ss.mode] += Math.max(0, Date.now() - ss.since); return a; };
+  const liveArea = (ss) => { const a = { ...ss.areaAcc }; if (ss.running) a[ss.area] = (a[ss.area] || 0) + Math.max(0, Date.now() - ss.since); return a; };
+
+  function startSession() {
+    const c = store.charter;
+    if (!c || !c.area.trim()) return;
+    const area = AREAS.includes(c.area) ? c.area : AREAS[0];
+    store.current = { id: 's' + Date.now(), charter: { ...c }, timebox: Number($('#timebox').value), startedAt: Date.now(), acc: { T: 0, B: 0, S: 0 }, areaAcc: {}, mode: 'T', area, running: true, since: Date.now(), notes: [], warned: false };
+    save(); render();
+    $('#note').focus();
+  }
+  function togglePause() {
+    const ss = store.current; if (!ss) return;
+    const now = Date.now();
+    if (ss.running) { accrue(ss, now); ss.running = false; }
+    else { ss.running = true; ss.since = now; }
+    save(); render();
+  }
+  function endSession() {
+    const ss = store.current; if (!ss) return;
+    accrue(ss, Date.now());
+    ss.running = false; ss.endedAt = Date.now();
+    store.history.unshift(ss);
+    store.history = store.history.slice(0, 25);
+    store.current = null;
+    save();
+    showReport(ss);
+    render();
+  }
+  function setMode(m) { const ss = store.current; if (ss) { accrue(ss, Date.now()); ss.mode = m; save(); } render(); }
+  function setArea(a) { const ss = store.current; if (ss) { accrue(ss, Date.now()); ss.area = a; save(); } render(); }
+
+  /* ------------ report ------------ */
+  const TAGS = ['bug', 'question', 'idea', 'risk'];
+  function reportHtml(ss) {
+    const total = ss.acc.T + ss.acc.B + ss.acc.S;
+    const pct = (v) => total ? Math.round(v / total * 100) : 0;
+    const counts = TAGS.map((t) => [t, ss.notes.filter((n) => n.tag === t).length]);
+    const maxA = Math.max(1, ...AREAS.map((a) => ss.areaAcc[a] || 0));
+    const heat = AREAS.map((a) => {
+      const ms = ss.areaAcc[a] || 0, n = ss.notes.filter((x) => x.area === a).length;
+      const k = ms / maxA;
+      const bg = ms ? `rgba(207,90,30,${(0.15 + 0.85 * k).toFixed(2)})` : 'transparent';
+      const fg = k > 0.55 ? '#fff' : 'var(--brown)';
+      return `<div data-testid="heat-${slug(a)}" data-min="${Math.round(ms / 60000)}" style="background:${bg};color:${fg}" aria-label="${esc(a)}: ${Math.round(ms / 60000)} minutes, ${n} notes"><span>${esc(a)}</span><b>${Math.round(ms / 60000)}m${n ? ' · ' + n + '✎' : ''}</b></div>`;
+    }).join('');
+    const over = total - ss.timebox * 60000;
+    const date = new Date(ss.startedAt);
+    const touched = AREAS.filter((a) => (ss.areaAcc[a] || 0) > 0).length;
+    return `<div class="row" style="justify-content:space-between"><h2 id="h-report">Session debrief</h2>
+      <div class="row"><button type="button" class="btn sm" data-act="copy-md" data-testid="copy-report">Copy as Markdown</button><span class="status" data-testid="report-status" aria-live="polite"></span></div></div>
+      <p style="margin:6px 0 0;font:15px/1.4 var(--type)" data-testid="report-charter">${esc(plain(ss.charter))}</p>
+      <p class="hint">${date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} · started ${date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</p>
+      <div class="rgrid">
+        <div><h3>Duration</h3><div class="kpi" data-testid="report-duration">${mmss(total)} <small>of ${ss.timebox}:00</small></div>
+          <p class="hint" data-testid="report-over">${over > 0 ? 'Overran the timebox by ' + mshort(over) : 'Within the timebox'}</p></div>
+        <div><h3>Time split (T / B / S)</h3>
+          <div class="split" data-testid="report-split">${['T', 'B', 'S'].map((k) => `<i class="${k}" style="width:${pct(ss.acc[k])}%" title="${k}">${pct(ss.acc[k]) >= 12 ? pct(ss.acc[k]) + '%' : ''}</i>`).join('')}</div>
+          <p class="hint" data-testid="report-split-text">Test ${pct(ss.acc.T)}% · Bug investigation ${pct(ss.acc.B)}% · Setup ${pct(ss.acc.S)}%</p></div>
+        <div><h3>Findings by tag</h3><div class="counts">${counts.map(([t, n]) => `<span class="count t-${t}" data-testid="count-${t}">${n} ${t}${n === 1 ? '' : t === 'question' ? 's' : 's'}</span>`).join('')}</div></div>
+      </div>
+      <h3 style="margin-top:16px">Coverage heat strip <span style="text-transform:none;letter-spacing:0;font-weight:400">— ${touched} of ${AREAS.length} areas touched</span></h3>
+      <div class="heat" data-testid="heat">${heat}</div>
+      ${ss.notes.length ? `<h3 style="margin-top:16px">Notes</h3><ol class="findings">${ss.notes.map((n) => `<li><b class="t-${n.tag}" style="color:var(--tc)">${n.tag.toUpperCase()}</b> +${mmss(n.t)} · ${esc(n.area)} — ${esc(n.text)}</li>`).join('')}</ol>` : '<p class="hint">No notes were taken in this session.</p>'}`;
+  }
+  function reportMd(ss) {
+    const total = ss.acc.T + ss.acc.B + ss.acc.S;
+    const pct = (v) => total ? Math.round(v / total * 100) : 0;
+    const L = ['# Exploratory session debrief', '', `**Charter:** ${plain(ss.charter)}`, `**Duration:** ${mmss(total)} (timebox ${ss.timebox} min)`, `**Split:** Test ${pct(ss.acc.T)}% · Bug ${pct(ss.acc.B)}% · Setup ${pct(ss.acc.S)}%`, '', '## Coverage', ''];
+    AREAS.forEach((a) => { const m = Math.round((ss.areaAcc[a] || 0) / 60000); if (m || ss.notes.some((n) => n.area === a)) L.push(`- ${a}: ${m} min`); });
+    L.push('', '## Findings', '');
+    TAGS.forEach((t) => { const ns = ss.notes.filter((n) => n.tag === t); if (ns.length) { L.push(`### ${t[0].toUpperCase() + t.slice(1)} (${ns.length})`); ns.forEach((n) => L.push(`- +${mmss(n.t)} [${n.area}] ${n.text}`)); L.push(''); } });
+    return L.join('\n');
+  }
+  let shown = null;
+  function showReport(ss) {
+    shown = ss;
+    const r = $('#report');
+    r.innerHTML = reportHtml(ss);
+    r.hidden = false;
+    r.focus({ preventScroll: true });
+    r.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  }
+  $('#report').addEventListener('click', async (e) => {
+    if (!e.target.closest('[data-act=copy-md]') || !shown) return;
+    const st = $('[data-testid=report-status]');
+    try { await navigator.clipboard.writeText(reportMd(shown)); st.textContent = 'Copied'; }
+    catch (err) { st.textContent = 'Clipboard unavailable'; }
+  });
+
+  /* ------------ rendering ------------ */
+  function renderDeck() {
+    $('[data-testid=deck-count]').textContent = deck.length + ' left';
+    $('#deck').classList.toggle('empty', deck.length === 0);
+    $('#deck .top').innerHTML = deck.length ? '<div><b>Charter</b><span>' + deck.length + ' cards · draw to begin</span></div>' : '<div><b>Empty</b><span>reshuffle to draw again</span></div>';
+    $('[data-testid=draw]').textContent = deck.length ? 'Draw a card' : 'Reshuffle';
+    $('#drawn').innerHTML = drawn.map((c, i) => `<li><button type="button" data-i="${i}" data-testid="drawn-card">${esc(plain(c))}</button></li>`).join('');
+  }
+  function renderCharter() {
+    const c = store.charter;
+    const locked = !!store.current;
+    $('#no-charter').hidden = !!c; $('#fields').hidden = !c;
+    $('#sentence').innerHTML = c ? sentenceOf(c) : '';
+    if (c) {
+      [['#f-area', 'area'], ['#f-res', 'res'], ['#f-info', 'info']].forEach(([id, k]) => { const el = $(id); if (el.value !== c[k] && document.activeElement !== el) el.value = c[k]; el.disabled = locked; });
+    }
+  }
+  function renderAreas() {
+    const ss = store.current;
+    const cur = ss ? ss.area : null;
+    $('#areas').innerHTML = AREAS.map((a) => `<button type="button" role="radio" class="chip" data-area="${esc(a)}" data-testid="area-${slug(a)}" aria-checked="${a === cur}" tabindex="${a === cur || (!cur && a === AREAS[0]) ? 0 : -1}" ${ss ? '' : 'disabled'}>${esc(a)}</button>`).join('');
+  }
+  function renderNotes() {
+    const ss = store.current;
+    const notes = ss ? ss.notes : [];
+    $('[data-testid=note-count]').textContent = notes.length;
+    $('#notes').innerHTML = notes.slice().reverse().map((n) => `<li class="t-${n.tag}" data-testid="note"><span class="meta"><b>${n.tag}</b><span>+${mmss(n.t)}</span><span>${esc(n.area)}</span><span>${{ T: 'testing', B: 'investigating', S: 'setup' }[n.mode]}</span></span><span class="txt">${esc(n.text)}</span></li>`).join('');
+    $('#note').disabled = !ss; $('[data-testid=add-note]').disabled = !ss;
+    $$('#tags .tag').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.tag === tag)));
+    $$('#tags .tag').forEach((b) => { b.tabIndex = b.dataset.tag === tag ? 0 : -1; });
+  }
+  function tick() {
+    const ss = store.current;
+    const tb = ss ? ss.timebox : Number($('#timebox').value);
+    const el = elapsed(ss);
+    const d = $('[data-testid=elapsed]');
+    d.textContent = mmss(el);
+    const left = tb * 60000 - el;
+    d.classList.toggle('over', left < 0);
+    $('[data-testid=remaining]').textContent = left >= 0 ? mmss(left) + ' left' : mmss(-left) + ' over';
+    $('[data-testid=run-state]').textContent = !ss ? 'idle' : ss.running ? 'running' : 'paused';
+    const a = ss ? liveAcc(ss) : { T: 0, B: 0, S: 0 };
+    ['T', 'B', 'S'].forEach((k) => { $(`[data-testid=split-${k}]`).textContent = mshort(a[k]); });
+    const scale = Math.max(tb * 60000, el) || 1;
+    $('#tbar').innerHTML = ['T', 'B', 'S'].map((k) => `<i class="${k}" style="width:${(a[k] / scale * 100).toFixed(2)}%"></i>`).join('');
+    if (ss && left <= 0 && !ss.warned) { ss.warned = true; save(); }
+    $('[data-testid=timebox-banner]').hidden = !(ss && left <= 0);
+  }
+  function render() {
+    const ss = store.current;
+    $('[data-testid=phase]').textContent = ss ? (ss.running ? 'in session' : 'paused') : 'no session';
+    $('[data-testid=start]').hidden = !!ss;
+    $('[data-testid=start]').disabled = !store.charter || !store.charter.area.trim();
+    $('[data-testid=pause]').hidden = !ss; $('[data-testid=end]').hidden = !ss;
+    $('[data-testid=pause]').textContent = ss && !ss.running ? 'Resume' : 'Pause';
+    $('#timebox').disabled = !!ss;
+    if (ss) $('#timebox').value = String(ss.timebox);
+    $('[data-testid=draw]').disabled = !!ss; $('[data-testid=blank]').disabled = !!ss;
+    $$('#modes [data-mode]').forEach((b) => { const on = (ss ? ss.mode : 'T') === b.dataset.mode; b.setAttribute('aria-checked', String(on)); b.tabIndex = on ? 0 : -1; b.disabled = !ss; });
+    renderDeck(); renderCharter(); renderAreas(); renderNotes(); renderHistory(); tick();
+  }
+  function renderHistory() {
+    $('#hist-empty').hidden = store.history.length > 0;
+    $('#hist').innerHTML = store.history.map((s, i) => {
+      const total = s.acc.T + s.acc.B + s.acc.S;
+      return `<li data-testid="hist-item"><span><b>${esc(s.charter.area)}</b> · ${esc(s.charter.res)} — ${mmss(total)} · ${s.notes.length} note${s.notes.length === 1 ? '' : 's'}</span><span class="row"><button type="button" class="btn sm" data-view="${i}">View report</button><button type="button" class="btn sm" data-del="${i}" aria-label="Delete session ${i + 1}">Delete</button></span></li>`;
+    }).join('');
+  }
+
+  /* ------------ wiring ------------ */
+  function flip() { const c = $('#card'); c.classList.remove('flip'); void c.offsetWidth; c.classList.add('flip'); }
+  $('[data-testid=draw]').addEventListener('click', () => {
+    if (!deck.length) { deck = buildDeck(); drawn.length = 0; render(); return; }
+    const c = deck.shift();
+    drawn.unshift(c);
+    store.charter = { ...c }; save(); flip(); render();
+  });
+  $('[data-testid=blank]').addEventListener('click', () => { store.charter = { area: '', res: '', info: '' }; save(); render(); $('#f-area').focus(); });
+  $('#drawn').addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (!b || store.current) return; store.charter = { ...drawn[+b.dataset.i] }; save(); flip(); render(); });
+  [['#f-area', 'area'], ['#f-res', 'res'], ['#f-info', 'info']].forEach(([id, k]) => $(id).addEventListener('input', (e) => { if (!store.charter) return; store.charter[k] = e.target.value; save(); render(); }));
+  $('#timebox').addEventListener('change', () => { store.timebox = Number($('#timebox').value); save(); tick(); });
+  $('[data-testid=start]').addEventListener('click', startSession);
+  $('[data-testid=pause]').addEventListener('click', togglePause);
+  $('[data-testid=end]').addEventListener('click', endSession);
+  // roving-tabindex radio groups: arrows move and select, re-render, then refocus the new item
+  function radioKeys(container, attr, pick) {
+    container.addEventListener('keydown', (e) => {
+      if (!['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp'].includes(e.key)) return;
+      const items = [...container.querySelectorAll(`[${attr}]`)].filter((b) => !b.disabled);
+      const i = items.indexOf(document.activeElement); if (i < 0) return;
+      e.preventDefault();
+      const n = items[(i + (e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length];
+      const val = n.getAttribute(attr);
+      pick(val);
+      const again = container.querySelector(`[${attr}="${CSS.escape(val)}"]`);
+      if (again) again.focus();
+    });
+  }
+  $('#modes').addEventListener('click', (e) => { const b = e.target.closest('[data-mode]'); if (b) setMode(b.dataset.mode); });
+  radioKeys($('#modes'), 'data-mode', setMode);
+  $('#areas').addEventListener('click', (e) => { const b = e.target.closest('[data-area]'); if (b) setArea(b.dataset.area); });
+  radioKeys($('#areas'), 'data-area', setArea);
+  $('#tags').addEventListener('click', (e) => { const b = e.target.closest('[data-tag]'); if (b) { tag = b.dataset.tag; renderNotes(); } });
+  radioKeys($('#tags'), 'data-tag', (v) => { tag = v; renderNotes(); });
+  const PREFIX = { b: 'bug', q: 'question', i: 'idea', r: 'risk' };
+  $('#note').addEventListener('input', (e) => {
+    const m = e.target.value.match(/^([bqir]):\s/i);
+    if (m) { tag = PREFIX[m[1].toLowerCase()]; e.target.value = e.target.value.slice(m[0].length); renderNotes(); }
+  });
+  $('#note-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const ss = store.current; const txt = $('#note').value.trim();
+    if (!ss || !txt) return;
+    ss.notes.push({ t: elapsed(ss), tag, text: txt, mode: ss.mode, area: ss.area });
+    $('#note').value = '';
+    save(); renderNotes();
+  });
+  $('#hist').addEventListener('click', (e) => {
+    const v = e.target.closest('[data-view]'), d = e.target.closest('[data-del]');
+    if (v) showReport(store.history[+v.dataset.view]);
+    if (d) { const s = store.history.splice(+d.dataset.del, 1)[0]; if (shown === s) { $('#report').hidden = true; shown = null; } save(); renderHistory(); }
+  });
+
+  if (store.timebox) $('#timebox').value = String(store.timebox);
+  setInterval(tick, 250);
+  window.__charters = { deck: () => deck.map(plain), state: () => JSON.parse(JSON.stringify(store)) };
+  render();
+})();
+</script>
+</body>
+</html>

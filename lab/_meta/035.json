@@ -1,0 +1,34 @@
+{
+  "id": "035",
+  "slug": "035-bug-report-studio",
+  "file": "lab/035-bug-report-studio.html",
+  "title": "Bug Report Studio — From Messy Notes to a Clear Report",
+  "category": "QA & Testing",
+  "tags": ["bug-reporting", "triage", "drag-and-drop", "markdown", "localStorage"],
+  "description": "Paste a messy bug description and a heuristic parser pulls out imperative repro steps, expected and actual results, the app version and a draft title; then refine it with a title helper, environment details read locally from your own browser, drag-to-reorder steps, a severity × priority matrix with guidance, and simulated log attachments. A report-quality score explains exactly what is missing, and the finished report exports as Markdown.",
+  "prompt": "Build 'Bug Report Studio'. I paste a messy bug description — the kind you get in chat — and it helps me turn it into a structured report: a title helper (where / what goes wrong / when), environment capture that reads the real navigator and screen info but only shows it locally with a way to exclude rows, numbered repro steps with drag reorder (and a keyboard way), expected vs actual, a severity × priority matrix with guidance on what each combination means and when a mismatch needs justifying, an attachments list with simulated console and network snippets from a fictional app, and a report-quality score with specific suggestions for what to fix next. Export as Markdown. Save the draft in localStorage. Make it look like a naturalist's field notebook — specimen plate, serif headings, moss and rust.",
+  "qa": {
+    "methodology": [
+      "Golden-input parsing: the built-in messy example is a fixed input, so the spec asserts the exact five imperative steps, expected/actual sentences, version string and composed title the heuristic must produce.",
+      "Score arithmetic as an oracle: each rule has a fixed weight, so a structured example must score exactly 80 (title 25 + steps 25 + results 25 + version 5) and adding environment, triage and evidence must reach exactly 100.",
+      "Environment values checked against the test's own viewport (page.viewportSize), so the same assertion holds on desktop and Pixel 7 without branching.",
+      "Three reorder routes for steps — Alt+Arrow keys, move buttons, and a pointer drag on the grip — each verified by the resulting order and the Markdown numbering.",
+      "Roving-focus radiogroup for the matrix: click plus arrow-key navigation, aria-checked and focus asserted, and guidance text checked for consistent and mismatched combinations.",
+      "Persistence: after a reload the steps, triage cell and score are restored from localStorage (saved synchronously on every change)."
+    ],
+    "risks": [
+      "The parser is heuristic: new phrasing in the messy text (other verbs, no punctuation) can yield fewer steps — the status message tells users to review every field.",
+      "Drag reordering by moving DOM nodes during the gesture can lose pointer capture; capture is held on the stable list element instead of the moving row.",
+      "User-agent parsing for the browser name drifting as UA strings change (the full UA is always included as a fallback)."
+    ],
+    "playwright": "Most of the page is deterministic text transformation, which suits exact-value assertions (toHaveValue, toEqual on an evaluateAll of the step inputs) better than screenshots. The environment panel reads live browser properties, so instead of hard-coding values the test derives expectations from page.viewportSize() and only checks stable facts like 'Chrome'. The drag test uses page.mouse down/move/up with intermediate steps over the grip; Chromium delivers these as pointer events on both the desktop and touch-emulated mobile projects. The Blob download is verified through its status message, and tests never clear localStorage mid-run — each test gets a fresh context — which avoids racing the autosave.",
+    "coverage": [
+      "Messy example parsed into exact steps, results, version and title; score 80",
+      "Title flags for short, vague and shouty titles; compose from helper",
+      "Step reorder via Alt+Arrow, move button, pointer drag; delete",
+      "Environment capture matches the viewport; excluded rows leave the Markdown",
+      "Matrix click and arrow keys with guidance; attachments; score 100; download; reload persistence"
+    ]
+  },
+  "a11y": "Every input is labelled, steps have named move/delete buttons plus Alt+Arrow reordering so dragging is never required, and the severity × priority matrix is a roving-tabindex radiogroup with named cells. The parse result, title flags, guidance and grade are announced through live regions."
+}

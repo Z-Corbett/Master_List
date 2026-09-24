@@ -1,0 +1,807 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pitmaster — a Texas brisket smoking game</title>
+<meta name="description" content="A Central Texas brisket game: run an offset smoker through a 12-hour overnight cook squeezed into a few minutes. Feed post oak splits, work the firebox vent, ride out the stall, wrap in paper or foil, rest it, then slice for a score on bark, moisture and tenderness.">
+<style>
+  :root {
+    --night: #120e0c;
+    --char: #1d1714;
+    --char-2: #271f1a;
+    --kraft: #eadcc2;
+    --kraft-2: #dfcdab;
+    --kraft-line: #c7b08a;
+    --ink: #2a1d14;
+    --ink-2: #6b5443;
+    --ember: #e0652b;
+    --ember-2: #ff9a3d;
+    --rust: #9c3b22;
+    --smoke: #8fb1cf;
+    --ok: #4e7d3a;
+    --warn: #b8431f;
+    --slab: Rockwell, "Rockwell Nova", "Roboto Slab", "Zilla Slab", "Courier New", Georgia, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--night); color: var(--kraft); font: 15px/1.5 var(--sans); overflow-x: hidden;
+    background-image: radial-gradient(ellipse at 70% -20%, rgba(224, 101, 43, .16), transparent 55%), repeating-linear-gradient(90deg, rgba(255,255,255,.012) 0 2px, transparent 2px 7px); }
+  :focus-visible { outline: 3px solid var(--ember-2); outline-offset: 2px; }
+  button, input { font-family: inherit; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 50; font: 700 12.5px/1 var(--slab); color: var(--kraft); text-decoration: none;
+    background: rgba(29, 23, 20, .92); border: 1px solid #4a3a30; padding: 8px 11px; border-radius: 3px; letter-spacing: .02em; }
+  a.back:hover { color: var(--ember-2); border-color: var(--ember); }
+
+  header { max-width: 1240px; margin: 0 auto; padding: 56px 20px 14px; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 28px; }
+  .brand { min-width: 0; }
+  .brand .kicker { font: 700 11px/1 var(--slab); letter-spacing: .3em; text-transform: uppercase; color: var(--ember-2); margin: 0 0 8px; }
+  h1 { font: 900 clamp(40px, 8vw, 78px)/.9 var(--slab); margin: 0; letter-spacing: -.02em; color: var(--kraft);
+    text-shadow: 0 2px 0 var(--rust), 0 0 40px rgba(224, 101, 43, .25); }
+  h1 .star { color: var(--ember); font-size: .5em; vertical-align: .55em; margin-left: .1em; }
+  .brand p { margin: 10px 0 0; color: #bfae96; max-width: 58ch; }
+  .night { font: 600 13px/1.5 var(--mono); color: #bfae96; text-align: right; min-width: 0; }
+  .night b { color: var(--kraft); }
+  .night a { color: var(--ember-2); }
+
+  main { max-width: 1240px; margin: 0 auto; padding: 0 20px 30px; display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 14px 18px; align-items: start;
+    grid-template-areas: "stage side" "chart side" "notes side"; grid-template-rows: auto auto 1fr; }
+  .stage { grid-area: stage; } aside { grid-area: side; } .chart-card { grid-area: chart; } .notes-card { grid-area: notes; min-width: 0; }
+  .stage { min-width: 0; }
+  .scene-wrap { position: relative; border: 1px solid #3a2e27; border-radius: 6px; overflow: hidden; background: #0b1026; }
+  #scene { display: block; width: 100%; height: auto; aspect-ratio: 800 / 440; }
+  .stall-badge { position: absolute; top: 10px; right: 10px; font: 800 12px/1 var(--slab); letter-spacing: .14em; text-transform: uppercase;
+    background: var(--kraft); color: var(--rust); padding: 8px 10px; border-radius: 2px; transform: rotate(2deg); box-shadow: 0 3px 0 rgba(0,0,0,.4); }
+  .chart-card { min-width: 0; background: var(--char); border: 1px solid #3a2e27; border-radius: 6px; padding: 12px 14px 10px; }
+  .chart-card h2 { margin: 0 0 6px; font: 700 12px/1 var(--slab); letter-spacing: .2em; text-transform: uppercase; color: #bfae96; display: flex; flex-wrap: wrap; gap: 6px 16px; }
+  .chart-card h2 span { font: 600 11px/1 var(--mono); letter-spacing: 0; text-transform: none; }
+  .k-pit { color: var(--ember-2); } .k-meat { color: #f07e8c; } .k-zone { color: #8fb07a; }
+  #chart { display: block; width: 100%; height: 150px; }
+
+  aside { min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+  .ticket { background: var(--kraft); color: var(--ink); border-radius: 3px; padding: 14px 16px; position: relative;
+    box-shadow: 0 1px 0 var(--kraft-line) inset, 0 6px 18px rgba(0,0,0,.35);
+    background-image: repeating-linear-gradient(0deg, transparent 0 27px, rgba(156, 59, 34, .07) 27px 28px); }
+  .ticket h2 { margin: 0 0 10px; font: 800 13px/1 var(--slab); letter-spacing: .22em; text-transform: uppercase; color: var(--rust); }
+  .readouts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .ro { min-width: 0; border: 2px solid var(--ink); border-radius: 2px; padding: 8px 10px; background: rgba(255,255,255,.35); }
+  .ro span { display: block; font: 700 10px/1.1 var(--slab); letter-spacing: .16em; text-transform: uppercase; color: var(--ink-2); }
+  .ro b { display: block; font: 900 28px/1.1 var(--slab); font-variant-numeric: tabular-nums; margin-top: 3px; overflow-wrap: anywhere; }
+  .ro small { display: block; font: 600 12px/1.3 var(--sans); color: var(--ink-2); overflow-wrap: anywhere; }
+  .ro b[data-testid="clock"] { white-space: nowrap; font-size: clamp(19px, 5.4vw, 26px); }
+  .ro.zone-ok b { color: var(--ok); } .ro.zone-hot b { color: var(--warn); } .ro.zone-cool b { color: #3d5f86; }
+  .ro.wide { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px; }
+  .ro.wide b { font-size: 20px; }
+
+  .btn { min-height: 44px; border: 2px solid var(--ink); background: var(--kraft); color: var(--ink); font: 800 14px/1.1 var(--slab); letter-spacing: .03em;
+    border-radius: 2px; padding: 8px 12px; cursor: pointer; box-shadow: 0 3px 0 var(--ink); transition: transform .08s, box-shadow .08s; max-width: 100%; }
+  .btn:hover { background: #f4e9d4; }
+  .btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
+  .btn:disabled { opacity: .42; cursor: not-allowed; transform: none; box-shadow: 0 3px 0 var(--ink); }
+  .btn.fire { background: var(--ember); color: #fff8ee; border-color: #5a200d; box-shadow: 0 3px 0 #5a200d; }
+  .btn.fire:hover { background: #ea7440; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .row > * { min-width: 0; }
+  .row .btn { flex: 1 1 auto; }
+  .speed { display: flex; gap: 0; }
+  .speed .btn { flex: 1; box-shadow: none; border-radius: 0; margin-left: -2px; min-width: 44px; padding: 8px 6px; }
+  .speed .btn:first-child { margin-left: 0; }
+  .speed .btn[aria-pressed="true"] { background: var(--ink); color: var(--kraft); }
+  .vent { margin-top: 12px; }
+  .vent label { display: flex; justify-content: space-between; font: 800 12px/1 var(--slab); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-2); }
+  .vent output { font: 800 14px/1 var(--mono); color: var(--ink); }
+  input[type=range] { width: 100%; max-width: 100%; accent-color: var(--rust); margin: 10px 0 2px; min-height: 28px; }
+  .hint { font-size: 12.5px; color: var(--ink-2); margin: 6px 0 0; }
+  .keys { font: 12px/1.4 var(--mono); color: var(--ink-2); margin: 10px 0 0; }
+  kbd { font: 700 11px/1 var(--mono); border: 1px solid var(--ink-2); border-bottom-width: 2px; padding: 1px 4px; border-radius: 3px; }
+
+  .log { list-style: none; margin: 0; padding: 0; max-height: 200px; overflow-y: auto; font: 13px/1.45 var(--sans); }
+  .log li { padding: 5px 0; border-top: 1px dashed var(--kraft-line); overflow-wrap: anywhere; }
+  .log li:first-child { border-top: 0; }
+  .log time { font: 700 12px/1 var(--mono); color: var(--rust); margin-right: 6px; }
+
+  .score { display: grid; grid-template-columns: 1fr; gap: 10px; }
+  .bars { display: grid; gap: 8px; }
+  .bar { display: grid; grid-template-columns: 96px minmax(0, 1fr) 40px; align-items: center; gap: 8px; font: 800 12px/1 var(--slab); letter-spacing: .08em; text-transform: uppercase; }
+  .bar .track { height: 12px; border: 2px solid var(--ink); background: rgba(255,255,255,.4); }
+  .bar .fill { height: 100%; background: var(--rust); width: 0; transition: width .8s; }
+  .bar b { font: 900 16px/1 var(--mono); text-align: right; }
+  .overall { display: flex; align-items: center; gap: 14px; border-top: 2px solid var(--ink); padding-top: 10px; }
+  .overall .num { font: 900 46px/1 var(--slab); color: var(--rust); }
+  .overall .grade { font: 800 17px/1.2 var(--slab); min-width: 0; overflow-wrap: anywhere; }
+  .notes { margin: 0; padding-left: 18px; font-size: 13.5px; }
+  .notes li { margin: 3px 0; }
+  #slice-art { width: 100%; height: auto; display: block; }
+
+  footer { max-width: 1240px; margin: 0 auto; padding: 0 20px 40px; color: #a08f78; font-size: 13px; }
+  footer p { margin: 0 0 6px; max-width: 90ch; }
+
+  @media (max-width: 960px) {
+    main { grid-template-columns: minmax(0, 1fr); grid-template-areas: "stage" "side" "chart" "notes"; grid-template-rows: none; }
+    .night { text-align: left; }
+  }
+  @media (max-width: 480px) {
+    header { padding-top: 54px; }
+    main, header, footer { padding-left: 12px; padding-right: 12px; }
+    .ro b { font-size: 24px; }
+    .bar { grid-template-columns: 82px minmax(0, 1fr) 34px; font-size: 11px; }
+    .ticket { padding: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .btn, .bar .fill { transition: none; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+
+<header>
+  <div class="brand">
+    <p class="kicker">Central Texas · post oak</p>
+    <h1>Pitmaster<span class="star" aria-hidden="true">★</span></h1>
+    <p>One 14-pound packer brisket, one offset smoker, and a night that runs from midnight to lunch at noon. Hold the pit in the zone, sit through the stall, wrap when the bark is set, and rest it before you cut.</p>
+  </div>
+  <div class="night">
+    <div>Night <b data-testid="seed">#—</b> · <a href="#" id="new-night" data-testid="new-night">new night</a></div>
+    <div data-testid="forecast">Forecast —</div>
+  </div>
+</header>
+
+<main>
+  <section class="stage" aria-label="Smoker">
+    <div class="scene-wrap">
+      <canvas id="scene" width="800" height="440" role="img" aria-label="An offset smoker in a backyard at night, smoke rising from the stack" data-testid="scene"></canvas>
+      <div class="stall-badge" data-testid="stall-badge" hidden>In the stall</div>
+    </div>
+  </section>
+  <section class="chart-card" aria-label="Cook log chart">
+    <h2>Cook log <span class="k-pit">━ pit</span><span class="k-meat">━ internal</span><span class="k-zone">▮ 225–275°F zone</span></h2>
+    <canvas id="chart" aria-label="Line chart of pit and internal temperature over the night" role="img"></canvas>
+  </section>
+
+  <aside>
+    <div class="ticket">
+      <h2>The pit</h2>
+      <div class="readouts">
+        <div class="ro" id="pit-box"><span>Pit</span><b data-testid="pit-temp">60°F</b><small data-testid="pit-state">cold steel</small></div>
+        <div class="ro"><span>Internal</span><b data-testid="meat-temp">40°F</b><small data-testid="meat-state">straight from the fridge</small></div>
+        <div class="ro"><span>Clock</span><b data-testid="clock">12:00 AM</b><small data-testid="phase">Fire not lit</small></div>
+        <div class="ro"><span>Firebox</span><b data-testid="logs">3.0</b><small>splits burning</small></div>
+        <div class="ro wide"><span>Smoke</span><b data-testid="smoke-state">none yet</b></div>
+      </div>
+      <div class="row">
+        <button class="btn fire" id="start" data-testid="start">Light the fire</button>
+        <div class="speed" role="group" aria-label="Speed">
+          <button class="btn" data-speed="1" aria-pressed="true" data-testid="speed-1">1×</button>
+          <button class="btn" data-speed="2" aria-pressed="false" data-testid="speed-2">2×</button>
+          <button class="btn" data-speed="4" aria-pressed="false" data-testid="speed-4">4×</button>
+        </div>
+      </div>
+      <div class="row">
+        <button class="btn" id="add-wood" data-testid="add-wood">+ Post oak split</button>
+      </div>
+      <div class="vent">
+        <label for="vent">Firebox vent <output id="vent-out" data-testid="vent-out">50%</output></label>
+        <input type="range" id="vent" min="0" max="100" step="5" value="50" data-testid="vent">
+      </div>
+      <p class="hint">More wood = more heat. More air = hotter, cleaner fire. Starve it of air and the smoke turns white and bitter.</p>
+      <div class="row">
+        <button class="btn" id="wrap-paper" data-testid="wrap-paper" disabled>Wrap: butcher paper</button>
+        <button class="btn" id="wrap-foil" data-testid="wrap-foil" disabled>Wrap: foil</button>
+      </div>
+      <div class="row">
+        <button class="btn" id="pull" data-testid="pull" disabled>Pull &amp; rest</button>
+        <button class="btn fire" id="slice" data-testid="slice" hidden>Slice &amp; serve</button>
+      </div>
+      <p class="keys"><kbd>W</kbd> add a split · <kbd>P</kbd> pause · <kbd>[</kbd> <kbd>]</kbd> vent</p>
+    </div>
+
+    <div class="ticket" data-testid="scorecard" id="scorecard" hidden tabindex="-1">
+      <h2>On the board</h2>
+      <div class="score">
+        <svg id="slice-art" viewBox="0 0 320 120" aria-hidden="true"></svg>
+        <div class="bars">
+          <div class="bar"><span>Bark</span><div class="track"><div class="fill" id="f-bark"></div></div><b data-testid="score-bark">0</b></div>
+          <div class="bar"><span>Moisture</span><div class="track"><div class="fill" id="f-moist"></div></div><b data-testid="score-moisture">0</b></div>
+          <div class="bar"><span>Tender</span><div class="track"><div class="fill" id="f-tender"></div></div><b data-testid="score-tender">0</b></div>
+        </div>
+        <div class="overall"><span class="num" data-testid="score-overall">0</span><span class="grade" data-testid="grade">—</span></div>
+        <ul class="notes" data-testid="notes"></ul>
+        <div class="row">
+          <button class="btn fire" id="again" data-testid="again">Cook this night again</button>
+        </div>
+      </div>
+    </div>
+
+  </aside>
+  <section class="ticket notes-card" aria-label="Pit notes">
+    <h2>Pit notes</h2>
+    <ol class="log" data-testid="log" aria-live="polite" id="log"></ol>
+  </section>
+</main>
+
+<footer>
+  <p>A game model, not a recipe: the heat, the stall (evaporative cooling of the surface) and the wrap are simplified so a 12-hour cook fits in a few minutes. The "done" window of roughly 200–205°F internal is a common pitmaster rule of thumb; real brisket is done when a probe slides in with little resistance.</p>
+  <p>Food safety note: keep resting meat at or above 140°F until you serve it.</p>
+</footer>
+
+<script>
+(() => {
+  'use strict';
+  // ---------- seeded randomness ----------
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const params = new URLSearchParams(location.search);
+  const seedParam = parseInt(params.get('seed'), 10);
+  const SEED = Number.isFinite(seedParam) && seedParam > 0 ? seedParam : 1 + Math.floor(Math.random() * 9999);
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const $ = (id) => document.getElementById(id) || document.querySelector('[data-testid="' + id + '"]');
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  // ---------- the night's weather plan (all from the seed) ----------
+  function planNight(seed) {
+    const r = mulberry32(seed * 7919 + 13);
+    const amb0 = 56 + Math.floor(r() * 12);
+    const gusts = [];
+    const n = 3 + Math.floor(r() * 3);
+    for (let i = 0; i < n; i++) gusts.push({ at: 70 + Math.floor(r() * 560), len: 12 + Math.floor(r() * 16), drop: 30 + Math.floor(r() * 30) });
+    gusts.sort((a, b) => a.at - b.at);
+    const front = { at: 150 + Math.floor(r() * 240), drop: 8 + Math.floor(r() * 12) };
+    const splits = Array.from({ length: 60 }, () => 0.8 + r() * 0.4);
+    return { amb0, gusts, front, splits };
+  }
+  const plan = planNight(SEED);
+
+  const SERVICE = 720;        // noon: guests arrive
+  const MIN_PER_SEC = 3;      // game minutes per real second at 1×
+  const MAX_LOGS = 7;
+
+  function ambientAt(m) {
+    let a = plan.amb0;
+    if (m > plan.front.at) a -= plan.front.drop * clamp((m - plan.front.at) / 60, 0, 1);
+    if (m > 435) a += (m - 435) / 20;
+    return a;
+  }
+  function gustAt(m) { for (const g of plan.gusts) if (m >= g.at && m < g.at + g.len) return g; return null; }
+
+  // ---------- simulation ----------
+  let S;
+  function fresh() {
+    return {
+      min: 0, phase: 'ready', logs: 3, F: 0.25, vent: 0.5, pit: plan.amb0, meat: 40, water: 1,
+      wrap: null, wrapAt: null, wrapMeat: null, pulledAt: null, pullTemp: null, restMin: 0, restLow: 999,
+      smokeMin: 0, dirtyMin: 0, scorchMin: 0, hotMin: 0, veryHotMin: 0, splitsAdded: 0, lastSplitAt: -99, splitIdx: 0,
+      stall: false, stallStart: null, stallEnd: null, flags: {}, hist: [], zoneMin: 0, cookMin: 0, score: null, log: []
+    };
+  }
+
+  function clock(m) {
+    const h = Math.floor(m / 60) % 24, mm = Math.floor(m % 60);
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return `${h12}:${String(mm).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+  }
+  function note(text) {
+    S.log.push({ t: S.min, text });
+    const li = document.createElement('li');
+    li.innerHTML = `<time>${clock(S.min)}</time>`;
+    li.appendChild(document.createTextNode(text));
+    logEl.prepend(li);
+    while (logEl.children.length > 40) logEl.lastChild.remove();
+  }
+  function once(key, text) { if (!S.flags[key]) { S.flags[key] = true; note(text); } }
+
+  function smokeState() {
+    if (S.phase === 'ready') return 'none';
+    if (S.F < 0.12) return 'none';
+    if (S.vent < 0.25 && S.F > 0.3) return 'dirty';
+    if (S.min - S.lastSplitAt < 8) return 'white';
+    return 'clean';
+  }
+
+  function step() {
+    if (S.phase !== 'cook' && S.phase !== 'rest') return;
+    const m = S.min;
+    const amb = ambientAt(m);
+    const gust = gustAt(m);
+    // fire & pit
+    const Ft = clamp(Math.pow(S.logs / 3, 0.7), 0, 1.5);
+    S.F += (Ft - S.F) * 0.12;
+    const target = amb + 330 * S.F * (0.3 + 0.7 * S.vent) - (gust ? gust.drop : 0);
+    S.pit += (target - S.pit) * 0.06;
+    S.logs = Math.max(0, S.logs - (0.008 + S.logs * 0.0045) * (0.3 + 0.7 * S.vent));
+    if (S.logs < 0.02) S.logs = 0;
+
+    if (S.phase === 'cook') {
+      const kH = 0.0029 * (S.wrap === 'foil' ? 1.25 : S.wrap === 'paper' ? 1.1 : 1);
+      const d = S.pit - S.meat;
+      const shape = clamp((S.meat - 140) / 18, 0, 1);
+      const ef = S.wrap === 'foil' ? 0.08 : S.wrap === 'paper' ? 0.3 : 1;
+      const evap = Math.max(0, kH * d * shape * S.water * 0.97 * ef);
+      S.meat += kH * d - evap;
+      S.water = Math.max(0, S.water - 0.0036 * shape * ef * Math.max(0, d) / 100);
+      S.cookMin++;
+      // stats
+      const st = smokeState();
+      if (!S.wrap && S.pit >= 225) S.smokeMin++;
+      if (st === 'dirty') S.dirtyMin++;
+      if (S.pit > 310) S.scorchMin++;
+      if (S.pit > 290) S.hotMin++;
+      if (S.pit > 325) S.veryHotMin++;
+      if (S.pit >= 225 && S.pit <= 275) S.zoneMin++;
+      // stall detection over the last 30 minutes
+      const past = S.hist.length >= 30 ? S.hist[S.hist.length - 30].meat : null;
+      if (past !== null) {
+        const rise = S.meat - past;
+        if (!S.stall && !S.stallEnd && S.meat > 148 && S.meat < 178 && rise < 3.6 && S.pit > 200) {
+          S.stall = true; S.stallStart = m;
+          note(`The stall: the brisket is parked at ${Math.round(S.meat)}°F. Moisture evaporating off the surface is cooling it about as fast as the pit heats it. Hold steady — or wrap.`);
+        } else if (S.stall && (rise > 6 || S.meat >= 178)) {
+          S.stall = false; S.stallEnd = m;
+          note(`Stall's broken at ${Math.round(S.meat)}°F after ${Math.round((m - S.stallStart) / 6) / 10} hours. Temperature is moving again.`);
+        }
+      }
+      // pit chatter
+      if (S.pit >= 225 && S.pit <= 275) once('zone', `Pit's in the zone at ${Math.round(S.pit)}°F. Thin blue smoke is the goal.`);
+      if (S.pit > 300 && !S.flags.hot) { S.flags.hot = true; note(`Running hot: ${Math.round(S.pit)}°F. Close the vent down or let the fire burn back.`); }
+      if (S.pit < 285) S.flags.hot = false;
+      if (m > 60 && S.pit < 205 && !S.flags.cold) { S.flags.cold = true; note(`Pit's sagging to ${Math.round(S.pit)}°F. Feed the fire.`); }
+      if (S.pit > 225) S.flags.cold = false;
+      if (S.F < 0.2 && m > 20 && !S.flags.dying) { S.flags.dying = true; note('Fire is down to coals. It needs a split.'); }
+      if (S.F > 0.35) S.flags.dying = false;
+      if (st === 'dirty' && !S.flags.dirty) { S.flags.dirty = true; note('Smoke has gone thick and white: the fire is starved for air. That creosote ends up on the bark.'); }
+      if (st !== 'dirty') S.flags.dirty = false;
+      if (S.meat >= 165 && !S.wrap) once('wrapok', 'Bark has set and the color looks right. Good time to wrap, if you are going to.');
+      if (S.meat >= 195) once('probe', 'Start probing. You are looking for 200–205°F and a probe that slides in like butter.');
+      if (S.meat >= 212) once('over', 'Internal is past 212°F. The flat is drying out. Pull it!');
+    } else {
+      // resting in an insulated cooler: brief carryover, then a slow fall
+      S.restMin++;
+      const carry = S.restMin < 20 ? 0.18 : 0;
+      S.meat += carry - (S.meat - 75) * 0.0024;
+      S.restLow = Math.min(S.restLow, S.meat);
+      if (S.meat < 140) once('danger', 'The brisket has dropped below 140°F in the cooler. Time to slice.');
+      if (S.restMin === 60) note('An hour of rest. Juices are settling back into the meat.');
+      if (S.restMin === 120) note('Two hours in the cooler — the classic Texas rest.');
+    }
+    // weather news
+    for (const g of plan.gusts) if (m === g.at) note(`Wind gust out of the north — the firebox is losing ${g.drop}°F of heat for a bit.`);
+    if (m === plan.front.at) note(`A cold front is blowing through. Air temp is falling to ${Math.round(plan.amb0 - plan.front.drop)}°F.`);
+    if (m === 420) note('Sun is coming up over the fence line.');
+    if (m === 660) note('An hour until the guests show up at noon.');
+
+    S.hist.push({ m, pit: S.pit, meat: S.meat });
+    S.min++;
+    if (S.min >= SERVICE) {
+      if (S.phase === 'cook') { note('It is noon and the guests are here. Pulling it now, no time to rest.'); pull(); }
+      slice();
+    }
+  }
+
+  // ---------- actions ----------
+  function start() {
+    if (S.phase !== 'ready') return;
+    S.phase = 'cook'; S.lastSplitAt = 0; running = true;
+    note(`Fire's lit with three post oak splits. The brisket goes on at ${plan.amb0}°F air temp, fat side up.`);
+    sync();
+  }
+  function addWood() {
+    if (S.phase === 'done' || S.logs >= MAX_LOGS - 0.5) return false;
+    const size = plan.splits[S.splitIdx++ % plan.splits.length];
+    S.logs = Math.min(MAX_LOGS, S.logs + size);
+    S.splitsAdded++; S.lastSplitAt = S.min;
+    sparks(14);
+    if (S.logs > 5) once('packed', 'Firebox is packed. That much wood will run the pit hot.');
+    sync();
+    return true;
+  }
+  function setVent(v) { S.vent = clamp(v, 0, 1); ventEl.value = Math.round(S.vent * 100); sync(); }
+  function wrap(kind) {
+    if (S.phase !== 'cook' || S.wrap) return false;
+    S.wrap = kind; S.wrapAt = S.min; S.wrapMeat = S.meat;
+    if (S.stall) { S.stall = false; S.stallEnd = S.min; }
+    note(kind === 'foil'
+      ? `Wrapped tight in foil at ${Math.round(S.meat)}°F — the Texas crutch. Fast through the stall, but it steams the bark.`
+      : `Wrapped in butcher paper at ${Math.round(S.meat)}°F. It breathes, so the bark holds up better than in foil.`);
+    sync();
+    return true;
+  }
+  function pull() {
+    if (S.phase !== 'cook') return false;
+    S.phase = 'rest'; S.pulledAt = S.min; S.pullTemp = S.meat; S.stall = false;
+    note(`Pulled at ${Math.round(S.meat)}°F internal and into the cooler to rest.`);
+    sync();
+    return true;
+  }
+  function slice() {
+    if (S.phase !== 'rest') return false;
+    S.phase = 'done'; running = false;
+    S.score = scoreCook();
+    note(`Sliced after ${S.restMin} minutes of rest. Score: ${S.score.overall}.`);
+    showScore();
+    sync();
+    return true;
+  }
+
+  // ---------- scoring ----------
+  function scoreCook() {
+    const notes = [];
+    // bark
+    let bark = Math.min(100, 40 + S.smokeMin / 5.5);
+    if (S.smokeMin < 240) notes.push(`Only ${Math.round(S.smokeMin / 6) / 10} h of unwrapped smoke in the zone — the bark never fully formed.`);
+    if (S.wrap === 'foil') { bark -= 20; notes.push('Foil steamed the bark soft.'); }
+    if (S.wrap === 'paper') bark -= 5;
+    if (S.wrap && S.wrapMeat < 150) { bark -= 10; notes.push(`Wrapped at ${Math.round(S.wrapMeat)}°F, before the bark had set.`); }
+    if (S.dirtyMin > 0) { bark -= S.dirtyMin * 0.2; if (S.dirtyMin > 10) notes.push(`${S.dirtyMin} minutes of dirty white smoke left the bark bitter.`); }
+    if (S.scorchMin > 0) { bark -= S.scorchMin * 0.3; if (S.scorchMin > 10) notes.push(`${S.scorchMin} minutes above 310°F scorched the edges.`); }
+    // moisture
+    let moist = 100 - S.hotMin * 0.25 - S.veryHotMin * 0.4;
+    if (S.hotMin > 20) notes.push(`The pit ran above 290°F for ${S.hotMin} minutes and the flat paid for it.`);
+    if (!S.wrap) { moist -= 8; notes.push('Unwrapped the whole way: best bark, but the flat dried a little.'); }
+    else if (S.wrap === 'paper') moist -= 2;
+    const p = S.pullTemp;
+    if (p > 206) moist -= (p - 206) * 2.5;
+    if (S.restMin < 60) { moist -= (60 - S.restMin) * 0.6; notes.push(`Only ${S.restMin} minutes of rest — juice ran out onto the board.`); }
+    if (S.restLow < 140) { moist -= 15; notes.push('It sat below 140°F before serving.'); }
+    // tenderness
+    let tender = p < 200 ? 100 - (200 - p) * 4.5 : p > 206 ? 100 - (p - 206) * 3.5 : 100;
+    if (p < 195) notes.push(`Pulled at ${Math.round(p)}°F: the collagen had not rendered and the flat is chewy.`);
+    if (p > 210) notes.push(`Pulled at ${Math.round(p)}°F: overcooked, the slices crumble.`);
+    if (S.restMin < 45) tender -= 10;
+    const bk = Math.round(clamp(bark, 0, 100)), mo = Math.round(clamp(moist, 0, 100)), te = Math.round(clamp(tender, 0, 100));
+    const overall = Math.round(0.3 * bk + 0.35 * mo + 0.35 * te);
+    const grade = overall >= 90 ? 'Line out the door by 10 AM' : overall >= 80 ? 'Worth the wait' : overall >= 65 ? 'Good backyard brisket' : overall >= 45 ? 'Chewy, but the sauce helps' : 'Chop it for chili';
+    if (overall >= 90) notes.unshift('Jiggly, peppery and moist. That is the one.');
+    return { bark: bk, moisture: mo, tender: te, overall, grade, notes: notes.slice(0, 5) };
+  }
+
+  // ---------- DOM ----------
+  const logEl = $('log'), ventEl = $('vent');
+  const startBtn = $('start'), woodBtn = $('add-wood'), paperBtn = $('wrap-paper'), foilBtn = $('wrap-foil'), pullBtn = $('pull'), sliceBtn = $('slice');
+  let running = false, speed = 1;
+
+  $('seed').textContent = '#' + SEED;
+  $('forecast').textContent = `Forecast: ${plan.amb0}°F, a front around ${clock(plan.front.at)} (to ${plan.amb0 - plan.front.drop}°F), ${plan.gusts.length} gusts`;
+  $('new-night').addEventListener('click', (e) => { e.preventDefault(); const u = new URL(location.href); u.searchParams.set('seed', String(1 + Math.floor(Math.random() * 9999))); location.href = u.href; });
+
+  function sync() {
+    const pit = Math.round(S.pit), meat = Math.round(S.meat);
+    $('pit-temp').textContent = pit + '°F';
+    const box = $('pit-box');
+    box.classList.remove('zone-ok', 'zone-hot', 'zone-cool');
+    let ps = 'cold steel';
+    if (S.phase !== 'ready') {
+      if (pit > 275) { box.classList.add('zone-hot'); ps = pit > 310 ? 'scorching' : 'running hot'; }
+      else if (pit >= 225) { box.classList.add('zone-ok'); ps = 'in the zone'; }
+      else { box.classList.add('zone-cool'); ps = pit < 180 ? 'way too cool' : 'a little cool'; }
+    }
+    $('pit-state').textContent = ps;
+    $('meat-temp').textContent = meat + '°F';
+    let ms = 'straight from the fridge';
+    if (S.phase === 'rest') ms = `resting · ${S.restMin} min`;
+    else if (S.phase === 'done') ms = 'sliced';
+    else if (S.stall) ms = 'stalled';
+    else if (meat >= 200 && meat <= 206) ms = 'probe tender';
+    else if (meat > 206) ms = 'overshooting';
+    else if (meat >= 150) ms = S.wrap ? `wrapped in ${S.wrap === 'foil' ? 'foil' : 'paper'}` : 'building bark';
+    else if (meat > 45) ms = 'taking on smoke';
+    $('meat-state').textContent = ms;
+    $('clock').textContent = clock(S.min);
+    $('phase').textContent = { ready: 'Fire not lit', cook: running ? 'Cooking' : 'Paused', rest: running ? 'Resting in the cooler' : 'Rest paused', done: 'Served' }[S.phase];
+    $('logs').textContent = S.logs.toFixed(1);
+    $('smoke-state').textContent = { none: S.phase === 'ready' ? 'none yet' : 'barely any', dirty: 'thick & white', white: 'white (new split catching)', clean: 'thin blue' }[smokeState()];
+    $('vent-out').textContent = Math.round(S.vent * 100) + '%';
+    $('stall-badge').hidden = !S.stall;
+    startBtn.textContent = S.phase === 'ready' ? 'Light the fire' : running ? 'Pause' : 'Resume';
+    startBtn.disabled = S.phase === 'done';
+    woodBtn.disabled = S.phase === 'ready' || S.phase === 'done' || S.logs >= MAX_LOGS - 0.5;
+    paperBtn.disabled = foilBtn.disabled = S.phase !== 'cook' || !!S.wrap;
+    pullBtn.disabled = S.phase !== 'cook';
+    pullBtn.hidden = S.phase === 'rest' || S.phase === 'done';
+    sliceBtn.hidden = S.phase !== 'rest';
+    ventEl.disabled = S.phase === 'done';
+  }
+
+  function showScore() {
+    const sc = S.score;
+    $('scorecard').hidden = false;
+    $('score-bark').textContent = sc.bark; $('score-moisture').textContent = sc.moisture; $('score-tender').textContent = sc.tender;
+    $('score-overall').textContent = sc.overall; $('grade').textContent = sc.grade;
+    requestAnimationFrame(() => { $('f-bark').style.width = sc.bark + '%'; $('f-moist').style.width = sc.moisture + '%'; $('f-tender').style.width = sc.tender + '%'; });
+    const ul = $('notes'); ul.innerHTML = '';
+    for (const n of sc.notes) { const li = document.createElement('li'); li.textContent = n; ul.appendChild(li); }
+    drawSlices(sc);
+    $('scorecard').focus({ preventScroll: true });
+  }
+
+  function drawSlices(sc) {
+    // cross-sections: bark thickness from bark score, a pink smoke ring, and a moist sheen from moisture
+    const barkW = 2 + sc.bark / 20, sheen = sc.moisture / 100;
+    const barkCol = sc.bark > 70 ? '#1e120c' : sc.bark > 45 ? '#3b2417' : '#5a3a28';
+    let svg = '<rect width="320" height="120" fill="#caa678"/><g opacity=".22">' + Array.from({ length: 10 }, (_, i) => `<line x1="0" y1="${i * 13 + 4}" x2="320" y2="${i * 13 + 4}" stroke="#7a5a36"/>`).join('') + '</g>';
+    const meatCol = sc.tender > 60 ? '#9a5d46' : '#7c4a3a';
+    for (let i = 4; i >= 0; i--) {
+      // fanned slices, bark along the top edge, a pink smoke ring under it, fat seam near the bottom
+      const x = 18 + i * 12, y = 12 + i * 17, w = 250, h = 30;
+      svg += `<g transform="rotate(-4 ${x + w / 2} ${y + h / 2})">
+        <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="9" fill="${barkCol}"/>
+        <rect x="${x + 2}" y="${y + barkW}" width="${w - 4}" height="${h - barkW - 2}" rx="7" fill="#d1606b"/>
+        <rect x="${x + 4}" y="${y + barkW + 3}" width="${w - 8}" height="${h - barkW - 7}" rx="6" fill="${meatCol}"/>
+        <rect x="${x + 8}" y="${y + h - 8}" width="${w - 16}" height="3" rx="1.5" fill="#f1e2c6" opacity=".7"/>
+        ${Array.from({ length: 16 }, (_, j) => `<line x1="${x + 14 + j * 15}" y1="${y + barkW + 4}" x2="${x + 12 + j * 15}" y2="${y + h - 9}" stroke="#5a3022" stroke-width="1" opacity=".35"/>`).join('')}
+        <rect x="${x + 6}" y="${y + barkW + 4}" width="${w - 12}" height="6" rx="3" fill="#fff" opacity="${(sheen * .22).toFixed(2)}"/>
+      </g>`;
+    }
+    $('slice-art').innerHTML = svg;
+  }
+
+  // ---------- scene rendering ----------
+  const cv = $('scene'), ctx = cv.getContext('2d');
+  const ch = $('chart'), cctx = ch.getContext('2d');
+  const vr = mulberry32(SEED + 101);   // visual-only randomness, never touches the sim
+  const parts = [], embers = [];
+  function sparks(n) { for (let i = 0; i < (reduced ? 3 : n); i++) embers.push({ x: 600 + vr() * 60, y: 250, vx: (vr() - .5) * 2, vy: -1 - vr() * 2.5, life: 1 }); }
+
+  function sizeCanvases() {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = cv.clientWidth || 800;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(w * 440 / 800 * dpr);
+    const cw = ch.clientWidth || 600;
+    ch.width = Math.round(cw * dpr); ch.height = Math.round(150 * dpr);
+  }
+  const hex = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+  const mix = (a, b, t) => { const A = hex(a), B = hex(b); return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(',')})`; };
+  const SKY = [[0, '#070a1c', '#1a1d3a'], [330, '#0a0f28', '#23264a'], [385, '#262452', '#b8604a'], [430, '#4f79ad', '#f2b57c'], [510, '#6ba2d4', '#cfe2ee'], [720, '#5b98d2', '#d9ecf6']];
+  function skyAt(m) {
+    for (let i = 0; i < SKY.length - 1; i++) {
+      const [m0, a0, b0] = SKY[i], [m1, a1, b1] = SKY[i + 1];
+      if (m <= m1) { const t = clamp((m - m0) / (m1 - m0), 0, 1); return [mix(a0, a1, t), mix(b0, b1, t), clamp((m - 360) / 150, 0, 1)]; }
+    }
+    return [SKY[5][1], SKY[5][2], 1];
+  }
+  const stars = Array.from({ length: 70 }, () => ({ x: vr() * 800, y: vr() * 230, r: vr() * 1.3 + .3, p: vr() * 6 }));
+
+  function tree(x, base, s, col) {
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.moveTo(x - 6 * s, base); ctx.quadraticCurveTo(x - 2 * s, base - 50 * s, x - 30 * s, base - 80 * s);
+    ctx.lineTo(x - 22 * s, base - 84 * s); ctx.quadraticCurveTo(x + 4 * s, base - 60 * s, x + 30 * s, base - 88 * s);
+    ctx.lineTo(x + 36 * s, base - 82 * s); ctx.quadraticCurveTo(x + 8 * s, base - 50 * s, x + 8 * s, base); ctx.fill();
+    const blobs = [[-60, -95, 40, 22], [-20, -112, 48, 26], [30, -104, 50, 24], [72, -90, 36, 18], [0, -88, 70, 18], [-80, -82, 26, 12]];
+    for (const [dx, dy, rx, ry] of blobs) { ctx.beginPath(); ctx.ellipse(x + dx * s, base + dy * s, rx * s, ry * s, 0, 0, Math.PI * 2); ctx.fill(); }
+  }
+
+  function draw(tms) {
+    const W = cv.width, H = cv.height, k = W / 800;
+    ctx.setTransform(k, 0, 0, k, 0, 0);
+    const m = S.min;
+    const [top, bot, day] = skyAt(m);
+    const g = ctx.createLinearGradient(0, 0, 0, 380); g.addColorStop(0, top); g.addColorStop(1, bot);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 800, 440);
+    // stars and moon
+    const starA = clamp(1 - day * 1.6, 0, 1);
+    if (starA > 0) {
+      for (const s of stars) { ctx.globalAlpha = starA * (reduced ? .8 : .55 + .45 * Math.sin(tms / 900 + s.p)); ctx.fillStyle = '#fff6e0'; ctx.fillRect(s.x, s.y, s.r, s.r); }
+      ctx.globalAlpha = starA; ctx.fillStyle = '#f4ecd2';
+      const mx = 90 + m * 0.6, my = 80 + Math.pow((m - 200) / 220, 2) * 40;
+      ctx.beginPath(); ctx.arc(mx, my, 16, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = top; ctx.beginPath(); ctx.arc(mx + 7, my - 4, 14, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    if (day > 0) { ctx.globalAlpha = day; ctx.fillStyle = '#ffe9a8'; ctx.beginPath(); ctx.arc(700, 250 - day * 150, 20, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
+    // horizon: fence, trees, ground
+    const far = mix('#0c0b10', '#4c5a44', day), near = mix('#050506', '#2c3a24', day);
+    tree(70, 360, 1.1, far); tree(760, 360, .9, far);
+    ctx.fillStyle = mix('#0d0c0e', '#6b5a44', day);
+    for (let x = 0; x < 800; x += 18) ctx.fillRect(x, 318, 12, 44);
+    ctx.fillRect(0, 326, 800, 4); ctx.fillRect(0, 345, 800, 4);
+    ctx.fillStyle = mix('#120f0c', '#6f6440', day); ctx.fillRect(0, 360, 800, 80);
+    ctx.fillStyle = mix('#0b0908', '#51492f', day); ctx.fillRect(0, 392, 800, 48);
+    tree(-10, 440, 1.5, near);
+
+    // fire light on the ground
+    const glow = clamp(S.F, 0, 1.4) * (S.phase === 'ready' ? 0 : 1);
+    if (glow > .05) {
+      const rg = ctx.createRadialGradient(625, 380, 5, 625, 380, 200);
+      rg.addColorStop(0, `rgba(255,140,50,${.35 * glow * (1 - day * .7)})`); rg.addColorStop(1, 'rgba(255,140,50,0)');
+      ctx.fillStyle = rg; ctx.fillRect(400, 250, 400, 190);
+    }
+
+    // legs, wheel, rack
+    ctx.fillStyle = '#18181b';
+    ctx.fillRect(208, 300, 10, 88); ctx.fillRect(510, 300, 10, 92); ctx.fillRect(575, 300, 9, 92); ctx.fillRect(672, 300, 9, 92);
+    ctx.fillRect(208, 350, 312, 6);
+    // stacked splits on the rack
+    for (let i = 0; i < 5; i++) { const x = 250 + i * 46; ctx.fillStyle = '#5b3d27'; ctx.fillRect(x, 332, 40, 17); ctx.fillStyle = '#b08a60'; ctx.beginPath(); ctx.ellipse(x + 40, 340.5, 4, 8.5, 0, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = '#101012'; ctx.beginPath(); ctx.arc(213, 388, 24, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#3a3a40'; ctx.beginPath(); ctx.arc(213, 388, 8, 0, Math.PI * 2); ctx.fill();
+
+    // stack
+    const sg = ctx.createLinearGradient(186, 0, 214, 0); sg.addColorStop(0, '#2a2b30'); sg.addColorStop(.4, '#5a5c64'); sg.addColorStop(1, '#1b1c20');
+    ctx.fillStyle = sg; ctx.fillRect(186, 76, 28, 128);
+    ctx.fillStyle = '#26272c'; ctx.fillRect(180, 70, 40, 7);
+    // chamber
+    const bg = ctx.createLinearGradient(0, 186, 0, 314); bg.addColorStop(0, '#50525a'); bg.addColorStop(.25, '#2d2f35'); bg.addColorStop(.7, '#18191d'); bg.addColorStop(1, '#2c2d33');
+    ctx.fillStyle = bg; roundRect(168, 186, 400, 128, 58); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.08)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(200, 196); ctx.lineTo(540, 196); ctx.stroke();
+    ctx.strokeStyle = '#0c0c0e'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(172, 248); ctx.lineTo(566, 248); ctx.stroke();
+    // lid handle with a wood grip
+    ctx.fillStyle = '#1a1a1d'; ctx.fillRect(310, 206, 6, 18); ctx.fillRect(424, 206, 6, 18);
+    ctx.fillStyle = '#7a4f2e'; roundRect(300, 200, 140, 10, 5); ctx.fill();
+    // cutaway window with the brisket
+    ctx.save(); roundRect(252, 258, 230, 46, 10); ctx.clip();
+    const wg = ctx.createLinearGradient(0, 258, 0, 304); wg.addColorStop(0, '#1a0c06'); wg.addColorStop(1, `rgba(${120 + 100 * clamp(glow, 0, 1)},50,20,1)`);
+    ctx.fillStyle = wg; ctx.fillRect(252, 258, 230, 46);
+    ctx.strokeStyle = '#555'; ctx.lineWidth = 1.5; for (let x = 256; x < 482; x += 9) { ctx.beginPath(); ctx.moveTo(x, 294); ctx.lineTo(x + 4, 300); ctx.stroke(); }
+    ctx.fillStyle = '#6a6a70'; ctx.fillRect(252, 294, 230, 3);
+    if (S.phase === 'ready' || S.phase === 'cook') drawBrisket();
+    ctx.restore();
+    ctx.strokeStyle = '#0d0d10'; ctx.lineWidth = 4; roundRect(252, 258, 230, 46, 10); ctx.stroke();
+    // thermometer
+    drawDial(370, 226, 17);
+    // firebox
+    const fg = ctx.createLinearGradient(0, 214, 0, 322); fg.addColorStop(0, '#4a4c54'); fg.addColorStop(.5, '#1c1d21'); fg.addColorStop(1, '#2a2b31');
+    ctx.fillStyle = fg; roundRect(560, 214, 132, 108, 6); ctx.fill();
+    ctx.fillStyle = '#141417'; roundRect(578, 230, 96, 76, 4); ctx.fill();
+    // fire window
+    ctx.save(); roundRect(588, 240, 76, 38, 4); ctx.clip();
+    ctx.fillStyle = '#0a0503'; ctx.fillRect(588, 240, 76, 38);
+    const fl = glow * (reduced ? 1 : (.85 + .15 * Math.sin(tms / 90) * Math.sin(tms / 37)));
+    if (fl > .02) {
+      const fr = ctx.createRadialGradient(626, 276, 2, 626, 272, 44);
+      fr.addColorStop(0, `rgba(255,220,120,${clamp(fl, 0, 1)})`); fr.addColorStop(.45, `rgba(255,110,30,${clamp(fl * .8, 0, 1)})`); fr.addColorStop(1, 'rgba(120,20,0,0)');
+      ctx.fillStyle = fr; ctx.fillRect(588, 240, 76, 38);
+    }
+    const nl = Math.min(6, Math.ceil(S.logs - .15));
+    for (let i = 0; i < nl; i++) { const lx = 592 + (i % 3) * 22, ly = 270 - Math.floor(i / 3) * 8; ctx.fillStyle = '#3a2416'; ctx.fillRect(lx, ly, 22, 7); ctx.fillStyle = fl > .1 ? '#ff7a2a' : '#6a4a30'; ctx.beginPath(); ctx.ellipse(lx + 22, ly + 3.5, 2.5, 3.5, 0, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
+    ctx.strokeStyle = '#2b2c31'; ctx.lineWidth = 2; for (let y = 246; y < 278; y += 8) { ctx.beginPath(); ctx.moveTo(588, y); ctx.lineTo(664, y); ctx.stroke(); }
+    // star on the door
+    ctx.fillStyle = 'rgba(224,101,43,.9)'; starShape(626, 292, 7);
+    // vent damper
+    ctx.fillStyle = '#060607'; ctx.fillRect(590, 300, 72, 9);
+    ctx.fillStyle = '#56585f'; ctx.fillRect(590 + 72 * S.vent, 299, 72 * (1 - S.vent) + 2, 11);
+    ctx.fillStyle = '#8a8c94'; ctx.fillRect(590 + 72 * S.vent - 1, 297, 4, 15);
+
+    // smoke & sparks
+    stepParticles();
+    for (const p of parts) { ctx.globalAlpha = p.a * p.life; ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill(); }
+    ctx.globalAlpha = 1;
+    for (const e of embers) { ctx.globalAlpha = e.life; ctx.fillStyle = '#ffb347'; ctx.fillRect(e.x, e.y, 2.5, 2.5); }
+    ctx.globalAlpha = 1;
+    // clock label
+    ctx.fillStyle = 'rgba(234,220,194,.85)'; ctx.font = '700 15px ui-monospace, Consolas, monospace';
+    ctx.fillText(clock(m) + '  ·  air ' + Math.round(ambientAt(m)) + '°F' + (gustAt(m) && S.phase !== 'ready' ? '  ·  gusting' : ''), 16, 428);
+  }
+
+  function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+  function starShape(cx, cy, r) { ctx.beginPath(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * .45 : r; ctx.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); } ctx.closePath(); ctx.fill(); }
+  function drawBrisket() {
+    const bark = clamp(S.smokeMin / 300, 0, 1);
+    if (S.wrap === 'foil') {
+      const fg = ctx.createLinearGradient(0, 266, 0, 296); fg.addColorStop(0, '#eef1f4'); fg.addColorStop(.5, '#9ea5ad'); fg.addColorStop(1, '#d8dde2');
+      ctx.fillStyle = fg; roundRect(284, 266, 170, 29, 10); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 1; for (let x = 300; x < 450; x += 17) { ctx.beginPath(); ctx.moveTo(x, 268); ctx.lineTo(x - 6, 293); ctx.stroke(); }
+      return;
+    }
+    if (S.wrap === 'paper') {
+      ctx.fillStyle = '#c99a7c'; roundRect(284, 266, 170, 29, 8); ctx.fill();
+      ctx.fillStyle = 'rgba(90,40,20,.35)'; ctx.beginPath(); ctx.ellipse(370, 282, 60, 9, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(80,40,20,.5)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(300, 266); ctx.lineTo(330, 295); ctx.moveTo(440, 266); ctx.lineTo(410, 295); ctx.stroke();
+      return;
+    }
+    ctx.fillStyle = mix('#b8545a', '#23130c', bark);
+    ctx.beginPath(); ctx.moveTo(288, 294); ctx.quadraticCurveTo(290, 270, 330, 268); ctx.quadraticCurveTo(380, 262, 420, 270); ctx.quadraticCurveTo(452, 276, 452, 294); ctx.closePath(); ctx.fill();
+    // pepper flecks
+    ctx.fillStyle = 'rgba(0,0,0,.45)';
+    for (let i = 0; i < 40; i++) { const x = 296 + (i * 37) % 150, y = 272 + (i * 13) % 20; ctx.fillRect(x, y, 1.6, 1.6); }
+    ctx.fillStyle = `rgba(255,255,255,${.12 * (1 - bark)})`; ctx.beginPath(); ctx.ellipse(350, 272, 30, 3, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  function drawDial(x, y, r) {
+    ctx.fillStyle = '#e9e3d3'; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#8a8c94'; ctx.lineWidth = 3; ctx.stroke();
+    const ang = (t) => -Math.PI * 1.25 + clamp((t - 100) / 300, 0, 1) * Math.PI * 1.5;
+    ctx.strokeStyle = '#4e7d3a'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(x, y, r - 5, ang(225), ang(275)); ctx.stroke();
+    ctx.strokeStyle = '#b8431f'; ctx.beginPath(); ctx.arc(x, y, r - 5, ang(300), ang(400)); ctx.stroke();
+    const a = ang(S.pit);
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * (r - 3), y + Math.sin(a) * (r - 3)); ctx.stroke();
+  }
+
+  function stepParticles() {
+    const st = smokeState();
+    const gust = gustAt(S.min) && S.phase !== 'ready';
+    const rate = { none: .05, clean: .5, white: 1.3, dirty: 1.8 }[st] * (reduced ? .3 : 1);
+    let n = rate; while (n > 0) { if (vr() < n) {
+      const col = st === 'clean' ? '#a9c3de' : st === 'none' ? '#8a8a8a' : '#ece8e2';
+      parts.push({ x: 200 + (vr() - .5) * 14, y: 70, vx: (vr() - .3) * .5, vy: -.6 - vr() * .6, r: st === 'dirty' ? 7 : st === 'clean' ? 4 : 6, a: st === 'clean' ? .28 : st === 'dirty' ? .6 : .45, c: col, life: 1 });
+    } n -= 1; }
+    for (const p of parts) { p.x += p.vx + (gust ? 1.6 : .35); p.y += p.vy; p.r += .09; p.life -= .006; p.vx += (vr() - .5) * .05; }
+    for (const e of embers) { e.x += e.vx; e.y += e.vy; e.vy += .05; e.life -= .03; }
+    while (parts.length && parts[0].life <= 0) parts.shift();
+    for (let i = parts.length - 1; i >= 0; i--) if (parts[i].life <= 0 || parts[i].y < -20) parts.splice(i, 1);
+    for (let i = embers.length - 1; i >= 0; i--) if (embers[i].life <= 0) embers.splice(i, 1);
+    if (parts.length > 400) parts.splice(0, parts.length - 400);
+  }
+
+  function drawChart() {
+    const W = ch.width, H = ch.height, dpr = W / (ch.clientWidth || 1);
+    cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const w = W / dpr, h = H / dpr, L = 34, R = 8, T = 6, B = 18;
+    const X = (m) => L + (m / SERVICE) * (w - L - R), Y = (t) => T + (1 - (t - 40) / 360) * (h - T - B);
+    cctx.clearRect(0, 0, w, h);
+    cctx.fillStyle = 'rgba(143,176,122,.16)'; cctx.fillRect(L, Y(275), w - L - R, Y(225) - Y(275));
+    cctx.font = '10px ui-monospace, Consolas, monospace'; cctx.fillStyle = '#8f7f6b'; cctx.strokeStyle = 'rgba(234,220,194,.08)'; cctx.lineWidth = 1;
+    for (const t of [100, 200, 300, 400]) { cctx.beginPath(); cctx.moveTo(L, Y(t)); cctx.lineTo(w - R, Y(t)); cctx.stroke(); cctx.fillText(t + '°', 2, Y(t) + 3); }
+    for (let hh = 0; hh <= 12; hh += 3) cctx.fillText(hh === 0 ? '12a' : hh === 12 ? '12p' : hh + 'a', X(hh * 60) - 8, h - 4);
+    cctx.setLineDash([4, 4]); cctx.strokeStyle = 'rgba(231,163,125,.5)'; cctx.beginPath(); cctx.moveTo(L, Y(203)); cctx.lineTo(w - R, Y(203)); cctx.stroke(); cctx.setLineDash([]);
+    const line = (key, col) => { cctx.strokeStyle = col; cctx.lineWidth = 2; cctx.beginPath(); S.hist.forEach((p, i) => i ? cctx.lineTo(X(p.m), Y(p[key])) : cctx.moveTo(X(p.m), Y(p[key]))); cctx.stroke(); };
+    if (S.hist.length > 1) { line('pit', '#ff9a3d'); line('meat', '#f07e8c'); }
+    const mark = (m, label) => { if (m == null) return; cctx.strokeStyle = 'rgba(234,220,194,.5)'; cctx.beginPath(); cctx.moveTo(X(m), T); cctx.lineTo(X(m), h - B); cctx.stroke(); cctx.fillStyle = '#eadcc2'; cctx.fillText(label, X(m) + 3, T + 10); };
+    mark(S.wrapAt, 'wrap'); mark(S.pulledAt, 'pull');
+    if (S.stallStart != null) { cctx.fillStyle = 'rgba(143,177,207,.18)'; cctx.fillRect(X(S.stallStart), T, X(S.stallEnd ?? S.min) - X(S.stallStart), h - T - B); }
+  }
+
+  // ---------- loop ----------
+  let last = performance.now(), acc = 0, lastSync = 0;
+  function frame(now) {
+    const dt = Math.min(5000, Math.max(0, now - last)); last = now;
+    if (running && (S.phase === 'cook' || S.phase === 'rest')) {
+      acc += dt / 1000 * MIN_PER_SEC * speed;
+      let guard = 0;
+      while (acc >= 1 && guard++ < 1000 && (S.phase === 'cook' || S.phase === 'rest')) { step(); acc -= 1; }
+    }
+    draw(now);
+    if (now - lastSync > 120) { sync(); drawChart(); lastSync = now; }
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- wiring ----------
+  startBtn.addEventListener('click', () => { if (S.phase === 'ready') start(); else { running = !running; sync(); } });
+  woodBtn.addEventListener('click', addWood);
+  ventEl.addEventListener('input', () => setVent(ventEl.value / 100));
+  paperBtn.addEventListener('click', () => wrap('paper'));
+  foilBtn.addEventListener('click', () => wrap('foil'));
+  pullBtn.addEventListener('click', () => { pull(); sliceBtn.focus(); });
+  sliceBtn.addEventListener('click', slice);
+  $('again').addEventListener('click', reset);
+  document.querySelectorAll('[data-speed]').forEach((b) => b.addEventListener('click', () => {
+    speed = +b.dataset.speed;
+    document.querySelectorAll('[data-speed]').forEach((o) => o.setAttribute('aria-pressed', String(o === b)));
+  }));
+  document.addEventListener('keydown', (e) => {
+    if (e.target.closest('input, textarea') || e.ctrlKey || e.metaKey || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (k === 'w') addWood();
+    else if (k === 'p' && S.phase !== 'ready' && S.phase !== 'done') { running = !running; sync(); }
+    else if (k === '[') setVent(S.vent - .05);
+    else if (k === ']') setVent(S.vent + .05);
+  });
+  window.addEventListener('resize', () => { sizeCanvases(); drawChart(); });
+
+  function reset() {
+    S = fresh(); running = false; acc = 0; logEl.innerHTML = ''; parts.length = 0;
+    ventEl.value = 50; $('scorecard').hidden = true;
+    ['f-bark', 'f-moist', 'f-tender'].forEach((id) => { $(id).style.width = '0'; });
+    note('Brisket is trimmed and rubbed with coarse salt and black pepper. Light the fire when you are ready.');
+    sync(); drawChart();
+  }
+
+  // ---------- test hook ----------
+  window.__pit = {
+    seed: SEED, plan,
+    get state() { return JSON.parse(JSON.stringify({ ...S, hist: undefined, log: undefined })); },
+    get running() { return running; },
+    step(n = 1) { for (let i = 0; i < n; i++) step(); sync(); drawChart(); return S.min; },
+    stepUntil(pred, max = 800) { let i = 0; while (i++ < max && (S.phase === 'cook' || S.phase === 'rest') && !pred(S)) step(); sync(); drawChart(); return S.min; },
+    addWood, setVent, wrap, pull, slice, start,
+    pause() { running = false; sync(); },
+    log: () => S.log.map((l) => l.text),
+    ambientAt, smokeState: () => smokeState()
+  };
+
+  S = fresh();
+  sizeCanvases();
+  reset();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

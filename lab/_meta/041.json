@@ -1,0 +1,36 @@
+{
+  "id": "041",
+  "slug": "041-pitmaster",
+  "file": "lab/041-pitmaster.html",
+  "title": "Pitmaster — a Texas brisket smoking game",
+  "category": "Games",
+  "tags": ["canvas", "simulation", "game", "seeded-prng", "page-clock"],
+  "description": "Run an offset smoker through an overnight Central Texas brisket cook, midnight to noon squeezed into a few minutes: feed post oak splits, work the firebox vent through wind gusts and a cold front, and ride out the stall. Wrap in butcher paper or foil (or don't), pull it, rest it, and slice for a score on bark, moisture and tenderness.",
+  "prompt": "Build me a Texas-style brisket smoking game. A 12-hour overnight cook on an offset smoker, compressed into a few minutes: I manage the fire by adding post oak splits and adjusting the firebox vent to hold the pit in the sweet spot while the internal temperature climbs. Model the stall properly, let me decide when to wrap (butcher paper vs foil, with real trade-offs), then pull, rest and slice for a score on bark, moisture and tenderness. Draw an illustrated offset smoker with smoke coming out of the stack that shows whether the fire is clean or choked, add a live temperature chart, make it deterministic with ?seed=, and expose a window.__pit hook so the whole cook can be tested.",
+  "qa": {
+    "methodology": [
+      "Model oracles on a fixed seed: a starved fire (vent at 10%) must report dirty smoke, and a fire that is never fed must burn down to coals with the pit falling below 170°F.",
+      "Behavioural A/B inside one test: the same seeded night is cooked once wrapped in paper at 165°F and once unwrapped, and the wrapped brisket must climb at least 1.5 times faster over the next hour.",
+      "End-to-end scoring through the real buttons (wrap, pull, slice): a careful cook must score 90 or more, while a rushed cook (pulled at 190°F, 20-minute rest) must lose at least 15 points and explain why in the notes.",
+      "Time-based test of the real game loop with page.clock: 10 seconds at 1× must be about 30 game minutes, 4× must multiply it, and pause must freeze it.",
+      "Determinism: the same seed gives the same weather plan and the same final score; a different seed gives a different night. The noon deadline must force a pull and service.",
+      "Screenshot review at 1280px and 390px, plus a letter-spacing stress check for overflow at 360–412px."
+    ],
+    "risks": [
+      "Tuning drift: small changes to the heat or evaporation constants move when the stall starts and can quietly break the 'good cook scores 90+' promise.",
+      "Frame-rate coupling: the game clock must add up elapsed time, not count frames, or slow phones would cook slower.",
+      "An exponential-only wood burn never reaches zero, so a neglected fire never dies. This bug turned up in the first run of the spec and was fixed with a constant burn term.",
+      "The scorecard and rest phase share buttons with the cook phase, so hidden/disabled state is easy to get wrong."
+    ],
+    "playwright": "The cook is a fixed-step simulation (one step is one game minute), so most tests pause the real-time loop and drive it through window.__pit.step() while tending the fire the way a player would. Wrapping, pulling and slicing are still real button clicks. Only one test exercises the requestAnimationFrame loop, using page.clock.install, then pauseAt, then runFor, and it allows ±1 game minute because accumulated frame deltas round. Weather comes only from ?seed= through mulberry32, and the smoke particles use a separate random stream so visuals never change the outcome. The canvas is never pixel-asserted: the readouts, stall badge, log and scorecard carry data-testids and are the oracles.",
+    "coverage": [
+      "Real-time loop speed at 1× and 4×, and pause",
+      "Adding splits by button and by the W key; an overpacked firebox runs hot; vent tuning brings the pit into the zone",
+      "Starved fire gives dirty smoke; a neglected fire dies to coals",
+      "Stall detection, the badge, and the butcher-paper wrap compared with an unwrapped cook",
+      "Full cook through wrap, pull, rest and slice scores 90+; a rushed cook scores low with an explanation",
+      "Seeded determinism and the noon service deadline"
+    ]
+  },
+  "a11y": "Every action is a native button or a labelled range input, with keyboard shortcuts (W adds a split, P pauses, [ and ] move the vent). Pit notes are an aria-live log, the scorecard gets focus when it appears, and the canvas and chart have text descriptions while all their key numbers are shown as text too."
+}

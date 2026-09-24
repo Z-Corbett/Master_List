@@ -1,0 +1,35 @@
+{
+  "id": "039",
+  "slug": "039-color-system-studio",
+  "file": "lab/039-color-system-studio.html",
+  "title": "Color System Studio — Accessible OKLCH Palettes",
+  "category": "Tools",
+  "tags": ["color", "oklch", "wcag-contrast", "design-tokens", "localStorage"],
+  "description": "Build an accessible design-token palette: pick brand hues and chroma, and each palette becomes an eleven-step 50–950 ramp generated in OKLCH and converted to sRGB with real gamut clipping. A WCAG contrast matrix grades every text-on-background pair, light and dark previews of a sample UI run their own contrast checks, and the whole system exports as CSS custom properties or JSON design tokens.",
+  "prompt": "Build 'Color System Studio', an accessible design-token palette builder. Let me pick brand hues, generate 50–950 ramps in OKLCH — implement the OKLCH → OKLab → linear sRGB conversion yourself, with gamut clipping that reduces chroma while keeping lightness and hue, and flag the steps that were clipped. Add a WCAG contrast matrix of text-on-background pairs with real ratios and AA / AA-large / AAA badges, a light and dark preview of a small sample UI built from semantic tokens with pass/fail checks, and export as CSS custom properties or JSON tokens (hex or oklch notation). Persist my palettes. Keep the page itself Swiss and nearly colourless — black rules, big grotesque type, one red accent — so the palette is the only colour that matters.",
+  "qa": {
+    "methodology": [
+      "Reference values for the colour maths: OKLCH coordinates of pure sRGB red, CSS green, mid grey, white and black must convert to exactly #ff0000, #008000, #808080, #ffffff and #000000.",
+      "Independent oracle for contrast: the spec carries its own WCAG 2 luminance and ratio implementation and checks a full matrix row, cell by cell, against the page's ratios and badges.",
+      "Gamut-boundary property test: the clipped chroma must be in gamut while chroma + 0.002 is out — proving the binary search lands on the sRGB edge rather than clipping arbitrarily.",
+      "Monotonicity and format invariants: every ramp has eleven valid hex values whose luminance strictly decreases from 50 to 950.",
+      "Behavioural checks on the semantic layer: the defaults pass all light and dark checks, and a bright yellow primary still yields a readable on-primary label.",
+      "Export round-trip: the JSON export is parsed in the test, palettes and semantic tokens are verified, and a renamed palette survives a reload."
+    ],
+    "risks": [
+      "Rounding at the AA threshold: ratios are truncated (not rounded) to two decimals for display so a 4.495 never shows as a passing 4.50.",
+      "Contrast is computed from the 8-bit hex that ships, not the unrounded float colour, otherwise the badge could disagree with the exported token.",
+      "Re-rendering the palette while a range slider is being dragged would drop the pointer; only the ramp and outputs are patched in place during input."
+    ],
+    "playwright": "This page is maths-heavy, so the spec leans on oracles instead of screenshots: known conversion values evaluated through a small window.__color hook, and an independent WCAG implementation inside the test file to recompute ratios from the data-fg/data-bg attributes on each matrix cell. Sliders are set with locator.fill(), which fires input events on range controls. The gamut test checks a property (inside at the boundary, outside just beyond it) rather than a magic chroma number, so it stays valid if the ramp's lightness curve is tuned. Colour is never judged from pixels.",
+    "coverage": [
+      "OKLCH to sRGB reference conversions",
+      "Ramp validity, darkening order, hue slider effect and export sync",
+      "Gamut clipping at high chroma, none at low chroma, boundary property",
+      "Contrast matrix ratios and grades against an independent WCAG oracle",
+      "Light and dark semantic checks; on-primary label selection",
+      "CSS and JSON export, oklch notation, add and rename palette, reload persistence"
+    ]
+  },
+  "a11y": "Every slider and field is labelled, swatches are buttons named with their step, hex value and clip status, and the contrast matrix is a real table with row and column headers inside a keyboard-scrollable region. Grades are text badges (AAA, AA, AA LG, FAIL), never colour alone."
+}

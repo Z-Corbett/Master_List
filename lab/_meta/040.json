@@ -1,0 +1,35 @@
+{
+  "id": "040",
+  "slug": "040-motion-curves",
+  "file": "lab/040-motion-curves.html",
+  "title": "Motion Curves — Easing and Spring Editor",
+  "category": "Generative",
+  "tags": ["easing", "cubic-bezier", "spring-physics", "web-animations", "reduced-motion"],
+  "description": "An easing editor: drag cubic-bézier handles (or nudge them with the keyboard), or switch to a spring whose stiffness, damping and mass are integrated numerically, and see overshoot, damping ratio and settle time. Preview the curve on slide, scale, fade and drop motions with a scrubber, pin curves to compare on one millisecond timeline, and export CSS as cubic-bezier() or a simplified linear() spring — with duration guidance and a prefers-reduced-motion fallback.",
+  "prompt": "Build 'Motion Curves', an easing editor. Let me drag cubic-bezier handles, or switch to a spring model with stiffness, damping and mass that you integrate numerically (show the damping ratio, overshoot and how long it takes to settle). Compare several curves on the same timeline, preview the current one on sample UI motions — slide, scale, fade and a bounce/drop — with a scrubber, give duration guidance, and show a prefers-reduced-motion alternative (and honour the real setting). Export CSS: cubic-bezier() for béziers and linear() for springs, sampled and simplified so it stays short. Make it look like an oscilloscope — dark phosphor green, glowing traces.",
+  "qa": {
+    "methodology": [
+      "Physics oracle: with k = 170, c = 8, m = 1 the damping ratio must match c / 2√(km) and the simulated overshoot must be within 0.5 percentage points of the analytic value exp(−ζπ / √(1 − ζ²)) ≈ 36.3%.",
+      "Curve oracle: the page's own bezierAt is checked against symmetry (ease-in-out reads exactly 0.500 at 50%) and the readouts are recomputed from the handle values inside the test.",
+      "Real rendering, not just maths: the preview is paused at 50% via the scrubber and the element's computed transform and opacity are compared with the curve value.",
+      "Export validity: the generated linear() is checked with CSS.supports and its duration must match the displayed settle time.",
+      "Pointer and keyboard editing: a handle is dragged to a target in curve space, then nudged with Shift+Arrow below zero to trigger the anticipation warning, with focus kept on the handle.",
+      "Reduced motion via emulateMedia: the page must detect the preference, switch previews to a fade with no translation, and emit the @media fallback."
+    ],
+    "risks": [
+      "Integration error in the spring: 1 ms semi-implicit Euler steps keep overshoot within about 0.1 percentage points of the closed-form value; larger steps drift.",
+      "linear() simplification tolerance: too coarse and the exported spring visibly differs from the preview; too fine and the CSS balloons.",
+      "Coordinate mapping between the scaled SVG and the curve space at narrow widths, which would put dragged handles in the wrong place."
+    ],
+    "playwright": "Animation timing is the classic hard case, so the spec never races a running animation: the preview uses the Web Animations API with paused animations whose currentTime is driven by a scrubber, which makes 'what does the element look like at 50%?' deterministic. page.clock wasn't needed because nothing depends on wall time. Reduced motion is exercised with page.emulateMedia({ reducedMotion: 'reduce' }) before navigation. Handle dragging maps curve coordinates to screen pixels from the SVG's bounding box, which works on both the desktop and Pixel 7 projects. The first run's hard-coded '> 5% overshoot' was replaced with a recomputed oracle from the handle values — a better test than a guessed threshold.",
+    "coverage": [
+      "Presets, symmetric midpoint, ease-out midpoint, duration guidance bands",
+      "Pointer drag to overshoot, keyboard nudge to anticipation, focus retention",
+      "Spring damping ratio, analytic overshoot, overdamped regime, linear() validity and duration",
+      "Scrubbed preview matches the curve on transform and opacity",
+      "Pin, race and unpin curves on the comparison timeline",
+      "Reduced-motion detection, fade-only preview and CSS fallback"
+    ]
+  },
+  "a11y": "Bézier handles are focusable role=slider elements movable with arrow keys (Shift for larger steps), all parameters also have labelled numeric or range inputs, and readouts are in a live region. The page follows prefers-reduced-motion by default and offers a manual toggle to preview the reduced alternative."
+}

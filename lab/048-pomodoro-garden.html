@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pomodoro Garden — a focus timer that grows wildflowers</title>
+<meta name="description" content="A focus timer with work, short break and long break sessions. Every completed focus session plants something in your garden (bluebonnets, paintbrush, prickly pear or a live oak, depending on its length), with a streak calendar, daily stats and a gentle chime. Everything is saved on your device.">
+<style>
+  :root {
+    --cream: #f7f2e8;
+    --card: #fffdf8;
+    --ink: #2f3a2c;
+    --ink-2: #6c7566;
+    --line: #e4dccb;
+    --sage: #6f8f5f;
+    --sage-2: #4f6e42;
+    --terra: #c8643b;
+    --soil: #6b4a33;
+    --soil-2: #574029;
+    --sky: #dfeaf0;
+    --blue: #3f5fb0;
+    --rounded: ui-rounded, "SF Pro Rounded", "Nunito", "Varela Round", "Segoe UI", system-ui, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--cream); color: var(--ink); font: 16px/1.5 var(--rounded); overflow-x: hidden;
+    background-image: radial-gradient(circle at 10% 0%, rgba(111, 143, 95, .16), transparent 40%), radial-gradient(circle at 100% 20%, rgba(200, 100, 59, .10), transparent 35%); }
+  :focus-visible { outline: 3px solid var(--terra); outline-offset: 2px; }
+  button, input { font: inherit; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 30; font: 700 12.5px/1 var(--rounded); color: var(--sage-2); text-decoration: none; background: var(--card);
+    border: 2px solid var(--line); padding: 8px 12px; border-radius: 999px; }
+  a.back:hover { border-color: var(--sage); }
+
+  .wrap { max-width: 1140px; margin: 0 auto; padding: 60px 20px 40px; }
+  header { text-align: center; margin-bottom: 22px; }
+  h1 { margin: 0; font: 800 clamp(34px, 6vw, 56px)/1.05 var(--rounded); letter-spacing: -.02em; color: var(--sage-2); }
+  h1 span { color: var(--terra); }
+  header p { margin: 8px auto 0; max-width: 56ch; color: var(--ink-2); }
+
+  .top { display: grid; grid-template-columns: minmax(0, 360px) minmax(0, 1fr); gap: 20px; align-items: stretch; }
+  .card { background: var(--card); border: 2px solid var(--line); border-radius: 24px; padding: 20px; min-width: 0; }
+  .card h2 { margin: 0 0 12px; font: 800 13px/1 var(--rounded); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); }
+
+  .modes { display: flex; gap: 4px; background: var(--cream); padding: 4px; border-radius: 999px; margin-bottom: 14px; }
+  .modes button { flex: 1; min-width: 0; min-height: 40px; border: 0; background: transparent; border-radius: 999px; cursor: pointer; font-weight: 700; font-size: 14px; color: var(--ink-2); padding: 0 6px; }
+  .modes button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 4px rgba(47, 58, 44, .15); }
+  .dial { position: relative; width: min(100%, 270px); margin: 0 auto; aspect-ratio: 1; }
+  .dial svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .dial .track { fill: none; stroke: var(--line); stroke-width: 12; }
+  .dial .prog { fill: none; stroke: var(--terra); stroke-width: 12; stroke-linecap: round; transition: stroke-dashoffset .25s linear, stroke .3s; }
+  .dial.short .prog { stroke: var(--sage); } .dial.long .prog { stroke: var(--blue); }
+  .dial .center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .time { font: 800 clamp(44px, 12vw, 60px)/1 var(--rounded); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+  .label { font-weight: 700; color: var(--ink-2); margin-top: 6px; font-size: 14px; }
+  .seedling { font-size: 12.5px; line-height: 1.3; color: var(--sage-2); margin-top: 4px; min-height: 2.6em; text-align: center; max-width: 62%; }
+  .actions { display: flex; gap: 8px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
+  .btn { min-height: 48px; padding: 0 20px; border-radius: 999px; border: 2px solid var(--line); background: var(--card); color: var(--ink); font-weight: 800; cursor: pointer; }
+  .btn:hover { border-color: var(--sage); }
+  .btn.go { background: var(--terra); border-color: var(--terra); color: #fff; min-width: 130px; }
+  .btn.go:hover { background: #b5552f; }
+  .cycle { display: flex; justify-content: center; gap: 6px; margin-top: 12px; }
+  .cycle i { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--sage); }
+  .cycle i.on { background: var(--sage); }
+
+  /* garden */
+  .garden { display: flex; flex-direction: column; }
+  .garden-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 6px 16px; }
+  .garden-head h2 { margin: 0; }
+  .garden-head span { color: var(--ink-2); font-size: 14px; }
+  .scene { margin-top: 12px; border-radius: 18px; overflow: hidden; background: linear-gradient(var(--sky) 0 55%, #cfe0c4 55% 100%); position: relative; flex: 1; min-height: 240px; display: flex; flex-direction: column; justify-content: flex-end; }
+  .sun { position: absolute; top: 18px; right: 26px; width: 44px; height: 44px; border-radius: 50%; background: #f6d56b; box-shadow: 0 0 0 10px rgba(246, 213, 107, .25); }
+  .hills { position: absolute; left: 0; right: 0; top: 36%; height: 30%; }
+  .bed { position: relative; margin: 0 14px 14px; background: var(--soil); border-radius: 12px; border-bottom: 10px solid var(--soil-2); padding: 12px 10px 6px; display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 2px 4px; min-height: 130px; align-content: end; }
+  .plot { position: relative; height: 118px; display: flex; align-items: flex-end; justify-content: center; }
+  .plot::after { content: ""; position: absolute; bottom: 0; left: 18%; right: 18%; height: 8px; border-radius: 50%; background: rgba(0, 0, 0, .25); }
+  .plot svg { width: 72px; height: 110px; position: relative; z-index: 1; transform-origin: 50% 100%; }
+  .plot.new svg { animation: grow 1.2s cubic-bezier(.2, .9, .3, 1.3); }
+  @keyframes grow { from { transform: scale(.1); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .empty-bed { grid-column: 1 / -1; color: #e8d9c6; text-align: center; font-size: 14px; padding: 30px 10px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px; font-size: 13px; color: var(--ink-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend svg { width: 18px; height: 26px; }
+
+  .grid2 { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 20px; margin-top: 20px; }
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .stat { background: var(--cream); border-radius: 16px; padding: 12px; min-width: 0; }
+  .stat span { display: block; font-size: 12px; font-weight: 700; color: var(--ink-2); text-transform: uppercase; letter-spacing: .06em; }
+  .stat b { font: 800 26px/1.2 var(--rounded); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .cal-wrap { overflow-x: auto; margin-top: 16px; padding-bottom: 4px; }
+  .cal { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 20px); gap: 4px; width: max-content; }
+  .cal i { width: 20px; height: 20px; border-radius: 5px; background: #ece5d6; display: block; }
+  .cal i[data-level="1"] { background: #c7d9b8; } .cal i[data-level="2"] { background: #97b884; } .cal i[data-level="3"] { background: #6f8f5f; } .cal i[data-level="4"] { background: #3f5f33; }
+  .cal i.today { outline: 2px solid var(--terra); outline-offset: 1px; }
+  .cal i.future { visibility: hidden; }
+  .cal-legend { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--ink-2); margin-top: 8px; flex-wrap: wrap; }
+  .cal-legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .streak { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 14px; font-size: 14px; color: var(--ink-2); }
+  .streak b { color: var(--terra); font-size: 18px; }
+
+  .settings .field { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--line); }
+  .settings label { font-weight: 600; min-width: 0; }
+  .settings input[type=number] { width: 84px; min-height: 40px; border: 2px solid var(--line); border-radius: 12px; padding: 0 10px; background: var(--cream); color: var(--ink); text-align: right; max-width: 100%; flex: none; }
+  .settings input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--sage); flex: none; }
+  .settings .note { font-size: 13px; color: var(--ink-2); margin: 10px 0 0; }
+  .danger { margin-top: 12px; background: transparent; border: 2px dashed var(--line); color: var(--ink-2); min-height: 42px; border-radius: 12px; width: 100%; cursor: pointer; font-weight: 700; }
+  .danger.armed { border-color: var(--terra); color: var(--terra); }
+  footer { margin-top: 24px; text-align: center; color: var(--ink-2); font-size: 13px; }
+
+  @media (max-width: 860px) { .top, .grid2 { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 480px) {
+    .wrap { padding: 56px 12px 30px; }
+    .card { padding: 16px; border-radius: 20px; }
+    .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .bed { grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); }
+    .plot svg { width: 56px; height: 86px; }
+    .plot { height: 92px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .plot.new svg { animation: none; } .dial .prog { transition: none; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+
+<div class="wrap">
+  <header>
+    <h1>Pomodoro <span>Garden</span></h1>
+    <p>Focus for a while, and something grows. Short sessions sprout Indian paintbrush, a classic 25 grows a bluebonnet, longer stretches earn prickly pear and, eventually, a live oak.</p>
+  </header>
+
+  <div class="top">
+    <section class="card" aria-label="Timer">
+      <div class="modes" role="group" aria-label="Session type">
+        <button data-mode="focus" data-testid="mode-focus" aria-pressed="true">Focus</button>
+        <button data-mode="short" data-testid="mode-short" aria-pressed="false">Short break</button>
+        <button data-mode="long" data-testid="mode-long" aria-pressed="false">Long break</button>
+      </div>
+      <div class="dial" id="dial">
+        <svg viewBox="0 0 120 120" aria-hidden="true"><circle class="track" cx="60" cy="60" r="52"/><circle class="prog" id="prog" cx="60" cy="60" r="52" stroke-dasharray="326.73" stroke-dashoffset="0"/></svg>
+        <div class="center">
+          <div class="time" data-testid="time" role="timer" aria-live="off">25:00</div>
+          <div class="label" data-testid="mode-label">Focus</div>
+          <div class="seedling" data-testid="will-grow">This session grows a bluebonnet</div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn go" data-testid="start">Start</button>
+        <button class="btn" data-testid="reset">Reset</button>
+        <button class="btn" data-testid="skip">Skip</button>
+      </div>
+      <div class="cycle" data-testid="cycle" aria-label="Focus sessions until the long break"></div>
+      <p class="sr" data-testid="announce" aria-live="polite" style="position:absolute;left:-9999px"></p>
+    </section>
+
+    <section class="card garden" aria-label="Garden">
+      <div class="garden-head"><h2>Today's bed</h2><span data-testid="garden-total">0 plants all-time</span></div>
+      <div class="scene">
+        <div class="sun" aria-hidden="true"></div>
+        <svg class="hills" viewBox="0 0 400 60" preserveAspectRatio="none" aria-hidden="true"><path d="M0 60 Q60 10 130 35 T260 25 T400 30 V60 Z" fill="#b9d1a8"/><path d="M0 60 Q90 30 180 45 T400 40 V60 Z" fill="#a6c393"/></svg>
+        <div class="bed" data-testid="bed"></div>
+      </div>
+      <div class="legend" data-testid="legend"></div>
+    </section>
+  </div>
+
+  <div class="grid2">
+    <section class="card" aria-label="Stats">
+      <h2>Today</h2>
+      <div class="stats">
+        <div class="stat"><span>Focus minutes</span><b data-testid="today-minutes">0</b></div>
+        <div class="stat"><span>Sessions</span><b data-testid="today-sessions">0</b></div>
+        <div class="stat"><span>Breaks</span><b data-testid="today-breaks">0</b></div>
+        <div class="stat"><span>This week</span><b data-testid="week-minutes">0 m</b></div>
+      </div>
+      <div class="streak"><span>Current streak <b data-testid="streak">0 days</b></span><span>Best <b data-testid="best-streak">0 days</b></span></div>
+      <div class="cal-wrap"><div class="cal" data-testid="calendar" role="img" aria-label="Focus sessions per day over the last 12 weeks"></div></div>
+      <div class="cal-legend" aria-hidden="true">Less <i style="background:#ece5d6"></i><i style="background:#c7d9b8"></i><i style="background:#97b884"></i><i style="background:#6f8f5f"></i><i style="background:#3f5f33"></i> More</div>
+    </section>
+
+    <section class="card settings" aria-label="Settings">
+      <h2>Settings</h2>
+      <div class="field"><label for="s-focus">Focus (minutes)</label><input type="number" id="s-focus" min="1" max="120" data-testid="set-focus"></div>
+      <div class="field"><label for="s-short">Short break</label><input type="number" id="s-short" min="1" max="30" data-testid="set-short"></div>
+      <div class="field"><label for="s-long">Long break</label><input type="number" id="s-long" min="1" max="60" data-testid="set-long"></div>
+      <div class="field"><label for="s-every">Long break after</label><input type="number" id="s-every" min="2" max="8" data-testid="set-every"></div>
+      <div class="field"><label for="s-auto">Auto-start the next session</label><input type="checkbox" id="s-auto" data-testid="set-auto"></div>
+      <div class="field"><label for="s-sound">Chime when a session ends</label><input type="checkbox" id="s-sound" data-testid="set-sound"></div>
+      <p class="note">No notifications, no accounts. Everything lives in this browser's storage.</p>
+      <button class="danger" data-testid="clear-history">Clear garden &amp; history</button>
+    </section>
+  </div>
+  <footer>Species by session length: under 20 min Indian paintbrush · 20–34 bluebonnet · 35–49 prickly pear · 50+ live oak.</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const KEY = 'pomodoro-garden-v1';
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- species ----------
+  const SPECIES = [
+    { id: 'paintbrush', name: 'Indian paintbrush', min: 0, svg: '<path d="M30 80 C30 60 31 45 30 30" stroke="#5b8a3a" stroke-width="3" fill="none"/><path d="M30 62 q-9 -4 -12 -12 M30 55 q9 -3 11 -11" stroke="#5b8a3a" stroke-width="2.5" fill="none"/><path d="M30 12 C22 16 21 26 24 32 C26 36 34 36 36 32 C39 26 38 16 30 12 Z" fill="#e0512f"/><path d="M26 22 l-4 -3 M34 22 l4 -3 M30 18 l0 -5 M25 29 l-4 0 M35 29 l4 0" stroke="#f08a4b" stroke-width="2.5" stroke-linecap="round"/>' },
+    { id: 'bluebonnet', name: 'Bluebonnet', min: 20, svg: '<path d="M30 80 C30 62 30 48 30 34" stroke="#4f7d3a" stroke-width="3" fill="none"/><g fill="#6c9a4f"><ellipse cx="20" cy="66" rx="7" ry="2.6" transform="rotate(-30 20 66)"/><ellipse cx="22" cy="72" rx="7" ry="2.6" transform="rotate(10 22 72)"/><ellipse cx="40" cy="66" rx="7" ry="2.6" transform="rotate(30 40 66)"/><ellipse cx="38" cy="72" rx="7" ry="2.6" transform="rotate(-10 38 72)"/></g><g fill="#3553b8"><circle cx="30" cy="38" r="5"/><circle cx="24" cy="34" r="4.5"/><circle cx="36" cy="34" r="4.5"/><circle cx="26" cy="27" r="4"/><circle cx="34" cy="27" r="4"/><circle cx="30" cy="21" r="3.6"/><circle cx="30" cy="31" r="4.2"/></g><circle cx="30" cy="14" r="3.4" fill="#f6f4ee"/><circle cx="27" cy="18" r="2" fill="#dfe6ff"/><circle cx="33" cy="18" r="2" fill="#dfe6ff"/>' },
+    { id: 'pricklypear', name: 'Prickly pear', min: 35, svg: '<g fill="#6d9c52" stroke="#4d7a38" stroke-width="1.5"><ellipse cx="30" cy="64" rx="11" ry="15"/><ellipse cx="19" cy="42" rx="8" ry="11" transform="rotate(-25 19 42)"/><ellipse cx="40" cy="40" rx="9" ry="12" transform="rotate(20 40 40)"/></g><g fill="#f3e3a0"><circle cx="26" cy="58" r="1"/><circle cx="34" cy="62" r="1"/><circle cx="29" cy="70" r="1"/><circle cx="18" cy="40" r="1"/><circle cx="42" cy="38" r="1"/><circle cx="39" cy="46" r="1"/></g><ellipse cx="44" cy="27" rx="4" ry="5" fill="#b8325a"/><circle cx="15" cy="30" r="5" fill="#f5c542"/><circle cx="15" cy="30" r="2" fill="#e08a2b"/>' },
+    { id: 'liveoak', name: 'Live oak', min: 50, svg: '<path d="M28 80 C29 66 26 58 22 52 M30 80 C31 66 34 58 40 52 M29 80 L30 56" stroke="#6b4a33" stroke-width="4" fill="none" stroke-linecap="round"/><g fill="#3f6b36"><ellipse cx="30" cy="36" rx="24" ry="14"/><ellipse cx="16" cy="44" rx="12" ry="8"/><ellipse cx="44" cy="44" rx="12" ry="8"/></g><g fill="#58874a"><ellipse cx="24" cy="31" rx="10" ry="6"/><ellipse cx="38" cy="33" rx="9" ry="5"/></g>' },
+  ];
+  const speciesFor = (min) => [...SPECIES].reverse().find((s) => min >= s.min);
+  const plantSvg = (s, label) => `<svg viewBox="0 0 60 82" role="img" aria-label="${label}">${s.svg}</svg>`;
+
+  // ---------- persistence ----------
+  const DEFAULTS = { focus: 25, short: 5, long: 15, every: 4, auto: false, sound: true };
+  let db = { settings: { ...DEFAULTS }, log: [], timer: null };
+  try { const raw = localStorage.getItem(KEY); if (raw) { const d = JSON.parse(raw); db = { settings: { ...DEFAULTS, ...(d.settings || {}) }, log: Array.isArray(d.log) ? d.log : [], timer: d.timer || null }; } } catch (e) { /* storage unavailable */ }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { /* ignore */ } }
+
+  // ---------- timer state ----------
+  const S = db.settings;
+  let mode = 'focus', running = false, endAt = 0, remaining = S.focus * 60000, total = S.focus * 60000, cycle = 0, lastPlant = -1;
+  if (db.timer) ({ mode, running, endAt, remaining, total, cycle } = { ...{ mode, running, endAt, remaining, total, cycle }, ...db.timer });
+  const lenOf = (m) => (m === 'focus' ? S.focus : m === 'short' ? S.short : S.long) * 60000;
+  function persistTimer() { db.timer = { mode, running, endAt, remaining, total, cycle }; save(); }
+
+  const dayKey = (t) => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  const fmt = (ms) => { const s = Math.max(0, Math.ceil(ms / 1000)); return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
+  const NAMES = { focus: 'Focus', short: 'Short break', long: 'Long break' };
+
+  function setMode(m, keepRunning = false) {
+    mode = m; total = lenOf(m); remaining = total; running = keepRunning; endAt = keepRunning ? Date.now() + total : 0;
+    persistTimer(); render();
+  }
+  function start() {
+    ensureAudio();
+    if (running) { remaining = Math.max(0, endAt - Date.now()); running = false; }
+    else { endAt = Date.now() + remaining; running = true; }
+    persistTimer(); render();
+  }
+  function complete() {
+    const now = Date.now();
+    const doneMode = mode;
+    db.log.push({ t: now, type: doneMode, min: Math.round(total / 60000) });
+    if (doneMode === 'focus') { cycle++; lastPlant = db.log.length - 1; }
+    chime(doneMode);
+    const sp = doneMode === 'focus' ? speciesFor(Math.round(total / 60000)) : null;
+    announce(doneMode === 'focus' ? `Focus session complete. A ${sp.name.toLowerCase()} grew in your garden.` : `${NAMES[doneMode]} over. Back to focus.`);
+    let next;
+    if (doneMode === 'focus') { if (cycle >= S.every) { next = 'long'; cycle = 0; } else next = 'short'; }
+    else next = 'focus';
+    setMode(next, S.auto);
+    renderGarden(); renderStats();
+  }
+  function tick() {
+    if (running && Date.now() >= endAt) complete();
+    renderTime();
+  }
+
+  // ---------- audio ----------
+  let ac = null, chimes = 0;
+  function ensureAudio() {
+    if (ac || !S.sound) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (AC) { try { ac = new AC(); } catch (e) { ac = null; } }
+  }
+  function chime(kind) {
+    if (!S.sound) return;
+    ensureAudio();
+    chimes++;
+    if (!ac) return;
+    if (ac.state === 'suspended') ac.resume().catch(() => {});
+    const t0 = ac.currentTime + 0.02;
+    const notes = kind === 'focus' ? [659.25, 987.77, 1318.51] : [783.99, 659.25];
+    notes.forEach((f, i) => {
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0, t0 + i * 0.22);
+      g.gain.linearRampToValueAtTime(0.16, t0 + i * 0.22 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0008, t0 + i * 0.22 + 1.6);
+      o.connect(g); g.connect(ac.destination); o.start(t0 + i * 0.22); o.stop(t0 + i * 0.22 + 1.7);
+    });
+  }
+  function announce(t) { $('[data-testid=announce]').textContent = t; }
+
+  // ---------- rendering ----------
+  const C = 2 * Math.PI * 52;
+  function renderTime() {
+    const left = running ? Math.max(0, endAt - Date.now()) : remaining;
+    $('[data-testid=time]').textContent = fmt(left);
+    $('#prog').style.strokeDashoffset = String(C * (1 - left / total));
+    document.title = running ? `${fmt(left)} · ${NAMES[mode]} — Pomodoro Garden` : 'Pomodoro Garden — a focus timer that grows wildflowers';
+  }
+  function render() {
+    document.querySelectorAll('[data-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+    $('#dial').className = 'dial ' + mode;
+    $('[data-testid=mode-label]').textContent = NAMES[mode] + (running ? '' : remaining < total ? ' · paused' : '');
+    $('[data-testid=start]').textContent = running ? 'Pause' : remaining < total ? 'Resume' : 'Start';
+    $('[data-testid=will-grow]').textContent = mode === 'focus' ? `This session grows a ${speciesFor(S.focus).name.toLowerCase()}` : 'Rest. The garden is watering itself.';
+    $('[data-testid=cycle]').innerHTML = Array.from({ length: S.every }, (_, i) => `<i class="${i < cycle ? 'on' : ''}"></i>`).join('');
+    $('[data-testid=cycle]').setAttribute('aria-label', `${cycle} of ${S.every} focus sessions before the long break`);
+    renderTime();
+  }
+  function renderGarden() {
+    const today = dayKey(Date.now());
+    const plants = db.log.map((e, i) => ({ ...e, i })).filter((e) => e.type === 'focus' && dayKey(e.t) === today);
+    const bed = $('[data-testid=bed]');
+    bed.innerHTML = plants.length ? plants.map((p) => { const s = speciesFor(p.min); return `<div class="plot${p.i === lastPlant ? ' new' : ''}" data-testid="plant" data-species="${s.id}" title="${s.name}, ${p.min} min">${plantSvg(s, `${s.name} from a ${p.min}-minute session`)}</div>`; }).join('')
+      : '<p class="empty-bed">Bare soil. Finish a focus session to plant something.</p>';
+    const all = db.log.filter((e) => e.type === 'focus').length;
+    $('[data-testid=garden-total]').textContent = `${all} plant${all === 1 ? '' : 's'} all-time`;
+    lastPlant = -1;
+  }
+  function streaks() {
+    const days = new Set(db.log.filter((e) => e.type === 'focus').map((e) => dayKey(e.t)));
+    const d = new Date(); d.setHours(12, 0, 0, 0);
+    let cur = 0;
+    if (!days.has(dayKey(d))) d.setDate(d.getDate() - 1);      // a streak is still alive until today ends
+    while (days.has(dayKey(d))) { cur++; d.setDate(d.getDate() - 1); }
+    const sorted = [...days].sort();
+    let best = 0, run = 0, prev = null;
+    for (const k of sorted) {
+      const t = new Date(k + 'T12:00:00');
+      run = prev && Math.round((t - prev) / 864e5) === 1 ? run + 1 : 1;
+      best = Math.max(best, run); prev = t;
+    }
+    return { cur, best };
+  }
+  function renderStats() {
+    const today = dayKey(Date.now());
+    const todays = db.log.filter((e) => dayKey(e.t) === today);
+    const focus = todays.filter((e) => e.type === 'focus');
+    $('[data-testid=today-minutes]').textContent = focus.reduce((s, e) => s + e.min, 0);
+    $('[data-testid=today-sessions]').textContent = focus.length;
+    $('[data-testid=today-breaks]').textContent = todays.length - focus.length;
+    const weekAgo = new Date(); weekAgo.setHours(0, 0, 0, 0); weekAgo.setDate(weekAgo.getDate() - 6);
+    $('[data-testid=week-minutes]').textContent = db.log.filter((e) => e.type === 'focus' && e.t >= weekAgo.getTime()).reduce((s, e) => s + e.min, 0) + ' m';
+    const { cur, best } = streaks();
+    $('[data-testid=streak]').textContent = `${cur} day${cur === 1 ? '' : 's'}`;
+    $('[data-testid=best-streak]').textContent = `${best} day${best === 1 ? '' : 's'}`;
+    // calendar: 12 weeks ending this week, columns are weeks (Sunday first)
+    const counts = {};
+    db.log.forEach((e) => { if (e.type === 'focus') { const k = dayKey(e.t); counts[k] = (counts[k] || 0) + 1; } });
+    const end = new Date(); end.setHours(12, 0, 0, 0);
+    const start = new Date(end); start.setDate(start.getDate() - start.getDay() - 7 * 11);
+    const cells = [];
+    for (let d = new Date(start); cells.length < 84; d.setDate(d.getDate() + 1)) {
+      const k = dayKey(d), n = counts[k] || 0, fut = d > end;
+      const lvl = n === 0 ? 0 : n === 1 ? 1 : n <= 3 ? 2 : n <= 5 ? 3 : 4;
+      cells.push(`<i data-testid="day-${k}" data-count="${n}" data-level="${lvl}" class="${k === today ? 'today' : ''}${fut ? ' future' : ''}" title="${k}: ${n} session${n === 1 ? '' : 's'}"></i>`);
+    }
+    $('[data-testid=calendar]').innerHTML = cells.join('');
+    $('[data-testid=calendar]').setAttribute('aria-label', `Focus sessions per day over the last 12 weeks. Current streak ${cur} days, best ${best} days.`);
+  }
+  function renderLegend() {
+    $('[data-testid=legend]').innerHTML = SPECIES.map((s, i) => `<span>${plantSvg(s, '')}${s.name} · ${i === SPECIES.length - 1 ? s.min + '+' : s.min + '–' + (SPECIES[i + 1].min - 1)} min</span>`).join('').replace(/aria-label=""/g, 'aria-hidden="true"');
+  }
+
+  // ---------- wiring ----------
+  $('[data-testid=start]').addEventListener('click', start);
+  $('[data-testid=reset]').addEventListener('click', () => { remaining = total; running = false; persistTimer(); render(); });
+  $('[data-testid=skip]').addEventListener('click', () => {
+    ensureAudio();
+    // skipping never grows anything; a skipped break returns to focus, a skipped focus goes to its break
+    const next = mode === 'focus' ? (cycle + 1 >= S.every ? 'short' : 'short') : 'focus';
+    announce(`${NAMES[mode]} skipped.`);
+    setMode(next, false);
+  });
+  document.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode, false)));
+  const inputs = { focus: '#s-focus', short: '#s-short', long: '#s-long', every: '#s-every' };
+  for (const [k, sel] of Object.entries(inputs)) {
+    const el = $(sel); el.value = S[k];
+    el.addEventListener('change', () => {
+      const lo = +el.min, hi = +el.max;
+      const v = Math.max(lo, Math.min(hi, Math.round(+el.value || DEFAULTS[k])));
+      el.value = v; S[k] = v; save();
+      if (!running && ((k === mode) || (k === 'focus' && mode === 'focus'))) { total = lenOf(mode); remaining = total; }
+      if (k === 'every' && cycle >= v) cycle = v - 1;
+      persistTimer(); render();
+    });
+  }
+  const auto = $('#s-auto'), sound = $('#s-sound');
+  auto.checked = S.auto; sound.checked = S.sound;
+  auto.addEventListener('change', () => { S.auto = auto.checked; save(); });
+  sound.addEventListener('change', () => { S.sound = sound.checked; save(); });
+  const clearBtn = $('[data-testid=clear-history]');
+  clearBtn.addEventListener('click', () => {
+    if (!clearBtn.classList.contains('armed')) { clearBtn.classList.add('armed'); clearBtn.textContent = 'Tap again to clear everything'; return; }
+    db.log = []; cycle = 0; save(); persistTimer(); clearBtn.classList.remove('armed'); clearBtn.textContent = 'Clear garden & history';
+    renderGarden(); renderStats(); render(); announce('Garden and history cleared.');
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.target.closest('input, button, select, textarea') || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === ' ') { e.preventDefault(); start(); }
+  });
+
+  window.__pom = {
+    get state() { return { mode, running, remaining: running ? Math.max(0, endAt - Date.now()) : remaining, total, cycle }; },
+    get log() { return db.log.map((e) => ({ ...e })); },
+    get chimes() { return chimes; },
+    get audio() { return ac ? ac.state : 'none'; },
+    speciesFor: (m) => speciesFor(m).id,
+    streaks: () => streaks(),
+  };
+
+  // resuming: if the page was closed while a session ran past its end, finish it now
+  renderLegend(); render(); renderGarden(); renderStats();
+  if (running && Date.now() >= endAt) complete();
+  setInterval(tick, 250);
+})();
+</script>
+</body>
+</html>

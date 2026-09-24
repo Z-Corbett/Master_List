@@ -1,0 +1,681 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Layout Lab — CSS Grid, Flexbox &amp; Container Query Playground</title>
+<meta name="description" content="An interactive CSS Grid, Flexbox and container-query playground: tweak tracks, areas, gaps, auto-fill versus auto-fit, wrapping and flex growth, watch real boxes reflow, drag the container narrower to trigger container queries, and copy the exact CSS that is running.">
+<style>
+  :root {
+    --paper: #f3eee3;
+    --paper-2: #e9e2d2;
+    --ink: #1f1b2e;
+    --ink-2: #4b4560;
+    --ink-3: #807a92;
+    --pink: #ff4f8b;
+    --teal: #00a197;
+    --sun: #ffcc33;
+    --blue: #3d6bff;
+    --good: #0d7a55;
+    --bad: #c3263f;
+    --sans: "Avenir Next", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Menlo, Consolas, monospace;
+    --shadow: 4px 4px 0 var(--ink);
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body {
+    background: var(--paper); color: var(--ink); font-family: var(--sans); line-height: 1.45; overflow-x: hidden;
+    background-image: radial-gradient(rgba(31,27,46,.09) 1px, transparent 1.2px); background-size: 14px 14px;
+  }
+  :focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  select, input, textarea, pre { max-width: 100%; }
+  .back {
+    position: fixed; top: 10px; left: 10px; z-index: 50; text-decoration: none; color: var(--ink);
+    font: 700 12px/1 var(--sans); background: var(--sun); border: 2px solid var(--ink); border-radius: 6px;
+    padding: 6px 10px; box-shadow: 2px 2px 0 var(--ink);
+  }
+  .back:hover { background: #fff; }
+  .wrap { max-width: 1320px; margin: 0 auto; padding: 54px 18px 48px; }
+
+  header.top { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px 24px; align-items: end; margin-bottom: 20px; }
+  h1 { margin: 0; font: 900 clamp(38px, 7vw, 76px)/.86 var(--sans); letter-spacing: -.045em; text-transform: uppercase; }
+  h1 .o { color: var(--pink); mix-blend-mode: multiply; }
+  h1 .t { display: inline-block; color: transparent; -webkit-text-stroke: 2px var(--ink); }
+  .lede { margin: 10px 0 0; max-width: 62ch; color: var(--ink-2); font-size: 15.5px; }
+  .regmarks { display: flex; gap: 6px; align-items: center; font: 700 11px var(--mono); color: var(--ink-3); letter-spacing: .1em; text-transform: uppercase; }
+  .regmarks i { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--ink); display: inline-block; mix-blend-mode: multiply; }
+  .regmarks i:nth-child(1) { background: var(--pink); } .regmarks i:nth-child(2) { background: var(--teal); margin-left: -12px; } .regmarks i:nth-child(3) { background: var(--sun); margin-left: -12px; }
+
+  .main { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 20px; align-items: start; }
+  .panel { background: #fffdf8; border: 2px solid var(--ink); border-radius: 10px; box-shadow: var(--shadow); min-width: 0; }
+  .controls { padding: 4px 0; }
+  .ctl { padding: 12px 14px; border-bottom: 2px dashed var(--paper-2); min-width: 0; }
+  .ctl:last-child { border-bottom: 0; }
+  .ctl h2 { margin: 0 0 8px; font: 800 11px var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); display: flex; justify-content: space-between; gap: 8px; }
+  .row { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 6px 10px; align-items: center; margin: 7px 0; font-size: 13.5px; }
+  .row > * { min-width: 0; }
+  .row label, .row .lab { font-weight: 650; color: var(--ink-2); }
+  .row output { font: 700 12px var(--mono); color: var(--ink); }
+  .rng { display: grid; grid-template-columns: minmax(0, 1fr) 52px; gap: 8px; align-items: center; }
+  .rng output { text-align: right; }
+  input[type=range] { width: 100%; accent-color: var(--pink); min-width: 0; }
+  select, input[type=text], textarea {
+    width: 100%; min-width: 0; border: 2px solid var(--ink); border-radius: 6px; background: #fff; padding: 5px 7px; font-size: 13px;
+  }
+  input[type=text], textarea { font-family: var(--mono); }
+  textarea { resize: vertical; min-height: 76px; line-height: 1.5; }
+  [aria-invalid=true] { border-color: var(--bad); background: #fff0f2; }
+  .err { color: var(--bad); font-size: 12px; margin: 4px 0 0; }
+  .hint { color: var(--ink-3); font-size: 12px; margin: 4px 0 0; }
+  .seg { display: flex; flex-wrap: wrap; gap: 0; border: 2px solid var(--ink); border-radius: 7px; overflow: hidden; width: fit-content; max-width: 100%; }
+  .seg button { border: 0; background: #fff; padding: 5px 12px; font-weight: 750; font-size: 13px; border-right: 2px solid var(--ink); }
+  .seg button:last-child { border-right: 0; }
+  .seg button[aria-pressed=true] { background: var(--ink); color: var(--sun); }
+  .modes .seg button { padding: 7px 18px; font-size: 14px; }
+  .chk { display: inline-flex; gap: 7px; align-items: center; font-size: 13.5px; font-weight: 650; color: var(--ink-2); }
+  .chk input { accent-color: var(--pink); width: 16px; height: 16px; }
+
+  /* ---------- workspace ---------- */
+  .work { padding: 14px; display: grid; gap: 14px; }
+  .recipes { display: flex; flex-wrap: wrap; gap: 8px; }
+  .recipe {
+    border: 2px solid var(--ink); background: #fff; border-radius: 999px; padding: 5px 12px 5px 8px; font-weight: 750; font-size: 13px;
+    display: inline-flex; align-items: center; gap: 7px; box-shadow: 2px 2px 0 var(--ink); transition: transform .12s, box-shadow .12s;
+  }
+  .recipe:hover { transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--ink); }
+  .recipe:active { transform: translate(2px, 2px); box-shadow: 0 0 0 var(--ink); }
+  .recipe[aria-pressed=true] { background: var(--sun); }
+  .recipe svg { width: 22px; height: 16px; flex: none; }
+  .note { margin: 0; font-size: 14px; color: var(--ink-2); background: var(--paper); border-left: 5px solid var(--teal); padding: 8px 12px; border-radius: 0 6px 6px 0; }
+  .note b { color: var(--ink); }
+
+  .bench { position: relative; background: var(--paper-2); border-radius: 8px; padding: 14px; border: 2px solid var(--ink); overflow: hidden;
+    background-image: linear-gradient(rgba(31,27,46,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(31,27,46,.06) 1px, transparent 1px);
+    background-size: 20px 20px; }
+  .ruler { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; font: 700 12px var(--mono); margin-bottom: 10px; }
+  .ruler .w { background: var(--ink); color: #fff; padding: 3px 8px; border-radius: 4px; }
+  .cq-badge { border: 2px solid var(--ink); border-radius: 4px; padding: 2px 8px; background: #fff; }
+  .cq-badge[data-state=active] { background: var(--pink); color: #fff; }
+  .cq-badge[data-state=inactive] { background: var(--teal); color: #fff; }
+  .frame-holder { position: relative; display: flex; align-items: stretch; max-width: 100%; }
+  .frame {
+    container: lab / inline-size; position: relative; background: #fffdf8; border: 2px solid var(--ink); border-radius: 6px; padding: 12px;
+    max-width: calc(100% - 22px); min-width: 0; flex: none;
+  }
+  .handle {
+    flex: none; width: 22px; margin-left: -2px; border: 2px solid var(--ink); border-left: 0; border-radius: 0 8px 8px 0; background: var(--sun);
+    display: grid; place-items: center; cursor: ew-resize; touch-action: none; user-select: none;
+  }
+  .handle::before { content: ""; width: 4px; height: 34px; border-left: 2px solid var(--ink); border-right: 2px solid var(--ink); }
+  .handle:focus-visible { outline-offset: -5px; }
+  .layout { position: relative; z-index: 1; }
+  .tracks { position: absolute; z-index: 0; inset: 12px; pointer-events: none; }
+  .tracks span { position: absolute; top: 0; bottom: 0; border-left: 1.5px dashed rgba(61,107,255,.7); border-right: 1.5px dashed rgba(61,107,255,.7); background: rgba(61,107,255,.06); }
+  .tracks span.empty { background: repeating-linear-gradient(135deg, rgba(61,107,255,.16) 0 5px, transparent 5px 10px); }
+  .tracks span.collapsed { border-color: var(--pink); border-style: solid; background: none; }
+  .item {
+    border: 2px solid var(--ink); border-radius: 6px; padding: 8px 9px; min-height: 48px; text-align: left; overflow: hidden;
+    display: flex; flex-direction: column; justify-content: space-between; gap: 2px; box-shadow: 2px 2px 0 var(--ink);
+    font-family: var(--sans); color: var(--ink); min-inline-size: 0;
+  }
+  .item .nm { font: 900 17px/1 var(--sans); letter-spacing: -.02em; overflow-wrap: anywhere; }
+  .item .sz { font: 600 11px var(--mono); opacity: .75; }
+  .item.c0 { background: #ffc2d6; } .item.c1 { background: #aee9e1; } .item.c2 { background: #ffe79a; } .item.c3 { background: #c8d4ff; }
+  .item[aria-pressed=true] { outline: 3px solid var(--pink); outline-offset: 2px; }
+  .readouts { display: flex; flex-wrap: wrap; gap: 6px 14px; font: 600 12px var(--mono); color: var(--ink-2); margin-top: 10px; }
+  .readouts b { color: var(--ink); }
+
+  .css-box { background: var(--ink); color: #e9e4f6; border-radius: 8px; border: 2px solid var(--ink); overflow: hidden; min-width: 0; }
+  .css-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px 8px 14px; border-bottom: 1px solid #3b3552; flex-wrap: wrap; }
+  .css-head h2 { margin: 0; font: 800 11px var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--sun); }
+  .copy { border: 2px solid var(--sun); background: var(--sun); color: var(--ink); border-radius: 6px; padding: 4px 12px; font-weight: 800; font-size: 13px; }
+  .copy-status { font: 12px var(--mono); color: #b9f2e9; min-height: 1em; }
+  pre.css { margin: 0; padding: 12px 14px; font: 12.5px/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 380px; overflow: auto; }
+  .tk-sel { color: #ffd166; } .tk-prop { color: #7fe3d6; } .tk-val { color: #ffb3cc; } .tk-at { color: #a8b8ff; font-weight: 700; }
+
+  .item-ed .who { font: 800 14px var(--sans); }
+  .mini { border: 2px solid var(--ink); background: #fff; border-radius: 6px; padding: 3px 10px; font-weight: 750; font-size: 12.5px; }
+
+  @media (max-width: 900px) {
+    .main { grid-template-columns: minmax(0, 1fr); }
+    .work { order: -1; }
+    header.top { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 480px) {
+    .wrap { padding: 50px 10px 36px; }
+    .work { padding: 10px; }
+    .bench { padding: 10px; }
+    .row { grid-template-columns: 96px minmax(0, 1fr); }
+    .recipe { font-size: 12.5px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition: none !important; animation: none !important; }
+  }
+</style>
+<style id="live-css" data-testid="live-css"></style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Lay<span class="o">o</span>ut <span class="t">Lab</span></h1>
+      <p class="lede">A proofing bench for CSS layout. Every box below is laid out by the exact stylesheet printed underneath it — change a control, drag the yellow handle to squeeze the container, and watch Grid, Flexbox and container queries do their thing.</p>
+    </div>
+    <div class="regmarks" aria-hidden="true"><i></i><i></i><i></i><span>print-ready css</span></div>
+  </header>
+
+  <div class="main">
+    <section class="panel controls" aria-label="Layout controls">
+      <div class="ctl modes">
+        <h2>Layout engine</h2>
+        <div class="seg" role="group" aria-label="Layout engine">
+          <button type="button" data-mode="grid" data-testid="mode-grid" aria-pressed="true">Grid</button>
+          <button type="button" data-mode="flex" data-testid="mode-flex" aria-pressed="false">Flexbox</button>
+        </div>
+      </div>
+
+      <div class="ctl">
+        <h2>Container</h2>
+        <div class="row"><label for="count">Items</label><div class="rng"><input id="count" type="range" min="1" max="12" value="6" data-testid="count"><output id="count-out" data-testid="count-out" for="count">6</output></div></div>
+        <div class="row"><label for="gap">gap</label><div class="rng"><input id="gap" type="range" min="0" max="40" value="12" data-testid="gap"><output for="gap" id="gap-out">12px</output></div></div>
+        <div class="row"><label for="minh">min-height</label><div class="rng"><input id="minh" type="range" min="0" max="480" step="10" value="0" data-testid="minh"><output for="minh" id="minh-out">0</output></div></div>
+        <p class="hint" id="count-note" hidden>Item count follows the named areas.</p>
+      </div>
+
+      <div class="ctl" id="grid-ctl">
+        <h2>Grid</h2>
+        <div class="row"><span class="lab" id="cols-lab">Columns</span>
+          <div class="seg" role="group" aria-labelledby="cols-lab">
+            <button type="button" data-cols="repeat" data-testid="cols-repeat" aria-pressed="true">repeat()</button>
+            <button type="button" data-cols="custom" data-testid="cols-custom" aria-pressed="false">explicit</button>
+          </div>
+        </div>
+        <div id="repeat-ctl">
+          <div class="row"><span class="lab" id="kind-lab">Fill</span>
+            <div class="seg" role="group" aria-labelledby="kind-lab">
+              <button type="button" data-kind="auto-fill" data-testid="kind-fill" aria-pressed="true">auto-fill</button>
+              <button type="button" data-kind="auto-fit" data-testid="kind-fit" aria-pressed="false">auto-fit</button>
+            </div>
+          </div>
+          <div class="row"><label for="gmin">minmax min</label><div class="rng"><input id="gmin" type="range" min="60" max="320" step="10" value="140" data-testid="grid-min"><output for="gmin" id="gmin-out">140px</output></div></div>
+        </div>
+        <div class="row" id="custom-ctl" hidden><label for="gcols">template</label><input id="gcols" type="text" value="1fr 2fr 1fr" spellcheck="false" data-testid="grid-cols"></div>
+        <div class="row"><label for="grows">rows</label><input id="grows" type="text" value="" placeholder="auto" spellcheck="false" data-testid="grid-rows"></div>
+        <div class="row"><label for="gauto">auto-rows</label><input id="gauto" type="text" value="" placeholder="auto" spellcheck="false" data-testid="grid-auto-rows"></div>
+        <div class="row" style="align-items:start"><label for="gareas">areas</label>
+          <div><textarea id="gareas" spellcheck="false" placeholder="header header&#10;nav main" data-testid="grid-areas" aria-describedby="areas-err"></textarea>
+          <p class="err" id="areas-err" data-testid="areas-err" hidden></p></div>
+        </div>
+        <div class="row"><label for="ji">justify-items</label><select id="ji" data-testid="justify-items"><option>stretch</option><option>start</option><option>center</option><option>end</option></select></div>
+        <div class="row"><label for="ai">align-items</label><select id="ai" data-testid="align-items"><option>stretch</option><option>start</option><option>center</option><option>end</option></select></div>
+        <div class="row"><span></span><label class="chk"><input type="checkbox" id="dense" data-testid="dense"> grid-auto-flow: dense</label></div>
+      </div>
+
+      <div class="ctl" id="flex-ctl" hidden>
+        <h2>Flexbox</h2>
+        <div class="row"><label for="fdir">direction</label><select id="fdir" data-testid="flex-direction"><option>row</option><option>row-reverse</option><option>column</option><option>column-reverse</option></select></div>
+        <div class="row"><label for="fwrap">flex-wrap</label><select id="fwrap" data-testid="flex-wrap"><option>wrap</option><option>nowrap</option><option>wrap-reverse</option></select></div>
+        <div class="row"><label for="fjc">justify-content</label><select id="fjc" data-testid="justify-content"><option>flex-start</option><option>center</option><option>flex-end</option><option>space-between</option><option>space-around</option><option>space-evenly</option></select></div>
+        <div class="row"><label for="fai">align-items</label><select id="fai" data-testid="flex-align"><option>stretch</option><option>flex-start</option><option>center</option><option>flex-end</option><option>baseline</option></select></div>
+        <div class="row"><label for="fgrow">flex-grow (all)</label><div class="rng"><input id="fgrow" type="range" min="0" max="3" value="0" data-testid="flex-grow"><output for="fgrow" id="fgrow-out">0</output></div></div>
+        <div class="row"><label for="fbasis">flex-basis (all)</label><input id="fbasis" type="text" value="auto" spellcheck="false" data-testid="flex-basis"></div>
+      </div>
+
+      <div class="ctl">
+        <h2>Container query</h2>
+        <label class="chk"><input type="checkbox" id="cq" data-testid="cq-on"> Stack the layout when the container is narrow</label>
+        <div class="row"><label for="bp">max-width</label><div class="rng"><input id="bp" type="range" min="240" max="900" step="10" value="480" data-testid="cq-bp"><output for="bp" id="bp-out">480px</output></div></div>
+        <p class="hint">The frame is <code>container: lab / inline-size</code>, so the rule reacts to the frame's width, not the window's. Drag the yellow handle.</p>
+      </div>
+
+      <div class="ctl item-ed" data-testid="item-editor">
+        <h2>Selected item <button type="button" class="mini" id="item-reset" data-testid="item-reset" hidden>Reset</button></h2>
+        <p class="hint" id="item-none">Click any box on the bench to give it its own rules.</p>
+        <div id="item-fields" hidden>
+          <div class="who" id="item-who" data-testid="item-who"></div>
+          <div class="g-only">
+            <div class="row"><label for="icol">column span</label><div class="rng"><input id="icol" type="range" min="1" max="4" value="1" data-testid="item-colspan"><output for="icol" id="icol-out">1</output></div></div>
+            <div class="row"><label for="irow">row span</label><div class="rng"><input id="irow" type="range" min="1" max="24" value="1" data-testid="item-rowspan"><output for="irow" id="irow-out">1</output></div></div>
+          </div>
+          <div class="f-only">
+            <div class="row"><label for="igrow">flex-grow</label><div class="rng"><input id="igrow" type="range" min="0" max="5" value="0" data-testid="item-grow"><output for="igrow" id="igrow-out">—</output></div></div>
+            <div class="row"><label for="ibasis">flex-basis</label><input id="ibasis" type="text" placeholder="inherit" spellcheck="false" data-testid="item-basis"></div>
+          </div>
+          <div class="row"><label for="iorder">order</label><div class="rng"><input id="iorder" type="range" min="-3" max="6" value="0" data-testid="item-order"><output for="iorder" id="iorder-out">0</output></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel work" aria-label="Layout bench">
+      <div class="recipes" role="group" aria-label="Recipes" id="recipes"></div>
+      <p class="note" id="note" data-testid="note" aria-live="polite"></p>
+
+      <div class="bench">
+        <div class="ruler">
+          <span>container <span class="w" data-testid="container-width">—</span></span>
+          <span class="cq-badge" data-testid="cq-state" data-state="off">no container query</span>
+        </div>
+        <div class="frame-holder" id="holder">
+          <div class="frame" id="frame" data-testid="frame">
+            <div class="tracks" id="tracks" aria-hidden="true"></div>
+            <div class="layout" id="stage" data-testid="stage"></div>
+          </div>
+          <div class="handle" id="handle" role="slider" tabindex="0" aria-label="Container width" aria-valuemin="220" data-testid="handle"></div>
+        </div>
+        <div class="readouts" aria-live="polite">
+          <span>tracks <b data-testid="track-count">—</b></span>
+          <span>empty <b data-testid="track-empty">—</b></span>
+          <span>collapsed <b data-testid="track-collapsed">—</b></span>
+          <span>rows <b data-testid="row-count">—</b></span>
+        </div>
+      </div>
+
+      <div class="css-box">
+        <div class="css-head">
+          <h2>Generated CSS</h2>
+          <span class="copy-status" data-testid="copy-status" aria-live="polite"></span>
+          <button type="button" class="copy" data-testid="copy">Copy CSS</button>
+        </div>
+        <pre class="css" data-testid="css-out" tabindex="0" aria-label="Generated CSS"><code id="css-out"></code></pre>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const $$ = (s) => [...document.querySelectorAll(s)];
+
+  const fresh = () => ({
+    mode: 'grid', count: 6, gap: 12, minH: 0,
+    grid: { cols: 'repeat', kind: 'auto-fill', min: 140, custom: '1fr 2fr 1fr', rows: '', autoRows: '', areas: '', ji: 'stretch', ai: 'stretch', dense: false },
+    flex: { dir: 'row', wrap: 'wrap', jc: 'flex-start', ai: 'stretch', grow: 0, basis: 'auto' },
+    cq: { on: false, bp: 480 },
+    items: {}, sel: null, recipe: null,
+  });
+  let S = fresh();
+  let frameW = null; // px, null = as wide as the bench allows
+
+  const ICON = {
+    grail: '<svg viewBox="0 0 22 16"><rect x="1" y="1" width="20" height="3" fill="#ff4f8b"/><rect x="1" y="5" width="4" height="6" fill="#00a197"/><rect x="6" y="5" width="10" height="6" fill="#ffcc33"/><rect x="17" y="5" width="4" height="6" fill="#00a197"/><rect x="1" y="12" width="20" height="3" fill="#ff4f8b"/></svg>',
+    cards: '<svg viewBox="0 0 22 16"><rect x="1" y="1" width="6" height="6" fill="#ff4f8b"/><rect x="8" y="1" width="6" height="6" fill="#00a197"/><rect x="15" y="1" width="6" height="6" fill="#ffcc33"/><rect x="1" y="9" width="6" height="6" fill="#3d6bff"/><rect x="8" y="9" width="6" height="6" fill="#ff4f8b"/></svg>',
+    side: '<svg viewBox="0 0 22 16"><rect x="1" y="1" width="6" height="14" fill="#00a197"/><rect x="8" y="1" width="13" height="14" fill="#ffcc33"/></svg>',
+    mason: '<svg viewBox="0 0 22 16"><rect x="1" y="1" width="6" height="9" fill="#ff4f8b"/><rect x="8" y="1" width="6" height="5" fill="#00a197"/><rect x="15" y="1" width="6" height="7" fill="#ffcc33"/><rect x="1" y="11" width="6" height="4" fill="#3d6bff"/><rect x="8" y="7" width="6" height="8" fill="#ffcc33"/><rect x="15" y="9" width="6" height="6" fill="#ff4f8b"/></svg>',
+    pancake: '<svg viewBox="0 0 22 16"><rect x="1" y="1" width="20" height="3" fill="#ff4f8b"/><rect x="1" y="5" width="20" height="6" fill="#ffcc33"/><rect x="1" y="12" width="20" height="3" fill="#00a197"/></svg>',
+    switcher: '<svg viewBox="0 0 22 16"><rect x="1" y="1" width="6" height="14" fill="#ff4f8b"/><rect x="8" y="1" width="6" height="14" fill="#00a197"/><rect x="15" y="1" width="6" height="14" fill="#3d6bff"/></svg>',
+  };
+
+  const RECIPES = [
+    { id: 'holy-grail', name: 'Holy grail', icon: 'grail',
+      note: '<b>Holy grail:</b> named <code>grid-template-areas</code> put header, nav, main, aside and footer in place with no floats and no source reordering. The container query stacks everything into one column when the frame gets narrow.',
+      apply: (s) => { s.mode = 'grid'; s.gap = 10; s.minH = 300; Object.assign(s.grid, { cols: 'custom', custom: '1fr 3fr 1fr', rows: 'auto 1fr auto', areas: 'header header header\nnav main aside\nfooter footer footer' }); s.cq = { on: true, bp: 520 }; } },
+    { id: 'card-grid', name: 'Card grid', icon: 'cards',
+      note: '<b>Card grid:</b> <code>repeat(auto-fill, minmax(170px, 1fr))</code> fits as many 170px-or-wider columns as the container allows — no media queries at all. Flip to <code>auto-fit</code> with few items to see empty tracks collapse.',
+      apply: (s) => { s.mode = 'grid'; s.count = 7; s.gap = 14; Object.assign(s.grid, { cols: 'repeat', kind: 'auto-fill', min: 170 }); } },
+    { id: 'sidebar', name: 'Sidebar', icon: 'side',
+      note: '<b>Sidebar:</b> the sidebar wants 200px; the content has <code>flex-grow: 999</code> and a basis of 0, so it swallows all spare room — until it would drop below 55% width, at which point it wraps under the sidebar. Intrinsic, breakpoint-free.',
+      apply: (s) => { s.mode = 'flex'; s.count = 2; s.gap = 12; s.minH = 160; Object.assign(s.flex, { dir: 'row', wrap: 'wrap', jc: 'flex-start', ai: 'stretch', grow: 0, basis: 'auto' }); s.items = { 0: { grow: 1, basis: '200px' }, 1: { grow: 999, basis: '0', minw: 55 } }; } },
+    { id: 'masonry', name: 'Masonry-ish', icon: 'mason',
+      note: '<b>Masonry-ish:</b> tiny 10px implicit rows plus <code>grid-row: span N</code> give each card its own height, and <code>dense</code> lets later items back-fill holes. Native CSS masonry is not yet available in every browser, so this is the dependable approximation.',
+      apply: (s) => { s.mode = 'grid'; s.count = 10; s.gap = 8; Object.assign(s.grid, { cols: 'repeat', kind: 'auto-fill', min: 110, autoRows: '10px', dense: true }); const sp = [9, 5, 12, 7, 5, 10, 6, 8, 11, 5]; sp.forEach((n, i) => { s.items[i] = { rowSpan: n }; }); s.items[3].colSpan = 2; } },
+    { id: 'pancake', name: 'Pancake stack', icon: 'pancake',
+      note: '<b>Pancake stack:</b> <code>grid-template-rows: auto 1fr auto</code> — header and footer hug their content, the middle row takes whatever height is left. The classic sticky-footer page shell in one declaration.',
+      apply: (s) => { s.mode = 'grid'; s.count = 3; s.gap = 10; s.minH = 320; Object.assign(s.grid, { cols: 'custom', custom: '1fr', rows: 'auto 1fr auto' }); } },
+    { id: 'switcher', name: 'Switcher', icon: 'switcher',
+      note: '<b>Switcher:</b> <code>flex-basis: calc((460px - 100%) * 999)</code> is hugely positive when the container is under 460px (each item takes a full row) and hugely negative above it (all share one row). It flips between a row and a stack with no in-between state.',
+      apply: (s) => { s.mode = 'flex'; s.count = 3; s.gap = 12; Object.assign(s.flex, { dir: 'row', wrap: 'wrap', jc: 'flex-start', ai: 'stretch', grow: 1, basis: 'calc((460px - 100%) * 999)' }); } },
+  ];
+
+  /* ---------------- helpers ---------------- */
+  const supports = (p, v) => { try { return CSS.supports(p, v); } catch (e) { return false; } };
+  function parseAreas(txt) {
+    const lines = txt.split('\n').map((l) => l.trim().replace(/^"|"$/g, '').trim()).filter(Boolean);
+    if (!lines.length) return { ok: false, empty: true };
+    const rows = lines.map((l) => l.split(/\s+/));
+    const w = rows[0].length;
+    if (rows.some((r) => r.length !== w)) return { ok: false, msg: 'Every row needs the same number of cells (' + w + ').' };
+    if (rows.some((r) => r.some((t) => !/^(\.+|[a-zA-Z_][\w-]*)$/.test(t)))) return { ok: false, msg: 'Area names must be identifiers; use "." for an empty cell.' };
+    const quoted = rows.map((r) => '"' + r.join(' ') + '"').join(' ');
+    if (!supports('grid-template-areas', quoted)) return { ok: false, msg: 'Each named area must form a single rectangle.' };
+    const names = [];
+    rows.flat().forEach((t) => { if (!/^\.+$/.test(t) && !names.includes(t)) names.push(t); });
+    return { ok: true, rows, names, w };
+  }
+  const areasInfo = () => (S.mode === 'grid' ? parseAreas(S.grid.areas) : { ok: false, empty: true });
+  const itemCount = () => { const a = areasInfo(); return a.ok ? a.names.length : S.count; };
+  function colsValue() {
+    const g = S.grid;
+    if (g.cols === 'repeat') return `repeat(${g.kind}, minmax(${g.min}px, 1fr))`;
+    return supports('grid-template-columns', g.custom) ? g.custom.trim() : '1fr';
+  }
+  const block = (sel, decls, indent = '') => decls.length ? `${indent}${sel} {\n${decls.map((d) => `${indent}  ${d};`).join('\n')}\n${indent}}` : '';
+
+  /* ---------------- CSS generation (this text is what actually runs) ---------------- */
+  function buildCss() {
+    const out = [];
+    const g = S.grid, f = S.flex, a = areasInfo();
+    const n = itemCount();
+    if (S.cq.on) out.push(block('.frame', ['container: lab / inline-size']));
+    const L = [];
+    if (S.mode === 'grid') {
+      L.push('display: grid');
+      L.push('grid-template-columns: ' + colsValue());
+      if (g.rows.trim() && supports('grid-template-rows', g.rows)) L.push('grid-template-rows: ' + g.rows.trim());
+      if (a.ok) L.push('grid-template-areas:\n' + a.rows.map((r) => '    "' + r.join(' ') + '"').join('\n'));
+      if (g.autoRows.trim() && supports('grid-auto-rows', g.autoRows)) L.push('grid-auto-rows: ' + g.autoRows.trim());
+      if (g.dense) L.push('grid-auto-flow: row dense');
+      if (g.ji !== 'stretch') L.push('justify-items: ' + g.ji);
+      if (g.ai !== 'stretch') L.push('align-items: ' + g.ai);
+    } else {
+      L.push('display: flex', 'flex-direction: ' + f.dir, 'flex-wrap: ' + f.wrap, 'justify-content: ' + f.jc, 'align-items: ' + f.ai);
+    }
+    L.push('gap: ' + S.gap + 'px');
+    if (S.minH) L.push('min-height: ' + S.minH + 'px');
+    out.push(block('.layout', L));
+    const gBasis = supports('flex-basis', f.basis) ? f.basis.trim() : 'auto';
+    if (S.mode === 'flex' && (f.grow !== 0 || gBasis !== 'auto')) out.push(block('.item', [`flex: ${f.grow} 1 ${gBasis}`]));
+    let anySpan = false;
+    for (let i = 0; i < n; i++) {
+      const o = S.items[i] || {};
+      const d = [];
+      if (S.mode === 'grid') {
+        if (a.ok) d.push('grid-area: ' + a.names[i]);
+        else {
+          if (o.colSpan > 1) { d.push('grid-column: span ' + o.colSpan); anySpan = true; }
+          if (o.rowSpan > 1) d.push('grid-row: span ' + o.rowSpan);
+        }
+      } else {
+        const hasB = o.basis != null && o.basis !== '' && supports('flex-basis', o.basis);
+        if (o.grow != null || hasB) d.push(`flex: ${o.grow != null ? o.grow : f.grow} 1 ${hasB ? o.basis.trim() : gBasis}`);
+        if (o.minw) d.push('min-width: ' + o.minw + '%');
+      }
+      if (o.order) d.push('order: ' + o.order);
+      if (d.length) out.push(block(`.item:nth-child(${i + 1})`, d));
+    }
+    if (S.cq.on) {
+      const inner = [];
+      if (S.mode === 'grid') {
+        const dl = ['grid-template-columns: 1fr'];
+        if (a.ok) dl.push('grid-template-areas:\n' + a.names.map((nm) => '      "' + nm + '"').join('\n'));
+        if (g.rows.trim()) dl.push('grid-template-rows: none');
+        inner.push(block('.layout', dl, '  '));
+        if (anySpan) inner.push(block('.item', ['grid-column: auto'], '  '));
+      } else {
+        inner.push(block('.layout', ['flex-direction: column'], '  '));
+        inner.push(block('.item', ['flex-basis: auto', 'min-width: 0'], '  '));
+      }
+      out.push(`@container lab (max-width: ${S.cq.bp}px) {\n${inner.join('\n')}\n}`);
+    }
+    return out.filter(Boolean).join('\n\n') + '\n';
+  }
+
+  function highlight(css) {
+    const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    return css.split('\n').map((line) => {
+      let m;
+      if ((m = line.match(/^(\s*)(@container)(.*)\{$/))) return `${m[1]}<span class="tk-at">${esc(m[2])}</span>${esc(m[3])}{`;
+      if ((m = line.match(/^(\s*)([^\s{][^{]*?)( \{)$/))) return `${m[1]}<span class="tk-sel">${esc(m[2])}</span>${m[3]}`;
+      if ((m = line.match(/^(\s*)([a-z-]+)(:)(.*)$/))) return `${m[1]}<span class="tk-prop">${m[2]}</span>${m[3]}<span class="tk-val">${esc(m[4])}</span>`;
+      if ((m = line.match(/^(\s*)(".*")(;?)$/))) return `${m[1]}<span class="tk-val">${esc(m[2])}</span>${m[3]}`;
+      return esc(line);
+    }).join('\n');
+  }
+
+  /* ---------------- rendering ---------------- */
+  const stage = $('#stage'), frame = $('#frame'), holder = $('#holder'), handle = $('#handle');
+  let lastCss = '';
+
+  function buildItems() {
+    const a = areasInfo();
+    const n = itemCount();
+    const labels = Array.from({ length: n }, (_, i) => (a.ok ? a.names[i] : String(i + 1)));
+    const cur = [...stage.children].map((c) => c.dataset.label).join('|');
+    if (cur === labels.join('|')) return;
+    stage.innerHTML = '';
+    labels.forEach((lb, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'item c' + (i % 4);
+      b.dataset.label = lb; b.dataset.i = i;
+      b.dataset.testid = 'item-' + i;
+      b.setAttribute('data-testid', 'item-' + i);
+      b.setAttribute('aria-label', 'Item ' + lb);
+      b.innerHTML = `<span class="nm">${lb}</span><span class="sz" aria-hidden="true"></span>`;
+      stage.appendChild(b);
+    });
+    if (S.sel != null && S.sel >= n) S.sel = null;
+  }
+
+  function syncControls() {
+    const g = S.grid, f = S.flex;
+    $$('[data-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === S.mode)));
+    $$('[data-cols]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cols === g.cols)));
+    $$('[data-kind]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.kind === g.kind)));
+    $('#grid-ctl').hidden = S.mode !== 'grid';
+    $('#flex-ctl').hidden = S.mode !== 'flex';
+    $('#repeat-ctl').hidden = g.cols !== 'repeat';
+    $('#custom-ctl').hidden = g.cols !== 'custom';
+    const set = (id, v) => { const el = $(id); if (document.activeElement !== el || el.type === 'range' || el.tagName === 'SELECT') el.value = v; };
+    set('#count', S.count); set('#gap', S.gap); set('#minh', S.minH);
+    set('#gmin', g.min); set('#gcols', g.custom); set('#grows', g.rows); set('#gauto', g.autoRows); set('#gareas', g.areas);
+    set('#ji', g.ji); set('#ai', g.ai); $('#dense').checked = g.dense;
+    set('#fdir', f.dir); set('#fwrap', f.wrap); set('#fjc', f.jc); set('#fai', f.ai); set('#fgrow', f.grow); set('#fbasis', f.basis);
+    $('#cq').checked = S.cq.on; set('#bp', S.cq.bp);
+    const a = areasInfo();
+    $('#count-out').textContent = itemCount();
+    $('#count').disabled = a.ok; $('#count-note').hidden = !a.ok;
+    $('#gap-out').textContent = S.gap + 'px';
+    $('#minh-out').textContent = S.minH ? S.minH + 'px' : '0';
+    $('#gmin-out').textContent = g.min + 'px';
+    $('#fgrow-out').textContent = f.grow;
+    $('#bp-out').textContent = S.cq.bp + 'px';
+    $('#bp').disabled = !S.cq.on;
+    const err = $('#areas-err');
+    if (S.mode === 'grid' && !a.ok && !a.empty) { err.hidden = false; err.textContent = a.msg; $('#gareas').setAttribute('aria-invalid', 'true'); }
+    else { err.hidden = true; $('#gareas').removeAttribute('aria-invalid'); }
+    const bad = (id, prop, v) => { const el = $(id); if (v.trim() && !supports(prop, v)) el.setAttribute('aria-invalid', 'true'); else el.removeAttribute('aria-invalid'); };
+    bad('#gcols', 'grid-template-columns', g.custom); bad('#grows', 'grid-template-rows', g.rows); bad('#gauto', 'grid-auto-rows', g.autoRows); bad('#fbasis', 'flex-basis', f.basis);
+    // selected item editor
+    const has = S.sel != null;
+    $('#item-none').hidden = has; $('#item-fields').hidden = !has; $('#item-reset').hidden = !has;
+    $$('.g-only').forEach((e) => { e.hidden = S.mode !== 'grid' || a.ok; });
+    $$('.f-only').forEach((e) => { e.hidden = S.mode !== 'flex'; });
+    if (has) {
+      const o = S.items[S.sel] || {};
+      $('#item-who').textContent = 'Item ' + (stage.children[S.sel] ? stage.children[S.sel].dataset.label : S.sel + 1) + ' — .item:nth-child(' + (S.sel + 1) + ')';
+      set('#icol', o.colSpan || 1); $('#icol-out').textContent = o.colSpan || 1;
+      set('#irow', o.rowSpan || 1); $('#irow-out').textContent = o.rowSpan || 1;
+      set('#igrow', o.grow != null ? o.grow : 0); $('#igrow-out').textContent = o.grow != null ? o.grow : '—';
+      set('#ibasis', o.basis || ''); set('#iorder', o.order || 0); $('#iorder-out').textContent = o.order || 0;
+    }
+    $$('.item').forEach((b, i) => b.setAttribute('aria-pressed', String(S.sel === i)));
+    $$('.recipe').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.recipe === S.recipe)));
+  }
+
+  function render() {
+    buildItems();
+    const css = buildCss();
+    if (css !== lastCss) {
+      $('#live-css').textContent = css;
+      $('#css-out').innerHTML = highlight(css);
+      lastCss = css;
+      $('[data-testid=copy-status]').textContent = '';
+    }
+    syncControls();
+    applyWidth();
+    requestAnimationFrame(measure);
+  }
+
+  /* ---------------- container width ---------------- */
+  const MINW = 220;
+  function maxW() { return Math.max(MINW, Math.floor(holder.clientWidth - 22)); }
+  function applyWidth() {
+    const mx = maxW();
+    const w = frameW == null ? mx : Math.max(MINW, Math.min(mx, frameW));
+    frame.style.width = w + 'px';
+    handle.setAttribute('aria-valuemax', mx);
+    handle.setAttribute('aria-valuenow', w);
+    handle.setAttribute('aria-valuetext', w + ' pixels wide');
+  }
+  function setWidth(w) { frameW = Math.round(w); applyWidth(); requestAnimationFrame(measure); }
+  handle.addEventListener('keydown', (e) => {
+    const cur = frame.getBoundingClientRect().width;
+    const step = e.shiftKey ? 50 : 10;
+    let w = null;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') w = cur - step;
+    else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') w = cur + step;
+    else if (e.key === 'Home') w = MINW;
+    else if (e.key === 'End') w = maxW();
+    if (w != null) { e.preventDefault(); setWidth(w); }
+  });
+  let drag = null;
+  handle.addEventListener('pointerdown', (e) => {
+    drag = { x: e.clientX, w: frame.getBoundingClientRect().width };
+    try { handle.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointers */ }
+    e.preventDefault();
+  });
+  handle.addEventListener('pointermove', (e) => { if (drag) setWidth(drag.w + (e.clientX - drag.x)); });
+  const endDrag = () => { drag = null; };
+  handle.addEventListener('pointerup', endDrag);
+  handle.addEventListener('pointercancel', endDrag);
+
+  /* ---------------- measurement: tracks, sizes, container query state ---------------- */
+  function measure() {
+    const cw = Math.round(frame.clientWidth - 24); // content box (padding 12px each side)
+    $('[data-testid=container-width]').textContent = cw + 'px';
+    const badge = $('[data-testid=cq-state]');
+    if (!S.cq.on) { badge.dataset.state = 'off'; badge.textContent = 'no container query'; }
+    else if (cw <= S.cq.bp) { badge.dataset.state = 'active'; badge.textContent = `@container ≤ ${S.cq.bp}px · stacked`; }
+    else { badge.dataset.state = 'inactive'; badge.textContent = `@container ≤ ${S.cq.bp}px · waiting`; }
+
+    const sr = stage.getBoundingClientRect();
+    const items = [...stage.children];
+    items.forEach((b) => {
+      const r = b.getBoundingClientRect();
+      b.querySelector('.sz').textContent = Math.round(r.width) + '×' + Math.round(r.height);
+    });
+    const rowsSet = new Set(items.map((b) => Math.round(b.getBoundingClientRect().top)));
+    $('[data-testid=row-count]').textContent = rowsSet.size;
+    const tracksEl = $('#tracks');
+    tracksEl.innerHTML = '';
+    if (S.mode !== 'grid') {
+      ['track-count', 'track-empty', 'track-collapsed'].forEach((t) => { $(`[data-testid=${t}]`).textContent = '—'; });
+      return;
+    }
+    const cs = getComputedStyle(stage);
+    const widths = cs.gridTemplateColumns.split(/\s+(?![^(]*\))/).map(parseFloat).filter((v) => !Number.isNaN(v));
+    const gap = parseFloat(cs.columnGap) || 0;
+    let x = 0, empty = 0, collapsed = 0, live = 0;
+    const frag = document.createDocumentFragment();
+    widths.forEach((w) => {
+      const sp = document.createElement('span');
+      if (w < 0.5) { collapsed++; sp.className = 'collapsed'; sp.style.left = x + 'px'; sp.style.width = '0px'; frag.appendChild(sp); return; }
+      live++;
+      const used = items.some((b) => { const r = b.getBoundingClientRect(); const l = r.left - sr.left; return l < x + w - 1 && l + r.width > x + 1; });
+      if (!used) { empty++; sp.className = 'empty'; }
+      sp.style.left = x + 'px'; sp.style.width = w + 'px';
+      frag.appendChild(sp);
+      x += w + gap;
+    });
+    tracksEl.appendChild(frag);
+    $('[data-testid=track-count]').textContent = live;
+    $('[data-testid=track-empty]').textContent = empty;
+    $('[data-testid=track-collapsed]').textContent = collapsed;
+  }
+  const ro = new ResizeObserver(() => { applyWidth(); measure(); });
+  ro.observe(holder); ro.observe(stage); ro.observe(frame);
+
+  /* ---------------- wiring ---------------- */
+  function clearRecipe() { S.recipe = null; }
+  const onInput = (id, fn) => $(id).addEventListener('input', (e) => { fn(e.target); clearRecipe(); render(); });
+  onInput('#count', (t) => { S.count = +t.value; });
+  onInput('#gap', (t) => { S.gap = +t.value; });
+  onInput('#minh', (t) => { S.minH = +t.value; });
+  onInput('#gmin', (t) => { S.grid.min = +t.value; });
+  onInput('#gcols', (t) => { S.grid.custom = t.value; });
+  onInput('#grows', (t) => { S.grid.rows = t.value; });
+  onInput('#gauto', (t) => { S.grid.autoRows = t.value; });
+  onInput('#gareas', (t) => { S.grid.areas = t.value; });
+  onInput('#ji', (t) => { S.grid.ji = t.value; });
+  onInput('#ai', (t) => { S.grid.ai = t.value; });
+  onInput('#dense', (t) => { S.grid.dense = t.checked; });
+  onInput('#fdir', (t) => { S.flex.dir = t.value; });
+  onInput('#fwrap', (t) => { S.flex.wrap = t.value; });
+  onInput('#fjc', (t) => { S.flex.jc = t.value; });
+  onInput('#fai', (t) => { S.flex.ai = t.value; });
+  onInput('#fgrow', (t) => { S.flex.grow = +t.value; });
+  onInput('#fbasis', (t) => { S.flex.basis = t.value; });
+  onInput('#cq', (t) => { S.cq.on = t.checked; });
+  onInput('#bp', (t) => { S.cq.bp = +t.value; });
+  const itemSet = (k, v) => { if (S.sel == null) return; const o = S.items[S.sel] = S.items[S.sel] || {}; if (v === null || v === '') delete o[k]; else o[k] = v; };
+  onInput('#icol', (t) => itemSet('colSpan', +t.value));
+  onInput('#irow', (t) => itemSet('rowSpan', +t.value));
+  onInput('#igrow', (t) => itemSet('grow', +t.value));
+  onInput('#ibasis', (t) => itemSet('basis', t.value));
+  onInput('#iorder', (t) => itemSet('order', +t.value));
+  $('#item-reset').addEventListener('click', () => { if (S.sel != null) delete S.items[S.sel]; clearRecipe(); render(); });
+
+  $$('[data-mode]').forEach((b) => b.addEventListener('click', () => { S.mode = b.dataset.mode; clearRecipe(); render(); }));
+  $$('[data-cols]').forEach((b) => b.addEventListener('click', () => { S.grid.cols = b.dataset.cols; clearRecipe(); render(); }));
+  $$('[data-kind]').forEach((b) => b.addEventListener('click', () => { S.grid.kind = b.dataset.kind; clearRecipe(); render(); }));
+  stage.addEventListener('click', (e) => {
+    const b = e.target.closest('.item'); if (!b) return;
+    const i = +b.dataset.i;
+    S.sel = S.sel === i ? null : i;
+    render();
+  });
+
+  const rc = $('#recipes');
+  RECIPES.forEach((r) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'recipe'; b.dataset.recipe = r.id;
+    b.setAttribute('data-testid', 'recipe-' + r.id);
+    b.innerHTML = ICON[r.icon] + '<span>' + r.name + '</span>';
+    b.addEventListener('click', () => {
+      S = fresh(); r.apply(S); S.recipe = r.id; frameW = null;
+      $('#note').innerHTML = r.note;
+      render();
+    });
+    rc.appendChild(b);
+  });
+  const reset = document.createElement('button');
+  reset.type = 'button'; reset.className = 'recipe'; reset.setAttribute('data-testid', 'reset');
+  reset.innerHTML = '<span>↺ Blank</span>';
+  reset.addEventListener('click', () => { S = fresh(); frameW = null; $('#note').innerHTML = DEFAULT_NOTE; render(); });
+  rc.appendChild(reset);
+  const DEFAULT_NOTE = '<b>Start anywhere:</b> pick a recipe, or tweak the controls. Dashed blue bands are the grid\'s column tracks — hatched ones are empty, pink hairlines are tracks that <code>auto-fit</code> collapsed to zero.';
+  $('#note').innerHTML = DEFAULT_NOTE;
+
+  const status = $('[data-testid=copy-status]');
+  $('[data-testid=copy]').addEventListener('click', async () => {
+    const txt = buildCss();
+    let ok = false;
+    try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(txt); ok = true; } } catch (e) { ok = false; }
+    if (!ok) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = txt; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0'; ta.style.left = '0'; ta.style.top = '0';
+        document.body.appendChild(ta); ta.select(); ok = document.execCommand('copy'); ta.remove();
+      } catch (e) { ok = false; }
+    }
+    if (ok) status.textContent = 'Copied ' + txt.split('\n').length + ' lines';
+    else {
+      const range = document.createRange(); range.selectNodeContents($('#css-out'));
+      const sel = getSelection(); sel.removeAllRanges(); sel.addRange(range);
+      status.textContent = 'Selected — press Ctrl/⌘+C';
+    }
+  });
+
+  window.__layoutLab = { css: buildCss, state: () => JSON.parse(JSON.stringify(S)) };
+  render();
+})();
+</script>
+</body>
+</html>

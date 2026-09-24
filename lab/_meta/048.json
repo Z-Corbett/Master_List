@@ -1,0 +1,35 @@
+{
+  "id": "048",
+  "slug": "048-pomodoro-garden",
+  "file": "lab/048-pomodoro-garden.html",
+  "title": "Pomodoro Garden — a focus timer that grows wildflowers",
+  "category": "Tools",
+  "tags": ["timer", "svg", "localStorage", "web-audio", "page-clock"],
+  "description": "A focus timer with configurable focus, short break and long break sessions, where each completed focus session plants something in today's garden bed: Indian paintbrush, a bluebonnet, prickly pear or a live oak, depending on how long you focused. It also keeps a 12-week streak calendar and daily stats, plays a gentle Web Audio chime, never sends notifications, and saves everything on your device.",
+  "prompt": "Build me a Pomodoro focus timer where each completed focus session grows a plant in a small garden, with different species by session length. Make the Texas wildflowers the stars: bluebonnets for a classic 25, paintbrush for short ones, then prickly pear and a live oak for long focus. Work, short break and long break should all be configurable, with a streak calendar, daily stats, and a gentle chime through Web Audio after a gesture. No notifications, and persist everything in localStorage. The tests must use page.clock (install and pauseAt) to complete sessions deterministically.",
+  "qa": {
+    "methodology": [
+      "Every time-based test starts with page.clock.install, then pauseAt, and then moves time only with fastForward (whole sessions) and runFor (the last few ticks), so a 25-minute session completes in milliseconds and always the same way.",
+      "Wall-clock correctness: the timer counts down from an end timestamp, not by counting ticks, so the spec checks that 30 fake minutes while paused change nothing and that a resumed session finishes exactly two seconds after '00:02'.",
+      "Domain rules as oracles: species thresholds at 15/20/40/50 minutes, a long break after the fourth focus session, skipped sessions never plant anything, and out-of-range settings are clamped.",
+      "Persistence under reload: a running timer survives a reload at the correct remaining time, and streaks and calendar counts come from seeded history (including 'yesterday still counts until today ends' and best vs current streak). Storage is written synchronously, so there is no debounce race with reloads.",
+      "Audio and notification contract: exactly one chime per completed session, the AudioContext is created only from the Start gesture, and no Notification API is used.",
+      "Visual review at 1280px and 390px plus the wide-font overflow check at 360–412px."
+    ],
+    "risks": [
+      "Tick granularity: the display updates every 250 ms, so an exact countdown string can be one tick stale; the spec gives runFor a quarter-second of slack instead of weakening the check.",
+      "Local-time day boundaries for streaks and 'today' (DST and midnight); keys are built from local dates and the tests pin the clock to a fixed local time.",
+      "Background tab throttling in real browsers; because the remaining time comes from the end timestamp, a late tick still finishes the session on time.",
+      "A reload while a session has already ended must finish it once, not twice."
+    ],
+    "playwright": "The Playwright clock does all the timing work: install, then pauseAt right away (install on its own keeps ticking in real time), then fastForward in whole minutes because it fires due timers once instead of replaying every 250 ms interval, which is what runFor would do. Storage is seeded before the app boots by writing localStorage and reloading, which is the simplest way to set up a three-day streak without driving the UI through three fake days. Settings inputs use change events, so the spec dispatches change after fill. Assertions stay on text and data attributes (data-species, data-count, data-level), and the SVG plants are never compared as pixels.",
+    "coverage": [
+      "Full focus session to bluebonnet, stats, chime, auto-switch to a short break; completing a break",
+      "Species by session length via settings; clamping",
+      "Pause freezes time; resume completes on the exact second; reset",
+      "Long break after four sessions; skipping plants nothing",
+      "Seeded streaks and calendar, a running timer resumed after reload, two-step clear"
+    ]
+  },
+  "a11y": "Session types are toggle buttons with aria-pressed, the countdown is a role=timer, completions are announced through a polite live region (never notifications), and Space starts or pauses when focus isn't on a control. Plants are SVG images with labels such as 'Bluebonnet from a 25-minute session', and the calendar's aria-label sums up the streaks."
+}

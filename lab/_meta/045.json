@@ -1,0 +1,36 @@
+{
+  "id": "045",
+  "slug": "045-greenline-launch",
+  "file": "lab/045-greenline-launch.html",
+  "title": "Greenline — a SaaS landing page for test automation",
+  "category": "Landing Pages",
+  "tags": ["landing-page", "aria-patterns", "pricing", "carousel", "page-clock"],
+  "description": "A polished marketing page for Greenline, a fictional test-automation product, with a live animated test-run dashboard in the hero, a strip of made-up customer logos and ARIA feature tabs. It also has a monthly/annual pricing toggle with exact 20% discount math, a plan comparison table, a swipeable testimonial carousel, an FAQ accordion, and a cookie banner that remembers your choice.",
+  "prompt": "Build me a polished SaaS marketing landing page for a fictional test-automation product called Greenline. I want a hero with an animated product mock (a test run dashboard), a logo strip of fictional customers, feature tabs, a monthly/annual pricing toggle with correct discount math, a comparison table, a testimonial carousel that works with the keyboard and swipe, an FAQ accordion with proper aria-expanded, and a dismissible cookie banner that remembers the choice. Make it clearly fictional, no real brands, and make it something I'd be happy to show a design team.",
+  "qa": {
+    "methodology": [
+      "Pricing oracle computed in the spec: the annual price is the monthly price × 0.8, the yearly total is 12 × that, and the saving is 12 × monthly minus the yearly total. The rendered text is compared for each paid plan, and the toggle state survives a reload.",
+      "ARIA pattern conformance: the tabs use aria-selected, a roving tabindex, and arrow/Home/End keys with wrap-around; the accordion uses aria-expanded, aria-controls and labelled regions; the carousel uses aria-roledescription, aria-current dots and aria-hidden on inactive slides.",
+      "Input-modality coverage for the carousel: buttons, dots, arrow keys, and synthetic pointer swipes, including a mostly-vertical drag that must not change the slide.",
+      "Persistence: the cookie banner appears on first visit, remembers Accept and Decline separately in localStorage, and comes back when the key is removed.",
+      "Time-driven hero mock on page.clock: four workers busy after 2 s, the run finishes with 23 passed and 1 flaky within 15 s of fake time, then the next run number starts; reduced motion shows the finished run at once.",
+      "Screenshots at 1280px and 390px, the mobile menu, and the wide-font overflow check at 360–412px."
+    ],
+    "risks": [
+      "Floating-point rounding in the discount math (for example 0.8 × 49 = 39.2 rendered as 39.199999); prices are rounded to cents and formatted with toLocaleString.",
+      "The sticky nav and the fixed back link overlapping on small screens; the logo is offset to leave room.",
+      "Carousel swipe misfiring during vertical page scrolls on phones; swipes need 40px of mostly horizontal movement.",
+      "The hero animation running forever in background tabs; it is a cheap 200 ms interval and stops completely under reduced motion."
+    ],
+    "playwright": "Most of this page follows standard ARIA patterns, so role-based locators (getByRole('tab'), getByRole('region', { name })) serve as the assertion and the accessibility check at once. The discount math is recomputed in the test rather than hard-coded, so a price change can't hide a formula bug. Swipes are sent with locator.dispatchEvent('pointerdown'/'pointerup') and clientX coordinates, which works the same on the desktop and Pixel 7 touch profiles without depending on the touchscreen API. The hero mock is the one timing-sensitive part: page.clock.install then pauseAt, then runFor in one-second steps until the run reports done, which is robust to small changes in spec durations. Reduced motion is checked with emulateMedia.",
+    "coverage": [
+      "Monthly vs annual prices, yearly totals and savings; toggle persisted",
+      "Feature tabs by click, arrows, End, wrap-around and roving tabindex",
+      "Carousel buttons, wrap, dots, keyboard, swipe left/right and ignoring vertical drags",
+      "FAQ aria-expanded, labelled regions, independent panels",
+      "Cookie banner decline/accept persistence",
+      "Hero test-run mock on a fake clock and under reduced motion"
+    ]
+  },
+  "a11y": "Tabs, accordion, switch and carousel follow the WAI-ARIA Authoring Practices patterns with full keyboard support. The billing toggle is a role=switch with a label, the comparison table uses row and column headers and scrolls inside a focusable region, and the animated mock is a labelled image that becomes static under reduced motion."
+}

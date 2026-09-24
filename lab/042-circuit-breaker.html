@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Circuit Breaker — a logic gate puzzle</title>
+<meta name="description" content="A logic gate puzzle game: place AND, OR, XOR, NOT and NAND gates on a breadboard, wire inputs to outputs, and light up every row of the target truth table. Fourteen handmade levels from a single inverter to a full adder, with live signals, undo and star ratings.">
+<style>
+  :root {
+    --board: #efe8d8;
+    --board-2: #e6dcc6;
+    --panel: #f7f2e7;
+    --ink: #1d2426;
+    --ink-2: #56605f;
+    --teal: #0f5e63;
+    --teal-2: #13787e;
+    --led: #ff5a1f;
+    --led-glow: rgba(255, 90, 31, .35);
+    --low: #7c9496;
+    --float: #b9b2a3;
+    --ok: #2f8a4a;
+    --bad: #c2372b;
+    --grid: rgba(15, 94, 99, .09);
+    --head: Futura, "Century Gothic", "Avenir Next", "Trebuchet MS", system-ui, sans-serif;
+    --mono: "SF Mono", ui-monospace, "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: #d9d0bd; color: var(--ink); font: 15px/1.5 var(--sans); overflow-x: hidden;
+    background-image: radial-gradient(circle, rgba(29, 36, 38, .13) 1.2px, transparent 1.4px); background-size: 18px 18px; }
+  :focus-visible { outline: 3px solid var(--led); outline-offset: 2px; }
+  button { font-family: inherit; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; font: 700 12px/1 var(--mono); color: var(--panel); background: var(--teal);
+    text-decoration: none; padding: 8px 11px; border-radius: 999px; box-shadow: 0 2px 0 #093c3f; }
+  a.back:hover { background: var(--teal-2); }
+
+  header { max-width: 1200px; margin: 0 auto; padding: 58px 20px 10px; display: flex; flex-wrap: wrap; gap: 14px 30px; align-items: flex-end; justify-content: space-between; }
+  .title { min-width: 0; }
+  .title .chip { display: inline-flex; gap: 6px; align-items: center; font: 700 11px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--teal); margin: 0 0 10px; }
+  .title .chip i { width: 10px; height: 10px; border-radius: 50%; background: var(--led); box-shadow: 0 0 8px var(--led-glow); }
+  h1 { font: 800 clamp(36px, 7vw, 64px)/.95 var(--head); margin: 0; letter-spacing: -.02em; text-transform: uppercase; }
+  h1 span { color: var(--teal); }
+  .title p { margin: 10px 0 0; color: var(--ink-2); max-width: 60ch; }
+  .total { font: 700 13px/1.4 var(--mono); color: var(--ink-2); text-align: right; }
+  .total b { color: var(--ink); font-size: 22px; display: block; }
+
+  nav.levels { max-width: 1200px; margin: 0 auto; padding: 6px 20px 14px; display: flex; flex-wrap: wrap; gap: 6px; }
+  nav.levels button { min-width: 50px; min-height: 48px; border: 2px solid var(--ink); border-radius: 8px; background: var(--panel); cursor: pointer; padding: 4px 6px;
+    font: 700 14px/1 var(--mono); color: var(--ink); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
+  nav.levels button small { font-size: 10px; letter-spacing: 1px; color: var(--float); }
+  nav.levels button small.got { color: var(--led); }
+  nav.levels button[aria-current="true"] { background: var(--ink); color: var(--panel); }
+
+  main { max-width: 1200px; margin: 0 auto; padding: 0 20px 30px; display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+  .bench { min-width: 0; background: var(--panel); border: 2px solid var(--ink); border-radius: 14px; box-shadow: 0 5px 0 var(--ink); overflow: hidden; }
+  .bench-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 16px 10px; border-bottom: 2px dashed rgba(29, 36, 38, .25); }
+  .bench-head h2 { margin: 0; font: 800 22px/1.1 var(--head); text-transform: uppercase; min-width: 0; overflow-wrap: anywhere; }
+  .bench-head .no { font: 700 12px/1 var(--mono); color: var(--teal); }
+  .bench-head p { flex-basis: 100%; margin: 2px 0 0; color: var(--ink-2); font-size: 14px; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 12px; background: var(--board-2); border-bottom: 2px solid var(--ink); }
+  .toolbar > * { min-width: 0; }
+  .tool { min-height: 42px; border: 2px solid var(--ink); border-radius: 8px; background: var(--panel); color: var(--ink); cursor: pointer; padding: 4px 10px; font: 700 13px/1 var(--mono);
+    display: inline-flex; align-items: center; gap: 6px; max-width: 100%; }
+  .tool svg { width: 30px; height: 22px; flex: none; }
+  .tool .left { font-size: 11px; color: var(--ink-2); }
+  .tool[aria-pressed="true"] { background: var(--teal); color: #fff; border-color: #093c3f; }
+  .tool[aria-pressed="true"] .left { color: #cde; }
+  .tool[aria-pressed="true"] svg path, .tool[aria-pressed="true"] svg circle { stroke: #fff; }
+  .tool:disabled { opacity: .4; cursor: not-allowed; }
+  .toolbar .sep { flex: 1 1 0; }
+  .board-wrap { overflow-x: auto; background: var(--board); background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 20px 20px; }
+  #board { display: block; width: 100%; height: auto; touch-action: manipulation; }
+  .hintbar { padding: 8px 14px; font: 13px/1.45 var(--mono); color: var(--ink-2); border-top: 2px solid var(--ink); background: var(--panel); min-height: 40px; overflow-wrap: anywhere; }
+  .hintbar.warn { color: var(--bad); }
+
+  /* svg */
+  .slot rect { fill: rgba(255, 255, 255, .35); stroke: rgba(29, 36, 38, .28); stroke-width: 2; stroke-dasharray: 6 5; }
+  .slot.can:hover rect, .slot.can:focus-visible rect { fill: rgba(19, 120, 126, .12); stroke: var(--teal); }
+  .slot { cursor: pointer; outline: none; }
+  .slot:focus-visible rect { stroke: var(--led); stroke-dasharray: none; stroke-width: 3; }
+  .gate .body { fill: #fbf8f1; stroke: var(--ink); stroke-width: 2.5; stroke-linejoin: round; }
+  .gate .lead { stroke: var(--ink); stroke-width: 2.5; }
+  .gate.on .body { fill: #fff1e8; }
+  .gate text { font: 700 11px var(--mono); fill: var(--ink-2); pointer-events: none; }
+  .gate.picked .body { stroke: var(--bad); stroke-dasharray: 5 4; }
+  .gate { outline: none; }
+  .gate:focus-visible .body { stroke: var(--led); stroke-width: 4; }
+  .port { cursor: pointer; outline: none; }
+  .port .hit { fill: transparent; }
+  .port .dot { fill: #fff; stroke: var(--ink); stroke-width: 2.5; }
+  .port.on .dot { fill: var(--led); }
+  .port:hover .dot, .port:focus-visible .dot { stroke: var(--led); stroke-width: 4; }
+  .port.armed .dot { fill: var(--led); stroke: var(--led); animation: pulse 0.9s infinite; }
+  .port.target .dot { stroke: var(--teal-2); stroke-width: 3.5; }
+  @keyframes pulse { 50% { r: 11; } }
+  .wire { fill: none; stroke-width: 4; stroke-linecap: round; }
+  .wire.lo { stroke: var(--low); }
+  .wire.hi { stroke: var(--led); stroke-dasharray: 10 8; animation: flow .6s linear infinite; filter: drop-shadow(0 0 3px var(--led-glow)); }
+  @keyframes flow { to { stroke-dashoffset: -18; } }
+  .wire-under { fill: none; stroke: rgba(29, 36, 38, .45); stroke-width: 7; stroke-linecap: round; }
+  .pin rect { fill: var(--ink); }
+  .pin text { font: 700 16px var(--mono); fill: #fff; pointer-events: none; }
+  .pin .val { font-size: 12px; fill: #9fb; }
+  .pin.on rect { fill: var(--led); }
+  .pin.on .val { fill: #fff; }
+  .toggle { cursor: pointer; outline: none; }
+  .toggle:focus-visible rect { stroke: var(--led); stroke-width: 4; }
+  .lamp circle.glass { fill: #d5cfc2; stroke: var(--ink); stroke-width: 2.5; }
+  .lamp.on circle.glass { fill: var(--led); filter: drop-shadow(0 0 8px var(--led)); }
+  .lamp text { font: 700 16px var(--mono); fill: var(--ink); }
+
+  aside { min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+  .card { background: var(--panel); border: 2px solid var(--ink); border-radius: 14px; padding: 14px; box-shadow: 0 5px 0 var(--ink); min-width: 0; }
+  .card h3 { margin: 0 0 8px; font: 800 13px/1 var(--head); letter-spacing: .14em; text-transform: uppercase; color: var(--teal); }
+  .tt-wrap { overflow-x: auto; }
+  table.tt { border-collapse: collapse; width: 100%; font: 700 14px/1 var(--mono); text-align: center; }
+  .tt th { font-size: 12px; color: var(--ink-2); padding: 6px 4px; border-bottom: 2px solid var(--ink); }
+  .tt th.grp { color: var(--teal); }
+  .tt td { padding: 0; border-bottom: 1px solid rgba(29, 36, 38, .15); }
+  .tt td.sepl, .tt th.sepl { border-left: 2px solid rgba(29, 36, 38, .3); }
+  .tt tr.pass td { background: rgba(47, 138, 74, .12); }
+  .tt tr.fail td.got { color: var(--bad); }
+  .tt tr.cur td { box-shadow: inset 0 2px 0 var(--led), inset 0 -2px 0 var(--led); }
+  .tt td button { all: unset; display: block; width: 100%; padding: 8px 0; cursor: pointer; }
+  .tt td button:focus-visible { outline: 3px solid var(--led); }
+  .tt .mark { font-size: 15px; }
+  .tt tr.pass .mark { color: var(--ok); }
+  .tt tr.fail .mark { color: var(--bad); }
+  .status { margin: 10px 0 0; font: 700 14px/1.4 var(--mono); }
+  .win { border-color: var(--ok); }
+  .win .stars { font-size: 34px; letter-spacing: 4px; color: var(--led); line-height: 1; margin: 4px 0 6px; }
+  .win .stars .off { color: var(--float); }
+  .win p { margin: 0 0 10px; }
+  .big { min-height: 46px; width: 100%; border: 2px solid #093c3f; background: var(--teal); color: #fff; border-radius: 10px; cursor: pointer; font: 800 15px/1 var(--head); letter-spacing: .06em; text-transform: uppercase; box-shadow: 0 3px 0 #093c3f; }
+  .big:hover { background: var(--teal-2); }
+  .how { margin: 0; padding-left: 18px; font-size: 13.5px; color: var(--ink-2); }
+  .how li { margin: 3px 0; }
+  kbd { font: 700 11px/1 var(--mono); border: 1.5px solid var(--ink-2); border-bottom-width: 3px; border-radius: 4px; padding: 1px 4px; }
+  footer { max-width: 1200px; margin: 0 auto; padding: 0 20px 40px; font-size: 13px; color: var(--ink-2); }
+
+  @media (max-width: 940px) { main { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 480px) {
+    header, nav.levels, main, footer { padding-left: 12px; padding-right: 12px; }
+    nav.levels button { min-width: 44px; }
+    .tool { padding: 4px 7px; font-size: 12px; }
+    .tool svg { width: 24px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .wire.hi { animation: none; stroke-dasharray: none; } .port.armed .dot { animation: none; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+
+<header>
+  <div class="title">
+    <p class="chip"><i></i> Breadboard puzzle kit · 14 levels</p>
+    <h1>Circuit <span>Breaker</span></h1>
+    <p>Drop gates on the board, wire signals from left to right, and make every row of the truth table light up. Fewer gates earn more stars.</p>
+  </div>
+  <div class="total">Stars earned<b data-testid="total-stars">0 / 42</b></div>
+</header>
+
+<nav class="levels" aria-label="Levels" data-testid="levels"></nav>
+
+<main>
+  <section class="bench" aria-labelledby="lvl-name">
+    <div class="bench-head">
+      <span class="no" data-testid="level-no">Level 1</span>
+      <h2 id="lvl-name" data-testid="level-name">—</h2>
+      <p data-testid="level-blurb"></p>
+    </div>
+    <div class="toolbar" role="toolbar" aria-label="Gates and tools" data-testid="palette"></div>
+    <div class="board-wrap"><svg id="board" data-testid="board" role="group" aria-label="Breadboard"></svg></div>
+    <div class="hintbar" data-testid="hint" aria-live="polite">Pick a gate, then tap an empty slot.</div>
+  </section>
+
+  <aside>
+    <div class="card win" id="win" data-testid="win" hidden tabindex="-1">
+      <h3>Solved</h3>
+      <div class="stars" data-testid="stars" aria-label="0 stars"></div>
+      <p data-testid="win-text"></p>
+      <button class="big" id="next" data-testid="next">Next level →</button>
+    </div>
+    <div class="card">
+      <h3>Truth table</h3>
+      <div class="tt-wrap"><table class="tt" data-testid="truth-table"></table></div>
+      <p class="status" data-testid="status" aria-live="polite"></p>
+    </div>
+    <div class="card">
+      <h3>How to wire</h3>
+      <ol class="how">
+        <li>Choose a gate and tap an empty slot to place it.</li>
+        <li>Tap an output port (an input switch or a gate's right side), then tap an input port to connect them. Signals only flow left to right.</li>
+        <li>Tap a connected input port to unplug it. Pick <b>Remove</b> and tap a gate to pull it.</li>
+        <li>Click an input switch or a truth-table row to watch the signal move.</li>
+        <li><kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes, <kbd>Esc</kbd> cancels a wire.</li>
+      </ol>
+    </div>
+  </aside>
+</main>
+
+<footer>Gates follow standard Boolean logic. An unconnected gate input floats and reads as 0 in this kit.</footer>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const NS = 'http://www.w3.org/2000/svg';
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- gates ----------
+  const GATES = {
+    AND:  { n: 2, f: (a, b) => a & b },
+    OR:   { n: 2, f: (a, b) => a | b },
+    XOR:  { n: 2, f: (a, b) => a ^ b },
+    NAND: { n: 2, f: (a, b) => 1 - (a & b) },
+    NOT:  { n: 1, f: (a) => 1 - a },
+  };
+  const SHAPES = {
+    AND: '<path class="body" d="M18,10 H50 A28,28 0 0 1 50,66 H18 Z"/>',
+    NAND: '<path class="body" d="M18,10 H46 A28,28 0 0 1 46,66 H18 Z"/><circle class="body" cx="80" cy="38" r="5.5"/>',
+    OR: '<path class="body" d="M14,10 Q52,10 84,38 Q52,66 14,66 Q30,38 14,10 Z"/>',
+    XOR: '<path class="body" d="M22,10 Q56,10 86,38 Q56,66 22,66 Q38,38 22,10 Z"/><path class="body" style="fill:none" d="M12,10 Q28,38 12,66"/>',
+    NOT: '<path class="body" d="M22,12 L70,38 L22,64 Z"/><circle class="body" cx="77" cy="38" r="5.5"/>',
+  };
+  const ICON = {
+    AND: 'M6,3 H15 A8,8 0 0 1 15,19 H6 Z', NAND: 'M5,3 H13 A8,8 0 0 1 13,19 H5 Z M26,11 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0',
+    OR: 'M4,3 Q16,3 26,11 Q16,19 4,19 Q9,11 4,3 Z', XOR: 'M8,3 Q18,3 27,11 Q18,19 8,19 Q13,11 8,3 Z M3,3 Q8,11 3,19',
+    NOT: 'M6,3 L21,11 L6,19 Z M24,11 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0',
+  };
+
+  // ---------- levels (each one has a known par solution, checked by the spec) ----------
+  const bits = (n, k) => Array.from({ length: n }, (_, i) => (k >> (n - 1 - i)) & 1);
+  const LEVELS = [
+    { name: 'Inverter', ins: ['A'], outs: ['Y'], f: ([a]) => [1 - a], gates: { NOT: 1 }, par: 1, cols: 1, rows: 1,
+      blurb: 'Warm-up: make Y the opposite of A.' },
+    { name: 'Both', ins: ['A', 'B'], outs: ['Y'], f: ([a, b]) => [a & b], gates: { AND: 1, OR: 1 }, par: 1, cols: 1, rows: 1,
+      blurb: 'Light Y only when A and B are both on.' },
+    { name: 'Either', ins: ['A', 'B'], outs: ['Y'], f: ([a, b]) => [a | b], gates: { AND: 1, OR: 1, XOR: 1 }, par: 1, cols: 1, rows: 1,
+      blurb: 'Light Y when at least one input is on.' },
+    { name: 'One or the other', ins: ['A', 'B'], outs: ['Y'], f: ([a, b]) => [a ^ b], gates: { AND: 1, OR: 1, XOR: 1 }, par: 1, cols: 1, rows: 1,
+      blurb: 'Exclusive OR: on when exactly one input is on.' },
+    { name: 'Neither', ins: ['A', 'B'], outs: ['Y'], f: ([a, b]) => [1 - (a | b)], gates: { AND: 1, OR: 1, NOT: 2 }, par: 2, cols: 2, rows: 1,
+      blurb: 'There is no NOR gate in the kit. Build one: Y is on only when both inputs are off.' },
+    { name: 'NAND alone: NOT', ins: ['A'], outs: ['Y'], f: ([a]) => [1 - a], gates: { NAND: 2 }, par: 1, cols: 2, rows: 1,
+      blurb: 'NAND is functionally complete: every other gate can be built from it. Start with an inverter.' },
+    { name: 'NAND alone: AND', ins: ['A', 'B'], outs: ['Y'], f: ([a, b]) => [a & b], gates: { NAND: 3 }, par: 2, cols: 2, rows: 1,
+      blurb: 'Only NANDs on the shelf. Make an AND.' },
+    { name: 'NAND alone: OR', ins: ['A', 'B'], outs: ['Y'], f: ([a, b]) => [a | b], gates: { NAND: 4 }, par: 3, cols: 2, rows: 2,
+      blurb: 'De Morgan says A OR B = NOT(NOT A AND NOT B). Put that in NANDs.' },
+    { name: 'Half adder', ins: ['A', 'B'], outs: ['S', 'C'], f: ([a, b]) => [a ^ b, a & b], gates: { AND: 1, OR: 1, XOR: 1, NOT: 1 }, par: 2, cols: 1, rows: 2,
+      blurb: 'Add two bits: S is the sum bit, C is the carry.' },
+    { name: 'Three-way parity', ins: ['A', 'B', 'C'], outs: ['Y'], f: ([a, b, c]) => [a ^ b ^ c], gates: { XOR: 3, AND: 2, OR: 2 }, par: 2, cols: 2, rows: 2,
+      blurb: 'Y is on when an odd number of inputs are on.' },
+    { name: 'Majority vote', ins: ['A', 'B', 'C'], outs: ['Y'], f: ([a, b, c]) => [(a + b + c) >= 2 ? 1 : 0], gates: { AND: 3, OR: 2, XOR: 1 }, par: 4, cols: 3, rows: 2,
+      blurb: 'Y goes with the majority: on when two or three inputs are on.' },
+    { name: 'Multiplexer', ins: ['A', 'B', 'S'], outs: ['Y'], f: ([a, b, s]) => [s ? b : a], gates: { NOT: 1, AND: 2, OR: 1, NAND: 4 }, par: 4, cols: 3, rows: 2,
+      blurb: 'A selector: when S is off, Y copies A; when S is on, Y copies B.' },
+    { name: 'XOR from NAND', ins: ['A', 'B'], outs: ['Y'], f: ([a, b]) => [a ^ b], gates: { NAND: 5 }, par: 4, cols: 3, rows: 2,
+      blurb: 'The classic four-NAND exclusive OR.' },
+    { name: 'Full adder', ins: ['A', 'B', 'Cin'], outs: ['S', 'Cout'], f: ([a, b, c]) => [a ^ b ^ c, (a + b + c) >= 2 ? 1 : 0], gates: { XOR: 2, AND: 2, OR: 1 }, par: 5, cols: 3, rows: 2,
+      blurb: 'Chain two half adders. Add three bits: sum S and carry-out Cout.' },
+  ];
+  LEVELS.forEach((L) => { L.rows_ = Array.from({ length: 1 << L.ins.length }, (_, k) => { const i = bits(L.ins.length, k); return { i, o: L.f(i) }; }); });
+
+  // ---------- persistence ----------
+  const KEY = 'circuit-breaker-v1';
+  let saved = { stars: {}, level: 0 };
+  try { const raw = localStorage.getItem(KEY); if (raw) saved = Object.assign(saved, JSON.parse(raw)); } catch (e) { /* storage unavailable */ }
+  function persist() { try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) { /* ignore */ } }
+
+  // ---------- state ----------
+  let li = Math.min(LEVELS.length - 1, Math.max(0, saved.level | 0));
+  let L, gates, wires, inputs, tool, armed, history, solvedNow;
+
+  function load(i) {
+    li = i; L = LEVELS[i];
+    gates = {}; wires = {}; inputs = L.ins.map(() => 0); tool = null; armed = null; history = []; solvedNow = false;
+    saved.level = i; persist();
+    $('[data-testid=level-no]').textContent = `Level ${i + 1} of ${LEVELS.length}`;
+    $('[data-testid=level-name]').textContent = L.name;
+    $('[data-testid=level-blurb]').textContent = L.blurb + ` Par: ${L.par} gate${L.par > 1 ? 's' : ''}.`;
+    $('#win').hidden = true;
+    hint('Pick a gate, then tap an empty slot.');
+    renderLevels(); renderAll();
+  }
+
+  const snap = () => JSON.stringify({ gates, wires });
+  function pushHistory() { history.push(snap()); if (history.length > 200) history.shift(); }
+  function undo() {
+    if (!history.length) { hint('Nothing to undo.'); return false; }
+    const s = JSON.parse(history.pop()); gates = s.gates; wires = s.wires; armed = null;
+    hint('Undone.'); renderAll(); return true;
+  }
+
+  const used = (t) => Object.values(gates).filter((g) => g.type === t).length;
+  const slotId = (c, r) => `c${c}r${r}`;
+
+  function place(type, c, r) {
+    const id = slotId(c, r);
+    if (!L.gates[type] || c >= L.cols || r >= L.rows || gates[id]) return false;
+    if (used(type) >= L.gates[type]) { hint(`No ${type} gates left on this level.`, true); return false; }
+    pushHistory();
+    gates[id] = { type, c, r };
+    hint(`${type} placed. Now wire it: tap an output, then an input.`);
+    renderAll(); return true;
+  }
+  function removeGate(id) {
+    if (!gates[id]) return false;
+    pushHistory();
+    delete gates[id];
+    for (const d of Object.keys(wires)) if (d.startsWith(id + '.') || wires[d] === id + '.out') delete wires[d];
+    hint('Gate removed.'); renderAll(); return true;
+  }
+  const colOf = (port) => { if (L.ins.includes(port)) return -1; const g = gates[port.split('.')[0]]; return g ? g.c : Infinity; };
+  function connect(src, dst) {
+    const isSrc = L.ins.includes(src) || (/\.out$/.test(src) && gates[src.split('.')[0]]);
+    const isDst = L.outs.includes(dst) || (/\.in\d$/.test(dst) && gates[dst.split('.')[0]]);
+    if (!isSrc || !isDst) return false;
+    if (!L.outs.includes(dst)) {
+      const dg = gates[dst.split('.')[0]];
+      if (+dst.slice(-1) >= GATES[dg.type].n) return false;
+      if (colOf(src) >= dg.c) { hint('Signals flow left to right: wire from an input or a gate in an earlier column.', true); return false; }
+    }
+    pushHistory();
+    wires[dst] = src;
+    hint(`Wired ${label(src)} → ${label(dst)}.`);
+    renderAll(); return true;
+  }
+  function disconnect(dst) { if (!wires[dst]) return false; pushHistory(); delete wires[dst]; hint(`Unplugged ${label(dst)}.`); renderAll(); return true; }
+  function label(p) {
+    if (L.ins.includes(p) || L.outs.includes(p)) return p;
+    const [id, port] = p.split('.'); const g = gates[id];
+    return `${g ? g.type : '?'} (col ${+id[1] + 1}, row ${+id[3] + 1}) ${port === 'out' ? 'output' : 'input ' + (+port.slice(2) + 1)}`;
+  }
+
+  // ---------- evaluation ----------
+  function evaluate(inVals) {
+    const v = {};
+    L.ins.forEach((n, i) => { v[n] = inVals[i]; });
+    const order = Object.entries(gates).sort((a, b) => a[1].c - b[1].c || a[1].r - b[1].r);
+    for (const [id, g] of order) {
+      const args = [];
+      for (let k = 0; k < GATES[g.type].n; k++) { const s = wires[`${id}.in${k}`]; args.push(s != null && v[s] != null ? v[s] : 0); }
+      v[id + '.out'] = GATES[g.type].f(...args);
+    }
+    const outs = L.outs.map((o) => (wires[o] != null && v[wires[o]] != null ? v[wires[o]] : null));
+    return { v, outs };
+  }
+  function check() {
+    const rows = L.rows_.map((row) => { const { outs } = evaluate(row.i); return { ...row, got: outs, pass: outs.every((x, k) => x === row.o[k]) }; });
+    return { rows, passed: rows.filter((r) => r.pass).length, solved: rows.every((r) => r.pass) };
+  }
+  function starsFor(n) { return n <= L.par ? 3 : n <= L.par + 2 ? 2 : 1; }
+
+  // ---------- rendering ----------
+  const geo = () => {
+    const W = 150 + L.cols * 150 + 140, H = Math.max(40 + L.rows * 120 + 10, 60 + L.ins.length * 80);
+    return { W, H, slotX: (c) => 150 + c * 150, slotY: (r) => (H - L.rows * 120) / 2 + 22 + r * 120, inY: (i) => H / (L.ins.length + 1) * (i + 1), outY: (i) => H / (L.outs.length + 1) * (i + 1) };
+  };
+  function portPos(p, G) {
+    const i = L.ins.indexOf(p); if (i >= 0) return [96, G.inY(i)];
+    const o = L.outs.indexOf(p); if (o >= 0) return [G.W - 116, G.outY(o)];
+    const [id, port] = p.split('.'); const g = gates[id];
+    const x = G.slotX(g.c), y = G.slotY(g.r);
+    if (port === 'out') return [x + 100, y + 38];
+    return GATES[g.type].n === 1 ? [x, y + 38] : [x, y + (port === 'in0' ? 24 : 52)];
+  }
+  function el(tag, attrs, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+  function portEl(parent, id, x, y, on, kind) {
+    const g = el('g', { class: 'port' + (on ? ' on' : '') + (armed === id ? ' armed' : '') + (armed && kind === 'dst' ? ' target' : ''), tabindex: 0, role: 'button', 'data-testid': 'port-' + id, 'data-port': id, 'data-kind': kind,
+      'aria-label': (kind === 'src' ? 'Output of ' : 'Input to ') + label(id) + (kind === 'dst' && wires[id] ? ', connected to ' + label(wires[id]) : '') }, parent);
+    el('circle', { class: 'hit', cx: x, cy: y, r: 17 }, g);
+    el('circle', { class: 'dot', cx: x, cy: y, r: 8 }, g);
+  }
+
+  function renderBoard() {
+    const G = geo(); const svg = $('#board');
+    const focused = document.activeElement && document.activeElement.getAttribute && document.activeElement.getAttribute('data-testid');
+    svg.setAttribute('viewBox', `0 0 ${G.W} ${G.H}`);
+    svg.style.minWidth = Math.round(G.W * 0.62) + 'px';
+    svg.innerHTML = '';
+    const { v } = evaluate(inputs);
+    // slots
+    for (let c = 0; c < L.cols; c++) for (let r = 0; r < L.rows; r++) {
+      const id = slotId(c, r), x = G.slotX(c), y = G.slotY(r);
+      if (gates[id]) continue;
+      const s = el('g', { class: 'slot' + (tool && tool !== 'REMOVE' ? ' can' : ''), tabindex: 0, role: 'button', 'data-testid': `slot-${c}-${r}`, 'data-slot': `${c},${r}`, 'aria-label': `Empty slot, column ${c + 1}, row ${r + 1}` }, svg);
+      el('rect', { x: x + 4, y: y + 4, width: 92, height: 68, rx: 10 }, s);
+    }
+    // wires under everything else
+    const wg = el('g', {}, svg);
+    for (const [dst, src] of Object.entries(wires)) {
+      const [x1, y1] = portPos(src, G), [x2, y2] = portPos(dst, G);
+      const dx = Math.max(34, Math.abs(x2 - x1) / 2);
+      const d = `M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}`;
+      el('path', { class: 'wire-under', d }, wg);
+      el('path', { class: 'wire ' + (v[src] ? 'hi' : 'lo'), d, 'data-testid': `wire-${dst}`, 'data-value': v[src] }, wg);
+    }
+    // inputs
+    L.ins.forEach((n, i) => {
+      const y = G.inY(i);
+      const t = el('g', { class: 'toggle pin' + (inputs[i] ? ' on' : ''), tabindex: 0, role: 'switch', 'aria-checked': String(!!inputs[i]), 'aria-label': `Input ${n}`, 'data-testid': `toggle-${n}`, 'data-toggle': i }, svg);
+      el('rect', { x: 18, y: y - 22, width: 66, height: 44, rx: 10 }, t);
+      el('text', { x: 30, y: y + 6 }, t).textContent = n.length > 1 ? n : n;
+      const tv = el('text', { class: 'val', x: 66, y: y + 5 }, t); tv.textContent = inputs[i];
+      if (n.length > 1) { t.querySelector('text').setAttribute('style', 'font-size:13px'); tv.setAttribute('x', 70); }
+      el('line', { x1: 84, y1: y, x2: 96, y2: y, stroke: '#1d2426', 'stroke-width': 3 }, svg);
+      portEl(svg, n, 96, y, inputs[i], 'src');
+    });
+    // outputs
+    L.outs.forEach((n, i) => {
+      const y = G.outY(i), x = G.W - 116, val = wires[n] != null ? v[wires[n]] : null;
+      el('line', { x1: x, y1: y, x2: x + 26, y2: y, stroke: '#1d2426', 'stroke-width': 3 }, svg);
+      const lg = el('g', { class: 'lamp' + (val ? ' on' : ''), 'data-testid': `lamp-${n}`, 'data-value': val == null ? '' : val }, svg);
+      el('circle', { class: 'glass', cx: x + 42, cy: y, r: 17 }, lg);
+      el('text', { x: x + 64, y: y + 6 }, lg).textContent = n;
+      portEl(svg, n, x, y, val, 'dst');
+    });
+    // gates
+    for (const [id, g] of Object.entries(gates)) {
+      const x = G.slotX(g.c), y = G.slotY(g.r), n = GATES[g.type].n, on = v[id + '.out'];
+      const gg = el('g', { class: 'gate' + (on ? ' on' : '') + (tool === 'REMOVE' ? ' picked' : ''), transform: `translate(${x},${y})`, 'data-testid': `gate-${id}`, 'data-gate': id, 'data-value': on,
+        tabindex: 0, role: 'button', 'aria-label': `${g.type} gate, column ${g.c + 1}, row ${g.r + 1}, output ${on}. Press Delete to remove.` }, svg);
+      const ys = n === 1 ? [38] : [24, 52];
+      ys.forEach((yy) => el('line', { class: 'lead', x1: 0, y1: yy, x2: 30, y2: yy }, gg));
+      el('line', { class: 'lead', x1: 78, y1: 38, x2: 100, y2: 38 }, gg);
+      gg.insertAdjacentHTML('beforeend', SHAPES[g.type]);
+      const tx = el('text', { x: g.type === 'NOT' ? 40 : g.type === 'XOR' ? 52 : 46, y: 42, 'text-anchor': 'middle' }, gg); tx.textContent = g.type;
+      ys.forEach((yy, k) => portEl(svg, `${id}.in${k}`, x, y + yy, 0, 'dst'));
+      portEl(svg, `${id}.out`, x + 100, y + 38, on, 'src');
+    }
+    // mark gate input dots that carry a 1
+    svg.querySelectorAll('.port[data-kind=dst]').forEach((p) => { const s = wires[p.dataset.port]; if (s && v[s]) p.classList.add('on'); });
+    if (focused) { const f = svg.querySelector(`[data-testid="${CSS.escape(focused)}"]`); if (f) f.focus({ preventScroll: true }); }
+  }
+
+  function renderPalette() {
+    const bar = $('[data-testid=palette]'); bar.innerHTML = '';
+    for (const t of Object.keys(GATES)) {
+      if (!L.gates[t]) continue;
+      const left = L.gates[t] - used(t);
+      const b = document.createElement('button');
+      b.className = 'tool'; b.dataset.tool = t; b.setAttribute('data-testid', 'tool-' + t);
+      b.setAttribute('aria-pressed', String(tool === t)); b.disabled = left <= 0 && tool !== t;
+      b.setAttribute('aria-label', `${t} gate, ${left} left`);
+      b.innerHTML = `<svg viewBox="0 0 30 22" aria-hidden="true"><path d="${ICON[t]}" fill="none" stroke="#1d2426" stroke-width="2"/></svg>${t}<span class="left" data-testid="left-${t}">×${left}</span>`;
+      bar.appendChild(b);
+    }
+    const sep = document.createElement('span'); sep.className = 'sep'; bar.appendChild(sep);
+    const mk = (id, txt, pressed) => { const b = document.createElement('button'); b.className = 'tool'; b.dataset.tool = id; b.setAttribute('data-testid', 'tool-' + id.toLowerCase()); b.textContent = txt; if (pressed != null) b.setAttribute('aria-pressed', String(pressed)); bar.appendChild(b); return b; };
+    mk('REMOVE', 'Remove', tool === 'REMOVE');
+    const u = mk('UNDO', '↶ Undo'); u.disabled = !history.length;
+    mk('CLEAR', 'Clear');
+  }
+
+  function renderTable() {
+    const t = $('[data-testid=truth-table]');
+    const res = check();
+    const cur = parseInt(inputs.join(''), 2);
+    let h = `<thead><tr><th class="grp" colspan="${L.ins.length}">Inputs</th><th class="grp sepl" colspan="${L.outs.length}">Target</th><th class="grp sepl" colspan="${L.outs.length}">Yours</th><th class="sepl"></th></tr><tr>`;
+    h += L.ins.map((n) => `<th scope="col">${n}</th>`).join('');
+    h += L.outs.map((n, k) => `<th scope="col"${k ? '' : ' class="sepl"'}>${n}</th>`).join('');
+    h += L.outs.map((n, k) => `<th scope="col"${k ? '' : ' class="sepl"'}>${n}</th>`).join('');
+    h += '<th class="sepl"><span style="position:absolute;left:-9999px">Match</span></th></tr></thead><tbody>';
+    res.rows.forEach((r, k) => {
+      h += `<tr class="${r.pass ? 'pass' : 'fail'}${k === cur ? ' cur' : ''}" data-testid="row-${k}" data-pass="${r.pass}">`;
+      h += r.i.map((x, j) => `<td>${j === 0 ? `<button data-row="${k}" aria-label="Set inputs to ${r.i.join(' ')}">${x}</button>` : x}</td>`).join('');
+      h += r.o.map((x, j) => `<td${j ? '' : ' class="sepl"'}>${x}</td>`).join('');
+      h += r.got.map((x, j) => `<td class="got${j ? '' : ' sepl'}">${x == null ? '–' : x}</td>`).join('');
+      h += `<td class="sepl mark" aria-label="${r.pass ? 'match' : 'no match'}">${r.pass ? '✓' : '✗'}</td></tr>`;
+    });
+    t.innerHTML = h + '</tbody>';
+    $('[data-testid=status]').textContent = res.solved ? `All ${res.rows.length} rows light up.` : `${res.passed} of ${res.rows.length} rows correct.`;
+    return res;
+  }
+
+  function renderLevels() {
+    const nav = $('[data-testid=levels]'); nav.innerHTML = '';
+    let total = 0;
+    LEVELS.forEach((lv, i) => {
+      const s = saved.stars[i] || 0; total += s;
+      const b = document.createElement('button');
+      b.setAttribute('data-testid', 'level-' + (i + 1)); b.dataset.level = i;
+      b.setAttribute('aria-current', String(i === li));
+      b.setAttribute('aria-label', `Level ${i + 1}: ${lv.name}, ${s} of 3 stars`);
+      b.innerHTML = `${i + 1}<small class="${s ? 'got' : ''}" aria-hidden="true">${'★'.repeat(s)}${'☆'.repeat(3 - s)}</small>`;
+      nav.appendChild(b);
+    });
+    $('[data-testid=total-stars]').textContent = `${total} / ${LEVELS.length * 3}`;
+  }
+
+  function renderAll() {
+    renderPalette(); renderBoard();
+    const res = renderTable();
+    const n = Object.keys(gates).length;
+    if (res.solved && !solvedNow) {
+      solvedNow = true;
+      const s = starsFor(n);
+      if (s > (saved.stars[li] || 0)) { saved.stars[li] = s; persist(); }
+      renderLevels();
+      const win = $('#win'); win.hidden = false;
+      $('[data-testid=stars]').innerHTML = '★'.repeat(s) + `<span class="off">${'★'.repeat(3 - s)}</span>`;
+      $('[data-testid=stars]').setAttribute('aria-label', `${s} of 3 stars`);
+      $('[data-testid=stars]').dataset.stars = s;
+      $('[data-testid=win-text]').textContent = `Solved with ${n} gate${n === 1 ? '' : 's'} (par ${L.par}).` + (s < 3 ? ` Try it in ${L.par} for three stars.` : ' Textbook.');
+      $('#next').textContent = li < LEVELS.length - 1 ? 'Next level →' : 'Back to level 1';
+      hint('Circuit complete!');
+    } else if (!res.solved && solvedNow) {
+      solvedNow = false; $('#win').hidden = true;
+    }
+  }
+
+  let hintTimer;
+  function hint(text, warn) {
+    const h = $('[data-testid=hint]'); h.textContent = text; h.classList.toggle('warn', !!warn);
+  }
+
+  // ---------- interaction ----------
+  function activate(target) {
+    const port = target.closest('.port');
+    if (port) {
+      const id = port.dataset.port, kind = port.dataset.kind;
+      if (kind === 'src') {
+        armed = armed === id ? null : id;
+        if (armed) hint(`Wiring from ${label(id)}. Now tap an input port (Esc to cancel).`);
+        renderBoard();
+      } else if (armed) {
+        const a = armed; armed = null;
+        if (!connect(a, id)) renderBoard();
+      } else if (wires[id]) disconnect(id);
+      else hint('Tap an output port first, then this input.');
+      return;
+    }
+    const gate = target.closest('.gate');
+    if (gate) { if (tool === 'REMOVE') removeGate(gate.dataset.gate); else hint(`${gates[gate.dataset.gate].type} gate. Choose Remove to pull it, or wire its ports.`); return; }
+    const slot = target.closest('.slot');
+    if (slot) {
+      const [c, r] = slot.dataset.slot.split(',').map(Number);
+      if (tool && GATES[tool]) place(tool, c, r); else hint('Pick a gate from the toolbar first.');
+      return;
+    }
+    const tg = target.closest('.toggle');
+    if (tg) { const i = +tg.dataset.toggle; inputs[i] ^= 1; renderBoard(); renderTable(); }
+  }
+  $('#board').addEventListener('click', (e) => activate(e.target));
+  $('#board').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { if (e.target.closest('.port,.gate,.slot,.toggle')) { e.preventDefault(); activate(e.target); } }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && e.target.closest('.gate')) { e.preventDefault(); removeGate(e.target.closest('.gate').dataset.gate); }
+  });
+  $('[data-testid=palette]').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    const t = b.dataset.tool;
+    if (t === 'UNDO') undo();
+    else if (t === 'CLEAR') { if (Object.keys(gates).length) { pushHistory(); gates = {}; wires = {}; armed = null; hint('Board cleared. Undo brings it back.'); renderAll(); } }
+    else { tool = tool === t ? null : t; armed = null; hint(tool === 'REMOVE' ? 'Tap a gate to remove it.' : tool ? `Tap an empty slot to place ${t}.` : 'Pick a gate, then tap an empty slot.'); renderPalette(); renderBoard(); }
+  });
+  $('[data-testid=truth-table]').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-row]'); if (!b) return;
+    inputs = bits(L.ins.length, +b.dataset.row); renderBoard(); renderTable();
+  });
+  $('[data-testid=levels]').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) load(+b.dataset.level); });
+  $('#next').addEventListener('click', () => { load((li + 1) % LEVELS.length); $('[data-testid=level-name]').scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' }); });
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
+    if (e.key === 'Escape' && armed) { armed = null; hint('Wire cancelled.'); renderBoard(); }
+  });
+
+  // ---------- test hook ----------
+  window.__cb = {
+    levels: LEVELS.map((l) => ({ name: l.name, ins: l.ins, outs: l.outs, par: l.par, cols: l.cols, rows: l.rows, gates: l.gates })),
+    load, place, connect, disconnect, removeGate, undo,
+    check: () => { const r = check(); return { passed: r.passed, total: r.rows.length, solved: r.solved }; },
+    get level() { return li; },
+    get gateCount() { return Object.keys(gates).length; },
+    get saved() { return JSON.parse(JSON.stringify(saved)); },
+    starsFor: (n) => starsFor(n),
+  };
+
+  load(li);
+})();
+</script>
+</body>
+</html>

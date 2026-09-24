@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Color System Studio — Accessible OKLCH Palettes</title>
+<meta name="description" content="Build an accessible design-token palette: pick brand hues, generate 50–950 ramps in OKLCH with real sRGB gamut clipping, check every text-on-background pair in a WCAG contrast matrix, preview a sample UI in light and dark, and export CSS custom properties or JSON tokens.">
+<style>
+  :root {
+    --paper: #fbfbf8;
+    --ink: #111111;
+    --ink-2: #555555;
+    --ink-3: #8a8a8a;
+    --rule: #111111;
+    --hair: #dddddd;
+    --red: #e4002b;
+    --sans: "Helvetica Neue", Helvetica, Arial, "Nimbus Sans", "Liberation Sans", system-ui, sans-serif;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--paper); color: var(--ink); font-family: var(--sans); line-height: 1.4; overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--red); outline-offset: 2px; }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  select, input, pre { max-width: 100%; }
+  .back {
+    position: fixed; top: 12px; left: 12px; z-index: 50; text-decoration: none; color: var(--ink);
+    font: 700 12px/1 var(--sans); background: var(--paper); border: 1px solid var(--ink); padding: 7px 10px;
+  }
+  .back:hover { background: var(--ink); color: var(--paper); }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 60px 20px 48px; }
+  header.top { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 16px 32px; border-top: 6px solid var(--ink); padding-top: 14px; margin-bottom: 26px; }
+  h1 { margin: 0; font: 700 clamp(40px, 7.5vw, 92px)/.88 var(--sans); letter-spacing: -.045em; }
+  h1 i { font-style: normal; color: var(--red); }
+  .intro { align-self: end; font-size: 15px; color: var(--ink-2); }
+  .intro b { color: var(--ink); }
+  .num { font: 700 12px var(--mono); color: var(--red); letter-spacing: .1em; }
+  section.block { border-top: 1px solid var(--rule); padding: 14px 0 26px; }
+  .bh { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .bh h2 { margin: 0; font: 700 26px/1.1 var(--sans); letter-spacing: -.02em; }
+  .bh p { margin: 0; color: var(--ink-2); font-size: 13.5px; max-width: 60ch; }
+  .btn { border: 1px solid var(--ink); background: var(--paper); padding: 6px 12px; font-weight: 700; font-size: 13px; }
+  .btn:hover { background: var(--ink); color: var(--paper); }
+  .btn.solid { background: var(--ink); color: var(--paper); }
+  .btn.solid:hover { background: var(--red); border-color: var(--red); }
+  .btn:disabled { opacity: .35; cursor: default; background: var(--paper); color: var(--ink); }
+
+  /* palette editors */
+  .pal { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 18px; padding: 14px 0; border-bottom: 1px solid var(--hair); }
+  .pal:last-of-type { border-bottom: 0; }
+  .ped { display: grid; gap: 8px; align-content: start; min-width: 0; }
+  .ped .name { display: flex; gap: 6px; align-items: center; }
+  .ped .name input { flex: 1; min-width: 0; border: 0; border-bottom: 2px solid var(--ink); background: transparent; font: 700 20px var(--sans); padding: 2px 0; letter-spacing: -.01em; }
+  .ped label { display: grid; gap: 2px; font-size: 12px; color: var(--ink-2); }
+  .ped label span { display: flex; justify-content: space-between; font-family: var(--mono); }
+  .ped label span b { color: var(--ink); }
+  input[type=range] { width: 100%; min-width: 0; accent-color: var(--ink); }
+  input.hue { -webkit-appearance: none; appearance: none; height: 12px; border-radius: 0; background: linear-gradient(90deg, oklch(.7 .15 0), oklch(.7 .15 60), oklch(.7 .15 120), oklch(.7 .15 180), oklch(.7 .15 240), oklch(.7 .15 300), oklch(.7 .15 360)); border: 1px solid var(--ink); }
+  input.hue::-webkit-slider-thumb { -webkit-appearance: none; width: 10px; height: 20px; background: var(--paper); border: 2px solid var(--ink); }
+  input.hue::-moz-range-thumb { width: 10px; height: 20px; background: var(--paper); border: 2px solid var(--ink); border-radius: 0; }
+  .ramp { display: grid; grid-template-columns: repeat(11, minmax(0, 1fr)); gap: 0; min-width: 0; border: 1px solid var(--ink); }
+  .sw { border: 0; padding: 0; background: var(--c); min-height: 104px; display: flex; flex-direction: column; justify-content: space-between; text-align: left; color: var(--t); position: relative; min-width: 0; }
+  .sw .st { font: 700 13px var(--sans); padding: 6px 6px 0; }
+  .sw .hx { font: 10.5px var(--mono); padding: 0 6px 6px; overflow-wrap: anywhere; }
+  .sw .clip { position: absolute; top: 5px; right: 5px; font: 700 9px var(--mono); border: 1px solid currentColor; padding: 0 3px; }
+  .sw:focus-visible { outline-offset: -4px; }
+  .clipnote { font: 11.5px var(--mono); color: var(--ink-3); margin-top: 6px; }
+
+  /* matrix */
+  .mx-ctl { display: flex; gap: 10px 18px; flex-wrap: wrap; align-items: center; font-size: 13px; margin-bottom: 10px; }
+  .mx-ctl select { border: 1px solid var(--ink); background: var(--paper); padding: 4px 6px; }
+  .mx-wrap { overflow-x: auto; border: 1px solid var(--ink); max-width: 100%; }
+  table.mx { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 11px; }
+  .mx th { font: 700 11px var(--mono); padding: 5px 4px; text-align: center; background: var(--paper); }
+  .mx th.rowh { text-align: left; white-space: nowrap; }
+  .mx td { padding: 0; }
+  .cell { display: grid; place-items: center; min-height: 46px; background: var(--bg); color: var(--fg); font: 700 12px var(--sans); gap: 1px; text-align: center; }
+  .cell small { font: 700 9px var(--mono); letter-spacing: .04em; padding: 1px 4px; background: var(--paper); color: var(--ink); }
+  .cell small.aaa { background: #111; color: #fff; }
+  .cell small.fail { background: var(--red); color: #fff; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--ink-2); margin-top: 8px; }
+
+  /* preview */
+  .previews { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+  .pv { border: 1px solid var(--ink); min-width: 0; }
+  .pv-h { display: flex; justify-content: space-between; padding: 6px 10px; font: 700 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; border-bottom: 1px solid var(--ink); }
+  .ui { background: var(--u-bg); color: var(--u-text); padding: 18px; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .ui .card { background: var(--u-surface); border: 1px solid var(--u-border); border-radius: 12px; padding: 16px; }
+  .ui .badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--u-accent-bg); color: var(--u-accent-text); }
+  .ui h3 { margin: 8px 0 4px; font-size: 19px; }
+  .ui p { margin: 0 0 12px; color: var(--u-muted); font-size: 14px; }
+  .ui a { color: var(--u-link); font-weight: 600; }
+  .ui .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .ui .b1 { background: var(--u-primary); color: var(--u-on-primary); border: 0; border-radius: 8px; padding: 8px 14px; font-weight: 700; }
+  .ui .b2 { background: transparent; color: var(--u-text); border: 1px solid var(--u-border); border-radius: 8px; padding: 8px 14px; font-weight: 600; }
+  .ui input { width: 100%; background: var(--u-bg); color: var(--u-text); border: 1px solid var(--u-border); border-radius: 8px; padding: 8px 10px; }
+  .checks { list-style: none; margin: 0; padding: 8px 10px; display: grid; gap: 3px; font: 11.5px var(--mono); border-top: 1px solid var(--ink); }
+  .checks li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; }
+  .checks li span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .checks .ok { color: #0a7a3c; font-weight: 700; } .checks .no { color: var(--red); font-weight: 700; }
+
+  /* export */
+  .ex-ctl { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+  .seg { display: inline-flex; border: 1px solid var(--ink); }
+  .seg button { border: 0; background: var(--paper); padding: 5px 12px; font-weight: 700; font-size: 13px; }
+  .seg button + button { border-left: 1px solid var(--ink); }
+  .seg button[aria-pressed=true] { background: var(--ink); color: var(--paper); }
+  pre.out { margin: 0; border: 1px solid var(--ink); padding: 14px; font: 12px/1.55 var(--mono); max-height: 380px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: #fff; }
+  .status { font: 12px var(--mono); color: var(--ink-2); }
+
+  @media (max-width: 900px) {
+    header.top { grid-template-columns: minmax(0, 1fr); }
+    .pal { grid-template-columns: minmax(0, 1fr); }
+    .previews { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 600px) {
+    .wrap { padding: 56px 12px 40px; }
+    .ramp { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .sw { min-height: 76px; }
+    .sw .clip { font-size: 0; width: 8px; height: 8px; border-radius: 50%; background: currentColor; padding: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="top">
+    <div><div class="num">LAB 039 — TOOLS</div><h1>Color<br>System <i>Studio</i></h1></div>
+    <p class="intro">Pick a few brand hues. Each becomes an eleven-step ramp from <b>50</b> to <b>950</b>, built in <b>OKLCH</b> so equal steps look equal, then converted to sRGB — with chroma pulled back wherever a colour falls outside what a screen can show. Every text-on-background pair is checked against WCAG before you ship a single token.</p>
+  </header>
+
+  <section class="block" aria-labelledby="h-pal">
+    <div class="bh"><div><div class="num">01</div><h2 id="h-pal">Palettes</h2></div>
+      <div class="row" style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" data-testid="add-palette">+ Add palette</button><button type="button" class="btn" data-testid="reset">Reset</button></div></div>
+    <div id="pals" data-testid="palettes"></div>
+  </section>
+
+  <section class="block" aria-labelledby="h-mx">
+    <div class="bh"><div><div class="num">02</div><h2 id="h-mx">Contrast matrix</h2></div><p>WCAG 2 contrast ratio for every text colour (rows) on every background (columns). AA needs 4.5:1 for body text and 3:1 for large text; AAA needs 7:1.</p></div>
+    <div class="mx-ctl">
+      <label>Text from <select id="mx-text" data-testid="mx-text"></select></label>
+      <label>Background from <select id="mx-bg" data-testid="mx-bg"></select></label>
+      <span class="status" data-testid="mx-summary" aria-live="polite"></span>
+    </div>
+    <div class="mx-wrap" tabindex="0" aria-label="Contrast matrix, scrolls horizontally"><table class="mx" id="mx" data-testid="matrix"></table></div>
+    <div class="legend"><span><b>AAA</b> ≥ 7</span><span><b>AA</b> ≥ 4.5</span><span><b>AA LG</b> ≥ 3, large text only</span><span><b style="color:var(--red)">FAIL</b> &lt; 3</span></div>
+  </section>
+
+  <section class="block" aria-labelledby="h-pv">
+    <div class="bh"><div><div class="num">03</div><h2 id="h-pv">Light &amp; dark preview</h2></div><p>Semantic tokens mapped from the ramps. The checks underneath each preview use the same contrast maths as the matrix.</p></div>
+    <div class="previews">
+      <div class="pv" data-testid="preview-light"><div class="pv-h"><span>Light</span><span data-testid="light-score"></span></div><div class="ui" id="ui-light"></div><ul class="checks" id="ck-light"></ul></div>
+      <div class="pv" data-testid="preview-dark"><div class="pv-h"><span>Dark</span><span data-testid="dark-score"></span></div><div class="ui" id="ui-dark"></div><ul class="checks" id="ck-dark"></ul></div>
+    </div>
+  </section>
+
+  <section class="block" aria-labelledby="h-ex">
+    <div class="bh"><div><div class="num">04</div><h2 id="h-ex">Export</h2></div></div>
+    <div class="ex-ctl">
+      <span class="seg" role="group" aria-label="Export format"><button type="button" data-fmt="css" data-testid="fmt-css" aria-pressed="true">CSS variables</button><button type="button" data-fmt="json" data-testid="fmt-json" aria-pressed="false">JSON tokens</button></span>
+      <span class="seg" role="group" aria-label="Colour notation"><button type="button" data-note="hex" data-testid="note-hex" aria-pressed="true">hex</button><button type="button" data-note="oklch" data-testid="note-oklch" aria-pressed="false">oklch()</button></span>
+      <button type="button" class="btn solid" data-testid="copy">Copy</button>
+      <button type="button" class="btn" data-testid="download">Download</button>
+      <span class="status" data-testid="export-status" aria-live="polite"></span>
+    </div>
+    <pre class="out" id="out" data-testid="export" tabindex="0" aria-label="Exported tokens"></pre>
+  </section>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const $$ = (s) => [...document.querySelectorAll(s)];
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  /* ---------------- colour maths ---------------- */
+  // OKLCH -> OKLab -> linear sRGB (Björn Ottosson's matrices) -> gamma-encoded sRGB
+  function oklchToLinear(L, C, H) {
+    const hr = H * Math.PI / 180, a = C * Math.cos(hr), b = C * Math.sin(hr);
+    const l_ = L + 0.3963377774 * a + 0.2158037573 * b;
+    const m_ = L - 0.1055613458 * a - 0.0638541728 * b;
+    const s_ = L - 0.0894841775 * a - 1.2914855480 * b;
+    const l = l_ ** 3, m = m_ ** 3, s = s_ ** 3;
+    return [
+      4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+      -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+      -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s,
+    ];
+  }
+  const EPS = 1e-6;
+  const inGamut = (rgb) => rgb.every((v) => v >= -EPS && v <= 1 + EPS);
+  const encode = (x) => { x = Math.min(1, Math.max(0, x)); return x <= 0.0031308 ? 12.92 * x : 1.055 * Math.pow(x, 1 / 2.4) - 0.055; };
+  const toHex = (lin) => '#' + lin.map((v) => Math.round(encode(v) * 255).toString(16).padStart(2, '0')).join('');
+  // gamut mapping: keep L and H, binary-search the largest chroma that fits in sRGB
+  function clipChroma(L, C, H) {
+    if (inGamut(oklchToLinear(L, C, H))) return { C, clipped: false };
+    let lo = 0, hi = C;
+    for (let i = 0; i < 24; i++) { const mid = (lo + hi) / 2; if (inGamut(oklchToLinear(L, mid, H))) lo = mid; else hi = mid; }
+    return { C: lo, clipped: true };
+  }
+  function oklchToHex(L, C, H) { const c = clipChroma(L, C, H); return toHex(oklchToLinear(L, c.C, H)); }
+  // WCAG 2.x relative luminance and contrast ratio, from the 8-bit hex value that will actually ship
+  function luminance(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+    return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+  }
+  function contrast(a, b) { const la = luminance(a), lb = luminance(b); return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05); }
+  const grade = (r) => (r >= 7 ? 'AAA' : r >= 4.5 ? 'AA' : r >= 3 ? 'AA LG' : 'FAIL');
+  const fmtRatio = (r) => (Math.floor(r * 100) / 100).toFixed(2);
+
+  /* ---------------- ramps ---------------- */
+  const STEPS = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
+  const LIGHT = [0.975, 0.94, 0.885, 0.815, 0.73, 0.64, 0.55, 0.475, 0.4, 0.33, 0.265];
+  const CSHAPE = [0.12, 0.25, 0.45, 0.7, 0.9, 1, 0.95, 0.85, 0.7, 0.55, 0.42];
+  function ramp(p) {
+    return STEPS.map((step, i) => {
+      const L = LIGHT[i], want = p.c * CSHAPE[i];
+      const cc = clipChroma(L, want, p.h);
+      const hex = toHex(oklchToLinear(L, cc.C, p.h));
+      return { step, L, C: cc.C, want, H: p.h, hex, clipped: cc.clipped };
+    });
+  }
+
+  /* ---------------- state ---------------- */
+  const KEY = 'colorstudio.v1';
+  const DEFAULTS = () => ({ pals: [{ name: 'primary', h: 262, c: 0.19 }, { name: 'accent', h: 32, c: 0.17 }, { name: 'neutral', h: 262, c: 0.018 }], mxText: 'neutral', mxBg: 'neutral', fmt: 'css', note: 'hex' });
+  let S;
+  try { S = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { S = null; }
+  if (!S || !Array.isArray(S.pals) || !S.pals.length) S = DEFAULTS();
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* ignore */ } };
+  const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'color';
+  let R = {};
+  const computeAll = () => { R = {}; S.pals.forEach((p) => { R[p.name] = ramp(p); }); };
+  const byStep = (name, step) => R[name].find((s) => s.step === step).hex;
+  const role = (r) => (S.pals.find((p) => p.name === r) || (r === 'neutral' ? S.pals[S.pals.length - 1] : S.pals[0])).name;
+
+  /* ---------------- palettes UI ---------------- */
+  function renderPalettes() {
+    $('#pals').innerHTML = S.pals.map(paletteHtml).join('');
+  }
+  function paletteHtml(p, i) {
+    {
+      const rp = R[p.name];
+      const clipped = rp.filter((s) => s.clipped).length;
+      return `<div class="pal" data-testid="palette-${i}">
+        <div class="ped">
+          <div class="name"><input type="text" value="${esc(p.name)}" aria-label="Palette ${i + 1} name" data-i="${i}" data-f="name" data-testid="name-${i}">
+            <button type="button" class="btn" data-del="${i}" aria-label="Remove ${esc(p.name)} palette" ${S.pals.length < 2 ? 'disabled' : ''}>✕</button></div>
+          <label><span>Hue <b data-testid="hue-out-${i}">${p.h}°</b></span><input type="range" class="hue" min="0" max="360" value="${p.h}" data-i="${i}" data-f="h" data-testid="hue-${i}" aria-label="${esc(p.name)} hue"></label>
+          <label><span>Peak chroma <b data-testid="chroma-out-${i}">${p.c.toFixed(3)}</b></span><input type="range" min="0" max="0.37" step="0.005" value="${p.c}" data-i="${i}" data-f="c" data-testid="chroma-${i}" aria-label="${esc(p.name)} chroma"></label>
+          <div class="clipnote" data-testid="clipped-${i}" data-count="${clipped}">${clipped ? `${clipped} step${clipped > 1 ? 's' : ''} gamut-clipped to fit sRGB` : 'all steps inside sRGB'}</div>
+        </div>
+        <div class="ramp" role="list" aria-label="${esc(p.name)} ramp">${rp.map((s) => {
+          const t = contrast(s.hex, '#ffffff') >= contrast(s.hex, '#000000') ? '#ffffff' : '#000000';
+          return `<button type="button" role="listitem" class="sw" style="--c:${s.hex};--t:${t}" data-hex="${s.hex}" data-testid="sw-${slug(p.name)}-${s.step}" data-clipped="${s.clipped}" title="oklch(${(s.L * 100).toFixed(1)}% ${s.C.toFixed(3)} ${p.h})${s.clipped ? ` — chroma clipped from ${s.want.toFixed(3)}` : ''}" aria-label="${esc(p.name)} ${s.step}, ${s.hex}${s.clipped ? ', gamut clipped' : ''}. Copy"><span class="st">${s.step}</span>${s.clipped ? '<span class="clip" aria-hidden="true">CLIP</span>' : ''}<span class="hx">${s.hex}</span></button>`;
+        }).join('')}</div>
+      </div>`;
+    }
+  }
+  $('#pals').addEventListener('input', (e) => {
+    const t = e.target; const i = +t.dataset.i; const f = t.dataset.f; if (!f) return;
+    if (f === 'name') return; // committed on change
+    S.pals[i][f] = +t.value;
+    R[S.pals[i].name] = ramp(S.pals[i]);
+    save();
+    // patch this palette in place (never replace the slider mid-drag)
+    const box = $(`[data-testid=palette-${i}]`);
+    const tmp = document.createElement('div');
+    tmp.innerHTML = paletteHtml(S.pals[i], i);
+    box.querySelector('.ramp').replaceWith(tmp.querySelector('.ramp'));
+    box.querySelector('.clipnote').replaceWith(tmp.querySelector('.clipnote'));
+    $(`[data-testid=hue-out-${i}]`).textContent = S.pals[i].h + '°';
+    $(`[data-testid=chroma-out-${i}]`).textContent = S.pals[i].c.toFixed(3);
+    renderRest();
+  });
+  $('#pals').addEventListener('change', (e) => {
+    const t = e.target; if (t.dataset.f !== 'name') return;
+    const i = +t.dataset.i;
+    let n = slug(t.value);
+    let k = 2; const base = n;
+    while (S.pals.some((p, j) => j !== i && p.name === n)) n = base + '-' + k++;
+    const old = S.pals[i].name;
+    S.pals[i].name = n;
+    if (S.mxText === old) S.mxText = n;
+    if (S.mxBg === old) S.mxBg = n;
+    save(); renderAll();
+  });
+  $('#pals').addEventListener('click', async (e) => {
+    const d = e.target.closest('[data-del]');
+    if (d) { S.pals.splice(+d.dataset.del, 1); if (!S.pals.some((p) => p.name === S.mxText)) S.mxText = S.pals[0].name; if (!S.pals.some((p) => p.name === S.mxBg)) S.mxBg = S.pals[0].name; save(); renderAll(); return; }
+    const sw = e.target.closest('.sw');
+    if (sw) {
+      try { await navigator.clipboard.writeText(sw.dataset.hex); $('[data-testid=export-status]').textContent = 'Copied ' + sw.dataset.hex; }
+      catch (err) { $('[data-testid=export-status]').textContent = sw.dataset.hex + ' (clipboard unavailable)'; }
+    }
+  });
+  const SUGGEST = [{ name: 'success', h: 150, c: 0.16 }, { name: 'warning', h: 75, c: 0.16 }, { name: 'danger', h: 25, c: 0.2 }, { name: 'info', h: 230, c: 0.13 }];
+  $('[data-testid=add-palette]').addEventListener('click', () => {
+    if (S.pals.length >= 6) return;
+    const s = SUGGEST.find((x) => !S.pals.some((p) => p.name === x.name)) || { name: 'extra-' + S.pals.length, h: (S.pals.length * 67) % 360, c: 0.14 };
+    S.pals.push({ ...s }); save(); renderAll();
+    const inp = $(`[data-testid=name-${S.pals.length - 1}]`); if (inp) inp.focus();
+  });
+  $('[data-testid=reset]').addEventListener('click', () => { S = DEFAULTS(); save(); renderAll(); });
+
+  /* ---------------- matrix ---------------- */
+  const TEXT_STEPS = ['white', 50, 100, 200, 700, 800, 900, 950, 'black'];
+  function renderMatrix() {
+    const opts = S.pals.map((p) => `<option value="${esc(p.name)}">${esc(p.name)}</option>`).join('');
+    $('#mx-text').innerHTML = opts; $('#mx-bg').innerHTML = opts;
+    $('#mx-text').value = S.mxText; $('#mx-bg').value = S.mxBg;
+    const tp = S.mxText, bp = S.mxBg;
+    let h = `<caption class="sr" style="position:absolute;left:-9999px">Text ${esc(tp)} on background ${esc(bp)}</caption><thead><tr><th class="rowh">text ↓ / bg →</th>${STEPS.map((s) => `<th scope="col">${s}</th>`).join('')}</tr></thead><tbody>`;
+    let pass = 0, total = 0;
+    TEXT_STEPS.forEach((ts) => {
+      const fg = ts === 'white' ? '#ffffff' : ts === 'black' ? '#000000' : byStep(tp, ts);
+      h += `<tr><th scope="row" class="rowh">${ts === 'white' || ts === 'black' ? ts : esc(tp) + '-' + ts}</th>`;
+      STEPS.forEach((bs) => {
+        const bg = byStep(bp, bs);
+        const r = contrast(fg, bg), g = grade(r);
+        total++; if (r >= 4.5) pass++;
+        h += `<td><div class="cell" style="--bg:${bg};--fg:${fg}" data-testid="cell-${ts}-${bs}" data-fg="${fg}" data-bg="${bg}" data-ratio="${fmtRatio(r)}" title="${fg} on ${bg}: ${fmtRatio(r)}:1 ${g}">${fmtRatio(r)}<small class="${g === 'AAA' ? 'aaa' : g === 'FAIL' ? 'fail' : ''}">${g}</small></div></td>`;
+      });
+      h += '</tr>';
+    });
+    $('#mx').innerHTML = h + '</tbody>';
+    $('[data-testid=mx-summary]').textContent = `${pass} of ${total} pairs pass AA for body text`;
+  }
+  $('#mx-text').addEventListener('change', (e) => { S.mxText = e.target.value; save(); renderMatrix(); });
+  $('#mx-bg').addEventListener('change', (e) => { S.mxBg = e.target.value; save(); renderMatrix(); });
+
+  /* ---------------- semantic tokens + preview ---------------- */
+  function semantic(mode) {
+    const pr = role('primary'), ne = role('neutral'), ac = S.pals.find((p) => p.name === 'accent') ? 'accent' : pr;
+    if (mode === 'light') {
+      const primary = byStep(pr, 600);
+      const onPrimary = contrast('#ffffff', primary) >= contrast(byStep(pr, 950), primary) ? '#ffffff' : byStep(pr, 950);
+      return { bg: byStep(ne, 50), surface: '#ffffff', text: byStep(ne, 900), muted: byStep(ne, 600), border: byStep(ne, 300), primary, 'on-primary': onPrimary, link: byStep(pr, 700), 'accent-bg': byStep(ac, 100), 'accent-text': byStep(ac, 800) };
+    }
+    const primary = byStep(pr, 400);
+    const onPrimary = contrast(byStep(pr, 950), primary) >= contrast('#ffffff', primary) ? byStep(pr, 950) : '#ffffff';
+    return { bg: byStep(ne, 950), surface: byStep(ne, 900), text: byStep(ne, 50), muted: byStep(ne, 400), border: byStep(ne, 700), primary, 'on-primary': onPrimary, link: byStep(pr, 300), 'accent-bg': byStep(ac, 900), 'accent-text': byStep(ac, 200) };
+  }
+  const CHECKS = [['text', 'bg', 4.5], ['text', 'surface', 4.5], ['muted', 'surface', 4.5], ['link', 'surface', 4.5], ['on-primary', 'primary', 4.5], ['accent-text', 'accent-bg', 4.5], ['primary', 'surface', 3], ['border', 'surface', 1.5]];
+  function renderPreview(mode) {
+    const t = semantic(mode);
+    const ui = $('#ui-' + mode);
+    Object.entries(t).forEach(([k, v]) => ui.style.setProperty('--u-' + k, v));
+    ui.innerHTML = `<div class="card"><span class="badge">New</span><h3>Your order is on its way</h3><p>Estimated delivery Thursday. You can change the drop-off spot until 8 pm the day before. <a href="#" onclick="return false">Track parcel</a></p>
+      <label style="font-size:13px;font-weight:600">Delivery note<input type="text" value="Leave by the side gate" aria-label="Delivery note (${mode} preview)"></label>
+      <div class="row"><button type="button" class="b1">Confirm</button><button type="button" class="b2">Not now</button></div></div>`;
+    let ok = 0;
+    $('#ck-' + mode).innerHTML = CHECKS.map(([a, b, min]) => {
+      const r = contrast(t[a], t[b]); const pass = r >= min; if (pass) ok++;
+      return `<li data-testid="ck-${mode}-${a}-${b}" data-ratio="${fmtRatio(r)}" data-pass="${pass}"><span>${a} on ${b}${min !== 4.5 ? ` (needs ${min})` : ''}</span><span>${fmtRatio(r)}:1</span><span class="${pass ? 'ok' : 'no'}">${pass ? 'PASS' : 'FAIL'}</span></li>`;
+    }).join('');
+    $(`[data-testid=${mode}-score]`).textContent = `${ok}/${CHECKS.length} checks pass`;
+  }
+
+  /* ---------------- export ---------------- */
+  const oklchStr = (s) => `oklch(${(s.L * 100).toFixed(1)}% ${s.C.toFixed(3)} ${s.H})`;
+  function exportText() {
+    if (S.fmt === 'css') {
+      const L = [':root {'];
+      S.pals.forEach((p) => {
+        L.push(`  /* ${p.name} — hue ${p.h}°, peak chroma ${p.c.toFixed(3)} */`);
+        R[p.name].forEach((s) => L.push(`  --${p.name}-${s.step}: ${S.note === 'hex' ? s.hex : oklchStr(s)};${S.note === 'hex' ? ` /* ${oklchStr(s)}${s.clipped ? ' clipped' : ''} */` : ` /* ${s.hex} */`}`));
+      });
+      ['light', 'dark'].forEach((m) => {
+        const t = semantic(m);
+        if (m === 'dark') { L.push('}', '', '@media (prefers-color-scheme: dark) {', '  :root {'); }
+        else L.push('  /* semantic tokens */');
+        Object.entries(t).forEach(([k, v]) => L.push(`${m === 'dark' ? '    ' : '  '}--color-${k}: ${v};`));
+        if (m === 'dark') L.push('  }');
+      });
+      L.push('}');
+      return L.join('\n') + '\n';
+    }
+    const out = {};
+    S.pals.forEach((p) => { out[p.name] = {}; R[p.name].forEach((s) => { out[p.name][s.step] = { $type: 'color', $value: S.note === 'hex' ? s.hex : oklchStr(s) }; }); });
+    out.semantic = { light: {}, dark: {} };
+    ['light', 'dark'].forEach((m) => Object.entries(semantic(m)).forEach(([k, v]) => { out.semantic[m][k] = { $type: 'color', $value: v }; }));
+    return JSON.stringify(out, null, 2) + '\n';
+  }
+  function renderExport() {
+    $('#out').textContent = exportText();
+    $$('[data-fmt]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.fmt === S.fmt)));
+    $$('[data-note]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.note === S.note)));
+  }
+  $$('[data-fmt]').forEach((b) => b.addEventListener('click', () => { S.fmt = b.dataset.fmt; save(); renderExport(); }));
+  $$('[data-note]').forEach((b) => b.addEventListener('click', () => { S.note = b.dataset.note; save(); renderExport(); }));
+  $('[data-testid=copy]').addEventListener('click', async () => {
+    const st = $('[data-testid=export-status]');
+    try { await navigator.clipboard.writeText(exportText()); st.textContent = 'Copied'; }
+    catch (e) { const r = document.createRange(); r.selectNodeContents($('#out')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); st.textContent = 'Selected — press Ctrl/⌘+C'; }
+  });
+  $('[data-testid=download]').addEventListener('click', () => {
+    const name = S.fmt === 'css' ? 'color-tokens.css' : 'color-tokens.json';
+    const url = URL.createObjectURL(new Blob([exportText()], { type: S.fmt === 'css' ? 'text/css' : 'application/json' }));
+    const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    $('[data-testid=export-status]').textContent = 'Downloaded ' + name;
+  });
+
+  function renderRest() { renderMatrix(); renderPreview('light'); renderPreview('dark'); renderExport(); }
+  function renderAll() { computeAll(); renderPalettes(); renderRest(); }
+  $$('[data-testid=add-palette]')[0].disabled = false;
+
+  window.__color = { oklchToHex, contrast, luminance, clipChroma, inGamut: (L, C, H) => inGamut(oklchToLinear(L, C, H)) };
+  renderAll();
+})();
+</script>
+</body>
+</html>

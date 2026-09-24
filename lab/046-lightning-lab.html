@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lightning Lab — a payment channel simulation</title>
+<meta name="description" content="A clearly labelled simulation of Lightning Network-style payment channels between ten fictional nodes: send a payment, watch fee-based pathfinding route it hop by hop, see balances shift, learn why payments fail on liquidity, and rebalance a channel with a circular payment.">
+<style>
+  :root {
+    --night: #100d24;
+    --night-2: #17133a;
+    --panel: #1c1845;
+    --panel-2: #241f55;
+    --line: #342d74;
+    --text: #ece9ff;
+    --dim: #a7a1d6;
+    --dim-2: #7a73b3;
+    --bolt: #ffd23f;
+    --bolt-2: #fff1a8;
+    --ok: #4ee6a0;
+    --bad: #ff6b8b;
+    --sans: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: "Cascadia Code", "SF Mono", ui-monospace, Consolas, Menlo, monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html { background: var(--night); }
+  html, body { margin: 0; }
+  body { color: var(--text); font: 15px/1.5 var(--sans); overflow-x: hidden;
+    background: radial-gradient(ellipse at 80% -10%, rgba(255, 210, 63, .12), transparent 45%), radial-gradient(ellipse at 0% 30%, rgba(120, 90, 255, .18), transparent 50%) no-repeat, var(--night); }
+  :focus-visible { outline: 2px solid var(--bolt); outline-offset: 2px; }
+  button, input, select { font: inherit; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; font: 600 12.5px/1 var(--mono); color: var(--text); text-decoration: none; padding: 8px 11px; border-radius: 8px;
+    background: rgba(28, 24, 69, .92); border: 1px solid var(--line); }
+  a.back:hover { border-color: var(--bolt); color: var(--bolt); }
+
+  header { max-width: 1240px; margin: 0 auto; padding: 58px 20px 12px; display: flex; flex-wrap: wrap; gap: 14px 30px; justify-content: space-between; align-items: flex-end; }
+  .brand { min-width: 0; }
+  .sim-tag { display: inline-block; font: 700 11px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--night); background: var(--bolt); padding: 6px 9px; border-radius: 4px; }
+  h1 { margin: 12px 0 6px; font: 800 clamp(34px, 6vw, 58px)/1 var(--sans); letter-spacing: -.03em; }
+  h1 span { color: var(--bolt); }
+  .brand p { margin: 0; color: var(--dim); max-width: 62ch; }
+  .totals { display: flex; gap: 8px; flex-wrap: wrap; }
+  .totals div { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; min-width: 90px; }
+  .totals span { display: block; font: 600 10.5px/1 var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--dim-2); }
+  .totals b { font: 700 20px/1.3 var(--mono); }
+  .totals .ok b { color: var(--ok); } .totals .bad b { color: var(--bad); }
+
+  main { max-width: 1240px; margin: 0 auto; padding: 0 20px 30px; display: grid; grid-template-columns: minmax(0, 1fr) 370px; gap: 16px; align-items: start; }
+  .map { min-width: 0; background: var(--night-2); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; position: relative; }
+  #graph { display: block; width: 100%; height: auto; }
+  .graph-scroll { overflow-x: auto; }
+  @media (max-width: 640px) { #graph { min-width: 640px; } }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 10px 14px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--dim); }
+  .legend i { display: inline-block; width: 22px; height: 6px; border-radius: 3px; vertical-align: 2px; margin-right: 6px; }
+  .node circle.body { stroke: var(--night); stroke-width: 3; }
+  .node text { font: 700 13px var(--sans); fill: var(--text); paint-order: stroke; stroke: var(--night-2); stroke-width: 4px; stroke-linejoin: round; }
+  .node text.sub { font: 500 11px var(--mono); fill: var(--dim); }
+  .node.from circle.ring, .node.to circle.ring { stroke-width: 3; }
+  .chan { stroke-linecap: round; }
+  .chan.hot { filter: drop-shadow(0 0 6px var(--bolt)); }
+  .route-path { fill: none; stroke: var(--bolt); stroke-width: 3; stroke-dasharray: 2 8; stroke-linecap: round; opacity: .9; }
+  .fail-x { stroke: var(--bad); stroke-width: 4; stroke-linecap: round; }
+
+  aside { min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; min-width: 0; }
+  .card h2 { margin: 0 0 12px; font: 700 12px/1 var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--bolt); }
+  .field { display: grid; gap: 4px; margin-bottom: 10px; min-width: 0; }
+  .field label { font-size: 12.5px; color: var(--dim); }
+  select, input[type=number] { width: 100%; max-width: 100%; min-height: 42px; border-radius: 10px; border: 1px solid var(--line); background: var(--night-2); color: var(--text); padding: 0 10px; }
+  .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+  .btn { min-height: 44px; width: 100%; border-radius: 10px; border: 0; background: var(--bolt); color: var(--night); font-weight: 800; cursor: pointer; letter-spacing: .02em; }
+  .btn:hover { background: var(--bolt-2); }
+  .btn.alt { background: transparent; color: var(--text); border: 1px solid var(--line); font-weight: 600; }
+  .btn.alt:hover { border-color: var(--dim); }
+  .row { display: flex; gap: 8px; }
+  .quick { display: flex; flex-wrap: wrap; gap: 6px; margin: -2px 0 10px; }
+  .quick button { border: 1px solid var(--line); background: transparent; color: var(--dim); border-radius: 999px; padding: 5px 10px; font: 12px/1 var(--mono); cursor: pointer; min-height: 30px; }
+  .quick button:hover { color: var(--text); border-color: var(--dim); }
+
+  .result { font-size: 14px; }
+  .result .head { font-weight: 800; font-size: 16px; margin-bottom: 6px; }
+  .result.ok .head { color: var(--ok); } .result.bad .head { color: var(--bad); }
+  .hops { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; font: 12.5px/1.4 var(--mono); }
+  .hops li { display: flex; justify-content: space-between; gap: 10px; padding: 5px 8px; background: var(--night-2); border-radius: 6px; min-width: 0; }
+  .hops li span:first-child { overflow-wrap: anywhere; min-width: 0; }
+  .hops li.fail { background: rgba(255, 107, 139, .14); color: #ffc2cf; }
+  .attempts { margin: 8px 0 0; padding-left: 18px; font-size: 13px; color: var(--dim); }
+  .attempts li { margin: 3px 0; }
+  .muted { color: var(--dim); font-size: 13px; margin: 0; }
+
+  main { grid-template-areas: "map side" "chan side"; grid-template-rows: auto 1fr; }
+  .map { grid-area: map; } aside { grid-area: side; }
+  .channels { grid-area: chan; min-width: 0; }
+  .chan-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important; }
+  .channels h2 { font: 700 12px/1 var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--bolt); margin: 10px 0 12px; }
+  .chan-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 10px; }
+  .chan-card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; min-width: 0; }
+  .chan-card.flash { border-color: var(--bolt); }
+  .chan-card .names { display: flex; justify-content: space-between; gap: 8px; font-weight: 700; font-size: 13.5px; }
+  .chan-card .names span { min-width: 0; overflow-wrap: anywhere; }
+  .liq { display: flex; height: 10px; border-radius: 5px; overflow: hidden; margin: 7px 0 5px; background: var(--night-2); }
+  .liq div { height: 100%; transition: width .5s; }
+  .chan-card .nums { display: flex; justify-content: space-between; gap: 6px; font: 12px/1.3 var(--mono); color: var(--dim); flex-wrap: wrap; }
+  .chan-card .fees { font: 11.5px/1.3 var(--mono); color: var(--dim-2); margin-top: 3px; display: flex; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
+  .disclose { max-width: 1240px; margin: 0 auto; padding: 0 20px 40px; }
+  .disclose div { border: 1px dashed var(--line); border-radius: 12px; padding: 14px 16px; color: var(--dim); font-size: 13.5px; }
+  .disclose b { color: var(--bolt); }
+  .earn { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font: 12.5px/1.3 var(--mono); }
+  .earn li { display: flex; justify-content: space-between; gap: 8px; }
+
+  @media (max-width: 980px) { main { grid-template-columns: minmax(0, 1fr); grid-template-areas: "map" "side" "chan"; grid-template-rows: none; } }
+  @media (max-width: 480px) {
+    header, main, .disclose { padding-left: 12px; padding-right: 12px; }
+    .chan-grid { grid-template-columns: minmax(0, 1fr) !important; }
+    .totals div { min-width: 0; flex: 1; }
+    .totals { width: 100%; }
+  }
+  @media (prefers-reduced-motion: reduce) { .liq div { transition: none; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+
+<header>
+  <div class="brand">
+    <span class="sim-tag">Simulation · not real Bitcoin</span>
+    <h1>Lightning <span>Lab</span></h1>
+    <p>Ten fictional nodes named after Austin spots, sixteen payment channels, and a sender who knows each channel's size but not how its balance is split. Send sats, watch the route, and see why payments fail.</p>
+  </div>
+  <div class="totals">
+    <div class="ok"><span>Settled</span><b data-testid="count-ok">0</b></div>
+    <div class="bad"><span>Failed</span><b data-testid="count-fail">0</b></div>
+    <div><span>Fees paid</span><b data-testid="fees-total">0</b></div>
+  </div>
+</header>
+
+<main>
+  <section class="map" aria-label="Network map">
+    <div class="graph-scroll" tabindex="0" aria-label="Network map, scrolls sideways on small screens"><svg id="graph" viewBox="0 0 1000 600" role="img" aria-label="Network map of ten nodes and sixteen channels; each channel line is split in two colors showing how much of its balance each side holds" data-testid="graph"></svg></div>
+    <div class="legend"><span><i style="background:linear-gradient(90deg,#8f7bff 50%,#4ee6a0 50%)"></i>Each channel is colored by who owns its balance, split where the balance splits</span><span><i style="background:#ffd23f"></i>Route of the last payment</span></div>
+  </section>
+
+  <aside>
+    <form class="card" id="pay-form" data-testid="pay-form" novalidate>
+      <h2>Send a payment</h2>
+      <div class="two">
+        <div class="field"><label for="from">From</label><select id="from" data-testid="from"></select></div>
+        <div class="field"><label for="to">To</label><select id="to" data-testid="to"></select></div>
+      </div>
+      <div class="field"><label for="amount">Amount (sats)</label><input type="number" id="amount" min="1" step="1" value="50000" data-testid="amount"></div>
+      <div class="quick" aria-label="Quick amounts"><button type="button" data-amt="10000">10k</button><button type="button" data-amt="50000">50k</button><button type="button" data-amt="150000">150k</button><button type="button" data-amt="400000">400k</button></div>
+      <button class="btn" type="submit" data-testid="send">⚡ Send</button>
+    </form>
+
+    <div class="card result" data-testid="result" aria-live="polite">
+      <div class="head" data-testid="result-head">No payments yet</div>
+      <p class="muted" data-testid="result-summary">The sender runs Dijkstra over fees using channel capacities only, tries the cheapest route, and retries around any hop that turns out to be short of liquidity.</p>
+      <ol class="hops" data-testid="hops"></ol>
+      <ol class="attempts" data-testid="attempts"></ol>
+    </div>
+
+    <form class="card" id="reb-form" data-testid="rebalance-form" novalidate>
+      <h2>Rebalance a channel</h2>
+      <p class="muted" style="margin-bottom:10px">A node pays itself in a circle: sats leave through its other channels and come back in through the chosen one, moving liquidity to its side.</p>
+      <div class="two">
+        <div class="field"><label for="rb-node">Node</label><select id="rb-node" data-testid="rb-node"></select></div>
+        <div class="field"><label for="rb-peer">Refill channel with</label><select id="rb-peer" data-testid="rb-peer"></select></div>
+      </div>
+      <div class="field"><label for="rb-amt">Amount (sats)</label><input type="number" id="rb-amt" min="1" step="1" value="100000" data-testid="rb-amount"></div>
+      <div class="row"><button class="btn" type="submit" data-testid="rebalance">↻ Rebalance</button><button class="btn alt" type="button" data-testid="reset">Reset network</button></div>
+    </form>
+
+    <div class="card">
+      <h2>Routing fees earned</h2>
+      <ul class="earn" data-testid="earnings"></ul>
+    </div>
+  </aside>
+
+<section class="channels" aria-label="Channels">
+  <h2>Channels</h2>
+  <div class="chan-grid" data-testid="channels"></div>
+</section>
+</main>
+
+<section class="disclose">
+  <div data-testid="disclosure"><b>Simplified model.</b> This is a teaching simulation, not the Lightning protocol. It has no HTLCs, timelocks, onion encryption or channel reserves, and nothing is on-chain. Fees are a base fee plus a proportional rate in parts per million, rounded up to whole sats (real nodes use millisatoshis). The sender knows every channel's capacity and fee policy but not its balance split, just as on the real network, and learns about a short hop only when a payment fails there. At most five attempts are made. All nodes are fictional.</div>
+</section>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const NS = 'http://www.w3.org/2000/svg';
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const q = new URLSearchParams(location.search);
+  const SEED = Math.max(1, parseInt(q.get('seed'), 10) || 1);
+
+  const NODES = [
+    { id: 'MB', name: 'Mount Bonnell', x: 110, y: 110, hue: 265 },
+    { id: 'PP', name: 'Pease Park', x: 360, y: 120, hue: 150 },
+    { id: 'HP', name: 'Hyde Park', x: 590, y: 100, hue: 190 },
+    { id: 'MU', name: 'Mueller', x: 860, y: 110, hue: 320 },
+    { id: 'ZL', name: 'Zilker', x: 230, y: 290, hue: 45 },
+    { id: 'LB', name: 'Lady Bird', x: 490, y: 320, hue: 210 },
+    { id: 'E6', name: 'East Sixth', x: 800, y: 290, hue: 5 },
+    { id: 'BS', name: 'Barton Springs', x: 130, y: 480, hue: 100 },
+    { id: 'SC', name: 'South Congress', x: 380, y: 500, hue: 25 },
+    { id: 'RN', name: 'Rainey', x: 670, y: 470, hue: 290 },
+  ];
+  const byId = Object.fromEntries(NODES.map((n) => [n.id, n]));
+  const color = (id, l = 66) => `hsl(${byId[id].hue} 85% ${l}%)`;
+  const CHANNELS = [['MB', 'ZL', 500000], ['MB', 'PP', 300000], ['PP', 'HP', 800000], ['PP', 'ZL', 400000], ['ZL', 'BS', 600000], ['ZL', 'LB', 1000000], ['BS', 'SC', 300000], ['SC', 'LB', 500000],
+    ['SC', 'RN', 400000], ['LB', 'RN', 700000], ['LB', 'HP', 500000], ['HP', 'MU', 600000], ['MU', 'E6', 900000], ['E6', 'RN', 500000], ['LB', 'E6', 300000], ['HP', 'E6', 200000]];
+
+  let chans, stats;
+  function build(seed) {
+    const r = mulberry32(seed * 2654435761 >>> 0);
+    const pol = () => ({ base: Math.floor(r() * 3), ppm: [1, 10, 50, 100, 250, 500, 1000][Math.floor(r() * 7)] });
+    chans = CHANNELS.map(([a, b, cap], i) => {
+      const frac = 0.15 + r() * 0.7;
+      const balA = Math.round(cap * frac / 1000) * 1000;
+      return { i, a, b, cap, bal: { [a]: balA, [b]: cap - balA }, fee: { [a]: pol(), [b]: pol() } };
+    });
+    stats = { ok: 0, fail: 0, fees: 0, earned: Object.fromEntries(NODES.map((n) => [n.id, 0])) };
+  }
+  const feeFor = (policy, amt) => policy.base + Math.ceil(amt * policy.ppm / 1e6);
+  const peer = (c, u) => (c.a === u ? c.b : c.a);
+
+  // Backward Dijkstra (like real implementations): start at the receiver with the amount to deliver and walk
+  // towards the sender, adding the fee each forwarding node charges. The sender pays no fee on its own first hop.
+  // Only capacity is known; channels in `excluded` (learned from failures) are skipped.
+  function findRoute(from, to, amt, excluded = new Set(), forcedLast = null) {
+    if (from === to && !forcedLast) return null;
+    const need = {}, next = {}, via = {}, done = new Set();
+    let start = to, startAmt = amt;
+    if (forcedLast && excluded.has(forcedLast.i)) return null;
+    if (forcedLast) {            // rebalance: the last hop is fixed (peer → node)
+      const c = forcedLast;
+      const p = peer(c, to);
+      if (amt > c.cap) return null;
+      start = p; startAmt = amt + feeFor(c.fee[p], amt);
+      next[p] = to; via[p] = c;
+    }
+    need[start] = startAmt;
+    const hops = { [start]: forcedLast ? 1 : 0 };
+    for (;;) {
+      let v = null;
+      for (const k in need) if (!done.has(k) && (v === null || need[k] < need[v])) v = k;
+      if (v === null) return null;
+      if (v === from) break;
+      done.add(v);
+      if (hops[v] >= 20) continue;
+      for (const c of chans) {
+        if (c.a !== v && c.b !== v) continue;
+        if (excluded.has(c.i) || c === forcedLast) continue;
+        const u = peer(c, v);                    // edge u → v
+        if (done.has(u)) continue;
+        if (need[v] > c.cap) continue;          // cannot possibly carry this much
+        const cost = u === from ? need[v] : need[v] + feeFor(c.fee[u], need[v]);
+        if (u !== from && forcedLast && u === to) continue;
+        if (need[u] === undefined || cost < need[u]) { need[u] = cost; next[u] = v; via[u] = c; hops[u] = hops[v] + 1; }
+      }
+    }
+    const route = [];
+    let u = from;
+    while (u !== to || (forcedLast && route.length === 0)) {
+      const c = via[u], v = next[u];
+      route.push({ from: u, to: v, chan: c.i, amt: u === from ? need[next[u]] ?? amt : null });
+      u = v;
+      if (route.length > 25) return null;
+    }
+    // amounts carried on each hop, and the fee each forwarding node keeps
+    route.forEach((h) => { h.amt = h.to === to && h === route[route.length - 1] ? amt : need[h.to]; });
+    route.forEach((h, k) => { h.fee = k === 0 ? 0 : route[k - 1].amt - h.amt; });
+    return { hops: route, total: route[0].amt, fees: route[0].amt - amt };
+  }
+
+  function attempt(route) {
+    for (const h of route.hops) {
+      const c = chans[h.chan];
+      if (c.bal[h.from] < h.amt) return { ok: false, at: h, has: c.bal[h.from] };
+    }
+    return { ok: true };
+  }
+  function settle(route) {
+    for (const h of route.hops) { const c = chans[h.chan]; c.bal[h.from] -= h.amt; c.bal[h.to] += h.amt; }
+    route.hops.forEach((h, k) => { if (k > 0) stats.earned[h.from] += h.fee; });
+    stats.fees += route.fees;
+  }
+  const fmt = (n) => n.toLocaleString('en-US');
+
+  function pay(from, to, amt, forcedLast = null) {
+    const excluded = new Set(), log = [];
+    for (let k = 1; k <= 5; k++) {
+      const route = findRoute(from, to, amt, excluded, forcedLast);
+      if (!route) { log.push({ k, text: k === 1 ? `No route: no path has enough capacity for ${fmt(amt)} sats.` : `No more routes to try after ${k - 1} failed attempt${k > 2 ? 's' : ''}.` }); return { ok: false, log, route: null, noRoute: true }; }
+      const res = attempt(route);
+      if (res.ok) { settle(route); log.push({ k, text: `Attempt ${k}: settled via ${route.hops.map((h) => h.from).concat(to).join(' → ')}.` }); return { ok: true, route, log }; }
+      excluded.add(res.at.chan);
+      log.push({ k, route, at: res.at, has: res.has, text: `Attempt ${k}: failed at ${byId[res.at.from].name} → ${byId[res.at.to].name}. It needed ${fmt(res.at.amt)} sats but only had ${fmt(res.has)} on its side (temporary channel failure). Excluding that channel and retrying.` });
+      lastFail = { route, at: res.at };
+    }
+    return { ok: false, log, route: null };
+  }
+  let lastRoute = null, lastFail = null;
+
+  // ---------- UI ----------
+  const fromSel = $('#from'), toSel = $('#to'), rbNode = $('#rb-node'), rbPeer = $('#rb-peer');
+  const opts = (sel, ids) => { sel.innerHTML = ids.map((id) => `<option value="${id}">${byId[id].name}</option>`).join(''); };
+  opts(fromSel, NODES.map((n) => n.id)); opts(toSel, NODES.map((n) => n.id)); opts(rbNode, NODES.map((n) => n.id));
+  fromSel.value = 'BS'; toSel.value = 'MU'; rbNode.value = 'LB';
+  function peersOf(id) { return chans.filter((c) => c.a === id || c.b === id).map((c) => peer(c, id)); }
+  function fillPeers() { const cur = rbPeer.value; opts(rbPeer, peersOf(rbNode.value)); if ([...rbPeer.options].some((o) => o.value === cur)) rbPeer.value = cur; }
+  rbNode.addEventListener('change', fillPeers);
+
+  function showResult(res, from, to, amt, kind = 'payment') {
+    const box = $('[data-testid=result]');
+    box.classList.toggle('ok', res.ok); box.classList.toggle('bad', !res.ok);
+    const head = $('[data-testid=result-head]'), sum = $('[data-testid=result-summary]');
+    if (res.ok) {
+      head.textContent = kind === 'rebalance' ? `Rebalanced ${fmt(amt)} sats` : `Paid ${fmt(amt)} sats`;
+      sum.textContent = `${byId[from].name} → ${byId[to].name} in ${res.route.hops.length} hop${res.route.hops.length > 1 ? 's' : ''}. Fees: ${fmt(res.route.fees)} sats (${(res.route.fees / amt * 100).toFixed(3)}%). ${kind === 'rebalance' ? byId[from].name + ' paid itself around a loop.' : ''}`.trim();
+    } else {
+      head.textContent = kind === 'rebalance' ? 'Rebalance failed' : 'Payment failed';
+      sum.textContent = res.noRoute && res.log.length === 1 ? res.log[0].text : `Every route the sender tried hit a hop without enough liquidity on the sending side.`;
+    }
+    const hops = $('[data-testid=hops]');
+    const show = res.ok ? res.route : (res.log.filter((l) => l.route).pop() || {}).route;
+    const failAt = res.ok ? null : (res.log.filter((l) => l.at).pop() || {}).at;
+    hops.innerHTML = show ? show.hops.map((h, k) => `<li class="${failAt && failAt.chan === h.chan ? 'fail' : ''}" data-testid="hop-${k}"><span>${byId[h.from].name} → ${byId[h.to].name}</span><span>${fmt(h.amt)}${k > 0 ? ` · fee ${h.fee}` : ''}</span></li>`).join('') : '';
+    $('[data-testid=attempts]').innerHTML = res.log.map((l) => `<li>${l.text}</li>`).join('');
+    lastRoute = res.ok ? res.route : null;
+    lastFail = failAt ? { route: show, at: failAt } : null;
+    stats[res.ok ? 'ok' : 'fail']++;
+    render();
+    if (res.ok) animate(res.route);
+  }
+
+  $('#pay-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const from = fromSel.value, to = toSel.value, amt = Math.floor(+$('#amount').value);
+    if (from === to) { setMsg('Pick two different nodes.'); return; }
+    if (!(amt > 0)) { setMsg('Enter a positive amount of sats.'); return; }
+    showResult(pay(from, to, amt), from, to, amt);
+  });
+  document.querySelectorAll('.quick button').forEach((b) => b.addEventListener('click', () => { $('#amount').value = b.dataset.amt; }));
+  $('#reb-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const node = rbNode.value, p = rbPeer.value, amt = Math.floor(+$('#rb-amt').value);
+    const c = chans.find((x) => (x.a === node && x.b === p) || (x.b === node && x.a === p));
+    if (!c || !(amt > 0)) { setMsg('Pick a channel and a positive amount.'); return; }
+    showResult(pay(node, node, amt, c), node, node, amt, 'rebalance');
+  });
+  $('[data-testid=reset]').addEventListener('click', () => { build(SEED); lastRoute = null; lastFail = null; $('[data-testid=hops]').innerHTML = ''; $('[data-testid=attempts]').innerHTML = ''; $('[data-testid=result-head]').textContent = 'Network reset'; $('[data-testid=result-summary]').textContent = 'Balances are back to where they started.'; $('[data-testid=result]').classList.remove('ok', 'bad'); render(); });
+  function setMsg(t) { const b = $('[data-testid=result]'); b.classList.add('bad'); b.classList.remove('ok'); $('[data-testid=result-head]').textContent = 'Check the form'; $('[data-testid=result-summary]').textContent = t; $('[data-testid=hops]').innerHTML = ''; $('[data-testid=attempts]').innerHTML = ''; }
+
+  function el(tag, attrs, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent && parent.appendChild(e); return e; }
+  function render() {
+    const svg = $('#graph'); svg.innerHTML = '';
+    const routeChans = new Set(lastRoute ? lastRoute.hops.map((h) => h.chan) : []);
+    for (const c of chans) {
+      const A = byId[c.a], B = byId[c.b];
+      const f = c.bal[c.a] / c.cap, mx = A.x + (B.x - A.x) * f, my = A.y + (B.y - A.y) * f;
+      const w = 3 + c.cap / 110000;
+      el('line', { class: 'chan' + (routeChans.has(c.i) ? ' hot' : ''), x1: A.x, y1: A.y, x2: mx, y2: my, stroke: color(c.a), 'stroke-width': w, 'data-testid': `chan-line-${c.a}-${c.b}` }, svg);
+      el('line', { class: 'chan' + (routeChans.has(c.i) ? ' hot' : ''), x1: mx, y1: my, x2: B.x, y2: B.y, stroke: color(c.b), 'stroke-width': w }, svg);
+      const t = el('text', { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 - w / 2 - 5, 'text-anchor': 'middle', fill: '#a7a1d6', 'font-size': 11, 'font-family': 'Consolas, monospace', 'paint-order': 'stroke', stroke: '#17133a', 'stroke-width': 4 }, svg);
+      t.textContent = (c.cap / 1000) + 'k';
+    }
+    if (lastRoute) {
+      const pts = [lastRoute.hops[0].from, ...lastRoute.hops.map((h) => h.to)].map((id) => `${byId[id].x},${byId[id].y}`);
+      el('polyline', { class: 'route-path', points: pts.join(' ') }, svg);
+    }
+    if (lastFail) {
+      const A = byId[lastFail.at.from], B = byId[lastFail.at.to];
+      const x = (A.x + B.x) / 2, y = (A.y + B.y) / 2;
+      el('path', { class: 'fail-x', d: `M${x - 9},${y - 9} L${x + 9},${y + 9} M${x + 9},${y - 9} L${x - 9},${y + 9}`, 'data-testid': 'fail-mark' }, svg);
+    }
+    for (const n of NODES) {
+      const g = el('g', { class: 'node' + (fromSel.value === n.id ? ' from' : '') + (toSel.value === n.id ? ' to' : ''), 'data-testid': `node-${n.id}` }, svg);
+      const total = chans.reduce((s, c) => s + (c.bal[n.id] || 0), 0);
+      el('circle', { class: 'ring', cx: n.x, cy: n.y, r: 26, fill: 'none', stroke: fromSel.value === n.id ? '#ffd23f' : toSel.value === n.id ? '#4ee6a0' : 'transparent' }, g);
+      el('circle', { class: 'body', cx: n.x, cy: n.y, r: 20, fill: color(n.id, 60) }, g);
+      const t1 = el('text', { x: n.x, y: n.y + 5, 'text-anchor': 'middle', style: 'fill:#100d24;stroke:none;font-size:12px' }, g); t1.textContent = n.id;
+      const t2 = el('text', { x: n.x, y: n.y + 42, 'text-anchor': 'middle' }, g); t2.textContent = n.name;
+      const t3 = el('text', { class: 'sub', x: n.x, y: n.y + 57, 'text-anchor': 'middle' }, g); t3.textContent = fmt(total) + ' sats';
+    }
+    // channel cards
+    $('[data-testid=channels]').innerHTML = chans.map((c) => `<div class="chan-card${routeChans.has(c.i) ? ' flash' : ''}" data-testid="chan-${c.a}-${c.b}">
+      <div class="names"><span style="color:${color(c.a)}">${byId[c.a].name}</span><span style="color:${color(c.b)};text-align:right">${byId[c.b].name}</span></div>
+      <div class="liq" role="img" aria-label="${byId[c.a].name} holds ${fmt(c.bal[c.a])}, ${byId[c.b].name} holds ${fmt(c.bal[c.b])} of ${fmt(c.cap)} sats"><div style="width:${c.bal[c.a] / c.cap * 100}%;background:${color(c.a)}"></div><div style="width:${c.bal[c.b] / c.cap * 100}%;background:${color(c.b)}"></div></div>
+      <div class="nums"><span data-testid="bal-${c.a}-${c.b}-a">${fmt(c.bal[c.a])}</span><span>cap ${fmt(c.cap)}</span><span data-testid="bal-${c.a}-${c.b}-b">${fmt(c.bal[c.b])}</span></div>
+      <div class="fees"><span>fee ${c.fee[c.a].base} + ${c.fee[c.a].ppm} ppm →</span><span>← ${c.fee[c.b].base} + ${c.fee[c.b].ppm} ppm</span></div></div>`).join('');
+    $('[data-testid=count-ok]').textContent = stats.ok;
+    $('[data-testid=count-fail]').textContent = stats.fail;
+    $('[data-testid=fees-total]').textContent = fmt(stats.fees);
+    $('[data-testid=earnings]').innerHTML = NODES.slice().sort((a, b) => stats.earned[b.id] - stats.earned[a.id]).map((n) => `<li><span style="color:${color(n.id)}">${n.name}</span><span data-testid="earn-${n.id}">${fmt(stats.earned[n.id])} sats</span></li>`).join('');
+  }
+  fromSel.addEventListener('change', render); toSel.addEventListener('change', render);
+
+  // a spark that travels the route
+  let anim = null;
+  function animate(route) {
+    if (reduced) return;
+    const pts = [route.hops[0].from, ...route.hops.map((h) => h.to)].map((id) => byId[id]);
+    const svg = $('#graph');
+    const spark = el('circle', { r: 8, fill: '#ffd23f', style: 'filter: drop-shadow(0 0 8px #ffd23f)' }, svg);
+    const t0 = performance.now(), per = 380;
+    cancelAnimationFrame(anim);
+    const step = (now) => {
+      const t = Math.max(0, (now - t0) / per), k = Math.floor(t);
+      if (k >= pts.length - 1) { spark.remove(); return; }
+      const f = t - k, a = pts[k], b = pts[k + 1];
+      spark.setAttribute('cx', a.x + (b.x - a.x) * f); spark.setAttribute('cy', a.y + (b.y - a.y) * f);
+      anim = requestAnimationFrame(step);
+    };
+    anim = requestAnimationFrame(step);
+  }
+
+  window.__ln = {
+    nodes: NODES.map((n) => n.id),
+    channels: () => chans.map((c) => ({ i: c.i, a: c.a, b: c.b, cap: c.cap, bal: { ...c.bal }, fee: JSON.parse(JSON.stringify(c.fee)) })),
+    findRoute: (f, t, amt, excl = []) => findRoute(f, t, amt, new Set(excl)),
+    nodeTotal: (id) => chans.reduce((s, c) => s + (c.bal[id] || 0), 0),
+    get stats() { return JSON.parse(JSON.stringify(stats)); },
+    setBalance(a, b, balA) { const c = chans.find((x) => x.a === a && x.b === b); c.bal[a] = balA; c.bal[b] = c.cap - balA; render(); },
+  };
+
+  build(SEED); fillPeers(); render();
+})();
+</script>
+</body>
+</html>

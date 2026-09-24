@@ -1,0 +1,35 @@
+{
+  "id": "043",
+  "slug": "043-rosary",
+  "file": "lab/043-rosary.html",
+  "title": "Rosary Companion — pray the rosary bead by bead",
+  "category": "Tools",
+  "tags": ["svg", "faith", "localStorage", "keyboard", "page-clock"],
+  "description": "A quiet guide to praying the Rosary: a drawn rosary with a crucifix, centerpiece and five decades moves bead by bead, showing the traditional English prayer for each bead and the mystery to meditate on. It picks the mysteries for the day of the week, lets you choose another set, can follow the seasonal Sunday custom for Advent and Lent, makes the Fatima Prayer optional, and keeps your place on your device.",
+  "prompt": "Build me a reverent, interactive rosary guide. Draw a rosary (crucifix, beads, centerpiece) that moves bead by bead when I tap, click or use the keyboard, and show the correct prayer for each bead using the traditional public-domain English texts: Sign of the Cross, Apostles' Creed, Our Father, Hail Mary, Glory Be, the Fatima Prayer marked as optional, Hail Holy Queen and the closing prayer. Show the mysteries for the day of the week (Joyful on Monday and Saturday, Sorrowful on Tuesday and Friday, Glorious on Wednesday and Sunday, Luminous on Thursday), with a manual override and a note on the common custom of Joyful on the Sundays of Advent and Sorrowful on the Sundays of Lent. Save progress locally. Get every detail right.",
+  "qa": {
+    "methodology": [
+      "Calendar oracle with page.clock.setFixedTime: every weekday of one real week (20–26 September 2026) must show the right set of mysteries and highlight the right row of the schedule.",
+      "Liturgical date oracles: the Easter computus is checked against known dates for 2024–2027, and the season check covers edge Sundays (Christ the King, Advent 1 and 4, after Christmas, Lent 1, Palm Sunday, Easter) plus a Lenten weekday.",
+      "Sequence walk-through: the spec steps through the opening prayers and the first decade with both the button and the arrow keys, checking the prayer title, the pendant intentions (faith, hope, charity), the announced mystery and scripture reference, and which bead is current.",
+      "State-change tests: turning off the Fatima Prayer shrinks the rosary from 75 to 70 steps without losing your place, and the manual override changes the mystery while the today card explains the usual set.",
+      "Persistence and end state: the current step and settings survive a reload, the Hail Holy Queen versicle and response and the closing prayer are present, and finishing resets for next time.",
+      "Content review by hand of every prayer text, mystery name and scripture reference, plus screenshots at 1280px and 390px."
+    ],
+    "risks": [
+      "Off-by-one errors in the step sequence (where the Glory Be, Fatima Prayer and next Our Father fall), which would silently put the wrong prayer on a bead.",
+      "Timezone edges: the weekday comes from local time, so the tests pin the clock with setFixedTime instead of using the real date.",
+      "Advent and Lent boundaries, such as when Christmas falls on a Sunday or Monday, or the Palm Sunday end of Lent.",
+      "Toggling the Fatima Prayer rebuilds the step list, which can jump your position if the mapping is wrong."
+    ],
+    "playwright": "The awkward input here is the calendar, not the UI. page.clock.setFixedTime pins Date for each weekday without starting the animation clock, which is all the weekday tests need, and the liturgical math is checked through a small window.__rosary hook with date strings, so no timezone guessing is involved. The rosary is SVG, so every bead has a data-testid and 'current' and 'done' are CSS classes the tests read directly without pixel checks. Arrow-key navigation is tested with page.keyboard, which behaves the same under the Pixel 7 touch profile. Persistence writes synchronously, so a reload right after a click is safe with no waiting.",
+    "coverage": [
+      "Weekday mysteries for a full week, with the schedule row highlight",
+      "Seasonal custom off by default, on for Advent and Lent Sundays, remembered after reload; Easter computus and boundary Sundays",
+      "Opening prayers and first decade, step by step, with mystery announcement and scripture reference",
+      "Optional Fatima Prayer (75 steps vs 70) and the manual set override",
+      "Closing prayers, completion, and saved progress"
+    ]
+  },
+  "a11y": "Next and Back are real buttons, and the arrow keys, Home and End move through the prayers. The prayer title is announced through aria-live, and the mystery sets are a native radio group. The rosary drawing is labelled as an image and the current bead is exposed with aria-current, while the whole walk-through can be done without the drawing."
+}

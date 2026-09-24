@@ -1,0 +1,35 @@
+{
+  "id": "034",
+  "slug": "034-form-forge",
+  "file": "lab/034-form-forge.html",
+  "title": "Form Forge — Accessible Form Builder",
+  "category": "QA & Testing",
+  "tags": ["forms", "accessibility", "validation", "codegen", "localStorage"],
+  "description": "An accessible form builder: add text, email, number, select, radio-group, checkbox and textarea fields, set labels, hints, required, pattern and min/max rules, and try the live preview with inline errors, aria-describedby wiring and a focus-managed error summary. Export the form as a standalone HTML file that runs the same validation code, plus a matching Playwright spec skeleton that tests every rule.",
+  "prompt": "Build 'Form Forge', an accessible form builder. I want to add fields — text, email, number, select, radio group, checkbox, textarea — and set label, hint, required, pattern and min/max on each, reorder and delete them, and see a live preview that is a real form: proper <label for>, fieldset/legend for radios, hints and errors linked with aria-describedby, aria-invalid, inline error messages and an error summary that takes focus on submit and links to each field. Then export two things: the HTML (standalone, and it must run exactly the same validation as the preview, not a copy that can drift) and a Playwright spec skeleton that tests the empty-submit summary, every rule, and a valid submission. Keep my form in localStorage. Make it look like a forge — coal, steel and ember — with the preview on a cream sheet so the form itself reads like a real page.",
+  "qa": {
+    "methodology": [
+      "One validator, two runtimes: the preview and the exported file both run the same functions (serialised with Function.prototype.toString), and the spec loads the export with page.setContent to prove the downloaded form works on its own.",
+      "Accessibility tree as the oracle: fields are found with getByLabel/getByRole, and toHaveAccessibleDescription checks that the hint and the error text are both announced with the input.",
+      "Focus management: the error summary must take focus on a failed submit, summary links must move focus to the field, and the success message takes focus on a clean submit.",
+      "Boundary values for every rule type: 9 and 0 against a 1–4 range, a lower-case booking code against [A-Z]{3}-[0-9]{3}, a truncated email, non-numeric text in a number field.",
+      "Generator consistency: the exported spec text is asserted to contain the same messages the preview shows, and to update immediately when a rule changes in the inspector.",
+      "Persistence: reorder and delete, reload, and confirm the saved model rebuilt the same form (saved synchronously, so no debounce race with the reload)."
+    ],
+    "risks": [
+      "Re-validating a field on change (blur) removed its error line and shifted the submit button up by one line mid-click, so the click missed — a real layout-shift bug found by the spec and fixed by re-checking on input instead.",
+      "Invalid user-supplied regex patterns throwing at validation time (guarded, flagged in the inspector and left out of the markup).",
+      "Label substring collisions making getByLabel ambiguous once users add similarly named fields."
+    ],
+    "playwright": "Forms are well suited to Playwright's role- and label-based locators, and toHaveAccessibleDescription made it possible to assert the aria-describedby wiring directly rather than reading attributes. The most interesting failure was a missed click: the builder originally re-validated a field on change, and the blur caused by clicking Submit removed an error line and moved the button before mouseup — Playwright reported the summary as still visible, and the fix was a genuine UX improvement. The exported HTML is tested by feeding the exported text into page.setContent, which keeps the test hermetic with no fixture files. The download button is checked through its status message rather than by capturing a file, because the Blob download is not what's being tested.",
+    "coverage": [
+      "Empty submit: summary focus, count, heading, link-to-field focus, aria-invalid, accessible description",
+      "Email, pattern and range errors, then a valid submission",
+      "Add a field, invalid regex warning, pattern enforced live in the preview",
+      "Reorder and delete persist across reload",
+      "Exported HTML works standalone via setContent",
+      "Exported spec reflects rules and updates when they change"
+    ]
+  },
+  "a11y": "The builder uses native buttons and labelled inputs, with named move/delete buttons per field and keyboard-switchable export tabs. The generated form uses label/for, fieldset and legend, hints and errors joined through aria-describedby, aria-invalid, an 'Error:' prefix for screen readers, and a focusable role=alert summary whose links move focus to each field."
+}

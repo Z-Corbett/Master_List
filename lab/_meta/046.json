@@ -1,0 +1,35 @@
+{
+  "id": "046",
+  "slug": "046-lightning-lab",
+  "file": "lab/046-lightning-lab.html",
+  "title": "Lightning Lab — a payment channel simulation",
+  "category": "Data Viz",
+  "tags": ["svg", "graph-algorithms", "dijkstra", "simulation", "bitcoin"],
+  "description": "A clearly labelled simulation of Lightning-style payment channels between ten fictional nodes named after Austin spots. Send sats and watch fee-based Dijkstra pathfinding route them hop by hop, see each channel's two-sided balance shift, read exactly why a payment failed on liquidity, and refill a depleted channel with a circular rebalance.",
+  "prompt": "Build me a clearly labelled simulation of Lightning Network-style payment channels among about ten fictional nodes. Show channels with capacity and two-sided liquidity bars. Let me send a payment and watch pathfinding (for example Dijkstra over fees) route it through hops, with balances shifting along the route. Payments should fail when liquidity is insufficient and show why, and add a rebalance action. Fees in sats. Disclose that the model is simplified. I've been into Bitcoin for a long time, so get the mechanics right where it matters: senders don't know balances, fees compound backwards from the receiver, and failures teach the sender.",
+  "qa": {
+    "methodology": [
+      "Brute-force oracle: for all 90 ordered node pairs at three amounts (270 cases), the spec enumerates every simple path, prices it independently from the receiver backwards, and requires the page's Dijkstra route to cost exactly the minimum, or to report no route when none exists.",
+      "Fee arithmetic per hop: each forwarding node's fee must equal its policy (base plus ppm, rounded up) applied to the amount it forwards, and no hop may exceed channel capacity.",
+      "Conservation laws after a payment: every channel still sums to its capacity, the sender loses the amount plus fees, the receiver gains exactly the amount, and routing earnings add up to the fees paid.",
+      "Failure semantics: a liquidity failure names the hop and the shortfall, retries exclude that channel, a capacity-impossible amount says 'No route', and a failed payment leaves every balance unchanged.",
+      "Rebalance invariant: the chosen channel's local side grows by exactly the amount, and the node's total holdings fall by exactly the fees.",
+      "Seed determinism, reset, and screenshot review at 1280px and 390px, including the wide-font overflow check."
+    ],
+    "risks": [
+      "Backward fee accumulation is easy to get wrong: charging the sender a fee on its own first hop, or charging a hop's fee on the wrong amount.",
+      "The rebalance route must not reuse the target channel on the way out; the forced last hop is excluded from the search.",
+      "Infinite retry loops when the failing hop is the forced rebalance channel, which is now detected and reported as a failure.",
+      "Label overlap on the network map at phone widths, since the SVG scales down as a whole."
+    ],
+    "playwright": "This is a data-and-algorithm page, so the highest-value test puts no pixels in the loop. It pulls the channel graph out through window.__ln, rebuilds an independent brute-force pricer in Node, and compares 270 routes in one evaluate call. The user-facing tests go through the real form (selectOption, fill, click) and then check both the visible text and the state underneath, so a UI that shows the right numbers from the wrong state would still be caught. The seeded balances make specific stories reproducible, such as the retry around Hyde Park → East Sixth on seed 1. The spark animation is cosmetic and never awaited.",
+    "coverage": [
+      "Cheapest route correctness against brute force (270 cases), per-hop fees and capacity",
+      "Successful payment with a retry, conservation of sats, fee accounting, card updates",
+      "Liquidity failure with reason, no-route failure, no state change, same-node validation",
+      "Circular rebalance invariants and reset",
+      "Seeded determinism and the simplified-model disclosure"
+    ]
+  },
+  "a11y": "Payments and rebalancing use native labelled selects, number inputs and submit buttons, and the result, route hops and attempt log are announced through aria-live. Every channel's liquidity bar has a text label with both balances, and the network map is a labelled image whose information is also available in the channel list."
+}

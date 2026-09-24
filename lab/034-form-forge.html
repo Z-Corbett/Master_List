@@ -1,0 +1,648 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Form Forge — Accessible Form Builder</title>
+<meta name="description" content="Build an accessible form field by field — labels, hints, required, pattern and range rules — and try it live with inline errors and an error summary. Export the standalone HTML and a matching Playwright spec skeleton that tests the validation.">
+<style>
+  :root {
+    --coal: #17181c;
+    --coal-2: #202228;
+    --coal-3: #2b2e36;
+    --line: #3a3e48;
+    --steel: #a6afbd;
+    --steel-2: #d5dae2;
+    --cream: #f4eee4;
+    --ember: #ff7a2f;
+    --ember-2: #ffb347;
+    --ember-deep: #c24a0e;
+    --ok: #52c78d;
+    --slab: Rockwell, "Roboto Slab", "Zilla Slab", "Arvo", Georgia, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body {
+    background: var(--coal); color: var(--cream); font-family: var(--sans); line-height: 1.45; overflow-x: hidden;
+    background-image: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(255,122,47,.20), transparent 70%);
+    background-repeat: no-repeat;
+  }
+  :focus-visible { outline: 3px solid var(--ember-2); outline-offset: 2px; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  select, input, textarea, pre { max-width: 100%; }
+  .back {
+    position: fixed; top: 12px; left: 12px; z-index: 50; text-decoration: none; color: var(--cream);
+    font: 600 12px/1 var(--sans); background: rgba(32,34,40,.92); border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px;
+  }
+  .back:hover { color: var(--ember-2); border-color: var(--ember); }
+  .wrap { max-width: 1360px; margin: 0 auto; padding: 58px 18px 48px; }
+  header.top { display: flex; flex-wrap: wrap; gap: 14px 30px; align-items: flex-end; justify-content: space-between; margin-bottom: 22px; }
+  .brand { display: flex; gap: 16px; align-items: center; min-width: 0; }
+  .anvil { width: 64px; height: 50px; flex: none; }
+  h1 { margin: 0; font: 700 clamp(32px, 5.4vw, 56px)/1 var(--slab); letter-spacing: -.01em; }
+  h1 em { font-style: normal; color: var(--ember); }
+  .sub { margin: 6px 0 0; color: var(--steel); max-width: 64ch; }
+  .stats { display: flex; gap: 8px; flex-wrap: wrap; }
+  .stat { background: var(--coal-2); border: 1px solid var(--line); border-radius: 10px; padding: 7px 12px; font: 12px var(--mono); color: var(--steel); }
+  .stat b { display: block; font: 700 20px var(--slab); color: var(--cream); }
+
+  .bench { display: grid; grid-template-columns: 250px 300px minmax(0, 1fr); gap: 16px; align-items: start; }
+  .panel { background: var(--coal-2); border: 1px solid var(--line); border-radius: 14px; padding: 14px; min-width: 0; }
+  .panel h2 { margin: 0 0 10px; font: 700 12px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--ember-2); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .parts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-bottom: 14px; }
+  .part {
+    display: flex; align-items: center; gap: 7px; background: var(--coal-3); border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px;
+    font-size: 13px; font-weight: 600; text-align: left; min-width: 0;
+  }
+  .part:hover { border-color: var(--ember); background: #332a25; }
+  .part svg { width: 18px; height: 18px; flex: none; color: var(--ember); }
+  .part span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .flist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .fitem { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px; align-items: center; background: var(--coal); border: 1px solid var(--line); border-radius: 9px; padding: 3px; }
+  .fitem[aria-current=true] { border-color: var(--ember); box-shadow: 0 0 0 1px var(--ember) inset; }
+  .fsel { border: 0; background: none; text-align: left; padding: 5px 6px; min-width: 0; display: grid; gap: 1px; }
+  .fsel .t { font: 11px var(--mono); color: var(--ember-2); text-transform: uppercase; letter-spacing: .08em; }
+  .fsel .l { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fsel .l i { color: var(--ember); font-style: normal; }
+  .ftools { display: flex; gap: 2px; }
+  .ico { border: 1px solid transparent; background: none; border-radius: 6px; width: 28px; height: 28px; display: grid; place-items: center; color: var(--steel); padding: 0; }
+  .ico:hover { border-color: var(--line); color: var(--cream); }
+  .ico:disabled { opacity: .3; cursor: default; }
+  .ico svg { width: 15px; height: 15px; }
+  .empty { color: var(--steel); font-size: 13px; margin: 6px 0; }
+
+  .fld { display: grid; gap: 4px; margin-bottom: 10px; min-width: 0; }
+  .fld > label, .fld > .lab { font-size: 12.5px; font-weight: 600; color: var(--steel-2); }
+  .fld input[type=text], .fld input[type=number], .fld textarea, .fld select {
+    width: 100%; min-width: 0; background: var(--coal); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; font-size: 14px;
+  }
+  .fld textarea { resize: vertical; min-height: 64px; }
+  .fld input:focus, .fld textarea:focus { border-color: var(--ember); }
+  .fld .mono { font-family: var(--mono); font-size: 13px; }
+  .pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+  .chk { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; margin: 4px 0 12px; }
+  .chk input { width: 18px; height: 18px; accent-color: var(--ember); }
+  .small { font-size: 12px; color: var(--steel); margin: 0; }
+  .bad { color: #ff9a8a; font-size: 12px; margin: 0; }
+  .type-chip { font: 700 11px var(--mono); background: var(--ember); color: var(--coal); padding: 2px 8px; border-radius: 999px; letter-spacing: .06em; }
+  .btn { border: 1px solid var(--line); background: var(--coal-3); border-radius: 8px; padding: 7px 12px; font-weight: 650; font-size: 13px; }
+  .btn:hover { border-color: var(--steel); }
+  .btn.hot { background: var(--ember); border-color: var(--ember); color: var(--coal); }
+  .btn.hot:hover { background: var(--ember-2); }
+
+  /* preview sheet */
+  .sheet { background: var(--cream); color: #1d1f24; border-radius: 14px; padding: 0; overflow: hidden; border: 1px solid #000; box-shadow: 0 20px 50px rgba(0,0,0,.35); min-width: 0; }
+  .sheet-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 9px 14px; background: #e5ddcf; border-bottom: 1px solid #cfc4b1; font: 12px var(--mono); color: #5c554a; }
+  .sheet-bar b { color: #1d1f24; }
+  .sheet-body { padding: 18px 20px 24px; }
+
+  .export { margin-top: 16px; }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .tab { border: 1px solid var(--line); background: var(--coal); border-radius: 8px 8px 0 0; padding: 7px 14px; font-weight: 650; font-size: 13.5px; border-bottom: 0; }
+  .tab[aria-selected=true] { background: var(--coal-3); color: var(--ember-2); }
+  .tabs .grow { flex: 1; }
+  .code { margin: 0; background: #101114; border: 1px solid var(--line); border-radius: 0 10px 10px 10px; padding: 14px; font: 12.5px/1.55 var(--mono); color: #d9dde5; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 420px; overflow: auto; }
+  .status { font: 12px var(--mono); color: var(--ok); min-height: 1em; }
+
+  @media (max-width: 1120px) {
+    .bench { grid-template-columns: 250px minmax(0, 1fr); }
+    .sheet { grid-column: 1 / -1; }
+  }
+  @media (max-width: 680px) {
+    .wrap { padding: 54px 12px 40px; }
+    .bench { grid-template-columns: minmax(0, 1fr); }
+    .sheet-body { padding: 14px 14px 20px; }
+    .anvil { width: 48px; height: 38px; }
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+</style>
+<style id="form-css"></style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg class="anvil" viewBox="0 0 64 50" aria-hidden="true">
+        <path d="M6 10h40c0 6 6 10 14 10v4H44l-4 6h-6l4 10h8v6H14v-6h8l4-10h-6L10 20H6z" fill="#3a3e48" stroke="#a6afbd" stroke-width="1.5"/>
+        <circle cx="50" cy="6" r="2" fill="#ff7a2f"/><circle cx="56" cy="11" r="1.5" fill="#ffb347"/><circle cx="44" cy="3" r="1.2" fill="#ffb347"/>
+      </svg>
+      <div>
+        <h1>Form <em>Forge</em></h1>
+        <p class="sub">Hammer out an accessible form field by field. The preview is a real form with real validation — submit it, break it, then take away the HTML and a Playwright spec that proves the errors work.</p>
+      </div>
+    </div>
+    <div class="stats" aria-live="polite">
+      <div class="stat"><b data-testid="stat-fields">0</b>fields</div>
+      <div class="stat"><b data-testid="stat-required">0</b>required</div>
+      <div class="stat"><b data-testid="stat-rules">0</b>rules</div>
+    </div>
+  </header>
+
+  <div class="bench">
+    <section class="panel" aria-label="Fields">
+      <h2>Add a field</h2>
+      <div class="parts" id="parts"></div>
+      <h2>Form <button type="button" class="btn" data-testid="reset-example" id="reset-example">Load example</button></h2>
+      <div class="fld"><label for="form-title">Form heading</label><input id="form-title" type="text" data-testid="form-title"></div>
+      <div class="fld"><label for="form-submit">Submit button</label><input id="form-submit" type="text" data-testid="form-submit"></div>
+      <h2>Fields</h2>
+      <ol class="flist" id="flist" data-testid="field-list"></ol>
+      <p class="empty" id="flist-empty" hidden>No fields yet — add one above.</p>
+    </section>
+
+    <section class="panel" aria-label="Field inspector" data-testid="inspector">
+      <h2>Inspector <span class="type-chip" id="insp-type"></span></h2>
+      <p class="small" id="insp-none">Select a field to edit it.</p>
+      <div id="insp" hidden>
+        <div class="fld"><label for="i-label">Label</label><input id="i-label" type="text" data-testid="insp-label"></div>
+        <div class="fld"><label for="i-name">Name / id</label><input id="i-name" type="text" class="mono" data-testid="insp-name" aria-describedby="i-name-help"><p class="small" id="i-name-help">Letters, digits and dashes. Used as <code>name</code> and <code>id</code>.</p></div>
+        <div class="fld"><label for="i-hint">Hint</label><input id="i-hint" type="text" data-testid="insp-hint"></div>
+        <label class="chk"><input type="checkbox" id="i-req" data-testid="insp-required"> Required</label>
+        <div class="fld" data-for="text textarea"><label for="i-pattern">Pattern (regex, whole value)</label><input id="i-pattern" type="text" class="mono" data-testid="insp-pattern" aria-describedby="i-pattern-err"><p class="bad" id="i-pattern-err" data-testid="pattern-err" hidden></p></div>
+        <div class="pair" data-for="text textarea number">
+          <div class="fld"><label for="i-min" id="i-min-lab">Min</label><input id="i-min" type="number" data-testid="insp-min"></div>
+          <div class="fld"><label for="i-max" id="i-max-lab">Max</label><input id="i-max" type="number" data-testid="insp-max"></div>
+        </div>
+        <div class="fld" data-for="select radio"><label for="i-options">Options (one per line)</label><textarea id="i-options" data-testid="insp-options"></textarea></div>
+        <div class="fld" data-for="text textarea email number"><label for="i-sample">Valid sample (used in the exported spec)</label><input id="i-sample" type="text" data-testid="insp-sample"></div>
+      </div>
+    </section>
+
+    <section class="sheet" aria-label="Live preview">
+      <div class="sheet-bar"><span><b>Live preview</b> · novalidate + custom messages</span><span data-testid="preview-state">not submitted</span></div>
+      <div class="sheet-body" id="preview" data-testid="preview"></div>
+    </section>
+  </div>
+
+  <section class="panel export" aria-label="Export">
+    <div class="tabs" role="tablist" aria-label="Export format">
+      <button type="button" class="tab" role="tab" id="tab-html" aria-controls="export-out" aria-selected="true" data-testid="tab-html">HTML</button>
+      <button type="button" class="tab" role="tab" id="tab-spec" aria-controls="export-out" aria-selected="false" data-testid="tab-spec">Playwright spec</button>
+      <span class="grow"></span>
+      <span class="status" data-testid="export-status" aria-live="polite"></span>
+      <button type="button" class="btn" data-testid="copy">Copy</button>
+      <button type="button" class="btn hot" data-testid="download">Download</button>
+    </div>
+    <pre class="code" id="export-out" role="tabpanel" tabindex="0" aria-labelledby="tab-html" data-testid="export-out"></pre>
+  </section>
+</div>
+
+<script>
+/* ======================================================================
+   The two functions below are exported verbatim into the downloaded HTML,
+   so the preview and the export run literally the same validation code.
+   ====================================================================== */
+function ffMessage(kind, label, arg) {
+  var lower = label.charAt(0).toLowerCase() + label.slice(1);
+  switch (kind) {
+    case 'empty': return 'Enter ' + lower;
+    case 'choose': return 'Select ' + lower;
+    case 'tick': return 'Tick “' + label + '” to continue';
+    case 'email': return 'Enter an email address in the correct format, like name@example.com';
+    case 'nan': return label + ' must be a number';
+    case 'min': return label + ' must be ' + arg + ' or more';
+    case 'max': return label + ' must be ' + arg + ' or less';
+    case 'minlen': return label + ' must be ' + arg + ' characters or more';
+    case 'maxlen': return label + ' must be ' + arg + ' characters or fewer';
+    case 'pattern': return label + ' is not in the right format';
+  }
+  return label + ' is not valid';
+}
+function formForgeValidate(form, onResult) {
+  var summary = form.querySelector('[data-ff-summary]');
+  var success = form.querySelector('[data-ff-success]');
+  function check(w) {
+    var type = w.getAttribute('data-ff-type'), label = w.getAttribute('data-ff-label');
+    var ctls = Array.prototype.slice.call(w.querySelectorAll('input, select, textarea'));
+    var ctl = ctls[0], msg = '';
+    if (type === 'radio') {
+      if (w.getAttribute('data-ff-required') === 'true' && !ctls.some(function (r) { return r.checked; })) msg = ffMessage('choose', label);
+    } else if (type === 'checkbox') {
+      if (ctl.required && !ctl.checked) msg = ffMessage('tick', label);
+    } else {
+      var v = ctl.value.trim();
+      if (!v) { if (ctl.required) msg = ffMessage(type === 'select' ? 'choose' : 'empty', label); }
+      else if (type === 'email') { if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) msg = ffMessage('email', label); }
+      else if (type === 'number') {
+        var n = Number(v);
+        if (!isFinite(n)) msg = ffMessage('nan', label);
+        else if (ctl.min !== '' && n < Number(ctl.min)) msg = ffMessage('min', label, ctl.min);
+        else if (ctl.max !== '' && n > Number(ctl.max)) msg = ffMessage('max', label, ctl.max);
+      } else if (type !== 'select') {
+        var re = null;
+        try { if (ctl.getAttribute('pattern')) re = new RegExp('^(?:' + ctl.getAttribute('pattern') + ')$'); } catch (e) { re = null; }
+        if (ctl.minLength > 0 && v.length < ctl.minLength) msg = ffMessage('minlen', label, ctl.minLength);
+        else if (ctl.maxLength > 0 && v.length > ctl.maxLength) msg = ffMessage('maxlen', label, ctl.maxLength);
+        else if (re && !re.test(v)) msg = ffMessage('pattern', label);
+      }
+    }
+    var err = w.querySelector('[data-ff-error]');
+    err.textContent = msg ? msg : '';
+    err.hidden = !msg;
+    if (msg) { var s = document.createElement('span'); s.className = 'ff-vh'; s.textContent = 'Error: '; err.insertBefore(s, err.firstChild); }
+    ctls.forEach(function (c) { if (msg) c.setAttribute('aria-invalid', 'true'); else c.removeAttribute('aria-invalid'); });
+    w.classList.toggle('ff-has-error', !!msg);
+    return msg ? { id: ctl.id, msg: msg } : null;
+  }
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var errors = [];
+    Array.prototype.forEach.call(form.querySelectorAll('[data-ff-field]'), function (w) { var r = check(w); if (r) errors.push(r); });
+    var list = summary.querySelector('ul');
+    list.innerHTML = '';
+    if (errors.length) {
+      errors.forEach(function (er) {
+        var li = document.createElement('li'), a = document.createElement('a');
+        a.href = '#' + er.id; a.textContent = er.msg;
+        a.addEventListener('click', function (ev) { ev.preventDefault(); var t = document.getElementById(er.id); if (t) { t.focus(); t.scrollIntoView({ block: 'center' }); } });
+        li.appendChild(a); list.appendChild(li);
+      });
+      summary.querySelector('h2').textContent = errors.length === 1 ? 'There is 1 problem' : 'There are ' + errors.length + ' problems';
+      success.hidden = true; summary.hidden = false; summary.focus();
+    } else {
+      summary.hidden = true; success.hidden = false; success.focus();
+    }
+    if (onResult) onResult(errors);
+  });
+  // once someone has seen an error, re-check that field as they type (on input, not change: a change fires on blur and would shift the layout under the pointer mid-click)
+  form.addEventListener('input', function (e) {
+    var w = e.target.closest('[data-ff-field]');
+    if (w && w.classList.contains('ff-has-error')) check(w);
+  });
+}
+
+(() => {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const $$ = (s) => [...document.querySelectorAll(s)];
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  const FORM_CSS = `.ff-form { max-width: 34rem; font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1d1f24; }
+.ff-form *, .ff-form *::before { box-sizing: border-box; }
+.ff-title { font: 700 1.6rem/1.2 Rockwell, "Roboto Slab", Georgia, serif; margin: 0 0 1rem; }
+.ff-field { margin: 0 0 1.25rem; border: 0; padding: 0; min-width: 0; }
+.ff-field.ff-has-error { border-left: 4px solid #b3261e; padding-left: .8rem; }
+.ff-label, .ff-field legend { display: block; font-weight: 700; margin-bottom: .2rem; padding: 0; }
+.ff-opt { font-weight: 400; color: #5f6470; }
+.ff-hint { margin: 0 0 .35rem; color: #5f6470; font-size: .92rem; }
+.ff-error { margin: 0 0 .35rem; color: #b3261e; font-weight: 700; font-size: .95rem; }
+.ff-vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.ff-input { display: block; width: 100%; max-width: 100%; font: inherit; padding: .5rem .6rem; border: 2px solid #1d1f24; border-radius: 4px; background: #fff; color: inherit; }
+.ff-input[aria-invalid="true"] { border-color: #b3261e; }
+.ff-input:focus, .ff-choice input:focus { outline: 3px solid #ffb347; outline-offset: 0; box-shadow: inset 0 0 0 2px #1d1f24; }
+textarea.ff-input { min-height: 6rem; resize: vertical; }
+.ff-choice { display: flex; align-items: center; gap: .55rem; margin: .3rem 0; }
+.ff-choice input { width: 1.35rem; height: 1.35rem; margin: 0; accent-color: #1d1f24; flex: none; }
+.ff-submit { font: 700 1rem/1 inherit; font-family: inherit; background: #c24a0e; color: #fff; border: 0; border-radius: 4px; padding: .8rem 1.2rem; box-shadow: 0 3px 0 #6d2806; cursor: pointer; }
+.ff-submit:focus { outline: 3px solid #ffb347; outline-offset: 2px; }
+.ff-summary { border: 4px solid #b3261e; padding: .9rem 1rem; margin: 0 0 1.25rem; background: #fff; }
+.ff-summary:focus, .ff-success:focus { outline: 3px solid #ffb347; outline-offset: 2px; }
+.ff-summary h2 { margin: 0 0 .4rem; font-size: 1.15rem; }
+.ff-summary ul { margin: 0; padding-left: 1.1rem; }
+.ff-summary a { color: #b3261e; font-weight: 700; }
+.ff-success { border: 4px solid #1f7a4d; background: #eaf6ef; padding: .9rem 1rem; margin: 0 0 1.25rem; font-weight: 700; }
+[hidden] { display: none !important; }`;
+  $('#form-css').textContent = FORM_CSS;
+
+  const TYPES = {
+    text: { name: 'Text', icon: '<path d="M4 6h12M10 6v10" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>' },
+    email: { name: 'Email', icon: '<rect x="2.5" y="4.5" width="15" height="11" rx="1.5" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M3 5.5l7 5.5 7-5.5" stroke="currentColor" stroke-width="1.8" fill="none"/>' },
+    number: { name: 'Number', icon: '<path d="M7 3L5 17M14 3l-2 14M3 7.5h14M2.5 12.5h14" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/>' },
+    select: { name: 'Select', icon: '<rect x="2.5" y="5" width="15" height="10" rx="2" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M11 9l2 2 2-2" stroke="currentColor" stroke-width="1.8" fill="none"/>' },
+    radio: { name: 'Radio group', icon: '<circle cx="10" cy="10" r="6.5" stroke="currentColor" stroke-width="1.8" fill="none"/><circle cx="10" cy="10" r="3" fill="currentColor"/>' },
+    checkbox: { name: 'Checkbox', icon: '<rect x="3.5" y="3.5" width="13" height="13" rx="2" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M6.5 10l2.5 2.5 5-5" stroke="currentColor" stroke-width="2" fill="none"/>' },
+    textarea: { name: 'Textarea', icon: '<rect x="2.5" y="3" width="15" height="14" rx="1.5" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M5.5 7h9M5.5 10h9M5.5 13h5" stroke="currentColor" stroke-width="1.6"/>' },
+  };
+  const ICO = {
+    up: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 10l4-4 4 4" stroke="currentColor" stroke-width="2" fill="none"/></svg>',
+    down: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" fill="none"/></svg>',
+    del: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="2"/></svg>',
+  };
+
+  const EXAMPLE = () => ({
+    title: 'Book a forging workshop',
+    submit: 'Reserve my place',
+    fields: [
+      { type: 'text', label: 'Full name', name: 'full-name', hint: '', required: true, pattern: '', min: '', max: '80', options: [], sample: 'Rowan Ashby' },
+      { type: 'email', label: 'Email address', name: 'email', hint: 'We only use this to send your booking confirmation.', required: true, pattern: '', min: '', max: '', options: [], sample: 'rowan@example.com' },
+      { type: 'text', label: 'Booking code', name: 'booking-code', hint: 'Three capital letters, a dash, then three digits — for example FRG-204.', required: false, pattern: '[A-Z]{3}-[0-9]{3}', min: '', max: '', options: [], sample: 'FRG-204' },
+      { type: 'number', label: 'Seats', name: 'seats', hint: 'Up to 4 per booking.', required: true, pattern: '', min: '1', max: '4', options: [], sample: '2' },
+      { type: 'select', label: 'Session', name: 'session', hint: '', required: true, pattern: '', min: '', max: '', options: ['Saturday morning', 'Saturday afternoon', 'Sunday morning'], sample: '' },
+      { type: 'radio', label: 'Experience level', name: 'experience', hint: '', required: true, pattern: '', min: '', max: '', options: ['Never held a hammer', 'Some hobby work', 'Regular smith'], sample: '' },
+      { type: 'textarea', label: 'Anything we should know', name: 'notes', hint: 'Access needs, left-handed tools, dietary needs for lunch.', required: false, pattern: '', min: '', max: '500', options: [], sample: 'Left-handed, please.' },
+      { type: 'checkbox', label: 'I agree to wear the safety kit provided', name: 'safety', hint: '', required: true, pattern: '', min: '', max: '', options: [], sample: '' },
+    ],
+  });
+  const KEY = 'formforge.v1';
+  let M;
+  try { M = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { M = null; }
+  if (!M || !Array.isArray(M.fields)) M = EXAMPLE();
+  let sel = M.fields.length ? 0 : null;
+  let tab = 'html';
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(M)); } catch (e) { /* storage unavailable */ } };
+
+  const slug = (s) => String(s).toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '').trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 32) || 'field';
+  function uniqueName(base, skip) {
+    let n = base, i = 2;
+    while (M.fields.some((f, j) => j !== skip && f.name === n)) n = base + '-' + i++;
+    return n;
+  }
+  const patternOk = (p) => { if (!p) return true; try { new RegExp('^(?:' + p + ')$'); return true; } catch (e) { return false; } };
+
+  /* ---------------- markup (shared by preview and export) ---------------- */
+  function fieldHtml(f) {
+    const id = 'ff-' + f.name, hid = id + '-hint', eid = id + '-error';
+    const desc = [f.hint ? hid : '', eid].filter(Boolean).join(' ');
+    const opt = f.required || f.type === 'checkbox' ? '' : ' <span class="ff-opt">(optional)</span>';
+    const hint = f.hint ? `\n    <p class="ff-hint" id="${hid}">${esc(f.hint)}</p>` : '';
+    const err = `\n    <p class="ff-error" id="${eid}" data-ff-error hidden></p>`;
+    const data = `data-ff-field data-ff-type="${f.type}" data-ff-label="${esc(f.label)}" data-ff-required="${!!f.required}"`;
+    const req = f.required ? ' required' : '';
+    const num = (v) => v !== '' && v != null && isFinite(Number(v));
+    if (f.type === 'radio') {
+      const opts = f.options.map((o, i) => `\n      <div class="ff-choice"><input type="radio" id="${id}-${i}" name="${f.name}" value="${esc(o)}"><label for="${id}-${i}">${esc(o)}</label></div>`).join('');
+      return `  <fieldset class="ff-field" id="${id}-group" ${data} aria-describedby="${desc}">\n    <legend>${esc(f.label)}${opt}</legend>${hint}${err}${opts}\n  </fieldset>`;
+    }
+    if (f.type === 'checkbox') {
+      return `  <div class="ff-field" ${data}>${err}\n    <div class="ff-choice"><input type="checkbox" id="${id}" name="${f.name}" value="yes"${req} aria-describedby="${desc}"><label for="${id}">${esc(f.label)}${f.required ? '' : ' <span class="ff-opt">(optional)</span>'}</label></div>${hint}\n  </div>`;
+    }
+    let ctl;
+    if (f.type === 'select') {
+      const opts = f.options.map((o) => `\n      <option>${esc(o)}</option>`).join('');
+      ctl = `<select class="ff-input" id="${id}" name="${f.name}"${req} aria-describedby="${desc}">\n      <option value="">Choose…</option>${opts}\n    </select>`;
+    } else {
+      const a = [];
+      if (f.type === 'number') { if (num(f.min)) a.push(`min="${Number(f.min)}"`); if (num(f.max)) a.push(`max="${Number(f.max)}"`); a.push('inputmode="decimal"'); }
+      if (f.type === 'text' || f.type === 'textarea') {
+        if (num(f.min) && Number(f.min) > 0) a.push(`minlength="${Math.floor(f.min)}"`);
+        if (num(f.max) && Number(f.max) > 0) a.push(`maxlength="${Math.floor(f.max)}"`);
+        if (f.pattern && patternOk(f.pattern) && f.type === 'text') a.push(`pattern="${esc(f.pattern)}"`);
+      }
+      if (f.type === 'email') a.push('autocomplete="email" spellcheck="false"');
+      const at = a.length ? ' ' + a.join(' ') : '';
+      ctl = f.type === 'textarea'
+        ? `<textarea class="ff-input" id="${id}" name="${f.name}"${req}${at} aria-describedby="${desc}"></textarea>`
+        : `<input class="ff-input" type="${f.type === 'number' ? 'text' : f.type}" id="${id}" name="${f.name}"${req}${at} aria-describedby="${desc}">`;
+    }
+    return `  <div class="ff-field" ${data}>\n    <label class="ff-label" for="${id}">${esc(f.label)}${opt}</label>${hint}${err}\n    ${ctl}\n  </div>`;
+  }
+  function formHtml(headingTag) {
+    return `<form class="ff-form" id="ff-form" novalidate>
+  <div class="ff-summary" data-ff-summary role="alert" tabindex="-1" aria-labelledby="ff-summary-title" hidden>
+    <h2 id="ff-summary-title">There is a problem</h2>
+    <ul></ul>
+  </div>
+  <div class="ff-success" data-ff-success role="status" tabindex="-1" hidden>Thanks — every field passed its checks.</div>
+  <${headingTag} class="ff-title">${esc(M.title)}</${headingTag}>
+${M.fields.map(fieldHtml).join('\n')}
+  <button type="submit" class="ff-submit">${esc(M.submit)}</button>
+</form>`;
+  }
+  function exportHtml() {
+    return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${esc(M.title)}</title>
+<style>
+body { margin: 0; padding: 2rem 1rem; background: #f4eee4; }
+${FORM_CSS}
+</style>
+</head>
+<body>
+<main>
+${formHtml('h1')}
+</main>
+<script>
+${ffMessage.toString()}
+${formForgeValidate.toString()}
+formForgeValidate(document.getElementById('ff-form'));
+<\/script>
+</body>
+</html>
+`;
+  }
+
+  /* ---------------- Playwright spec skeleton ---------------- */
+  const q = (s) => "'" + String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
+  function sampleFor(f) {
+    if (f.sample) return f.sample;
+    if (f.type === 'email') return 'name@example.com';
+    if (f.type === 'number') return String(f.min !== '' ? f.min : (f.max !== '' ? f.max : 1));
+    return null;
+  }
+  function exportSpec() {
+    const L = [];
+    const loc = (f) => f.type === 'radio' ? `page.getByRole('group', { name: ${q(f.label)} })` : `page.getByLabel(${q(f.label)})`;
+    const submit = `await page.getByRole('button', { name: ${q(M.submit)} }).click();`;
+    const req = M.fields.filter((f) => f.required);
+    L.push("import { test, expect } from '@playwright/test';", '');
+    L.push(`// Generated by Form Forge for “${M.title.replace(/\*\//g, '')}”. Point goto() at wherever you host the exported HTML.`);
+    L.push(`test.describe(${q(M.title)}, () => {`);
+    L.push('  test.beforeEach(async ({ page }) => {', "    await page.goto('/form.html'); // TODO: your URL", '  });', '');
+    L.push('  test(\'an empty submit lists every required field in the error summary\', async ({ page }) => {');
+    L.push('    ' + submit);
+    L.push("    const summary = page.getByRole('alert');");
+    L.push('    await expect(summary).toBeFocused();');
+    L.push(`    await expect(summary.getByRole('listitem')).toHaveCount(${req.length});`);
+    req.forEach((f) => {
+      const kind = f.type === 'checkbox' ? 'tick' : (f.type === 'select' || f.type === 'radio') ? 'choose' : 'empty';
+      L.push(`    await expect(summary).toContainText(${q(ffMessage(kind, f.label))});`);
+    });
+    if (req.length) {
+      const f = req[0];
+      L.push(`    // summary links move focus to the field`);
+      L.push(`    await summary.getByRole('link', { name: ${q(ffMessage(f.type === 'checkbox' ? 'tick' : (f.type === 'select' || f.type === 'radio') ? 'choose' : 'empty', f.label))} }).click();`);
+      if (f.type === 'radio') L.push(`    await expect(page.getByRole('radio', { name: ${q(f.options[0] || '')} })).toBeFocused();`);
+      else L.push(`    await expect(${loc(f)}).toBeFocused();`);
+      if (f.type !== 'radio') L.push(`    await expect(${loc(f)}).toHaveAttribute('aria-invalid', 'true');`);
+    }
+    L.push('  });');
+    M.fields.forEach((f) => {
+      const rules = [];
+      if (f.type === 'email') rules.push(['rejects a malformed address', 'not-an-email', ffMessage('email', f.label)]);
+      if (f.type === 'number') {
+        rules.push(['rejects text', 'lots', ffMessage('nan', f.label)]);
+        if (f.min !== '') rules.push([`rejects values below ${f.min}`, String(Number(f.min) - 1), ffMessage('min', f.label, Number(f.min))]);
+        if (f.max !== '') rules.push([`rejects values above ${f.max}`, String(Number(f.max) + 1), ffMessage('max', f.label, Number(f.max))]);
+      }
+      if ((f.type === 'text' || f.type === 'textarea') && Number(f.min) > 0) rules.push([`needs at least ${Math.floor(f.min)} characters`, 'x'.repeat(Math.max(1, Math.floor(f.min) - 1)), ffMessage('minlen', f.label, Math.floor(f.min))]);
+      if (f.type === 'text' && f.pattern && patternOk(f.pattern)) rules.push([`enforces the pattern ${f.pattern}`, '!!!', ffMessage('pattern', f.label)]);
+      rules.forEach(([name, val, msg]) => {
+        L.push('');
+        L.push(`  test(${q(f.label + ': ' + name)}, async ({ page }) => {`);
+        L.push(`    await ${loc(f)}.fill(${q(val)});`);
+        L.push('    ' + submit);
+        L.push(`    await expect(page.getByRole('alert')).toContainText(${q(msg)});`);
+        L.push(`    await expect(${loc(f)}).toHaveAttribute('aria-invalid', 'true');`);
+        L.push('  });');
+      });
+    });
+    L.push('');
+    L.push("  test('a valid submission shows the confirmation', async ({ page }) => {");
+    M.fields.forEach((f) => {
+      if (f.type === 'checkbox') { if (f.required) L.push(`    await ${loc(f)}.check();`); return; }
+      if (f.type === 'select') { if (f.options[0]) L.push(`    await ${loc(f)}.selectOption(${q(f.options[0])});`); return; }
+      if (f.type === 'radio') { if (f.options[0]) L.push(`    await page.getByRole('radio', { name: ${q(f.options[0])} }).check();`); return; }
+      const s = sampleFor(f);
+      if (s != null) L.push(`    await ${loc(f)}.fill(${q(s)});`);
+      else if (f.required || f.pattern) L.push(`    // TODO: fill ${q(f.label)} with a valid value${f.pattern ? ' matching /' + f.pattern + '/' : ''}`);
+    });
+    L.push('    ' + submit);
+    L.push("    await expect(page.getByRole('alert')).toBeHidden();");
+    L.push("    await expect(page.getByRole('status')).toContainText('every field passed');");
+    L.push('  });');
+    L.push('});', '');
+    return L.join('\n');
+  }
+
+  /* ---------------- rendering ---------------- */
+  let lastResult = null;
+  function renderPreview() {
+    const host = $('#preview');
+    host.innerHTML = formHtml('h2');
+    formForgeValidate(host.querySelector('form'), (errs) => {
+      lastResult = errs.length;
+      $('[data-testid=preview-state]').textContent = errs.length ? `${errs.length} error${errs.length === 1 ? '' : 's'}` : 'submitted · valid';
+    });
+    $('[data-testid=preview-state]').textContent = 'not submitted';
+  }
+  function renderList() {
+    const ol = $('#flist');
+    ol.innerHTML = '';
+    M.fields.forEach((f, i) => {
+      const li = document.createElement('li');
+      li.className = 'fitem';
+      li.setAttribute('data-testid', 'field-item');
+      li.setAttribute('aria-current', String(sel === i));
+      li.innerHTML = `<button type="button" class="fsel" data-act="sel"><span class="t">${TYPES[f.type].name}</span><span class="l">${esc(f.label)}${f.required ? ' <i aria-label="required">*</i>' : ''}</span></button>
+        <span class="ftools">
+          <button type="button" class="ico" data-act="up" aria-label="Move ${esc(f.label)} up" ${i === 0 ? 'disabled' : ''}>${ICO.up}</button>
+          <button type="button" class="ico" data-act="down" aria-label="Move ${esc(f.label)} down" ${i === M.fields.length - 1 ? 'disabled' : ''}>${ICO.down}</button>
+          <button type="button" class="ico" data-act="del" aria-label="Delete ${esc(f.label)}">${ICO.del}</button>
+        </span>`;
+      li.dataset.i = i;
+      ol.appendChild(li);
+    });
+    $('#flist-empty').hidden = M.fields.length > 0;
+  }
+  function renderInspector() {
+    const f = sel != null ? M.fields[sel] : null;
+    $('#insp').hidden = !f; $('#insp-none').hidden = !!f;
+    $('#insp-type').textContent = f ? TYPES[f.type].name : '';
+    if (!f) return;
+    const set = (id, v) => { const el = $(id); if (document.activeElement !== el) el.value = v; };
+    set('#i-label', f.label); set('#i-name', f.name); set('#i-hint', f.hint); $('#i-req').checked = !!f.required;
+    set('#i-pattern', f.pattern); set('#i-min', f.min); set('#i-max', f.max); set('#i-options', f.options.join('\n')); set('#i-sample', f.sample || '');
+    $$('#insp [data-for]').forEach((el) => { el.hidden = !el.dataset.for.split(' ').includes(f.type); });
+    if (f.type === 'textarea') $('#i-pattern').closest('.fld').hidden = true;
+    const len = f.type === 'text' || f.type === 'textarea';
+    $('#i-min-lab').textContent = len ? 'Min length' : 'Min value';
+    $('#i-max-lab').textContent = len ? 'Max length' : 'Max value';
+    const pe = $('#i-pattern-err');
+    const ok = patternOk(f.pattern);
+    pe.hidden = ok; pe.textContent = ok ? '' : 'Not a valid regular expression — it will be ignored.';
+    if (ok) $('#i-pattern').removeAttribute('aria-invalid'); else $('#i-pattern').setAttribute('aria-invalid', 'true');
+  }
+  function renderStats() {
+    $('[data-testid=stat-fields]').textContent = M.fields.length;
+    $('[data-testid=stat-required]').textContent = M.fields.filter((f) => f.required).length;
+    $('[data-testid=stat-rules]').textContent = M.fields.reduce((n, f) => n + (f.required ? 1 : 0) + (f.type === 'email' ? 1 : 0) + (f.pattern && f.type === 'text' ? 1 : 0) + (f.min !== '' && f.type !== 'select' ? 1 : 0) + (f.max !== '' && f.type !== 'select' ? 1 : 0), 0);
+  }
+  function renderExport() {
+    $('#export-out').textContent = tab === 'html' ? exportHtml() : exportSpec();
+    $('#export-out').setAttribute('aria-labelledby', 'tab-' + tab);
+    $$('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.id === 'tab-' + tab)));
+    $('[data-testid=export-status]').textContent = '';
+  }
+  function renderAll() {
+    if (document.activeElement !== $('#form-title')) $('#form-title').value = M.title;
+    if (document.activeElement !== $('#form-submit')) $('#form-submit').value = M.submit;
+    renderList(); renderInspector(); renderPreview(); renderStats(); renderExport();
+  }
+  function changed() { save(); renderAll(); }
+
+  /* ---------------- wiring ---------------- */
+  const parts = $('#parts');
+  Object.entries(TYPES).forEach(([k, t]) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'part'; b.setAttribute('data-testid', 'add-' + k);
+    b.innerHTML = `<svg viewBox="0 0 20 20" aria-hidden="true">${t.icon}</svg><span>${t.name}</span>`;
+    b.setAttribute('aria-label', 'Add ' + t.name + ' field');
+    b.addEventListener('click', () => {
+      const label = { text: 'Short answer', email: 'Work email', number: 'Quantity', select: 'Pick one', radio: 'Choose one', checkbox: 'Send me updates', textarea: 'Long answer' }[k];
+      const f = { type: k, label, name: uniqueName(slug(label)), hint: '', required: false, pattern: '', min: '', max: '', options: (k === 'select' || k === 'radio') ? ['Option A', 'Option B'] : [], sample: '' };
+      M.fields.push(f);
+      sel = M.fields.length - 1;
+      changed();
+      $('#i-label').focus(); $('#i-label').select();
+    });
+    parts.appendChild(b);
+  });
+  $('#flist').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    const i = +b.closest('li').dataset.i;
+    const act = b.dataset.act;
+    if (act === 'sel') { sel = i; renderList(); renderInspector(); return; }
+    if (act === 'up' && i > 0) { [M.fields[i - 1], M.fields[i]] = [M.fields[i], M.fields[i - 1]]; sel = i - 1; }
+    if (act === 'down' && i < M.fields.length - 1) { [M.fields[i + 1], M.fields[i]] = [M.fields[i], M.fields[i + 1]]; sel = i + 1; }
+    if (act === 'del') { M.fields.splice(i, 1); sel = M.fields.length ? Math.min(i, M.fields.length - 1) : null; }
+    changed();
+    const li = $('#flist').children[sel];
+    if (li) { const again = li.querySelector(`[data-act="${act}"]:not(:disabled)`) || li.querySelector('.fsel'); again.focus(); }
+  });
+  const bind = (id, fn, ev = 'input') => $(id).addEventListener(ev, (e) => { const f = M.fields[sel]; if (!f) return; fn(f, e.target); changed(); });
+  bind('#i-label', (f, t) => {
+    const auto = f.name === uniqueName(slug(f.label), sel) || f.name.startsWith(slug(f.label));
+    f.label = t.value || 'Untitled';
+    if (auto) f.name = uniqueName(slug(f.label), sel);
+  });
+  bind('#i-name', (f, t) => { f.name = uniqueName(slug(t.value), sel); }, 'change');
+  bind('#i-hint', (f, t) => { f.hint = t.value; });
+  bind('#i-req', (f, t) => { f.required = t.checked; }, 'change');
+  bind('#i-pattern', (f, t) => { f.pattern = t.value; });
+  bind('#i-min', (f, t) => { f.min = t.value; });
+  bind('#i-max', (f, t) => { f.max = t.value; });
+  bind('#i-options', (f, t) => { f.options = t.value.split('\n').map((s) => s.trim()).filter(Boolean); });
+  bind('#i-sample', (f, t) => { f.sample = t.value; });
+  $('#form-title').addEventListener('input', (e) => { M.title = e.target.value || 'Untitled form'; changed(); });
+  $('#form-submit').addEventListener('input', (e) => { M.submit = e.target.value || 'Submit'; changed(); });
+  $('#reset-example').addEventListener('click', () => { M = EXAMPLE(); sel = 0; changed(); });
+
+  $$('.tab').forEach((t) => t.addEventListener('click', () => { tab = t.id.slice(4); renderExport(); }));
+  $('.tabs').addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    if (!e.target.classList.contains('tab')) return;
+    tab = tab === 'html' ? 'spec' : 'html'; renderExport(); $('#tab-' + tab).focus();
+  });
+  const status = $('[data-testid=export-status]');
+  $('[data-testid=copy]').addEventListener('click', async () => {
+    const txt = $('#export-out').textContent;
+    try { await navigator.clipboard.writeText(txt); status.textContent = 'Copied'; }
+    catch (e) {
+      const r = document.createRange(); r.selectNodeContents($('#export-out'));
+      const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+      status.textContent = 'Selected — press Ctrl/⌘+C';
+    }
+  });
+  $('[data-testid=download]').addEventListener('click', () => {
+    const txt = $('#export-out').textContent;
+    const name = tab === 'html' ? slug(M.title) + '.html' : slug(M.title) + '.spec.ts';
+    const url = URL.createObjectURL(new Blob([txt], { type: tab === 'html' ? 'text/html' : 'text/plain' }));
+    const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    status.textContent = 'Downloaded ' + name;
+  });
+
+  window.__formForge = { html: exportHtml, spec: exportSpec, model: () => JSON.parse(JSON.stringify(M)) };
+  renderAll();
+})();
+</script>
+</body>
+</html>

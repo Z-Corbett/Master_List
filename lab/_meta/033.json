@@ -1,0 +1,35 @@
+{
+  "id": "033",
+  "slug": "033-layout-lab",
+  "file": "lab/033-layout-lab.html",
+  "title": "Layout Lab — CSS Grid, Flexbox & Container Query Playground",
+  "category": "Tools",
+  "tags": ["css-grid", "flexbox", "container-queries", "pointer-events", "codegen"],
+  "description": "A layout playground where every box on the bench is placed by the exact stylesheet printed beneath it: switch between Grid and Flexbox, tune tracks, named areas, gaps, auto-fill versus auto-fit, wrapping, per-item flex-grow, spans and order. Drag the container narrower to watch a real container query stack the layout, load one of six recipes (holy grail, card grid, sidebar, masonry-ish, pancake stack, switcher), and copy the CSS.",
+  "prompt": "Build 'Layout Lab', an interactive CSS Grid + Flexbox + container-query playground. Give me controls for grid-template-columns and areas, gap, auto-fill vs auto-fit with minmax, flex-wrap/grow/basis and alignment, and let me click a single box to give it its own span, grow, basis or order. The boxes must reflow live, and I want a draggable container edge so I can squeeze it and watch container queries switch the layout. Show the grid tracks as an overlay so the auto-fill/auto-fit difference is visible, not just described. Include six ready-made recipes — holy grail, card grid, sidebar, masonry-ish, pancake stack and a switcher — each with a one-line explanation of why it works. The CSS panel must be the real stylesheet that is running, not a paraphrase, with a copy button. Give it a risograph print-shop look: paper dots, thick ink borders, fluoro pink, teal and yellow.",
+  "qa": {
+    "methodology": [
+      "Single source of truth: the generated CSS string is injected into a <style> element and also printed, so the spec asserts the printed text equals the live stylesheet — the panel cannot drift from what runs.",
+      "Browser as oracle: track counts come from getComputedStyle(gridTemplateColumns) and item bounding boxes, so tests check what Chromium actually laid out (e.g. auto-fit reporting 0px collapsed tracks) rather than re-deriving grid maths in JS.",
+      "Hand-computed layout values: span 12 on 10px rows with 8px gaps must be exactly 208px tall; floor((192 + 12) / 72) = 2 tracks after dragging the container to its 220px minimum.",
+      "Viewport-independent container tests: the handle's Home/End keys and the breakpoint slider put the frame on known sides of the @container rule on both a 1280px desktop and a Pixel 7.",
+      "Input validation: malformed and non-rectangular grid-template-areas are rejected with an inline error and never reach the stylesheet.",
+      "Responsive checks at 360–412px with letter-spacing injected, to catch overflow from long CSS values and selects."
+    ],
+    "risks": [
+      "Explicit track lists that do not fit narrow phones (fixed px sidebars) squeeze the middle track to 0px — caught while building and fixed by giving the holy grail 1fr 3fr 1fr columns.",
+      "The container width readout drifting from the true content box if frame padding or border changes, which would break every container-query assertion.",
+      "Pointer capture on the resize handle behaving differently for touch-emulated input."
+    ],
+    "playwright": "Layout is fully deterministic, so there is no need for seeds or fake clocks; the challenge is that the same page has very different widths on the two projects. Instead of branching on isMobile, the tests drive the container to known widths (Home = 220px via the keyboard-accessible slider handle, a mouse drag far past the minimum) and assert values computed from those. Range inputs are set with locator.fill(), which dispatches input events. Screenshot assertions were avoided in favour of computed-style and bounding-box oracles, which fail with a readable diff and are immune to font rendering differences across operating systems.",
+    "coverage": [
+      "auto-fill leaves empty tracks; auto-fit collapses them and widens items",
+      "Holy grail areas, keyboard resize into and out of the container query",
+      "Pointer drag on the resize handle reflows the grid",
+      "Flexbox nowrap, per-item flex-grow, direction column, item reset",
+      "Masonry spans and dense flow; printed CSS equals live CSS; copy",
+      "grid-template-areas validation errors and area-driven item count"
+    ]
+  },
+  "a11y": "Every control is a labelled native input, select or aria-pressed button, and the container edge is a focusable role=slider operated with arrow keys, Shift+arrow, Home and End. Items on the bench are real buttons named after their area, and container width, track counts and container-query state are exposed as text."
+}

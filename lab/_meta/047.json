@@ -1,0 +1,36 @@
+{
+  "id": "047",
+  "slug": "047-topo-lines",
+  "file": "lab/047-topo-lines.html",
+  "title": "Topo Lines — generative topographic maps",
+  "category": "Generative",
+  "tags": ["canvas", "marching-squares", "perlin-noise", "seeded-prng", "png-export"],
+  "description": "Generative topographic maps of fictional Texas Hill Country quadrangles: seeded Perlin terrain traced into contour lines with marching squares, with an index contour every fifth line labelled along the curve, optional hillshade and a water level that floods the valleys. Switch between USGS classic, night and blueprint palettes, tap to climb to the nearest summit and mark its elevation, and export the sheet as a PNG.",
+  "prompt": "Make me a generative topographic map maker. Seeded noise terrain rendered as contour lines with marching squares, index contours every fifth line with elevation labels, a hillshade toggle, a water level slider that floods the low areas, palette presets (USGS classic, night, blueprint), click to place a summit marker with its elevation, and PNG export. Give it the feel of a real USGS quad sheet, with a title block, contour interval note, scale bar and north arrow, and invent the place names.",
+  "qa": {
+    "methodology": [
+      "Algorithm oracle for marching squares: for four levels (including a non-grid level of 555.5 m), the spec recounts the crossed cells from the raw grid (saddle cases count twice) and requires the same number of segments, and requires every stitched polyline vertex to interpolate back to its level within 0.001 m.",
+      "Structural checks: levels are multiples of the contour interval, and halving the interval roughly doubles the number of levels, which the canvas's aria-label also reports.",
+      "Water flooding: the '% under water' caption must equal the share of grid samples below the computed water level, and pixel probes at the lowest and highest grid points must read as water blue and dry paper or ink.",
+      "Palette pixels: a probe in the legend strip must exactly match each preset's paper color.",
+      "Summit hill-climb: the marker must land on a true local maximum at or above the clicked elevation, and the list and hint text must show that elevation.",
+      "Export: the PNG download has the expected filename and a valid PNG signature; screenshots at 1280px and 390px checked by eye."
+    ],
+    "risks": [
+      "Saddle cells (cases 5 and 10) are ambiguous; the center-average rule decides them, and a miscount would break contours or cross lines.",
+      "Label placement on noisy lines can produce upside-down or overlapping labels; angles are normalized and labels are kept at least 90px apart.",
+      "Device pixel ratio changes the canvas size, so pixel probes have to convert CSS coordinates to canvas pixels.",
+      "Performance of re-running marching squares on every slider move; contours are cached by seed, interval and level."
+    ],
+    "playwright": "Canvas output is the hard part, so the spec avoids comparing screenshots and tests at three levels. It checks the math against an independent recomputation from the exported height grid (window.__topo.grid()). It checks exact pixels only where the output is fully determined: a flat legend strip for the palettes, and the extreme high and low points for water, where only the color family is asserted. It checks the DOM that the canvas drives (captions, marker list, aria-label). Clicks go through Playwright's locator.click with positions relative to the canvas box, which works the same under the mobile touch profile. The PNG export is verified with page.waitForEvent('download') and by reading the file's magic bytes.",
+    "coverage": [
+      "Marching squares segment counts and on-level vertices for four levels; interval change",
+      "Seeded determinism, quad name, URL update, relief caption",
+      "Water level: flooded share, output label, water and dry pixel probes",
+      "Palette presets verified by exact legend pixel colors",
+      "Summit hill-climb markers, list, hint and clear",
+      "PNG export filename and signature"
+    ]
+  },
+  "a11y": "Every control is a native labelled input, select or toggle button (hillshade and palettes use aria-pressed). The canvas has a live aria-label describing the quadrangle, elevation range, contour interval and markers, and summit markers are also listed as text in an aria-live list."
+}

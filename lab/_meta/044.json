@@ -1,0 +1,33 @@
+{
+  "id": "044",
+  "slug": "044-plainchant",
+  "file": "lab/044-plainchant.html",
+  "title": "Plainchant — generative chant in the eight modes",
+  "category": "Audio",
+  "tags": ["web-audio", "svg", "generative-music", "seeded-prng", "music-theory"],
+  "description": "A generative piece inspired by Gregorian chant: choose one of the eight church modes, each with its correct final and reciting tone, and a synthesized voice sings stepwise Latin verses from Psalm 150 and the Gloria Patri over a drone on the final, in a five-second synthetic reverb. The melody is inked onto a red four-line staff as square neumes while it is sung.",
+  "prompt": "Make me a generative audio piece inspired by Gregorian chant. Let me choose one of the eight church modes, each with its correct final and reciting tone (Mode I Dorian has final D and tenor A, and so on), and generate stepwise melodic phrases sung by a synthesized voice: formant-style Web Audio synthesis, a drone on the final, and a big convolver reverb. Draw the melody live as square neumes on a four-line staff. Audio must only start after a user gesture, include a mute, keep it deterministic with ?seed=, and expose window.__chant so the music theory can be tested.",
+  "qa": {
+    "methodology": [
+      "Music-theory oracle: a hard-coded table of the eight modes (name, final, tenor) is checked against the UI and the reference table.",
+      "Property-based checks on the composer: 240 generated verses (8 modes × 6 texts × 5 seeds) must stay within the mode's range, start near the final and end on it, never leap more than a third, move by step or repeated note at least 85% of the time, and recite on the tenor.",
+      "Notation checks: the clef chosen for each mode keeps its whole range within one ledger line of the staff, and the SVG shows one square per composed note, with nothing inked before playback.",
+      "Audio contract: no AudioContext before a click; after it, notes are scheduled and counted as sung, the drone sits an octave below the final (73.4 Hz for D, 98 Hz for G after a mode change), and mute brings the master gain to zero and back.",
+      "Visual review at 1280px and 390px; on narrow screens the staff reflows into more systems instead of shrinking the text."
+    ],
+    "risks": [
+      "Composer edge cases: modes with a small final-to-tenor distance (II, VI) and verses with few syllables can drift from 'mostly reciting on the tenor'. The property test found this and the phrase shape now adapts to the distance.",
+      "Audio clock vs animation clock: inking is driven by AudioContext.currentTime, so a suspended context would freeze the score (by design).",
+      "setTargetAtTime automation piling up across long sessions; notes are scheduled only about 1.5 s ahead.",
+      "Clef selection for plagal modes, where a bad choice pushes notes far off the staff."
+    ],
+    "playwright": "Audio can't be heard in a test, so the spec checks what the page exposes through window.__chant: whether the context started, how many notes were scheduled and sung, the drone oscillator's frequency and the master gain. Timing depends on the real audio clock, so those assertions use expect.poll with timeouts rather than fake timers. page.clock doesn't control AudioContext.currentTime. The musical rules are tested as properties over many seeds by calling the composer directly in page.evaluate, which is fast and deterministic. The notation is asserted structurally (the number of square notes, and whether they are inked via the opacity attribute), never by pixels.",
+    "coverage": [
+      "Final, tenor, name and authentic/plagal label for all eight modes",
+      "Range, cadence, stepwise motion and recitation properties across 240 verses; seeded determinism",
+      "Clef range fit, note count on the staff, verse text and translation, and the un-inked preview",
+      "Gesture-gated audio, sung notes being inked, drone following the mode, mute and pause"
+    ]
+  },
+  "a11y": "The modes are a group of toggle buttons with aria-pressed and spoken labels that give the final and tenor, and the tempo slider is labelled. The score is an SVG image whose label names the mode, clef and number of notes sung, the Latin text and English translation appear as plain text, and status changes are announced through aria-live."
+}

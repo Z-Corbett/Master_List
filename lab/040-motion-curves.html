@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Motion Curves — Easing and Spring Editor</title>
+<meta name="description" content="An easing editor: drag cubic-bezier handles or tune a numerically integrated spring (stiffness, damping, mass), compare curves on one timeline, preview them on slide, scale, fade and bounce motions, get duration guidance and a reduced-motion alternative, and export CSS cubic-bezier() or linear() easing.">
+<style>
+  :root {
+    --bg: #0f1411;
+    --bg-2: #151c18;
+    --bg-3: #1c2620;
+    --line: #2a3a31;
+    --grid: #1d2a23;
+    --phos: #7cffb2;
+    --phos-2: #3fcf86;
+    --amber: #ffb547;
+    --pink: #ff6fae;
+    --sky: #6fc8ff;
+    --text: #dcefe3;
+    --text-2: #9db5a6;
+    --text-3: #6b8475;
+    --sans: "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "Cascadia Code", "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.45; overflow-x: hidden;
+    background-image: radial-gradient(ellipse 60% 40% at 80% 0%, rgba(124,255,178,.08), transparent 70%);
+    background-repeat: no-repeat;
+  }
+  :focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  select, input, pre { max-width: 100%; }
+  .back {
+    position: fixed; top: 12px; left: 12px; z-index: 50; text-decoration: none; color: var(--phos);
+    font: 600 12px/1 var(--mono); background: rgba(15,20,17,.92); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px;
+  }
+  .back:hover { border-color: var(--phos); }
+  .wrap { max-width: 1260px; margin: 0 auto; padding: 60px 18px 48px; }
+  header.top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px 24px; align-items: flex-end; margin-bottom: 20px; }
+  h1 { margin: 0; font: 300 clamp(36px, 6vw, 68px)/1 var(--sans); letter-spacing: -.035em; }
+  h1 b { font-weight: 800; color: var(--phos); text-shadow: 0 0 18px rgba(124,255,178,.35); }
+  .sub { margin: 8px 0 0; color: var(--text-2); max-width: 62ch; }
+  .rm-note { font: 12px var(--mono); color: var(--amber); border: 1px dashed var(--amber); border-radius: 6px; padding: 6px 10px; }
+
+  .panel { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 14px; min-width: 0; }
+  .panel h2 { margin: 0 0 10px; font: 700 11.5px var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--phos-2); display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+  .panel h2 small { color: var(--text-3); letter-spacing: 0; text-transform: none; font-weight: 400; }
+  .top-grid { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 16px; margin-bottom: 16px; align-items: start; }
+  .tabs { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; width: fit-content; margin-bottom: 10px; }
+  .tabs button { border: 0; background: transparent; padding: 6px 16px; font: 600 13px var(--mono); color: var(--text-2); }
+  .tabs button[aria-selected=true] { background: var(--phos); color: var(--bg); }
+  .editor svg { width: 100%; height: auto; display: block; touch-action: none; user-select: none; background: #0b0f0d; border-radius: 8px; border: 1px solid var(--line); }
+  .handle { cursor: grab; }
+  .handle:focus { outline: none; }
+  .handle:focus circle { stroke: var(--amber); stroke-width: 3; }
+  .readout { display: flex; flex-wrap: wrap; gap: 6px 14px; font: 12px var(--mono); color: var(--text-2); margin-top: 8px; }
+  .readout b { color: var(--text); }
+  .readout .warn { color: var(--amber); }
+
+  .ctl { display: grid; gap: 10px; align-content: start; min-width: 0; }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { border: 1px solid var(--line); background: var(--bg-3); border-radius: 999px; padding: 4px 11px; font: 12px var(--mono); color: var(--text-2); }
+  .chip:hover { border-color: var(--phos-2); color: var(--text); }
+  .chip[aria-pressed=true] { border-color: var(--phos); color: var(--phos); }
+  .nums { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .nums label, .sl label { display: grid; gap: 3px; font: 11.5px var(--mono); color: var(--text-3); min-width: 0; }
+  .nums input { width: 100%; min-width: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 7px; font: 13px var(--mono); color: var(--text); }
+  .sl { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px 16px; }
+  .sl label span { display: flex; justify-content: space-between; }
+  .sl output { color: var(--text); }
+  input[type=range] { width: 100%; min-width: 0; accent-color: var(--phos); }
+  .btn { border: 1px solid var(--line); background: var(--bg-3); border-radius: 8px; padding: 7px 13px; font: 600 13px var(--sans); }
+  .btn:hover { border-color: var(--phos); }
+  .btn.go { background: var(--phos); color: var(--bg); border-color: var(--phos); }
+  .btn.go:hover { background: #a6ffcd; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .guide { border-left: 3px solid var(--amber); padding: 6px 10px; background: rgba(255,181,71,.06); font-size: 13.5px; border-radius: 0 6px 6px 0; }
+  .guide b { color: var(--amber); }
+  .springinfo { font: 12.5px var(--mono); color: var(--text-2); display: grid; gap: 3px; }
+  .springinfo b { color: var(--text); }
+
+  /* preview */
+  .stage { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .tile { background: #0b0f0d; border: 1px solid var(--line); border-radius: 10px; height: 150px; position: relative; overflow: hidden; min-width: 0; }
+  .tile .lab { position: absolute; left: 8px; top: 6px; font: 11px var(--mono); color: var(--text-3); z-index: 2; }
+  .obj { position: absolute; }
+  .slide .obj { left: 12px; top: 58px; width: 44px; height: 44px; border-radius: 10px; background: var(--phos); box-shadow: 0 0 16px rgba(124,255,178,.4); }
+  .scale .obj { left: calc(50% - 32px); top: 44px; width: 64px; height: 64px; border-radius: 14px; background: var(--sky); }
+  .fade .obj { left: 12px; right: 12px; top: 44px; height: 70px; border-radius: 10px; background: linear-gradient(135deg, var(--pink), var(--amber)); }
+  .bounce .obj { left: calc(50% - 18px); top: 20px; width: 36px; height: 36px; border-radius: 50%; background: var(--amber); }
+  .bounce .floor { position: absolute; left: 10px; right: 10px; bottom: 16px; height: 2px; background: var(--line); }
+  .scrub { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; margin-top: 10px; font: 12px var(--mono); color: var(--text-2); }
+
+  .lower { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; margin-top: 16px; }
+  .compare svg { width: 100%; height: auto; display: block; background: #0b0f0d; border-radius: 8px; border: 1px solid var(--line); }
+  .pins { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 5px; }
+  .pins li { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 8px; align-items: center; font: 12px var(--mono); color: var(--text-2); background: var(--bg-3); border-radius: 6px; padding: 4px 6px 4px 8px; }
+  .pins li i { width: 12px; height: 3px; border-radius: 2px; display: block; }
+  .pins li span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lanes { display: grid; gap: 6px; margin-top: 10px; }
+  .lane { position: relative; height: 26px; background: #0b0f0d; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .lane i { position: absolute; top: 5px; left: 6px; width: 14px; height: 14px; border-radius: 50%; }
+  pre.css { margin: 0; background: #0b0f0d; border: 1px solid var(--line); border-radius: 8px; padding: 12px; font: 12px/1.6 var(--mono); color: #c9f5da; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 360px; overflow: auto; }
+  .status { font: 12px var(--mono); color: var(--phos-2); }
+  .chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--text-2); }
+  .chk input { accent-color: var(--amber); width: 16px; height: 16px; }
+
+  @media (max-width: 900px) {
+    .top-grid, .lower { grid-template-columns: minmax(0, 1fr); }
+    .stage { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 480px) {
+    .wrap { padding: 56px 10px 40px; }
+    .nums { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .panel { padding: 12px; }
+    .tile { height: 130px; }
+    .slide .obj { top: 48px; } .scale .obj { top: 36px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Motion <b>Curves</b></h1>
+      <p class="sub">Shape how things move. Drag a cubic-bézier, or let a simulated spring decide — then watch it on real UI motion, line it up against other curves, and take the CSS with you, reduced-motion fallback included.</p>
+    </div>
+    <div class="rm-note" data-testid="rm-note" hidden>Your system asks for reduced motion — previews use the fade alternative. Untick below to see full motion.</div>
+  </header>
+
+  <div class="top-grid">
+    <section class="panel editor" aria-labelledby="h-ed">
+      <h2 id="h-ed">Curve <small data-testid="curve-label"></small></h2>
+      <div class="tabs" role="tablist" aria-label="Curve type">
+        <button type="button" role="tab" id="tab-bezier" aria-selected="true" data-testid="tab-bezier">cubic-bézier</button>
+        <button type="button" role="tab" id="tab-spring" aria-selected="false" data-testid="tab-spring">spring</button>
+      </div>
+      <svg id="plot" viewBox="0 0 300 390" data-testid="plot" aria-label="Easing curve: progress over time"></svg>
+      <div class="readout" aria-live="polite">
+        <span>at 50% time → <b data-testid="mid-value">0.500</b></span>
+        <span>overshoot <b data-testid="overshoot">0%</b></span>
+        <span class="warn" data-testid="undershoot-note" hidden>goes below 0 first</span>
+      </div>
+    </section>
+
+    <section class="panel ctl" aria-labelledby="h-ctl">
+      <h2 id="h-ctl">Controls</h2>
+      <div id="bz-ctl">
+        <div class="presets" role="group" aria-label="Presets" id="presets"></div>
+        <div class="nums" style="margin-top:10px">
+          <label>x1<input type="number" id="x1" step="0.01" min="0" max="1" data-testid="x1"></label>
+          <label>y1<input type="number" id="y1" step="0.01" min="-1" max="2" data-testid="y1"></label>
+          <label>x2<input type="number" id="x2" step="0.01" min="0" max="1" data-testid="x2"></label>
+          <label>y2<input type="number" id="y2" step="0.01" min="-1" max="2" data-testid="y2"></label>
+        </div>
+        <div class="sl" style="margin-top:10px">
+          <label><span>Duration <output data-testid="duration-out" id="dur-out">250 ms</output></span><input type="range" id="dur" min="60" max="1200" step="10" value="250" data-testid="duration"></label>
+        </div>
+      </div>
+      <div id="sp-ctl" hidden>
+        <div class="sl">
+          <label><span>Stiffness <output id="k-out" data-testid="k-out">170</output></span><input type="range" id="k" min="10" max="600" step="1" value="170" data-testid="stiffness"></label>
+          <label><span>Damping <output id="c-out" data-testid="c-out">26</output></span><input type="range" id="c" min="1" max="80" step="1" value="26" data-testid="damping"></label>
+          <label><span>Mass <output id="m-out" data-testid="m-out">1.0</output></span><input type="range" id="m" min="0.2" max="5" step="0.1" value="1" data-testid="mass"></label>
+        </div>
+        <div class="springinfo" style="margin-top:10px">
+          <span>damping ratio ζ = c / 2√(k·m) = <b data-testid="zeta">—</b> <span data-testid="regime"></span></span>
+          <span>settles (±0.1%) in <b data-testid="settle">—</b></span>
+        </div>
+      </div>
+      <div class="guide" data-testid="guidance" aria-live="polite"></div>
+      <div class="row">
+        <button type="button" class="btn go" data-testid="play">▶ Play preview</button>
+        <button type="button" class="btn" data-testid="pin">＋ Pin to compare</button>
+        <label class="chk"><input type="checkbox" id="rm" data-testid="reduced"> Preview reduced-motion alternative</label>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="h-pv">
+    <h2 id="h-pv">Preview <small data-testid="preview-mode">full motion</small></h2>
+    <div class="stage" id="stage">
+      <div class="tile slide"><span class="lab">slide</span><div class="obj" data-testid="obj-slide"></div></div>
+      <div class="tile scale"><span class="lab">scale</span><div class="obj" data-testid="obj-scale"></div></div>
+      <div class="tile fade"><span class="lab">fade</span><div class="obj" data-testid="obj-fade"></div></div>
+      <div class="tile bounce"><span class="lab">drop</span><div class="floor"></div><div class="obj" data-testid="obj-bounce"></div></div>
+    </div>
+    <div class="scrub"><label for="scrub">scrub</label><input type="range" id="scrub" min="0" max="100" value="100" data-testid="scrub"><output data-testid="scrub-out" id="scrub-out">100%</output></div>
+  </section>
+
+  <div class="lower">
+    <section class="panel compare" aria-labelledby="h-cmp">
+      <h2 id="h-cmp">Compare on one timeline <small>x = milliseconds</small></h2>
+      <svg id="cmp" viewBox="0 0 600 240" data-testid="compare" aria-label="Pinned curves plotted against time"></svg>
+      <ul class="pins" id="pins" data-testid="pins"></ul>
+      <div class="lanes" id="lanes" data-testid="lanes"></div>
+      <div class="row" style="margin-top:8px"><button type="button" class="btn" data-testid="race">▶ Race pinned curves</button></div>
+    </section>
+    <section class="panel" aria-labelledby="h-css">
+      <h2 id="h-css">CSS <small data-testid="css-valid"></small></h2>
+      <pre class="css" id="css" data-testid="css" tabindex="0" aria-label="Generated CSS"></pre>
+      <div class="row" style="margin-top:8px"><button type="button" class="btn" data-testid="copy">Copy CSS</button><span class="status" data-testid="copy-status" aria-live="polite"></span></div>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const $$ = (s) => [...document.querySelectorAll(s)];
+  const r3 = (v) => Math.round(v * 1000) / 1000;
+  const fmt = (v) => String(r3(v));
+
+  /* ---------------- cubic-bezier maths ---------------- */
+  function bezierAt(x1, y1, x2, y2, x) {
+    if (x <= 0) return 0; if (x >= 1) return 1;
+    const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx;
+    const cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+    const X = (t) => ((ax * t + bx) * t + cx) * t, dX = (t) => (3 * ax * t + 2 * bx) * t + cx, Y = (t) => ((ay * t + by) * t + cy) * t;
+    let t = x;
+    for (let i = 0; i < 8; i++) { const e = X(t) - x; if (Math.abs(e) < 1e-7) return Y(t); const d = dX(t); if (Math.abs(d) < 1e-6) break; t -= e / d; }
+    let lo = 0, hi = 1; t = x;
+    for (let i = 0; i < 40; i++) { const v = X(t); if (Math.abs(v - x) < 1e-7) break; if (v < x) lo = t; else hi = t; t = (lo + hi) / 2; }
+    return Y(t);
+  }
+
+  /* ---------------- spring simulation (semi-implicit Euler, 1 ms steps) ---------------- */
+  function simulate(k, c, m) {
+    const dt = 0.001;
+    let x = 0, v = 0, t = 0, settledAt = null, peak = 0, trough = 0;
+    const xs = [0];
+    while (t < 10) {
+      const a = (-k * (x - 1) - c * v) / m;
+      v += a * dt; x += v * dt; t += dt;
+      xs.push(x);
+      peak = Math.max(peak, x); trough = Math.min(trough, x);
+      if (Math.abs(x - 1) < 0.001 && Math.abs(v) < 0.01) { if (settledAt == null) settledAt = t; if (t - settledAt > 0.15) break; }
+      else settledAt = null;
+    }
+    const dur = settledAt == null ? 10 : settledAt;
+    const n = Math.round(dur / dt);
+    return { xs: xs.slice(0, n + 1), dur, overshoot: Math.max(0, peak - 1), zeta: c / (2 * Math.sqrt(k * m)), capped: settledAt == null };
+  }
+  // Ramer–Douglas–Peucker on (time fraction, value) to keep linear() short but faithful
+  function rdp(pts, eps) {
+    if (pts.length < 3) return pts;
+    const [a, b] = [pts[0], pts[pts.length - 1]];
+    let idx = -1, dmax = 0;
+    for (let i = 1; i < pts.length - 1; i++) {
+      const p = pts[i];
+      const d = Math.abs((b[1] - a[1]) * p[0] - (b[0] - a[0]) * p[1] + b[0] * a[1] - b[1] * a[0]) / Math.hypot(b[1] - a[1], b[0] - a[0]);
+      if (d > dmax) { dmax = d; idx = i; }
+    }
+    if (dmax <= eps) return [a, b];
+    return rdp(pts.slice(0, idx + 1), eps).slice(0, -1).concat(rdp(pts.slice(idx), eps));
+  }
+  function linearFor(sim) {
+    const n = sim.xs.length - 1;
+    const pts = sim.xs.map((x, i) => [i / n, x]);
+    const s = rdp(pts, 0.0015);
+    s[s.length - 1] = [1, 1];
+    return 'linear(' + s.map(([t, x], i) => (i === 0 ? '0' : i === s.length - 1 ? '1' : `${fmt(x)} ${(Math.round(t * 1000) / 10)}%`)).join(', ') + ')';
+  }
+
+  /* ---------------- state ---------------- */
+  const PRESETS = [
+    ['linear', [0, 0, 1, 1]], ['ease', [0.25, 0.1, 0.25, 1]], ['ease-in', [0.42, 0, 1, 1]], ['ease-out', [0, 0, 0.58, 1]],
+    ['ease-in-out', [0.42, 0, 0.58, 1]], ['snappy', [0.2, 0.9, 0.3, 1]], ['back-out', [0.34, 1.56, 0.64, 1]], ['anticipate', [0.6, -0.28, 0.74, 0.05]],
+  ];
+  const S = { mode: 'bezier', bz: [0.25, 0.1, 0.25, 1], dur: 250, k: 170, c: 26, m: 1, reduced: false, pins: [], preset: 'ease' };
+  let sim = simulate(S.k, S.c, S.m);
+  const sysReduced = matchMedia('(prefers-reduced-motion: reduce)');
+  if (sysReduced.matches) { S.reduced = true; $('#rm').checked = true; $('[data-testid=rm-note]').hidden = false; }
+
+  const valueAt = (x) => {
+    if (S.mode === 'bezier') return bezierAt(...S.bz, x);
+    const n = sim.xs.length - 1; const f = x * n; const i = Math.floor(f);
+    return i >= n ? sim.xs[n] : sim.xs[i] + (sim.xs[i + 1] - sim.xs[i]) * (f - i);
+  };
+  const easing = () => (S.mode === 'bezier' ? `cubic-bezier(${S.bz.map(fmt).join(', ')})` : linearFor(sim));
+  const duration = () => (S.mode === 'bezier' ? S.dur : Math.round(sim.dur * 1000));
+
+  /* ---------------- editor plot ---------------- */
+  const PX = (x) => 30 + x * 240;
+  const PY = (y) => 20 + (1.35 - y) * 240;
+  const plot = $('#plot');
+  function drawPlot() {
+    let g = '';
+    for (let i = 0; i <= 10; i++) { const x = PX(i / 10); g += `<line x1="${x}" y1="${PY(1.35)}" x2="${x}" y2="${PY(-0.2)}" stroke="#16211b" />`; }
+    for (let v = -0.2; v <= 1.35 + 1e-9; v += 0.1) { const y = PY(v); g += `<line x1="${PX(0)}" y1="${y}" x2="${PX(1)}" y2="${y}" stroke="#16211b"/>`; }
+    g += `<rect x="${PX(0)}" y="${PY(1)}" width="240" height="240" fill="none" stroke="#2a3a31"/>`;
+    g += `<text x="${PX(0) - 4}" y="${PY(0) + 4}" text-anchor="end" fill="#6b8475" font-size="10" font-family="monospace">0</text><text x="${PX(0) - 4}" y="${PY(1) + 4}" text-anchor="end" fill="#6b8475" font-size="10" font-family="monospace">1</text><text x="${PX(1)}" y="${PY(-0.2) + 14}" text-anchor="end" fill="#6b8475" font-size="10" font-family="monospace">time →</text>`;
+    const pts = [];
+    for (let i = 0; i <= 200; i++) { const x = i / 200; pts.push(`${PX(x).toFixed(1)},${PY(valueAt(x)).toFixed(1)}`); }
+    g += `<polyline points="${pts.join(' ')}" fill="none" stroke="#7cffb2" stroke-width="3" stroke-linejoin="round" style="filter:drop-shadow(0 0 4px rgba(124,255,178,.6))"/>`;
+    if (S.mode === 'bezier') {
+      const [x1, y1, x2, y2] = S.bz;
+      g += `<line x1="${PX(0)}" y1="${PY(0)}" x2="${PX(x1)}" y2="${PY(y1)}" stroke="#ffb547" stroke-width="1.5"/><line x1="${PX(1)}" y1="${PY(1)}" x2="${PX(x2)}" y2="${PY(y2)}" stroke="#ff6fae" stroke-width="1.5"/>`;
+      g += `<g class="handle" data-h="1" tabindex="0" role="slider" aria-label="Handle 1 (x1, y1). Arrow keys move it" aria-valuetext="x ${fmt(x1)}, y ${fmt(y1)}" data-testid="handle-1"><circle cx="${PX(x1)}" cy="${PY(y1)}" r="16" fill="transparent"/><circle cx="${PX(x1)}" cy="${PY(y1)}" r="8" fill="#ffb547" stroke="#0b0f0d" stroke-width="2"/></g>`;
+      g += `<g class="handle" data-h="2" tabindex="0" role="slider" aria-label="Handle 2 (x2, y2). Arrow keys move it" aria-valuetext="x ${fmt(x2)}, y ${fmt(y2)}" data-testid="handle-2"><circle cx="${PX(x2)}" cy="${PY(y2)}" r="16" fill="transparent"/><circle cx="${PX(x2)}" cy="${PY(y2)}" r="8" fill="#ff6fae" stroke="#0b0f0d" stroke-width="2"/></g>`;
+    }
+    g += `<circle cx="${PX(0)}" cy="${PY(0)}" r="3.5" fill="#dcefe3"/><circle cx="${PX(1)}" cy="${PY(1)}" r="3.5" fill="#dcefe3"/>`;
+    plot.innerHTML = g;
+  }
+  let drag = null;
+  function svgPoint(e) {
+    const r = plot.getBoundingClientRect();
+    const sx = (e.clientX - r.left) / r.width * 300, sy = (e.clientY - r.top) / r.height * 390;
+    return [(sx - 30) / 240, 1.35 - (sy - 20) / 240];
+  }
+  const clampH = (x, y) => [Math.min(1, Math.max(0, x)), Math.min(1.35, Math.max(-0.2, y))];
+  plot.addEventListener('pointerdown', (e) => {
+    if (S.mode !== 'bezier') return;
+    const h = e.target.closest('.handle');
+    let which = h ? +h.dataset.h : null;
+    if (!which) { // grab the nearest handle
+      const [x, y] = svgPoint(e);
+      const d1 = Math.hypot(x - S.bz[0], y - S.bz[1]), d2 = Math.hypot(x - S.bz[2], y - S.bz[3]);
+      which = d1 <= d2 ? 1 : 2;
+    }
+    drag = which;
+    try { plot.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    e.preventDefault();
+    moveHandle(e);
+  });
+  function moveHandle(e) {
+    const [x, y] = clampH(...svgPoint(e));
+    if (drag === 1) { S.bz[0] = r3(x); S.bz[1] = r3(y); } else { S.bz[2] = r3(x); S.bz[3] = r3(y); }
+    S.preset = null;
+    update();
+  }
+  plot.addEventListener('pointermove', (e) => { if (drag) moveHandle(e); });
+  const endDrag = () => { if (drag) { const h = drag; drag = null; const el = plot.querySelector(`[data-h="${h}"]`); if (el) el.focus({ preventScroll: true }); } };
+  plot.addEventListener('pointerup', endDrag);
+  plot.addEventListener('pointercancel', endDrag);
+  plot.addEventListener('keydown', (e) => {
+    const h = e.target.closest('.handle'); if (!h) return;
+    const step = e.shiftKey ? 0.1 : 0.01;
+    const i = h.dataset.h === '1' ? 0 : 2;
+    let [x, y] = [S.bz[i], S.bz[i + 1]];
+    if (e.key === 'ArrowLeft') x -= step; else if (e.key === 'ArrowRight') x += step; else if (e.key === 'ArrowUp') y += step; else if (e.key === 'ArrowDown') y -= step; else return;
+    e.preventDefault();
+    [x, y] = clampH(x, y);
+    S.bz[i] = r3(x); S.bz[i + 1] = r3(y); S.preset = null;
+    update();
+    const again = plot.querySelector(`[data-h="${h.dataset.h}"]`); if (again) again.focus();
+  });
+
+  /* ---------------- guidance + readouts ---------------- */
+  function guidance(ms) {
+    let g;
+    if (ms < 100) g = '<b>Under 100 ms</b> reads as instant — fine for hover and press feedback, too quick to follow as movement.';
+    else if (ms <= 200) g = '<b>100–200 ms</b> suits small, frequent changes: toggles, checkboxes, button states, tooltips.';
+    else if (ms <= 300) g = '<b>200–300 ms</b> is a comfortable default for elements entering or changing size: menus, cards, drawers on phones.';
+    else if (ms <= 500) g = '<b>300–500 ms</b> fits larger distances and page-level transitions, and bigger screens. Past ~400 ms, repeated interactions start to feel slow.';
+    else g = '<b>Over 500 ms</b> feels deliberate or sluggish. Keep it for rare, expressive moments — never for something people trigger all day.';
+    return `${g} <span style="color:var(--text-3)">Rules of thumb, not standards: exits can be a little faster than entrances, and distance travelled matters.</span>`;
+  }
+  function update() {
+    if (S.mode === 'spring') sim = simulate(S.k, S.c, S.m);
+    drawPlot();
+    const [x1, y1, x2, y2] = S.bz;
+    ['x1', 'y1', 'x2', 'y2'].forEach((id, i) => { const el = $('#' + id); if (document.activeElement !== el) el.value = S.bz[i]; });
+    $$('#presets .chip').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.p === S.preset)));
+    // readouts sampled from the curve
+    let max = -Infinity, min = Infinity;
+    for (let i = 0; i <= 400; i++) { const v = valueAt(i / 400); max = Math.max(max, v); min = Math.min(min, v); }
+    $('[data-testid=mid-value]').textContent = valueAt(0.5).toFixed(3);
+    const over = S.mode === 'spring' ? sim.overshoot : Math.max(0, max - 1);
+    $('[data-testid=overshoot]').textContent = (over * 100).toFixed(1) + '%';
+    $('[data-testid=undershoot-note]').hidden = !(min < -0.001);
+    $('[data-testid=curve-label]').textContent = S.mode === 'bezier' ? (S.preset || 'custom') + ` · ${S.dur} ms` : `spring · ${duration()} ms`;
+    $('#dur-out').textContent = S.dur + ' ms';
+    $('#k-out').textContent = S.k; $('#c-out').textContent = S.c; $('#m-out').textContent = S.m.toFixed(1);
+    $('[data-testid=zeta]').textContent = sim.zeta.toFixed(3);
+    $('[data-testid=regime]').textContent = S.mode !== 'spring' ? '' : sim.zeta < 0.9 ? '· underdamped (bounces)' : sim.zeta <= 1.05 ? '· near critical damping (fastest without a visible bounce)' : '· overdamped (no bounce, slower)';
+    $('[data-testid=settle]').textContent = sim.capped ? '> 10 s — add damping' : Math.round(sim.dur * 1000) + ' ms';
+    $('[data-testid=guidance]').innerHTML = guidance(duration());
+    $('#bz-ctl').hidden = S.mode !== 'bezier'; $('#sp-ctl').hidden = S.mode !== 'spring';
+    $('#tab-bezier').setAttribute('aria-selected', String(S.mode === 'bezier')); $('#tab-spring').setAttribute('aria-selected', String(S.mode === 'spring'));
+    $('[data-testid=preview-mode]').textContent = S.reduced ? 'reduced-motion alternative: short fade, no movement' : 'full motion';
+    renderCss();
+    prepPreview();
+  }
+
+  /* ---------------- CSS export ---------------- */
+  function cssText() {
+    const e = easing(), d = duration();
+    const name = S.mode === 'bezier' ? '--ease-custom' : '--ease-spring';
+    const rmDur = Math.min(200, d);
+    return `:root {
+  ${name}: ${e};
+  --motion-duration: ${d}ms;
+}
+
+.panel {
+  transition:
+    transform var(--motion-duration) var(${name}),
+    opacity var(--motion-duration) var(${name});
+}
+
+/* Respect people who ask for less motion: keep the state change,
+   drop the movement, and make it quick. */
+@media (prefers-reduced-motion: reduce) {
+  .panel {
+    transition: opacity ${rmDur}ms linear;
+    transform: none !important;
+  }
+}
+`;
+  }
+  function renderCss() {
+    $('#css').textContent = cssText();
+    let ok = false;
+    try { ok = CSS.supports('transition-timing-function', easing()); } catch (e) { ok = false; }
+    $('[data-testid=css-valid]').textContent = ok ? 'easing parses in this browser ✓' : 'easing not supported by this browser';
+  }
+
+  /* ---------------- preview (Web Animations, scrubbable) ---------------- */
+  let anims = [];
+  function keyframesFor(kind) {
+    if (S.reduced) return [{ opacity: 0 }, { opacity: 1 }];
+    const tile = $(`[data-testid=obj-${kind}]`).parentElement;
+    if (kind === 'slide') { const dist = tile.clientWidth - 24 - 44; return [{ transform: 'translateX(0px)' }, { transform: `translateX(${dist}px)` }]; }
+    if (kind === 'scale') return [{ transform: 'scale(0.4)' }, { transform: 'scale(1)' }];
+    if (kind === 'fade') return [{ opacity: 0 }, { opacity: 1 }];
+    const fall = tile.clientHeight - 16 - 2 - 36 - 20;
+    return [{ transform: 'translateY(0px)' }, { transform: `translateY(${fall}px)` }];
+  }
+  function prepPreview() {
+    anims.forEach((a) => a.cancel());
+    const d = S.reduced ? Math.min(200, duration()) : duration();
+    const ease = S.reduced ? 'linear' : easing();
+    anims = ['slide', 'scale', 'fade', 'bounce'].map((k) => {
+      const a = $(`[data-testid=obj-${k}]`).animate(keyframesFor(k), { duration: d, easing: ease, fill: 'both' });
+      a.pause();
+      a.currentTime = d * (+$('#scrub').value / 100);
+      return a;
+    });
+  }
+  function play() {
+    prepPreview();
+    $('#scrub').value = '0'; $('#scrub-out').textContent = '0%';
+    anims.forEach((a) => { a.currentTime = 0; a.play(); });
+    const d = anims[0] ? anims[0].effect.getTiming().duration : 0;
+    anims[0] && anims[0].finished.then(() => { $('#scrub').value = '100'; $('#scrub-out').textContent = '100%'; }).catch(() => {});
+    return d;
+  }
+  $('#scrub').addEventListener('input', (e) => {
+    const p = +e.target.value / 100;
+    $('#scrub-out').textContent = e.target.value + '%';
+    anims.forEach((a) => { a.pause(); a.currentTime = a.effect.getTiming().duration * p; });
+  });
+  $('[data-testid=play]').addEventListener('click', play);
+
+  /* ---------------- compare ---------------- */
+  const COLORS = ['#7cffb2', '#ffb547', '#ff6fae', '#6fc8ff'];
+  function drawCompare() {
+    const svg = $('#cmp');
+    const all = S.pins.length ? S.pins : [];
+    const maxD = Math.max(300, ...all.map((p) => p.dur));
+    const X = (ms) => 40 + ms / maxD * 540, Y = (v) => 20 + (1.3 - v) * 140;
+    let g = '';
+    for (let i = 0; i <= 5; i++) { const ms = maxD * i / 5; g += `<line x1="${X(ms)}" y1="${Y(1.3)}" x2="${X(ms)}" y2="${Y(-0.15)}" stroke="#16211b"/><text x="${X(ms)}" y="${Y(-0.15) + 14}" fill="#6b8475" font-size="10" font-family="monospace" text-anchor="middle">${Math.round(ms)}</text>`; }
+    g += `<line x1="${X(0)}" y1="${Y(0)}" x2="${X(maxD)}" y2="${Y(0)}" stroke="#2a3a31"/><line x1="${X(0)}" y1="${Y(1)}" x2="${X(maxD)}" y2="${Y(1)}" stroke="#2a3a31" stroke-dasharray="3 3"/>`;
+    all.forEach((p, i) => {
+      const pts = [];
+      for (let s = 0; s <= 240; s++) { const ms = maxD * s / 240; const v = ms >= p.dur ? 1 : p.at(ms / p.dur); pts.push(`${X(ms).toFixed(1)},${Y(v).toFixed(1)}`); }
+      g += `<polyline points="${pts.join(' ')}" fill="none" stroke="${COLORS[i]}" stroke-width="2.2" data-testid="cmp-line-${i}"/>`;
+    });
+    if (!all.length) g += `<text x="300" y="120" fill="#6b8475" font-size="13" text-anchor="middle" font-family="sans-serif">Pin curves to compare them here</text>`;
+    svg.innerHTML = g;
+    $('#pins').innerHTML = all.map((p, i) => `<li data-testid="pin-item"><i style="background:${COLORS[i]}"></i><span title="${p.easing}">${p.label} · ${p.dur} ms</span><button type="button" class="btn" style="padding:2px 8px" data-unpin="${i}" aria-label="Remove ${p.label}">✕</button></li>`).join('');
+    $('#lanes').innerHTML = all.map((p, i) => `<div class="lane"><i style="background:${COLORS[i]}" data-testid="lane-dot-${i}"></i></div>`).join('');
+    $('[data-testid=pin]').disabled = S.pins.length >= 4;
+  }
+  $('[data-testid=pin]').addEventListener('click', () => {
+    if (S.pins.length >= 4) return;
+    const snap = S.mode === 'bezier' ? { bz: S.bz.slice() } : { xs: sim.xs.slice() };
+    const at = S.mode === 'bezier' ? (x) => bezierAt(...snap.bz, x) : (x) => { const n = snap.xs.length - 1; const f = x * n; const i = Math.floor(f); return i >= n ? snap.xs[n] : snap.xs[i] + (snap.xs[i + 1] - snap.xs[i]) * (f - i); };
+    S.pins.push({ label: S.mode === 'bezier' ? (S.preset || 'custom bézier') : `spring k${S.k} c${S.c} m${S.m.toFixed(1)}`, easing: easing(), dur: duration(), at });
+    drawCompare();
+  });
+  $('#pins').addEventListener('click', (e) => { const b = e.target.closest('[data-unpin]'); if (!b) return; S.pins.splice(+b.dataset.unpin, 1); drawCompare(); });
+  $('[data-testid=race]').addEventListener('click', () => {
+    $$('#lanes .lane').forEach((lane, i) => {
+      const dot = lane.querySelector('i'); const p = S.pins[i];
+      const dist = lane.clientWidth - 26;
+      dot.animate([{ transform: 'translateX(0)' }, { transform: `translateX(${dist}px)` }], { duration: S.reduced ? 1 : p.dur, easing: p.easing, fill: 'both' });
+    });
+  });
+
+  /* ---------------- wiring ---------------- */
+  const pr = $('#presets');
+  PRESETS.forEach(([name, v]) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'chip'; b.dataset.p = name; b.textContent = name; b.setAttribute('data-testid', 'preset-' + name);
+    b.addEventListener('click', () => { S.bz = v.slice(); S.preset = name; update(); });
+    pr.appendChild(b);
+  });
+  ['x1', 'y1', 'x2', 'y2'].forEach((id, i) => $('#' + id).addEventListener('input', (e) => {
+    const v = parseFloat(e.target.value); if (!isFinite(v)) return;
+    S.bz[i] = i % 2 === 0 ? Math.min(1, Math.max(0, v)) : Math.min(2, Math.max(-1, v)); S.preset = null; update();
+  }));
+  $('#dur').addEventListener('input', (e) => { S.dur = +e.target.value; update(); });
+  $('#k').addEventListener('input', (e) => { S.k = +e.target.value; update(); });
+  $('#c').addEventListener('input', (e) => { S.c = +e.target.value; update(); });
+  $('#m').addEventListener('input', (e) => { S.m = +e.target.value; update(); });
+  $('#rm').addEventListener('change', (e) => { S.reduced = e.target.checked; update(); });
+  $('#tab-bezier').addEventListener('click', () => { S.mode = 'bezier'; update(); });
+  $('#tab-spring').addEventListener('click', () => { S.mode = 'spring'; update(); });
+  $('.tabs').addEventListener('keydown', (e) => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { S.mode = S.mode === 'bezier' ? 'spring' : 'bezier'; update(); $('#tab-' + S.mode).focus(); } });
+  $('[data-testid=copy]').addEventListener('click', async () => {
+    const st = $('[data-testid=copy-status]');
+    try { await navigator.clipboard.writeText(cssText()); st.textContent = 'Copied'; }
+    catch (e) { const r = document.createRange(); r.selectNodeContents($('#css')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); st.textContent = 'Selected — press Ctrl/⌘+C'; }
+  });
+  window.addEventListener('resize', () => prepPreview());
+
+  window.__motion = { bezierAt, simulate, linearFor, easing, duration: () => duration() };
+  update();
+  drawCompare();
+})();
+</script>
+</body>
+</html>

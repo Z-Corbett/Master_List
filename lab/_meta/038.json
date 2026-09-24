@@ -1,0 +1,34 @@
+{
+  "id": "038",
+  "slug": "038-guardrail-gauntlet",
+  "file": "lab/038-guardrail-gauntlet.html",
+  "title": "Guardrail Gauntlet — Triage Attacks on an AI Assistant",
+  "category": "AI & Agents",
+  "tags": ["ai-security", "prompt-injection", "game", "seeded-random", "keyboard"],
+  "description": "A defensive training game: twelve messages roll into a fictional parcel-support assistant that has real tools, and you triage each as safe, prompt injection, data exfiltration or jailbreak, then choose the mitigation that actually stops it — input isolation, least-privilege tools, output filtering or human confirmation. Every answer comes with an explanation and highlighted red flags, across three rounds with score, streaks and a debrief.",
+  "prompt": "Build 'Guardrail Gauntlet', a DEFENSIVE, educational game. Messages arrive at a fictional support assistant (invent the company and its tools). The player triages each as safe, prompt injection, data-exfiltration attempt, or jailbreak/role-play manipulation, then picks the best mitigation — input isolation, least-privilege tools, output filtering, human confirmation and so on. Explain the answer after each step. All example attacks must be harmless, generic illustrations — no working exploit payloads against real systems, and only reserved example domains. Include safe messages that look suspicious (role-play that's fine, a developer asking about an API) so it teaches against over-blocking too. Three rounds — direct chat, indirect content read through tools, and slow multi-turn cons — with score, streak and a debrief. ?seed= should fix the order. Style it like an airport security scanner: hazard stripes, a conveyor belt, stamped verdicts.",
+  "qa": {
+    "methodology": [
+      "Scoring oracle computed by hand: a perfect run must total 12 × 150 + 20 × (0 + 1 + … + 11) = 3120 with a best streak of 12, and the second consecutive correct answer must show exactly '+170 points (incl. streak bonus +20)'.",
+      "State hook for answers: the spec reads the current item's answer key through a small window.__gauntlet hook, so it plays deliberately right or wrong without duplicating the content in the test.",
+      "Determinism: the same ?seed gives the same message order; at least one of several other seeds gives a different order.",
+      "Content-safety check as a test: every example is scanned to confirm that any domain uses the reserved .example TLD and that there are no real URLs.",
+      "Keyboard path: keys 1–4 classify and choose a defence, focus moves to Next, and Enter advances with focus returning to the first choice.",
+      "Persistence of the best score across a reload."
+    ],
+    "risks": [
+      "Content accuracy: every explanation has to hold up to a security reviewer, so the mitigations are phrased as layered defences, not silver bullets.",
+      "Shuffled option order means position-based tests (press '1') would be flaky — tests look up the correct key from the rendered order.",
+      "Keyboard shortcuts firing while focus is in another control; they are ignored with modifiers and outside the classify phase."
+    ],
+    "playwright": "The game's randomness is fully pinned by ?seed and a mulberry32 PRNG, but hard-coding the shuffled order in the spec would make it brittle, so the test asks the page for the current answer via evaluate() and derives which button or key is right. A full twelve-message run is long for a phone emulator, so that test has an explicit test.setTimeout rather than weaker assertions. Animations (belt roll, parcel slide) don't block clicks, so no reduced-motion emulation was needed. Screenshot comparisons weren't used; correctness lives in text (points, stamps, class names on the right and wrong choices).",
+    "coverage": [
+      "Perfect 12-message run: final score 3120, rank, per-category accuracy, best streak, best score persisted",
+      "Streak bonus arithmetic, wrong classification feedback, red-flag highlighting, streak reset",
+      "Keyboard-only play and focus management",
+      "Seeded order determinism",
+      "All examples use only reserved .example domains"
+    ]
+  },
+  "a11y": "Choices are real buttons with visible number hints and 1–4 keyboard shortcuts, focus moves to the next logical control after each step, and the correct/incorrect feedback is a status region. Categories are distinguished by text labels as well as colour, and the score HUD is announced politely."
+}

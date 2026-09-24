@@ -1,0 +1,674 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bug Report Studio — From Messy Notes to a Clear Report</title>
+<meta name="description" content="Turn a messy bug description into a structured, reproducible report: a title helper, locally-captured environment details, drag-to-reorder repro steps, expected versus actual, a severity × priority matrix with guidance, simulated log attachments, a report-quality score with specific suggestions, and Markdown export.">
+<style>
+  :root {
+    --paper: #eef0e6;
+    --card: #fbfcf7;
+    --ink: #1f2a22;
+    --ink-2: #4c5a50;
+    --ink-3: #7d887f;
+    --line: #cfd5c6;
+    --moss: #2f5d3a;
+    --moss-2: #dfe9d9;
+    --rust: #b4532a;
+    --rust-2: #f6e3d8;
+    --gold: #c89b2c;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--paper); color: var(--ink); font-family: var(--sans); line-height: 1.5; overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  select, input, textarea, pre { max-width: 100%; }
+  .back {
+    position: fixed; top: 12px; left: 12px; z-index: 50; text-decoration: none; color: var(--moss);
+    font: italic 600 13px/1 var(--serif); background: var(--card); border: 1px solid var(--line); border-radius: 4px; padding: 7px 11px;
+    box-shadow: 0 1px 0 var(--line);
+  }
+  .back:hover { background: var(--moss); color: #fff; }
+  .wrap { max-width: 1260px; margin: 0 auto; padding: 60px 18px 48px; }
+
+  header.top { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px; align-items: center; margin-bottom: 24px; border-bottom: 1px solid var(--ink); padding-bottom: 18px; }
+  .specimen { width: 76px; height: 76px; }
+  h1 { margin: 0; font: 400 clamp(32px, 5vw, 54px)/1 var(--serif); letter-spacing: -.01em; }
+  h1 i { color: var(--rust); }
+  .sub { margin: 6px 0 0; color: var(--ink-2); max-width: 70ch; }
+  .plate { font: 11px var(--mono); color: var(--ink-3); letter-spacing: .12em; text-transform: uppercase; }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 22px; align-items: start; }
+  .col { display: grid; gap: 16px; min-width: 0; }
+  .sec { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 16px 18px 18px; position: relative; min-width: 0; }
+  .sec::before { content: attr(data-n); position: absolute; top: -11px; left: 14px; background: var(--ink); color: var(--paper); font: 700 11px var(--mono); padding: 3px 8px; border-radius: 2px; letter-spacing: .08em; }
+  .sec h2 { margin: 2px 0 10px; font: 400 23px/1.2 var(--serif); }
+  .sec h2 small { font: 12px var(--sans); color: var(--ink-3); margin-left: 6px; }
+  .lab { display: block; font-size: 13px; font-weight: 650; color: var(--ink-2); margin: 10px 0 4px; }
+  input[type=text], textarea, select {
+    width: 100%; min-width: 0; border: 1px solid var(--line); border-bottom: 2px solid var(--ink-3); background: #fff; border-radius: 3px; padding: 7px 9px; font-size: 14.5px;
+  }
+  input[type=text]:focus, textarea:focus { border-bottom-color: var(--moss); outline: none; box-shadow: 0 2px 0 var(--moss); }
+  textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
+  .messy { font-family: var(--mono); font-size: 13px; min-height: 110px; background: #fffef7; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+  .btn { border: 1px solid var(--ink); background: var(--card); border-radius: 3px; padding: 6px 12px; font-weight: 650; font-size: 13.5px; }
+  .btn:hover { background: var(--moss-2); }
+  .btn.pri { background: var(--moss); color: #fff; border-color: var(--moss); }
+  .btn.pri:hover { background: #244a2e; }
+  .btn.sm { padding: 3px 9px; font-size: 12.5px; }
+  .muted { color: var(--ink-3); font-size: 12.5px; margin: 6px 0 0; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .title-out { font: 400 19px/1.35 var(--serif); margin-top: 6px; }
+  .flags { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .flags li { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--rust-2); color: #7a3417; }
+  .flags li.ok { background: var(--moss-2); color: var(--moss); }
+
+  /* environment */
+  .env { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+  .env td, .env th { border-top: 1px solid var(--line); padding: 5px 6px; text-align: left; vertical-align: top; }
+  .env th { width: 32%; font-weight: 600; color: var(--ink-2); }
+  .env td.v { font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
+  .env td.c { width: 44px; text-align: center; }
+  .env input { width: 16px; height: 16px; accent-color: var(--moss); }
+  .local { display: flex; gap: 8px; align-items: center; font-size: 12.5px; color: var(--moss); background: var(--moss-2); border-radius: 3px; padding: 6px 10px; margin-top: 8px; }
+
+  /* steps */
+  .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; counter-reset: st; }
+  .step { display: grid; grid-template-columns: 26px 28px minmax(0, 1fr) auto; gap: 6px; align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 4px; padding: 4px; counter-increment: st; }
+  .step.dragging { opacity: .9; border-color: var(--moss); box-shadow: 0 8px 20px rgba(31,42,34,.18); position: relative; z-index: 3; }
+  .grip { width: 26px; height: 32px; border: 0; background: none; cursor: grab; touch-action: none; display: grid; place-items: center; color: var(--ink-3); padding: 0; }
+  .grip:active { cursor: grabbing; }
+  .num { font: 700 14px var(--serif); color: var(--rust); text-align: center; }
+  .num::before { content: counter(st) "."; }
+  .step input { border: 0; border-bottom: 1px dashed var(--line); border-radius: 0; padding: 5px 4px; }
+  .step .tools { display: flex; gap: 1px; }
+  .ico { width: 28px; height: 28px; border: 0; background: none; border-radius: 3px; color: var(--ink-3); padding: 0; display: grid; place-items: center; }
+  .ico:hover { background: var(--moss-2); color: var(--ink); }
+  .ico:disabled { opacity: .3; cursor: default; }
+  .ico svg, .grip svg { width: 15px; height: 15px; }
+
+  /* matrix */
+  .matrix { display: grid; grid-template-columns: 78px repeat(4, minmax(0, 1fr)); gap: 3px; font-size: 12.5px; }
+  .matrix .hd { font: 700 11px var(--mono); color: var(--ink-3); display: grid; place-items: center; text-align: center; padding: 3px; letter-spacing: .04em; }
+  .matrix .rh { place-items: center start; }
+  .cell { border: 1px solid transparent; border-radius: 3px; min-height: 40px; font-weight: 700; font-size: 12px; color: var(--ink); padding: 2px; }
+  .cell[aria-checked=true] { outline: 3px solid var(--ink); outline-offset: -3px; }
+  .guide { margin-top: 10px; border-left: 3px solid var(--rust); padding: 6px 10px; background: var(--rust-2); font-size: 13.5px; border-radius: 0 3px 3px 0; }
+  .guide b { font-family: var(--serif); font-size: 15px; }
+
+  /* attachments */
+  .att { border: 1px solid var(--line); border-radius: 4px; background: #fff; margin-top: 8px; }
+  .att summary { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 10px; cursor: pointer; font: 600 13px var(--mono); list-style: none; }
+  .att summary::-webkit-details-marker { display: none; }
+  .att summary span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .att pre { margin: 0; padding: 8px 10px; border-top: 1px solid var(--line); background: #f5f7f0; font: 11.5px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+  /* sidebar */
+  .side { position: sticky; top: 14px; display: grid; gap: 14px; min-width: 0; max-height: calc(100vh - 28px); overflow: auto; overscroll-behavior: contain; }
+  .scorecard { background: var(--ink); color: var(--paper); border-radius: 6px; padding: 16px; display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 14px; align-items: center; }
+  .ring { width: 96px; height: 96px; position: relative; }
+  .ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .ring .n { position: absolute; inset: 0; display: grid; place-items: center; font: 400 32px var(--serif); }
+  .ring circle { transition: stroke-dashoffset .5s ease; }
+  .grade { font: 400 21px/1.15 var(--serif); }
+  .grade-sub { font-size: 12.5px; color: #b9c4b9; margin-top: 4px; }
+  .tips { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; }
+  .tips h3, .md h3 { margin: 0 0 6px; font: 700 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+  .tips ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 13px; }
+  .tips li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 6px; }
+  .tips li b { font: 700 11px var(--mono); color: var(--rust); padding-top: 2px; }
+  .tips .done { color: var(--moss); font-size: 13px; margin: 0; }
+  .md { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; min-width: 0; }
+  .md pre { margin: 0; max-height: 360px; overflow: auto; font: 11.5px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; background: #f5f7f0; padding: 10px; border-radius: 3px; border: 1px solid var(--line); }
+  .status { font-size: 12.5px; color: var(--moss); min-height: 1.2em; }
+
+  @media (max-width: 960px) {
+    .layout { grid-template-columns: minmax(0, 1fr); }
+    .side { position: static; max-height: none; overflow: visible; }
+  }
+  @media (max-width: 560px) {
+    .wrap { padding: 56px 10px 40px; }
+    header.top { grid-template-columns: minmax(0, 1fr); }
+    .specimen { display: none; }
+    .grid3, .grid2 { grid-template-columns: minmax(0, 1fr); }
+    .sec { padding: 14px 12px; }
+    .matrix { grid-template-columns: 62px repeat(4, minmax(0, 1fr)); }
+    .step { grid-template-columns: 24px 22px minmax(0, 1fr) auto; }
+    .step .tools .ico { width: 24px; }
+    .env th { width: 38%; }
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="top">
+    <svg class="specimen" viewBox="0 0 80 80" aria-hidden="true">
+      <circle cx="40" cy="40" r="37" fill="none" stroke="#1f2a22" stroke-width="1.2" stroke-dasharray="3 3"/>
+      <ellipse cx="40" cy="45" rx="11" ry="16" fill="#2f5d3a"/>
+      <circle cx="40" cy="25" r="7" fill="#1f2a22"/>
+      <path d="M40 30v31" stroke="#eef0e6" stroke-width="1.2"/>
+      <path d="M29 38l-10-6M29 46H17M30 54l-9 7M51 38l10-6M51 46h12M50 54l9 7M36 19l-5-8M44 19l5-8" stroke="#1f2a22" stroke-width="2" stroke-linecap="round"/>
+      <line x1="40" y1="2" x2="40" y2="14" stroke="#b4532a" stroke-width="2"/><circle cx="40" cy="3" r="3" fill="#b4532a"/>
+    </svg>
+    <div>
+      <div class="plate">Specimen no. 035 · field notes → report</div>
+      <h1>Bug Report <i>Studio</i></h1>
+      <p class="sub">Paste the messy version — a chat message, a hallway description — and pin it down into a report a developer can reproduce on the first try. Everything stays in this browser.</p>
+    </div>
+  </header>
+
+  <div class="layout">
+    <div class="col">
+      <section class="sec" data-n="01" aria-labelledby="h-raw">
+        <h2 id="h-raw">Raw notes <small>paste what you were told</small></h2>
+        <label class="lab" for="raw">Messy description</label>
+        <textarea id="raw" class="messy" data-testid="raw" placeholder="e.g. checkout just spins after I change the qty…"></textarea>
+        <div class="row">
+          <button type="button" class="btn pri" data-testid="structure">Structure it</button>
+          <button type="button" class="btn" data-testid="load-messy">Load a messy example</button>
+          <button type="button" class="btn" data-testid="clear-all">Start over</button>
+        </div>
+        <p class="muted" data-testid="parse-status" aria-live="polite"></p>
+      </section>
+
+      <section class="sec" data-n="02" aria-labelledby="h-title">
+        <h2 id="h-title">Title</h2>
+        <div class="grid3">
+          <div><label class="lab" for="t-area">Where</label><input id="t-area" type="text" data-testid="t-area" placeholder="Checkout"></div>
+          <div><label class="lab" for="t-sym">What goes wrong</label><input id="t-sym" type="text" data-testid="t-sym" placeholder="Spinner never ends"></div>
+          <div><label class="lab" for="t-trig">When / after</label><input id="t-trig" type="text" data-testid="t-trig" placeholder="changing quantity to 0"></div>
+        </div>
+        <div class="row"><button type="button" class="btn sm" data-testid="compose-title">Compose title ↓</button></div>
+        <label class="lab" for="title">Report title</label>
+        <input id="title" type="text" data-testid="title" aria-describedby="title-flags">
+        <ul class="flags" id="title-flags" data-testid="title-flags" aria-live="polite"></ul>
+      </section>
+
+      <section class="sec" data-n="03" aria-labelledby="h-steps">
+        <h2 id="h-steps">Steps to reproduce <small>drag the grip, or Alt+↑/↓</small></h2>
+        <ol class="steps" id="steps" data-testid="steps"></ol>
+        <div class="row"><button type="button" class="btn sm" data-testid="add-step">+ Add step</button></div>
+        <div class="grid2" style="margin-top:6px">
+          <div><label class="lab" for="expected">Expected result</label><textarea id="expected" data-testid="expected"></textarea></div>
+          <div><label class="lab" for="actual">Actual result</label><textarea id="actual" data-testid="actual"></textarea></div>
+        </div>
+      </section>
+
+      <section class="sec" data-n="04" aria-labelledby="h-env">
+        <h2 id="h-env">Environment</h2>
+        <div class="grid2">
+          <div><label class="lab" for="version">App version / build</label><input id="version" type="text" data-testid="version" placeholder="4.2.1 (build 388)"></div>
+          <div><label class="lab" for="freq">How often</label>
+            <select id="freq" data-testid="freq"><option value="">Not stated</option><option>Every time</option><option>Most times</option><option>Sometimes</option><option>Once so far</option></select></div>
+        </div>
+        <div class="row"><button type="button" class="btn" data-testid="capture-env">Capture this browser's environment</button></div>
+        <div class="local" hidden id="env-note"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1" fill="currentColor"/><path d="M5 7V5a3 3 0 016 0v2" stroke="currentColor" stroke-width="1.6" fill="none"/></svg>Read locally from your browser. Nothing is sent anywhere; untick anything you'd rather not include.</div>
+        <table class="env" data-testid="env-table" hidden><tbody id="env-rows"></tbody></table>
+      </section>
+
+      <section class="sec" data-n="05" aria-labelledby="h-sev">
+        <h2 id="h-sev">Severity × priority</h2>
+        <p class="muted" style="margin-top:0">Severity is the impact on users. Priority is how soon it should be fixed. They usually agree — when they don't, say why.</p>
+        <div class="matrix" role="radiogroup" aria-labelledby="h-sev" id="matrix" data-testid="matrix"></div>
+        <div class="guide" id="guide" data-testid="guide" aria-live="polite">Pick a cell to see guidance.</div>
+      </section>
+
+      <section class="sec" data-n="06" aria-labelledby="h-att">
+        <h2 id="h-att">Attachments <small>simulated snippets</small></h2>
+        <div class="row" style="margin-top:0">
+          <button type="button" class="btn sm" data-add-att="console" data-testid="att-console">+ Console log</button>
+          <button type="button" class="btn sm" data-add-att="network" data-testid="att-network">+ Network excerpt</button>
+          <button type="button" class="btn sm" data-add-att="screenshot" data-testid="att-screenshot">+ Screenshot note</button>
+        </div>
+        <p class="muted">These are illustrative snippets from the fictional Pantry Pal app, standing in for the real files you'd attach in your tracker.</p>
+        <div id="atts" data-testid="atts"></div>
+      </section>
+    </div>
+
+    <aside class="side" aria-label="Report quality and export">
+      <div class="scorecard">
+        <div class="ring" aria-hidden="true">
+          <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" fill="none" stroke="#39473d" stroke-width="10"/><circle id="ring" cx="50" cy="50" r="42" fill="none" stroke="#c89b2c" stroke-width="10" stroke-linecap="round" stroke-dasharray="263.9" stroke-dashoffset="263.9"/></svg>
+          <div class="n" data-testid="score">0</div>
+        </div>
+        <div>
+          <div class="grade" data-testid="grade" aria-live="polite">Unreadable</div>
+          <div class="grade-sub">Report quality, out of 100</div>
+        </div>
+      </div>
+      <div class="tips">
+        <h3>Make it better</h3>
+        <ul id="tips" data-testid="tips"></ul>
+        <p class="done" id="tips-done" hidden>Nothing left to fix — this one is ready to file.</p>
+      </div>
+      <div class="md">
+        <h3>Markdown</h3>
+        <pre id="md" data-testid="markdown" tabindex="0" aria-label="Markdown report"></pre>
+        <div class="row">
+          <button type="button" class="btn pri sm" data-testid="copy-md">Copy</button>
+          <button type="button" class="btn sm" data-testid="download-md">Download .md</button>
+          <span class="status" data-testid="md-status" aria-live="polite"></span>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const $$ = (s) => [...document.querySelectorAll(s)];
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const KEY = 'bugstudio.v1';
+
+  const blank = () => ({ raw: '', area: '', sym: '', trig: '', title: '', steps: [], expected: '', actual: '', version: '', freq: '', env: null, envOff: [], sev: null, pri: null, atts: [] });
+  let D;
+  try { D = Object.assign(blank(), JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { D = blank(); }
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) { /* ignore */ } };
+
+  const MESSY = `so i was on pantry pal trying to check out. added 3 items to the cart then went to the cart page, changed the qty of oat milk to 0 and hit update. then clicked checkout and it just spins forever!!! should have removed the oat milk and taken me to payment. happened twice on my phone, chrome i think. v4.2.1 build 388. console had some red errors about price`;
+
+  /* ---------------- messy-text parser ---------------- */
+  const VERBS = {
+    added: ['Add', 'adding'], add: ['Add', 'adding'], went: ['Go', 'going'], go: ['Go', 'going'], clicked: ['Click', 'clicking'], click: ['Click', 'clicking'],
+    tapped: ['Tap', 'tapping'], tap: ['Tap', 'tapping'], changed: ['Change', 'changing'], change: ['Change', 'changing'], opened: ['Open', 'opening'], open: ['Open', 'opening'],
+    typed: ['Type', 'typing'], type: ['Type', 'typing'], entered: ['Enter', 'entering'], hit: ['Press', 'pressing'], pressed: ['Press', 'pressing'], press: ['Press', 'pressing'],
+    selected: ['Select', 'selecting'], select: ['Select', 'selecting'], logged: ['Log', 'logging'], scrolled: ['Scroll', 'scrolling'], navigated: ['Navigate', 'navigating'],
+    submitted: ['Submit', 'submitting'], searched: ['Search', 'searching'], uploaded: ['Upload', 'uploading'], removed: ['Remove', 'removing'], saved: ['Save', 'saving'],
+    signed: ['Sign', 'signing'], chose: ['Choose', 'choosing'], filled: ['Fill', 'filling'], dragged: ['Drag', 'dragging'], refreshed: ['Refresh', 'refreshing'], set: ['Set', 'setting'],
+  };
+  const SYMPTOM = /\b(spins?|spinning|stuck|freez|crash|blank|nothing happens|error|fails?|broken|hangs?|forever|instead|wrong|missing|disappear|doesn'?t|won'?t|can'?t|never)\b/i;
+  const EXPECT = /\b(should|expected|supposed to|meant to)\b/i;
+  const AREAS = ['checkout', 'cart', 'payment', 'login', 'sign in', 'search', 'profile', 'settings', 'basket', 'dashboard', 'upload', 'onboarding', 'notifications'];
+
+  function toStep(clause) {
+    let c = clause.trim().replace(/^(so|and|then|and then|after that|next|i|we)\b[\s,]*/i, '');
+    c = c.replace(/^(so|and|then|i|we)\b\s*/i, '').replace(/^(then|i|we)\b\s*/i, '');
+    const w = c.split(/\s+/);
+    const v = VERBS[w[0].toLowerCase()];
+    if (!v) return null;
+    w[0] = v[0];
+    let s = w.join(' ').replace(/\bqty\b/gi, 'quantity').replace(/\bmy\b/g, 'the').replace(/[!?.]+$/, '');
+    if (v[0] === 'Go' && !/\bto\b/.test(s)) s = s.replace(/^Go/, 'Go to');
+    return { text: s, gerund: v[1] + ' ' + w.slice(1).join(' ').replace(/[!?.]+$/, '') };
+  }
+  function cap(s) { s = s.trim(); return s.charAt(0).toUpperCase() + s.slice(1); }
+  function parse(raw) {
+    const out = { steps: [], expected: '', actual: '', version: '', area: '', sym: '', trig: '', hints: [] };
+    const m = raw.match(/\bv?(\d+\.\d+(?:\.\d+)?)\b(?:[^.\n]*?\bbuild\s*#?\s*(\d+))?/i);
+    if (m) out.version = m[1] + (m[2] ? ` (build ${m[2]})` : '');
+    const lower = raw.toLowerCase();
+    const area = AREAS.find((a) => lower.includes(a));
+    if (area) out.area = cap(area);
+    const sentences = raw.replace(/\r/g, '').split(/(?<=[.!?])\s+|\n+/).map((s) => s.trim()).filter(Boolean);
+    const lastSteps = [];
+    sentences.forEach((sen) => {
+      if (/\bv?\d+\.\d+/.test(sen) && sen.length < 40) return;
+      if (EXPECT.test(sen)) {
+        out.expected = cap(sen.replace(/^(it|this|that)\s+/i, '').replace(/[!?.]+$/, '')).replace(/^Should\b/, 'It should') + '.';
+        return;
+      }
+      const clauses = sen.split(/,\s*|\s+(?:and then|then)\s+|\s+and\s+(?=(?:hit|clicked|tapped|pressed|changed|went|opened|selected|added)\b)/i);
+      clauses.forEach((cl) => {
+        const st = toStep(cl);
+        if (st && !/^\s*(?:it|this)\b/i.test(cl)) { out.steps.push(st.text); lastSteps.push(st); }
+        const symIdx = cl.search(SYMPTOM);
+        if (symIdx >= 0 && !st) {
+          const sym = cl.replace(/^(and|then|but)\s+/i, '').replace(/^(it|this|the page|that)\s+(just\s+)?/i, '').replace(/[!?.]+$/, '');
+          if (!out.actual) out.actual = cap(sym);
+          else if (!/console/i.test(cl)) out.actual += '; ' + sym;
+        }
+        if (st && symIdx >= 0) {
+          const tail = cl.slice(cl.search(/\b(and\s+)?(it|this)\b/i));
+          if (tail && !out.actual) out.actual = cap(tail.replace(/^(and\s+)?(it|this)\s+(just\s+)?/i, '').replace(/[!?.]+$/, ''));
+        }
+      });
+    });
+    // clause "clicked checkout and it just spins forever" — split step and symptom
+    out.steps = out.steps.map((s) => s.replace(/\s+and\s+(it|this)\b.*$/i, ''));
+    if (out.actual) { out.sym = cap(out.actual.split(';')[0].replace(/^just\s+/i, '')); out.actual = /^(spins?|hangs?|freez|crash|shows|stays|never|fails?|goes|loads)/i.test(out.actual) ? 'It ' + out.actual.charAt(0).toLowerCase() + out.actual.slice(1) + '.' : cap(out.actual) + '.'; }
+    const trigger = lastSteps.length ? lastSteps[lastSteps.length - 1].gerund.replace(/\s+and\s+(it|this)\b.*$/i, '') : '';
+    out.trig = trigger ? 'after ' + trigger : '';
+    if (/console|error/i.test(raw)) out.hints.push('console');
+    if (/phone|mobile|android|iphone/i.test(raw)) out.hints.push('mobile');
+    if (/twice|sometimes|every time|always|once/i.test(raw)) out.freq = /every time|always/i.test(raw) ? 'Every time' : /twice|sometimes/i.test(raw) ? 'Sometimes' : 'Once so far';
+    return out;
+  }
+
+  /* ---------------- title checks ---------------- */
+  const VAGUE = /\b(broken|doesn'?t work|not working|bug|issue|problem|weird|stuff|asap|urgent|help)\b/i;
+  function titleFlags(t) {
+    const f = [];
+    if (!t.trim()) return [{ ok: false, text: 'No title yet' }];
+    const len = t.trim().length;
+    f.push(len < 20 ? { ok: false, text: `Too short (${len} chars)` } : len > 90 ? { ok: false, text: `Too long (${len} chars)` } : { ok: true, text: `${len} chars` });
+    f.push(VAGUE.test(t) ? { ok: false, text: 'Vague wording: “' + t.match(VAGUE)[0] + '”' } : { ok: true, text: 'Specific wording' });
+    if (/[!?]{2,}|[A-Z]{6,}/.test(t)) f.push({ ok: false, text: 'Shouting' });
+    f.push(/^\[[^\]]+\]/.test(t.trim()) || D.area && t.toLowerCase().includes(D.area.toLowerCase()) ? { ok: true, text: 'Names the area' } : { ok: false, text: 'Say where it happens' });
+    return f;
+  }
+
+  /* ---------------- scoring ---------------- */
+  function scoreItems() {
+    const t = D.title.trim();
+    const flags = titleFlags(D.title);
+    const steps = D.steps.map((s) => s.trim()).filter(Boolean);
+    const verbish = steps.filter((s) => /^[A-Z][a-z]+\b/.test(s) && !/^(It|The|This|I|We|And|Then|So)\b/.test(s));
+    const envOn = D.env ? D.env.filter((r) => !D.envOff.includes(r.k)).length : 0;
+    return [
+      { id: 'title', pts: 10, ok: !!t, tip: 'Add a title — it is the first thing triage reads.' },
+      { id: 'title-len', pts: 5, ok: !!t && t.length >= 20 && t.length <= 90, tip: 'Keep the title between 20 and 90 characters.' },
+      { id: 'title-vague', pts: 5, ok: !!t && !VAGUE.test(t) && !/[!?]{2,}/.test(t), tip: 'Replace vague words (“broken”, “doesn’t work”) with the actual symptom.' },
+      { id: 'title-area', pts: 5, ok: flags.some((f) => f.ok && f.text === 'Names the area'), tip: 'Say where it happens, e.g. start the title with [Checkout].' },
+      { id: 'steps', pts: 15, ok: steps.length >= 3, tip: `Write at least 3 numbered steps (${steps.length} so far).` },
+      { id: 'steps-verbs', pts: 5, ok: steps.length > 0 && verbish.length === steps.length, tip: 'Start every step with a verb: Open, Tap, Enter…' },
+      { id: 'steps-vague', pts: 5, ok: steps.length > 0 && !steps.some((s) => /\b(etc|somehow|stuff|something|whatever)\b/i.test(s)), tip: 'Remove “etc.”, “somehow” and similar from the steps — spell each action out.' },
+      { id: 'expected', pts: 10, ok: D.expected.trim().length >= 8, tip: 'Describe the expected result.' },
+      { id: 'actual', pts: 10, ok: D.actual.trim().length >= 8, tip: 'Describe the actual result — what you saw, word for word if there was a message.' },
+      { id: 'differ', pts: 5, ok: !!D.expected.trim() && !!D.actual.trim() && D.expected.trim().toLowerCase() !== D.actual.trim().toLowerCase(), tip: 'Expected and actual should clearly differ.' },
+      { id: 'env', pts: 10, ok: envOn >= 3, tip: 'Capture the environment (browser, OS, viewport).' },
+      { id: 'version', pts: 5, ok: !!D.version.trim(), tip: 'Add the app version or build number.' },
+      { id: 'triage', pts: 5, ok: D.sev != null && D.pri != null, tip: 'Pick a severity and a priority.' },
+      { id: 'evidence', pts: 5, ok: D.atts.length > 0, tip: 'Attach evidence: a console log, network excerpt or screenshot.' },
+    ];
+  }
+  const GRADES = [[90, 'Ready to file'], [70, 'Nearly there'], [45, 'Needs detail'], [20, 'Hard to reproduce'], [0, 'Unreadable']];
+
+  /* ---------------- environment ---------------- */
+  function captureEnv() {
+    const ua = navigator.userAgent || '';
+    let browser = 'Unknown';
+    const bm = ua.match(/(Edg|OPR|Firefox|CriOS|Chrome|Version)\/(\d+)/);
+    if (bm) browser = ({ Edg: 'Edge', OPR: 'Opera', CriOS: 'Chrome (iOS)', Version: /Safari/.test(ua) ? 'Safari' : 'Browser' }[bm[1]] || bm[1]) + ' ' + bm[2];
+    let os = /Android ([\d.]+)/.test(ua) ? 'Android ' + RegExp.$1 : /iPhone|iPad/.test(ua) ? 'iOS' : /Windows NT/.test(ua) ? 'Windows' : /Mac OS X/.test(ua) ? 'macOS' : /CrOS/.test(ua) ? 'ChromeOS' : /Linux/.test(ua) ? 'Linux' : 'Unknown';
+    const mm = (q) => { try { return matchMedia(q).matches; } catch (e) { return false; } };
+    let tz = '';
+    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { tz = ''; }
+    return [
+      { k: 'browser', label: 'Browser', v: browser },
+      { k: 'os', label: 'OS', v: os },
+      { k: 'viewport', label: 'Viewport', v: `${innerWidth}×${innerHeight}` },
+      { k: 'screen', label: 'Screen', v: `${screen.width}×${screen.height} @${Math.round((devicePixelRatio || 1) * 100) / 100}x` },
+      { k: 'touch', label: 'Touch points', v: String(navigator.maxTouchPoints || 0) },
+      { k: 'lang', label: 'Language', v: navigator.language || '' },
+      { k: 'tz', label: 'Time zone', v: tz || 'unknown' },
+      { k: 'scheme', label: 'Colour scheme', v: mm('(prefers-color-scheme: dark)') ? 'dark' : 'light' },
+      { k: 'motion', label: 'Reduced motion', v: mm('(prefers-reduced-motion: reduce)') ? 'yes' : 'no' },
+      { k: 'online', label: 'Online', v: navigator.onLine ? 'yes' : 'no' },
+      { k: 'ua', label: 'User agent', v: ua },
+    ];
+  }
+
+  /* ---------------- severity × priority ---------------- */
+  const SEV = [
+    { n: 'Critical', d: 'data loss, security, crash, or a core flow is blocked with no workaround' },
+    { n: 'Major', d: 'a key feature is broken or wrong, a workaround exists but is painful' },
+    { n: 'Minor', d: 'noticeable but limited impact; easy workaround' },
+    { n: 'Trivial', d: 'cosmetic: copy, alignment, polish' },
+  ];
+  const PRI = [
+    { n: 'P1', d: 'fix now — drop other work, consider a hotfix' },
+    { n: 'P2', d: 'fix in the current sprint / next release' },
+    { n: 'P3', d: 'schedule it; fix when the area is next touched' },
+    { n: 'P4', d: 'backlog — fix if time allows' },
+  ];
+  const CELL_BG = (s, p) => { const heat = (3 - s) + (3 - p); return ['#e5ebdf', '#dfe9d9', '#eee7c9', '#f2dcb8', '#f0c9aa', '#e8ad8c', '#dd8d68'][heat]; };
+  function guidance(s, p) {
+    const gap = p - s;
+    let verdict;
+    if (gap === 0) verdict = 'Consistent: urgency matches impact.';
+    else if (gap >= 2) verdict = 'Unusual: high impact but low urgency. Only justified if the path is rarely hit, behind a flag or already mitigated — say which in the report.';
+    else if (gap <= -2) verdict = 'Unusual: low impact but high urgency. Common for visible brand, legal or launch-day issues — say what makes it urgent.';
+    else verdict = gap > 0 ? 'Reasonable: slightly lower urgency than impact — note the workaround.' : 'Reasonable: slightly more urgent than its impact — note why (visibility, release timing).';
+    return `<b>${SEV[s].n} × ${PRI[p].n}</b><br>${SEV[s].n}: ${SEV[s].d}. ${PRI[p].n}: ${PRI[p].d}.<br>${verdict}`;
+  }
+
+  /* ---------------- attachments ---------------- */
+  const ATT = {
+    console: { name: 'console.log', body: `[14:02:11.482] GET /api/cart 200 (84 ms)
+[14:02:19.907] PATCH /api/cart/items/oat-milk 200 (131 ms)
+[14:02:21.330] Uncaught TypeError: Cannot read properties of undefined (reading 'price')
+    at lineTotal (cart-summary.js:42:18)
+    at Array.map (<anonymous>)
+    at renderSummary (cart-summary.js:37:22)
+[14:02:21.331] [checkout] waiting for summary… (retry 1)` },
+    network: { name: 'network-excerpt.txt', body: `POST /api/checkout/session
+  status: (pending) — no response after 60 s
+  request body: {"cartId":"c_19f2","items":[{"sku":"oat-milk","qty":0},…]}
+GET /api/cart
+  status: 200  · 1.8 kB · 84 ms
+  note: oat-milk still present with qty 0` },
+    screenshot: { name: 'checkout-spinner.png', body: `Screenshot note (placeholder): checkout button shows an endless spinner; cart badge still reads 3 items after oat milk was set to 0. Attach the real image in your tracker.` },
+  };
+
+  /* ---------------- markdown ---------------- */
+  function markdown() {
+    const L = [];
+    L.push('# ' + (D.title.trim() || 'Untitled bug'), '');
+    const meta = [];
+    if (D.sev != null) meta.push(`**Severity:** ${SEV[D.sev].n}`);
+    if (D.pri != null) meta.push(`**Priority:** ${PRI[D.pri].n}`);
+    if (D.freq) meta.push(`**Reproducibility:** ${D.freq}`);
+    if (meta.length) L.push(meta.join(' · '), '');
+    L.push('## Steps to reproduce');
+    const steps = D.steps.map((s) => s.trim()).filter(Boolean);
+    if (steps.length) steps.forEach((s, i) => L.push(`${i + 1}. ${s}`)); else L.push('_No steps yet._');
+    L.push('', '## Expected result', D.expected.trim() || '_Not described._', '', '## Actual result', D.actual.trim() || '_Not described._', '');
+    const envRows = (D.env || []).filter((r) => !D.envOff.includes(r.k));
+    if (D.version.trim() || envRows.length) {
+      L.push('## Environment', '', '| | |', '|---|---|');
+      if (D.version.trim()) L.push(`| App version | ${D.version.trim().replace(/\|/g, '\\|')} |`);
+      envRows.forEach((r) => L.push(`| ${r.label} | ${String(r.v).replace(/\|/g, '\\|')} |`));
+      L.push('');
+    }
+    if (D.atts.length) {
+      L.push('## Attachments');
+      D.atts.forEach((k) => { L.push('', `**${ATT[k].name}**`, '', '```text', ATT[k].body, '```'); });
+      L.push('');
+    }
+    return L.join('\n');
+  }
+
+  /* ---------------- rendering ---------------- */
+  const ICON = {
+    grip: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="5" cy="4" r="1.4" fill="currentColor"/><circle cx="11" cy="4" r="1.4" fill="currentColor"/><circle cx="5" cy="8" r="1.4" fill="currentColor"/><circle cx="11" cy="8" r="1.4" fill="currentColor"/><circle cx="5" cy="12" r="1.4" fill="currentColor"/><circle cx="11" cy="12" r="1.4" fill="currentColor"/></svg>',
+    up: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 10l4-4 4 4" stroke="currentColor" stroke-width="2" fill="none"/></svg>',
+    down: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" fill="none"/></svg>',
+    del: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="2"/></svg>',
+  };
+  function renderSteps(focusIdx) {
+    const ol = $('#steps');
+    ol.innerHTML = '';
+    D.steps.forEach((s, i) => {
+      const li = document.createElement('li');
+      li.className = 'step'; li.dataset.i = i; li.setAttribute('data-testid', 'step');
+      li.innerHTML = `<button type="button" class="grip" aria-label="Drag step ${i + 1}" tabindex="-1">${ICON.grip}</button><span class="num" aria-hidden="true"></span>
+        <input type="text" value="${esc(s)}" aria-label="Step ${i + 1}" data-testid="step-input">
+        <span class="tools"><button type="button" class="ico" data-act="up" aria-label="Move step ${i + 1} up" ${i === 0 ? 'disabled' : ''}>${ICON.up}</button><button type="button" class="ico" data-act="down" aria-label="Move step ${i + 1} down" ${i === D.steps.length - 1 ? 'disabled' : ''}>${ICON.down}</button><button type="button" class="ico" data-act="del" aria-label="Delete step ${i + 1}">${ICON.del}</button></span>`;
+      ol.appendChild(li);
+    });
+    if (focusIdx != null && ol.children[focusIdx]) ol.children[focusIdx].querySelector('input').focus();
+  }
+  function renderEnv() {
+    const has = !!D.env;
+    $('[data-testid=env-table]').hidden = !has; $('#env-note').hidden = !has;
+    if (!has) return;
+    $('#env-rows').innerHTML = D.env.map((r) => `<tr data-testid="env-${r.k}"><td class="c"><input type="checkbox" data-env="${r.k}" aria-label="Include ${esc(r.label)}" ${D.envOff.includes(r.k) ? '' : 'checked'}></td><th scope="row">${esc(r.label)}</th><td class="v">${esc(r.v)}</td></tr>`).join('');
+  }
+  function renderMatrix() {
+    const mx = $('#matrix');
+    let h = '<div class="hd"></div>' + PRI.map((p) => `<div class="hd" aria-hidden="true">${p.n}</div>`).join('');
+    SEV.forEach((s, si) => {
+      h += `<div class="hd rh" aria-hidden="true">${s.n}</div>`;
+      PRI.forEach((p, pi) => {
+        const on = D.sev === si && D.pri === pi;
+        h += `<button type="button" class="cell" role="radio" aria-checked="${on}" tabindex="${on || (D.sev == null && si === 0 && pi === 0) ? 0 : -1}" data-s="${si}" data-p="${pi}" data-testid="cell-${s.n.toLowerCase()}-${p.n.toLowerCase()}" aria-label="${s.n} severity, ${p.n}" style="background:${CELL_BG(si, pi)}">${on ? '●' : ''}</button>`;
+      });
+    });
+    mx.innerHTML = h;
+    $('#guide').innerHTML = D.sev != null ? guidance(D.sev, D.pri) : 'Pick a cell to see guidance.';
+  }
+  function renderAtts() {
+    $('#atts').innerHTML = D.atts.map((k, i) => `<details class="att" data-testid="att-item"><summary><span>${esc(ATT[k].name)}</span><button type="button" class="btn sm" data-rm="${i}" aria-label="Remove ${esc(ATT[k].name)}">Remove</button></summary><pre>${esc(ATT[k].body)}</pre></details>`).join('');
+    $$('[data-add-att]').forEach((b) => { b.disabled = D.atts.includes(b.dataset.addAtt); });
+  }
+  function renderScore() {
+    const items = scoreItems();
+    const score = items.reduce((n, it) => n + (it.ok ? it.pts : 0), 0);
+    $('[data-testid=score]').textContent = score;
+    $('#ring').style.strokeDashoffset = String(263.9 * (1 - score / 100));
+    $('[data-testid=grade]').textContent = GRADES.find((g) => score >= g[0])[1];
+    const miss = items.filter((it) => !it.ok).sort((a, b) => b.pts - a.pts);
+    $('#tips').innerHTML = miss.map((it) => `<li data-testid="tip-${it.id}"><b>+${it.pts}</b><span>${esc(it.tip)}</span></li>`).join('');
+    $('#tips-done').hidden = miss.length > 0;
+    const fl = titleFlags(D.title);
+    $('#title-flags').innerHTML = fl.map((f) => `<li class="${f.ok ? 'ok' : ''}">${f.ok ? '✓' : '!'} ${esc(f.text)}</li>`).join('');
+    $('#md').textContent = markdown();
+  }
+  function renderFields() {
+    const set = (id, v) => { const el = $(id); if (el.value !== v) el.value = v; };
+    set('#raw', D.raw); set('#t-area', D.area); set('#t-sym', D.sym); set('#t-trig', D.trig); set('#title', D.title);
+    set('#expected', D.expected); set('#actual', D.actual); set('#version', D.version); set('#freq', D.freq);
+  }
+  function renderAll() { renderFields(); renderSteps(); renderEnv(); renderMatrix(); renderAtts(); renderScore(); }
+  function soft() { save(); renderScore(); }
+
+  /* ---------------- wiring ---------------- */
+  [['#raw', 'raw'], ['#t-area', 'area'], ['#t-sym', 'sym'], ['#t-trig', 'trig'], ['#title', 'title'], ['#expected', 'expected'], ['#actual', 'actual'], ['#version', 'version']].forEach(([id, k]) => {
+    $(id).addEventListener('input', (e) => { D[k] = e.target.value; soft(); });
+  });
+  $('#freq').addEventListener('change', (e) => { D.freq = e.target.value; soft(); });
+  $('[data-testid=load-messy]').addEventListener('click', () => { D.raw = MESSY; $('#raw').value = MESSY; soft(); $('#raw').focus(); });
+  $('[data-testid=clear-all]').addEventListener('click', () => { D = blank(); save(); renderAll(); $('[data-testid=parse-status]').textContent = 'Cleared.'; });
+  $('[data-testid=structure]').addEventListener('click', () => {
+    const p = parse(D.raw);
+    const filled = [];
+    if (p.steps.length) { D.steps = p.steps; filled.push(p.steps.length + ' steps'); }
+    if (p.expected) { D.expected = p.expected; filled.push('expected'); }
+    if (p.actual) { D.actual = p.actual; filled.push('actual'); }
+    if (p.version) { D.version = p.version; filled.push('version'); }
+    if (p.freq && !D.freq) D.freq = p.freq;
+    if (p.area) D.area = p.area;
+    if (p.sym) D.sym = p.sym;
+    if (p.trig) D.trig = p.trig;
+    if (!D.title && (p.area || p.sym)) D.title = composeTitle();
+    save(); renderAll();
+    const hints = [];
+    if (p.hints.includes('console')) hints.push('they mention console errors — attach the log');
+    if (p.hints.includes('mobile')) hints.push('it happened on a phone — capture a mobile environment');
+    $('[data-testid=parse-status]').textContent = filled.length ? `Pulled out ${filled.join(', ')}. Review every field — the parser is a heuristic, not a mind reader.${hints.length ? ' Also: ' + hints.join('; ') + '.' : ''}` : 'Could not find steps or results — try writing what was done, then what happened.';
+  });
+  function composeTitle() {
+    const a = D.area.trim(), s = D.sym.trim(), t = D.trig.trim();
+    return [a ? `[${a}]` : '', s ? cap(s) : '', t].filter(Boolean).join(' ');
+  }
+  $('[data-testid=compose-title]').addEventListener('click', () => { D.title = composeTitle(); $('#title').value = D.title; soft(); });
+
+  // steps: edit, buttons, keyboard, drag
+  const ol = $('#steps');
+  ol.addEventListener('input', (e) => { const li = e.target.closest('.step'); D.steps[+li.dataset.i] = e.target.value; soft(); });
+  function move(i, j, focus) {
+    if (j < 0 || j >= D.steps.length) return;
+    const [s] = D.steps.splice(i, 1); D.steps.splice(j, 0, s);
+    save(); renderSteps(focus ? j : null); renderScore();
+  }
+  ol.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-act]'); if (!b) return;
+    const i = +b.closest('.step').dataset.i;
+    if (b.dataset.act === 'up') move(i, i - 1);
+    if (b.dataset.act === 'down') move(i, i + 1);
+    if (b.dataset.act === 'del') { D.steps.splice(i, 1); save(); renderSteps(); renderScore(); }
+    const nb = ol.children[Math.min(i, D.steps.length - 1)];
+    if (nb && b.dataset.act !== 'del') { const idx = b.dataset.act === 'up' ? i - 1 : i + 1; const t = ol.children[idx]; if (t) (t.querySelector(`[data-act=${b.dataset.act}]:not(:disabled)`) || t.querySelector('input')).focus(); }
+  });
+  ol.addEventListener('keydown', (e) => {
+    if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+    const li = e.target.closest('.step'); if (!li) return;
+    e.preventDefault();
+    const i = +li.dataset.i;
+    move(i, e.key === 'ArrowUp' ? i - 1 : i + 1, true);
+  });
+  let drag = null;
+  ol.addEventListener('pointerdown', (e) => {
+    const g = e.target.closest('.grip'); if (!g) return;
+    const li = g.closest('.step');
+    drag = { li, from: +li.dataset.i, y0: e.clientY };
+    li.classList.add('dragging');
+    try { ol.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    e.preventDefault();
+  });
+  ol.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const sibs = [...ol.children].filter((c) => c !== drag.li);
+    const before = sibs.find((c) => { const r = c.getBoundingClientRect(); return e.clientY < r.top + r.height / 2; });
+    if (before) { if (drag.li.nextSibling !== before) ol.insertBefore(drag.li, before); }
+    else if (ol.lastChild !== drag.li) ol.appendChild(drag.li);
+  });
+  const endDrag = () => {
+    if (!drag) return;
+    const to = [...ol.children].indexOf(drag.li);
+    drag.li.classList.remove('dragging');
+    const from = drag.from; drag = null;
+    if (to !== from) move(from, to); else renderSteps();
+  };
+  ol.addEventListener('pointerup', endDrag);
+  ol.addEventListener('pointercancel', endDrag);
+  $('[data-testid=add-step]').addEventListener('click', () => { D.steps.push(''); save(); renderSteps(D.steps.length - 1); renderScore(); });
+
+  $('[data-testid=capture-env]').addEventListener('click', () => { D.env = captureEnv(); save(); renderEnv(); renderScore(); });
+  $('#env-rows').addEventListener('change', (e) => {
+    const k = e.target.dataset.env; if (!k) return;
+    D.envOff = e.target.checked ? D.envOff.filter((x) => x !== k) : [...D.envOff, k];
+    soft();
+  });
+
+  $('#matrix').addEventListener('click', (e) => {
+    const c = e.target.closest('.cell'); if (!c) return;
+    D.sev = +c.dataset.s; D.pri = +c.dataset.p; save(); renderMatrix(); renderScore();
+    $(`.cell[data-s="${D.sev}"][data-p="${D.pri}"]`).focus();
+  });
+  $('#matrix').addEventListener('keydown', (e) => {
+    const c = e.target.closest('.cell'); if (!c) return;
+    let s = +c.dataset.s, p = +c.dataset.p;
+    const k = e.key;
+    if (k === 'ArrowRight') p = Math.min(3, p + 1); else if (k === 'ArrowLeft') p = Math.max(0, p - 1);
+    else if (k === 'ArrowDown') s = Math.min(3, s + 1); else if (k === 'ArrowUp') s = Math.max(0, s - 1); else return;
+    e.preventDefault();
+    D.sev = s; D.pri = p; save(); renderMatrix(); renderScore();
+    $(`.cell[data-s="${s}"][data-p="${p}"]`).focus();
+  });
+
+  $$('[data-add-att]').forEach((b) => b.addEventListener('click', () => { if (!D.atts.includes(b.dataset.addAtt)) D.atts.push(b.dataset.addAtt); save(); renderAtts(); renderScore(); }));
+  $('#atts').addEventListener('click', (e) => { const r = e.target.closest('[data-rm]'); if (!r) return; e.preventDefault(); D.atts.splice(+r.dataset.rm, 1); save(); renderAtts(); renderScore(); });
+
+  const st = $('[data-testid=md-status]');
+  $('[data-testid=copy-md]').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(markdown()); st.textContent = 'Copied'; }
+    catch (e) { const r = document.createRange(); r.selectNodeContents($('#md')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); st.textContent = 'Selected — press Ctrl/⌘+C'; }
+  });
+  $('[data-testid=download-md]').addEventListener('click', () => {
+    const name = (D.title.trim() || 'bug-report').toLowerCase().replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').slice(0, 50) + '.md';
+    const url = URL.createObjectURL(new Blob([markdown()], { type: 'text/markdown' }));
+    const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    st.textContent = 'Downloaded ' + name;
+  });
+
+  window.__bugStudio = { parse, markdown, score: () => scoreItems().reduce((n, it) => n + (it.ok ? it.pts : 0), 0) };
+  renderAll();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+{
+  "id": "042",
+  "slug": "042-circuit-breaker",
+  "file": "lab/042-circuit-breaker.html",
+  "title": "Circuit Breaker — a logic gate puzzle",
+  "category": "Games",
+  "tags": ["svg", "puzzle", "boolean-logic", "localStorage", "keyboard"],
+  "description": "A breadboard puzzle game: place AND, OR, XOR, NOT and NAND gates, wire signals from left to right, and light up every row of a target truth table. Fourteen handmade levels run from a single inverter through NAND-only builds to a full adder, with live animated signals, undo, and star ratings for solving at par.",
+  "prompt": "Make me a logic-gate puzzle game. I place AND, OR, XOR, NOT and NAND gates on a grid and wire inputs to outputs so every row of a target truth table lights up. I want at least ten handcrafted levels that teach something (NAND universality, De Morgan, half and full adders), live signal animation on the wires, a truth-table checker that marks each row, undo, and a level select with stars for solving in the fewest gates. It has to work with touch and the keyboard, not just drag and drop, and the spec should prove every level actually has a solution.",
+  "qa": {
+    "methodology": [
+      "Solvability oracle: the spec carries a par solution for all 14 levels and applies each one through the window.__cb API, asserting every truth-table row passes, the gate count equals par, and three stars are awarded.",
+      "Truth-table oracle: row pass/fail is checked against hand-computed results (an AND placed where XOR is wanted matches exactly 1 of 4 rows).",
+      "Interaction flows through real UI: the gate palette, slot placement, tap-to-wire, keyboard Enter-to-wire, unplugging, Remove, Undo button and Ctrl+Z.",
+      "Rule enforcement: wires that flow backwards and self-loops are refused, gate supplies run out and disable the tool, and Escape cancels an armed wire.",
+      "Scoring and persistence: a non-par majority circuit earns 2 stars, and the star total survives a reload through localStorage.",
+      "Responsive review at 1280px and 390px plus a letter-spacing stress test; the board scrolls inside its own container instead of the page."
+    ],
+    "risks": [
+      "Re-rendering the whole SVG on every change can drop keyboard focus; the renderer restores focus by data-testid.",
+      "Topological ordering: gates are evaluated column by column, so any path that allowed a same-column or backward wire would create cycles.",
+      "Small touch targets on phones: ports have a 17px invisible hit circle and the board keeps a minimum width.",
+      "Level data typos (for example a wrong target function) would make a level impossible, which is why the solutions live in the spec."
+    ],
+    "playwright": "SVG made this easier to automate than canvas: each port, slot, gate, wire and lamp is a real element with a data-testid (for example port-c0r0.in0 and wire-Y), so both click and keyboard focus plus Enter work on desktop and on the Pixel 7 touch profile. Signal values are exposed as data-value attributes, which avoids asserting colors. Checking that all 14 levels are solvable through the UI would be slow and hard to read, so that test applies the solution table through window.__cb and uses the page's own checker as the oracle, while the other tests use the real UI. The wire flow animation is cosmetic and never asserted, and no screenshots are compared.",
+    "coverage": [
+      "Level 1 solved through the UI, including a keyboard-made wire and a live input toggle",
+      "Truth-table row counting, row click driving the inputs, unplug, undo, remove and Ctrl+Z",
+      "Left-to-right rule, self-loop rejection, gate supply limits, Escape to cancel",
+      "All 14 levels solvable at par for three stars",
+      "Over-par solution earns 2 stars; stars persist across reload"
+    ]
+  },
+  "a11y": "Ports, slots, gates and input switches are focusable SVG elements with roles, spoken labels and Enter/Space activation, and Delete removes a focused gate. The truth table is a real table whose first cell in each row is a button that sets the inputs, and hints plus the pass count are announced through aria-live."
+}

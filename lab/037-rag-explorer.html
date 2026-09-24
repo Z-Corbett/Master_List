@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RAG Pipeline Explorer — A Toy Model of Retrieval</title>
+<meta name="description" content="A clearly simplified, fully local model of retrieval-augmented generation: chunk a fictional handbook with size and overlap sliders, give each chunk a toy hashed bag-of-words embedding plotted on a 2D map, retrieve the top-k chunks for a question by cosine similarity, and see exactly what context would reach the model — and what was missed.">
+<style>
+  :root {
+    --night: #0d1024;
+    --night-2: #151936;
+    --night-3: #1e2347;
+    --line: #2d3363;
+    --text: #e7e8ff;
+    --text-2: #a9acd6;
+    --text-3: #7478a8;
+    --mint: #5ef2c2;
+    --violet: #a58bff;
+    --amber: #ffc857;
+    --rose: #ff7a90;
+    --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body {
+    background: var(--night); color: var(--text); font-family: var(--sans); line-height: 1.5; overflow-x: hidden;
+    background-image: radial-gradient(1px 1px at 12% 18%, #fff8 50%, transparent 51%), radial-gradient(1px 1px at 72% 8%, #fff6 50%, transparent 51%), radial-gradient(1.5px 1.5px at 88% 32%, #fff5 50%, transparent 51%), radial-gradient(1px 1px at 35% 4%, #fff7 50%, transparent 51%), radial-gradient(ellipse 70% 40% at 50% 0%, #1b1f4a, transparent 70%);
+    background-repeat: no-repeat;
+  }
+  :focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  select, input, textarea, pre { max-width: 100%; }
+  .back {
+    position: fixed; top: 12px; left: 12px; z-index: 50; text-decoration: none; color: var(--text);
+    font: 600 12px/1 var(--sans); background: rgba(21,25,54,.9); border: 1px solid var(--line); border-radius: 8px; padding: 7px 11px; backdrop-filter: blur(4px);
+  }
+  .back:hover { border-color: var(--mint); color: var(--mint); }
+  .wrap { max-width: 1320px; margin: 0 auto; padding: 60px 18px 48px; }
+  header.top { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 24px; align-items: end; margin-bottom: 20px; }
+  h1 { margin: 0; font: 800 clamp(30px, 5vw, 52px)/1.02 var(--sans); letter-spacing: -.03em; }
+  h1 span { background: linear-gradient(90deg, var(--mint), var(--violet)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .sub { margin: 8px 0 0; color: var(--text-2); max-width: 70ch; }
+  .toy { border: 1px dashed var(--amber); color: var(--amber); border-radius: 8px; padding: 8px 12px; font-size: 12.5px; max-width: 290px; }
+  .toy b { display: block; font: 700 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+
+  .pipeline { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0 0 16px; font: 12px var(--mono); color: var(--text-3); }
+  .pipeline span { border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; color: var(--text-2); background: var(--night-2); }
+  .pipeline i { font-style: normal; color: var(--line); }
+
+  .panel { background: var(--night-2); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; min-width: 0; }
+  .panel h2 { margin: 0 0 10px; font: 700 12px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--mint); display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .panel h2 small { color: var(--text-3); letter-spacing: 0; text-transform: none; font-weight: 400; }
+  .row1 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 16px; margin-bottom: 16px; }
+  .ctl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 18px; }
+  .ctl label { display: grid; gap: 3px; font-size: 13px; color: var(--text-2); min-width: 0; }
+  .ctl label span { display: flex; justify-content: space-between; gap: 6px; }
+  .ctl output { font: 700 12.5px var(--mono); color: var(--text); }
+  input[type=range] { width: 100%; accent-color: var(--mint); min-width: 0; }
+  .facts { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 12px; font: 12px var(--mono); color: var(--text-3); }
+  .facts b { color: var(--text); }
+  .q { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+  .q input { width: 100%; min-width: 0; background: var(--night); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 15px; }
+  .q input:focus { border-color: var(--violet); outline: none; box-shadow: 0 0 0 3px rgba(165,139,255,.25); }
+  .btn { border: 1px solid var(--line); background: var(--night-3); border-radius: 10px; padding: 8px 14px; font-weight: 650; font-size: 13.5px; }
+  .btn:hover { border-color: var(--mint); }
+  .btn.go { background: var(--mint); color: var(--night); border-color: var(--mint); }
+  .examples { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .ex { border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 4px 11px; font-size: 12.5px; color: var(--text-2); text-align: left; }
+  .ex:hover, .ex[aria-pressed=true] { border-color: var(--violet); color: var(--text); background: rgba(165,139,255,.12); }
+
+  .row2 { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; margin-bottom: 16px; }
+  .doc { position: relative; max-height: 520px; overflow: auto; font-size: 14px; line-height: 1.75; padding-right: 6px; }
+  .doc p { margin: 0 0 10px; }
+  .doc h3 { margin: 12px 0 4px; font-size: 14px; color: var(--text-2); }
+  .w { border-radius: 2px; transition: background .2s; }
+  .w.c0 { background: rgba(94,242,194,.07); } .w.c1 { background: rgba(165,139,255,.09); }
+  .w.ov { background-image: repeating-linear-gradient(135deg, rgba(255,200,87,.28) 0 3px, transparent 3px 6px); }
+  .w.hit { background-color: rgba(94,242,194,.28); color: #fff; }
+  .w.hit.c1 { background-color: rgba(165,139,255,.32); }
+  .w.ans { text-decoration: underline 2px var(--amber); text-underline-offset: 3px; }
+  .w.cut { box-shadow: -2px 0 0 var(--rose); }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--text-3); margin-bottom: 8px; }
+  .legend i { display: inline-block; width: 14px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+
+  .map { position: relative; }
+  .map svg { width: 100%; height: auto; display: block; background: radial-gradient(circle at 50% 50%, #171b3d, #0f1229); border-radius: 10px; border: 1px solid var(--line); }
+  .map .pt { cursor: pointer; }
+  .map .pt circle { transition: r .2s; }
+  .map .pt:focus { outline: none; }
+  .map .pt:focus circle.dot { stroke: var(--amber); stroke-width: 2.5; }
+  .map-note { font-size: 12px; color: var(--text-3); margin: 8px 0 0; }
+  .peek { margin-top: 8px; background: var(--night); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; color: var(--text-2); min-height: 3.2em; overflow-wrap: anywhere; }
+  .peek b { color: var(--text); font-family: var(--mono); }
+
+  .row3 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, .9fr); gap: 16px; margin-bottom: 16px; }
+  .results { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .res { display: grid; grid-template-columns: 34px minmax(0, 1fr) 52px; gap: 8px; align-items: center; background: var(--night); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font-size: 12.5px; }
+  .res.in { border-color: rgba(94,242,194,.55); }
+  .res.dropped { border-style: dashed; opacity: .7; }
+  .res .id { font: 700 12px var(--mono); color: var(--violet); }
+  .res .tx { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); }
+  .res .sc { font: 700 12px var(--mono); text-align: right; }
+  .res .bar { grid-column: 2 / 4; height: 4px; border-radius: 2px; background: var(--night-3); overflow: hidden; }
+  .res .bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--violet), var(--mint)); }
+  .res .tag { font: 10.5px var(--mono); color: var(--rose); }
+  pre.ctx { margin: 0; background: #0a0c1c; border: 1px solid var(--line); border-radius: 10px; padding: 12px; font: 12px/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 420px; overflow: auto; color: #cfd2ff; }
+  .meter { height: 8px; border-radius: 4px; background: var(--night-3); overflow: hidden; margin: 6px 0 10px; }
+  .meter i { display: block; height: 100%; background: var(--mint); }
+  .meter.full i { background: var(--amber); }
+  .verdict { border-radius: 10px; padding: 12px; font-size: 13.5px; border: 1px solid var(--line); background: var(--night); }
+  .verdict b.v { display: block; font: 800 20px var(--sans); margin-bottom: 4px; }
+  .verdict[data-state=found] b.v { color: var(--mint); }
+  .verdict[data-state=split] b.v { color: var(--amber); }
+  .verdict[data-state=missed] b.v, .verdict[data-state=budget] b.v { color: var(--rose); }
+  .verdict[data-state=none] b.v { color: var(--text-2); }
+  .missed-list { margin: 10px 0 0; padding-left: 18px; font-size: 12.5px; color: var(--text-2); }
+  .missed-list li { margin: 3px 0; overflow-wrap: anywhere; }
+
+  .tradeoffs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  .tradeoffs div { background: var(--night); border: 1px solid var(--line); border-radius: 10px; padding: 12px; font-size: 13px; color: var(--text-2); }
+  .tradeoffs h3 { margin: 0 0 6px; font-size: 14px; color: var(--text); }
+  .live { font-size: 12.5px; color: var(--amber); margin: 10px 0 0; min-height: 1.2em; }
+
+  @media (max-width: 1060px) {
+    .row3 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .row3 > :last-child { grid-column: 1 / -1; }
+    .tradeoffs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 820px) {
+    .row1, .row2, .row3 { grid-template-columns: minmax(0, 1fr); }
+    header.top { grid-template-columns: minmax(0, 1fr); }
+    .doc { max-height: 380px; }
+  }
+  @media (max-width: 480px) {
+    .wrap { padding: 56px 10px 40px; }
+    .ctl { grid-template-columns: minmax(0, 1fr); }
+    .tradeoffs { grid-template-columns: minmax(0, 1fr); }
+    .q { grid-template-columns: minmax(0, 1fr); }
+    .panel { padding: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>RAG Pipeline <span>Explorer</span></h1>
+      <p class="sub">Retrieval-augmented generation, slowed down so you can watch it. A handbook is cut into chunks, each chunk becomes a vector, your question becomes a vector, and the closest chunks are pasted into the prompt. Change the knobs and see what the model would — and wouldn't — get to read.</p>
+    </div>
+    <div class="toy"><b>Toy model</b>“Embeddings” here are 256-dimension hashed bag-of-words with TF-IDF weights, computed in your browser. No real model, no network — similar in shape to a real pipeline, not in quality.</div>
+  </header>
+
+  <div class="pipeline" aria-hidden="true"><span>document</span><i>→</i><span>chunk</span><i>→</i><span>embed</span><i>→</i><span>index</span><i>→</i><span>query → embed</span><i>→</i><span>cosine top-k</span><i>→</i><span>pack context</span><i>→</i><span>model</span></div>
+
+  <div class="row1">
+    <section class="panel" aria-labelledby="h-knobs">
+      <h2 id="h-knobs">Knobs</h2>
+      <div class="ctl">
+        <label>
+          <span>Chunk size (words) <output id="size-out" data-testid="size-out">60</output></span>
+          <input type="range" id="size" min="15" max="200" step="5" value="60" data-testid="chunk-size">
+        </label>
+        <label>
+          <span>Overlap (words) <output id="ov-out" data-testid="overlap-out">10</output></span>
+          <input type="range" id="overlap" min="0" max="60" step="1" value="10" data-testid="overlap">
+        </label>
+        <label>
+          <span>Top-k <output id="k-out" data-testid="k-out">3</output></span>
+          <input type="range" id="k" min="1" max="8" value="3" data-testid="top-k">
+        </label>
+        <label>
+          <span>Min similarity <output id="floor-out" data-testid="floor-out">0.05</output></span>
+          <input type="range" id="floor" min="0" max="0.5" step="0.01" value="0.05" data-testid="floor">
+        </label>
+        <label>
+          <span>Context budget (tokens) <output id="budget-out" data-testid="budget-out">600</output></span>
+          <input type="range" id="budget" min="100" max="1500" step="25" value="600" data-testid="budget">
+        </label>
+      </div>
+      <div class="facts"><span>document <b data-testid="word-count">0</b> words</span><span>chunks <b data-testid="chunk-count">0</b></span><span>stride <b data-testid="stride">0</b></span><span>duplicated words <b data-testid="dup-words">0</b></span></div>
+    </section>
+
+    <section class="panel" aria-labelledby="h-q">
+      <h2 id="h-q">Question</h2>
+      <form class="q" id="qform">
+        <input type="text" id="query" aria-label="Question" data-testid="query" placeholder="Ask the handbook something…" autocomplete="off">
+        <button type="submit" class="btn go" data-testid="ask">Retrieve</button>
+      </form>
+      <div class="examples" id="examples" role="group" aria-label="Example questions"></div>
+      <p class="live" data-testid="announce" aria-live="polite"></p>
+    </section>
+  </div>
+
+  <div class="row2">
+    <section class="panel" aria-labelledby="h-doc">
+      <h2 id="h-doc">The document <small>“The Keeper's Handbook” — fictional, written for this demo</small></h2>
+      <div class="legend"><span><i style="background:rgba(94,242,194,.2)"></i>chunk A</span><span><i style="background:rgba(165,139,255,.25)"></i>chunk B</span><span><i style="background-image:repeating-linear-gradient(135deg,rgba(255,200,87,.5) 0 3px,transparent 3px 6px)"></i>overlap</span><span><i style="background:rgba(94,242,194,.55)"></i>retrieved</span><span><i style="border-bottom:2px solid var(--amber);border-radius:0"></i>answer</span></div>
+      <div class="doc" id="doc" data-testid="doc" tabindex="0" aria-label="Document with chunk highlighting"></div>
+    </section>
+    <section class="panel map" aria-labelledby="h-map">
+      <h2 id="h-map">Embedding map <small>2D projection (PCA) of the 256-D vectors</small></h2>
+      <svg id="map" viewBox="0 0 400 320" role="group" aria-label="Chunks plotted by similarity; the question is the star" data-testid="map"></svg>
+      <p class="map-note">Nearby dots share vocabulary. Lines join the question ★ to the chunks it retrieved. The flattening to 2D distorts distances — ranking uses full 256-D cosine similarity.</p>
+      <div class="peek" id="peek" data-testid="peek">Focus or hover a dot to read its chunk.</div>
+    </section>
+  </div>
+
+  <div class="row3">
+    <section class="panel" aria-labelledby="h-res">
+      <h2 id="h-res">Ranked chunks <small>cosine similarity</small></h2>
+      <ol class="results" id="results" data-testid="results"></ol>
+    </section>
+    <section class="panel" aria-labelledby="h-ctx">
+      <h2 id="h-ctx">Context sent to the model <small data-testid="ctx-tokens">0 / 600 tokens</small></h2>
+      <div class="meter" id="meter"><i></i></div>
+      <pre class="ctx" id="ctx" data-testid="context" tabindex="0" aria-label="Assembled prompt"></pre>
+    </section>
+    <section class="panel" aria-labelledby="h-miss">
+      <h2 id="h-miss">What got missed</h2>
+      <div class="verdict" id="verdict" data-testid="verdict" data-state="none" aria-live="polite"><b class="v">Ask a question</b>Pick an example to compare the retrieved context with a known answer.</div>
+      <ul class="missed-list" id="near" data-testid="near-misses"></ul>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="h-trade">
+    <h2 id="h-trade">Trade-offs to try</h2>
+    <div class="tradeoffs">
+      <div><h3>Small chunks</h3>Precise matches and cheap to include, but an answer longer than a chunk can never arrive whole. Try the shift-swap question at 15 words.</div>
+      <div><h3>Big chunks</h3>Answers stay whole, but each vector averages many topics, scores flatten, and a few chunks eat the whole context budget.</div>
+      <div><h3>Overlap</h3>Repeating words across boundaries rescues split answers at the cost of duplicated text in the index and the prompt. Try the lens question at 200 words with 0 overlap, then 20.</div>
+      <div><h3>Words vs meaning</h3>This toy only matches words. “Pets” never meets “dogs”. Real embedding models capture much of that — but still miss things, so measure retrieval separately from generation.</div>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  /* ---------------- the (fictional) document ---------------- */
+  const DOC = [
+    ['h', 'About the cooperative'],
+    ['p', 'The Harrowgate Point Light Cooperative was formed in 1987 by eleven families from the village after the harbour board voted to automate the light and sell the keeper\'s cottage. The cooperative leases the tower for a token rent of one lobster a year and keeps it open as a working light and a small museum. Everything in this handbook is agreed at the spring meeting, which every member may attend.'],
+    ['h', 'Opening hours'],
+    ['p', 'From April to October the tower is open to visitors Wednesday to Sunday, ten until four. In winter it opens only on the first Sunday of each month, weather permitting. School groups can book a weekday visit by writing to the secretary at least two weeks in advance.'],
+    ['h', 'Visitor rules'],
+    ['p', 'Children under eight must hold an adult\'s hand on the spiral stair. Dogs are welcome in the keeper\'s garden but not in the tower, because the stair treads are open metal grating that hurts paws. Drones may not be flown within the grounds. The gallery rail is original and must never be climbed or leaned over.'],
+    ['h', 'Lamp and lens care'],
+    ['p', 'The lens is a third-order Fresnel lens and it is cleaned every Tuesday with distilled water and a lint-free cloth, working from the top panel down. Never use glass cleaner containing ammonia, which clouds the prisms. The brass fittings are polished on the last Friday of the month. Record every bulb change in the logbook with the hour-meter reading.'],
+    ['h', 'Storm protocol'],
+    ['p', 'When the coastguard issues a gale warning, the duty keeper closes the tower to visitors, secures the gallery door, switches the fog signal to automatic, and phones the second keeper on the rota. Nobody goes out onto the gallery once wind speed passes fifty knots. After the storm, walk the grounds for fallen slates before reopening.'],
+    ['h', 'Volunteer rota'],
+    ['p', 'Shifts last four hours. Swaps are arranged through the logbook in the watch room at least 48 hours ahead, and both volunteers must initial the change. New volunteers shadow three shifts before keeping watch alone. If you cannot make a shift at short notice, ring the duty coordinator rather than leaving a message.'],
+    ['h', 'The logbook'],
+    ['p', 'Every watch writes one entry in pencil: time, weather, visitor count, and lamp status. Pencil survives damp far better than ink. Old logbooks are kept in the chart chest and may be read by members on request.'],
+  ];
+  // flatten to words with paragraph / heading markers
+  const WORDS = [];
+  const BLOCKS = [];
+  DOC.forEach(([kind, text], bi) => {
+    const ws = text.split(/\s+/).filter(Boolean);
+    BLOCKS.push({ kind, start: WORDS.length, len: ws.length });
+    ws.forEach((w) => WORDS.push({ w, block: bi }));
+  });
+  const N = WORDS.length;
+
+  const EXAMPLES = [
+    { q: 'What should the keeper do when a gale warning is issued?', ans: 'closes the tower to visitors, secures the gallery door, switches the fog signal to automatic, and phones the second keeper on the rota.' },
+    { q: 'How often is the lens cleaned, and with what?', ans: 'cleaned every Tuesday with distilled water and a lint-free cloth,' },
+    { q: 'Can visitors bring dogs?', ans: 'Dogs are welcome in the keeper\'s garden but not in the tower,' },
+    { q: 'Are pets allowed up the lighthouse?', ans: 'Dogs are welcome in the keeper\'s garden but not in the tower,' },
+    { q: 'How do I swap a volunteer shift?', ans: 'Swaps are arranged through the logbook in the watch room at least 48 hours ahead, and both volunteers must initial the change.' },
+    { q: 'When was the cooperative founded, and by whom?', ans: 'formed in 1987 by eleven families' },
+  ];
+  // locate each answer as a word span
+  EXAMPLES.forEach((ex) => {
+    const aw = ex.ans.split(/\s+/);
+    for (let i = 0; i + aw.length <= N; i++) {
+      if (aw.every((w, j) => WORDS[i + j].w === w)) { ex.span = [i, i + aw.length]; break; }
+    }
+    if (!ex.span) throw new Error('answer not found: ' + ex.ans);
+  });
+
+  /* ---------------- toy embedding ---------------- */
+  const STOP = new Set('a an and are as at be because by can do does for from has have how i if in into is it its may must not of on onto or our should so than that the their them then there these they this to up was we what when where which while who why will with you your every each once only any all been being also'.split(' '));
+  const stem = (t) => t.replace(/(ings|ing|edly|ed|es|s)$/, (m) => (t.length - m.length >= 3 ? '' : m));
+  const tokens = (s) => (s.toLowerCase().match(/[a-z0-9']+/g) || []).map((t) => t.replace(/'s$/, '').replace(/'/g, '')).filter((t) => t && !STOP.has(t)).map(stem);
+  const D = 256;
+  function fnv(s) { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return h >>> 0; }
+  function vectorize(toks, idf) {
+    const tf = new Map();
+    toks.forEach((t) => tf.set(t, (tf.get(t) || 0) + 1));
+    const v = new Float64Array(D);
+    tf.forEach((c, t) => { const h = fnv(t); const w = (1 + Math.log(c)) * (idf.get(t) || idf.default); v[h % D] += (h & 0x100 ? 1 : -1) * w; });
+    let n = 0; for (let i = 0; i < D; i++) n += v[i] * v[i];
+    n = Math.sqrt(n) || 1;
+    for (let i = 0; i < D; i++) v[i] /= n;
+    return v;
+  }
+  const dot = (a, b) => { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; };
+
+  /* ---------------- PCA to 2D (deterministic power iteration) ---------------- */
+  function pca2(vs) {
+    const n = vs.length;
+    const mean = new Float64Array(D);
+    vs.forEach((v) => { for (let i = 0; i < D; i++) mean[i] += v[i] / n; });
+    const X = vs.map((v) => v.map((x, i) => x - mean[i]));
+    const comps = [];
+    for (let c = 0; c < 2; c++) {
+      let u = new Float64Array(D).map((_, i) => Math.sin(i * 1.7 + c * 2.3 + 1));
+      for (let it = 0; it < 60; it++) {
+        const nu = new Float64Array(D);
+        X.forEach((x) => { const p = dot(x, u); for (let i = 0; i < D; i++) nu[i] += p * x[i]; });
+        comps.forEach((pc) => { const p = dot(nu, pc); for (let i = 0; i < D; i++) nu[i] -= p * pc[i]; });
+        const len = Math.sqrt(dot(nu, nu)) || 1;
+        u = nu.map((x) => x / len);
+      }
+      comps.push(u);
+    }
+    return { project: (v) => { const x = v.map((a, i) => a - mean[i]); return [dot(x, comps[0]), dot(x, comps[1])]; } };
+  }
+
+  /* ---------------- state ---------------- */
+  const S = { size: 60, overlap: 10, k: 3, floor: 0.05, budget: 600, query: '', example: null, sel: null };
+  let chunks = [], idf = null, proj = null, ranked = [], qvec = null;
+  const tokEst = (words) => Math.ceil(words * 1.3);
+  const SYS = 'SYSTEM: Answer using only the context below. If the answer is not in the context, say you do not know.';
+
+  function rechunk() {
+    const size = S.size, ov = Math.min(S.overlap, size - 1), stride = size - ov;
+    chunks = [];
+    for (let start = 0; ; start += stride) {
+      const end = Math.min(start + size, N);
+      const text = WORDS.slice(start, end).map((x) => x.w).join(' ');
+      chunks.push({ id: chunks.length, start, end, text, toks: tokens(text) });
+      if (end >= N) break;
+    }
+    const df = new Map();
+    chunks.forEach((c) => new Set(c.toks).forEach((t) => df.set(t, (df.get(t) || 0) + 1)));
+    idf = new Map();
+    df.forEach((d, t) => idf.set(t, Math.log(1 + chunks.length / d)));
+    idf.default = Math.log(1 + chunks.length);
+    chunks.forEach((c) => { c.vec = vectorize(c.toks, idf); });
+    proj = chunks.length > 2 ? pca2(chunks.map((c) => c.vec)) : null;
+    chunks.forEach((c) => { c.xy = proj ? proj.project(c.vec) : [c.id, 0]; });
+    const dup = chunks.reduce((n, c) => n + (c.end - c.start), 0) - N;
+    $('[data-testid=word-count]').textContent = N;
+    $('[data-testid=chunk-count]').textContent = chunks.length;
+    $('[data-testid=stride]').textContent = stride;
+    $('[data-testid=dup-words]').textContent = dup;
+  }
+
+  function retrieve() {
+    ranked = [];
+    qvec = null;
+    if (!S.query.trim()) return;
+    qvec = vectorize(tokens(S.query), idf);
+    ranked = chunks.map((c) => ({ c, score: dot(qvec, c.vec) })).sort((a, b) => b.score - a.score || a.c.id - b.c.id);
+  }
+
+  const topK = () => ranked.filter((r) => r.score >= S.floor).slice(0, S.k);
+  function pack() {
+    const top = topK();
+    const qline = 'QUESTION: ' + S.query.trim();
+    let used = tokEst((SYS + ' CONTEXT: ' + qline).split(/\s+/).length);
+    const inCtx = [], dropped = [];
+    top.forEach((r) => {
+      const cost = tokEst(r.c.end - r.c.start) + 4;
+      if (used + cost <= S.budget) { inCtx.push(r); used += cost; } else dropped.push(r);
+    });
+    const text = !S.query.trim() ? '' : [SYS, '', 'CONTEXT:', ...inCtx.map((r) => `[chunk ${r.c.id} · score ${r.score.toFixed(3)}]\n${r.c.text}\n`), inCtx.length ? '' : top.length ? '(no chunks fit the budget)\n' : '(no chunk passed the similarity floor)\n', qline].join('\n');
+    return { inCtx, dropped, used, text };
+  }
+
+  function verdictFor(p) {
+    const ex = S.example != null ? EXAMPLES[S.example] : null;
+    if (!S.query.trim()) return { state: 'none', title: 'Ask a question', body: 'Pick an example to compare the retrieved context with a known answer.' };
+    if (!ex || ex.q !== S.query.trim()) return { state: 'none', title: 'No answer key', body: 'Custom questions have no known answer, so check the context yourself. The near misses below are what top-k left out.' };
+    const [a, b] = ex.span;
+    const whole = p.inCtx.some((r) => r.c.start <= a && r.c.end >= b);
+        if (whole) return { state: 'found', title: 'Found', body: 'The complete answer sentence is inside the context the model receives.' };
+    const cover = new Set();
+    p.inCtx.forEach((r) => { for (let i = Math.max(a, r.c.start); i < Math.min(b, r.c.end); i++) cover.add(i); });
+    const wholeRetrievedButDropped = p.dropped.some((r) => r.c.start <= a && r.c.end >= b);
+    if (wholeRetrievedButDropped) return { state: 'budget', title: 'Retrieved, then dropped', body: 'A chunk holding the answer ranked in the top-k but did not fit the context budget.' };
+    if (cover.size === b - a) return { state: 'split', title: 'Split across chunks', body: `All ${b - a} answer words reached the model, but cut into separate chunks at a boundary — the model has to stitch the sentence back together. A little overlap keeps it in one piece.` };
+    if (cover.size > 0) return { state: 'split', title: 'Split across chunks', body: `Only ${cover.size} of ${b - a} answer words reached the model — the answer straddles a chunk boundary${chunks.some((c) => c.start <= a && c.end >= b) ? ' and the chunk that holds it whole was not retrieved' : ''}. More overlap or bigger chunks keep it whole.` };
+    const best = chunks.find((c) => c.start <= a && c.end >= b) || chunks.find((c) => c.start < b && c.end > a);
+    const rank = ranked.findIndex((r) => r.c === best) + 1;
+    return { state: 'missed', title: 'Missed', body: `None of the answer reached the model. The chunk that contains it ranked #${rank} with score ${ranked[rank - 1].score.toFixed(3)}${rank && ranked[rank - 1].score <= 0.001 ? ' — it shares no words with the question' : ''}.` };
+  }
+
+  /* ---------------- rendering ---------------- */
+  function renderDoc(p) {
+    const owner = new Int32Array(N).fill(-1), count = new Int8Array(N);
+    chunks.forEach((c) => { for (let i = c.start; i < c.end; i++) { if (owner[i] < 0) owner[i] = c.id; count[i]++; } });
+    const hit = new Set();
+    p.inCtx.forEach((r) => { for (let i = r.c.start; i < r.c.end; i++) hit.add(i); });
+    const ex = S.example != null && EXAMPLES[S.example].q === S.query.trim() ? EXAMPLES[S.example] : null;
+    const starts = new Set(chunks.map((c) => c.start));
+    let html = '';
+    BLOCKS.forEach((b) => {
+      const inner = [];
+      for (let i = b.start; i < b.start + b.len; i++) {
+        const cls = ['w', 'c' + (owner[i] % 2)];
+        if (count[i] > 1) cls.push('ov');
+        if (hit.has(i)) cls.push('hit');
+        if (ex && i >= ex.span[0] && i < ex.span[1]) cls.push('ans');
+        if (ex && starts.has(i) && i > ex.span[0] && i < ex.span[1]) cls.push('cut');
+        inner.push(`<span class="${cls.join(' ')}" data-i="${i}">${esc(WORDS[i].w)}</span>`);
+      }
+      html += b.kind === 'h' ? `<h3>${inner.join(' ')}</h3>` : `<p>${inner.join(' ')}</p>`;
+    });
+    $('#doc').innerHTML = html;
+  }
+  function renderMap(p) {
+    const svg = $('#map');
+    const W = 400, H = 320, pad = 26;
+    const pts = chunks.map((c) => c.xy);
+    const qxy = qvec && proj ? proj.project(qvec) : null;
+    const all = qxy ? pts.concat([qxy]) : pts;
+    const xs = all.map((p2) => p2[0]), ys = all.map((p2) => p2[1]);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const sx = (x) => pad + (x1 - x0 ? (x - x0) / (x1 - x0) : .5) * (W - 2 * pad);
+    const sy = (y) => pad + (y1 - y0 ? (y - y0) / (y1 - y0) : .5) * (H - 2 * pad);
+    const inIds = new Set(p.inCtx.map((r) => r.c.id));
+    const topIds = new Set(topK().map((r) => r.c.id));
+    let g = '';
+    for (let i = 1; i < 8; i++) g += `<line x1="${i * W / 8}" y1="0" x2="${i * W / 8}" y2="${H}" stroke="#20254d" stroke-width="1"/><line x1="0" y1="${i * H / 8}" x2="${W}" y2="${i * H / 8}" stroke="#20254d" stroke-width="1"/>`;
+    if (qxy) topIds.forEach((id) => { const c = chunks[id]; g += `<line x1="${sx(qxy[0])}" y1="${sy(qxy[1])}" x2="${sx(c.xy[0])}" y2="${sy(c.xy[1])}" stroke="${inIds.has(id) ? '#5ef2c2' : '#ff7a90'}" stroke-width="1.4" stroke-dasharray="${inIds.has(id) ? '0' : '4 3'}" opacity=".8"/>`; });
+    chunks.forEach((c) => {
+      const on = inIds.has(c.id), top = topIds.has(c.id);
+      const r = ranked.find((x) => x.c === c);
+      g += `<g class="pt" tabindex="0" role="button" data-id="${c.id}" data-testid="pt-${c.id}" data-top="${top}" aria-label="Chunk ${c.id}${r ? ', score ' + r.score.toFixed(3) : ''}${on ? ', in context' : ''}">
+        ${on ? `<circle cx="${sx(c.xy[0])}" cy="${sy(c.xy[1])}" r="11" fill="rgba(94,242,194,.18)"/>` : ''}
+        <circle class="dot" cx="${sx(c.xy[0])}" cy="${sy(c.xy[1])}" r="${on ? 6 : 4.5}" fill="${on ? '#5ef2c2' : top ? '#ff7a90' : '#a58bff'}" stroke="#0d1024" stroke-width="1.5"/>
+        <text x="${sx(c.xy[0]) + 8}" y="${sy(c.xy[1]) + 4}" fill="#a9acd6" font-size="10" font-family="ui-monospace, monospace">${c.id}</text></g>`;
+    });
+    if (qxy) {
+      const cx = sx(qxy[0]), cy = sy(qxy[1]);
+      const star = Array.from({ length: 10 }, (_, i) => { const rr = i % 2 ? 4.5 : 11; const a = -Math.PI / 2 + i * Math.PI / 5; return `${(cx + rr * Math.cos(a)).toFixed(1)},${(cy + rr * Math.sin(a)).toFixed(1)}`; }).join(' ');
+      g += `<polygon points="${star}" fill="#ffc857" stroke="#0d1024" stroke-width="1.5" data-testid="query-star"><title>Your question</title></polygon>`;
+    }
+    svg.innerHTML = g;
+  }
+  function renderResults(p) {
+    const inIds = new Set(p.inCtx.map((r) => r.c.id));
+    const drop = new Set(p.dropped.map((r) => r.c.id));
+    const ol = $('#results');
+    if (!ranked.length) { ol.innerHTML = '<li class="res"><span></span><span class="tx">No question yet.</span><span></span></li>'; return; }
+    const tk = topK();
+    if (!tk.length) { ol.innerHTML = '<li class="res"><span></span><span class="tx">No chunk reached the similarity floor.</span><span></span></li>'; return; }
+    ol.innerHTML = tk.map((r) => `<li class="res ${inIds.has(r.c.id) ? 'in' : ''} ${drop.has(r.c.id) ? 'dropped' : ''}" data-testid="result" data-id="${r.c.id}" data-score="${r.score.toFixed(4)}">
+      <span class="id">#${r.c.id}</span><span class="tx" title="${esc(r.c.text)}">${drop.has(r.c.id) ? '<span class="tag">dropped for budget · </span>' : ''}${esc(r.c.text)}</span><span class="sc">${r.score.toFixed(3)}</span>
+      <span class="bar"><i style="width:${Math.max(0, r.score) * 100}%"></i></span></li>`).join('');
+  }
+  function renderContext(p) {
+    $('#ctx').textContent = p.text || 'The assembled prompt will appear here.';
+    const used = S.query.trim() ? p.used : 0;
+    $('[data-testid=ctx-tokens]').textContent = `≈${used} / ${S.budget} tokens`;
+    $('#meter i').style.width = Math.min(100, used / S.budget * 100) + '%';
+    $('#meter').classList.toggle('full', used / S.budget > .9);
+  }
+  function renderVerdict(p) {
+    const v = verdictFor(p);
+    const el = $('#verdict');
+    el.dataset.state = v.state;
+    el.innerHTML = `<b class="v">${v.title}</b>${v.body}`;
+    const tkn = topK().length;
+    const near = ranked.slice(tkn, tkn + 3);
+    $('#near').innerHTML = near.length ? near.map((r) => `<li>Just outside top-k: <b>#${r.c.id}</b> (${r.score.toFixed(3)}) “${esc(r.c.text.split(' ').slice(0, 9).join(' '))}…”</li>`).join('') : '';
+    return v;
+  }
+  function peek(id) {
+    const c = chunks[id]; if (!c) return;
+    const r = ranked.find((x) => x.c === c);
+    $('#peek').innerHTML = `<b>chunk ${c.id}</b> · words ${c.start}–${c.end - 1}${r ? ' · score ' + r.score.toFixed(3) : ''}<br>${esc(c.text)}`;
+  }
+
+  function run(announce) {
+    retrieve();
+    const p = pack();
+    renderDoc(p); renderMap(p); renderResults(p); renderContext(p);
+    const v = renderVerdict(p);
+    if (announce && S.query.trim()) $('[data-testid=announce]').textContent = `Retrieved ${topK().length} chunks, ${p.inCtx.length} fit the budget. ${v.state === 'none' ? '' : 'Answer: ' + v.title + '.'}`;
+    $('#examples').querySelectorAll('.ex').forEach((b, i) => b.setAttribute('aria-pressed', String(S.example === i && EXAMPLES[i].q === S.query.trim())));
+  }
+
+  /* ---------------- wiring ---------------- */
+  const bindRange = (id, key, outId, after) => $(id).addEventListener('input', (e) => {
+    S[key] = +e.target.value;
+    if (key === 'size' || key === 'overlap') {
+      const maxOv = Math.min(60, S.size - 5);
+      $('#overlap').max = String(maxOv);
+      if (S.overlap > maxOv) { S.overlap = maxOv; $('#overlap').value = String(maxOv); }
+      $('#ov-out').textContent = S.overlap;
+      $('#size-out').textContent = S.size;
+      rechunk();
+    }
+    $(outId).textContent = S[key];
+    run(true);
+  });
+  bindRange('#size', 'size', '#size-out');
+  bindRange('#overlap', 'overlap', '#ov-out');
+  bindRange('#k', 'k', '#k-out');
+  bindRange('#budget', 'budget', '#budget-out');
+  $('#floor').addEventListener('input', (e) => { S.floor = +e.target.value; $('#floor-out').textContent = S.floor.toFixed(2); run(true); });
+  $('#qform').addEventListener('submit', (e) => { e.preventDefault(); S.query = $('#query').value; const i = EXAMPLES.findIndex((x) => x.q === S.query.trim()); S.example = i >= 0 ? i : null; run(true); });
+  const exWrap = $('#examples');
+  EXAMPLES.forEach((ex, i) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'ex'; b.textContent = ex.q; b.setAttribute('data-testid', 'example-' + i);
+    b.addEventListener('click', () => {
+      S.query = ex.q; S.example = i; $('#query').value = ex.q; run(true);
+      // bring the answer into view inside the document pane without moving the page
+      const doc = $('#doc'), w = doc.querySelector(`[data-i="${ex.span[0]}"]`);
+      if (w) doc.scrollTop = Math.max(0, w.offsetTop - 60);
+    });
+    exWrap.appendChild(b);
+  });
+  const svg = $('#map');
+  svg.addEventListener('pointerover', (e) => { const g = e.target.closest('.pt'); if (g) peek(+g.dataset.id); });
+  svg.addEventListener('focusin', (e) => { const g = e.target.closest('.pt'); if (g) peek(+g.dataset.id); });
+  svg.addEventListener('click', (e) => { const g = e.target.closest('.pt'); if (g) { peek(+g.dataset.id); const w = $(`#doc [data-i="${chunks[+g.dataset.id].start}"]`); if (w) w.scrollIntoView({ block: 'nearest' }); } });
+  svg.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('.pt')) { e.preventDefault(); e.target.closest('.pt').dispatchEvent(new MouseEvent('click', { bubbles: true })); } });
+
+  window.__rag = { chunks: () => chunks.map((c) => ({ id: c.id, start: c.start, end: c.end })), N, examples: EXAMPLES.map((e) => ({ q: e.q, span: e.span })) };
+  $('#overlap').max = String(Math.min(60, S.size - 5));
+  rechunk();
+  run(false);
+})();
+</script>
+</body>
+</html>

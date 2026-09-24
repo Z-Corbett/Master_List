@@ -4,7 +4,8 @@
 import { readFile, readdir, writeFile, access } from 'node:fs/promises';
 
 const exists = (p) => access(p).then(() => true, () => false);
-const countTests = (src) => (src.match(/\btest\(\s*['"`]/g) || []).length;
+// Only count `test(` that starts a statement: specs can assert on generated code containing "test('…'" strings.
+const countTests = (src) => (src.match(/^\s*test\(\s*['"`]/gm) || []).length;
 // Every conditional skip in this repo is `test.skip(isMobile, ...)`: it skips on exactly one of the two projects.
 const countSkips = (src) => (src.match(/\btest\.skip\(\s*isMobile\b/g) || []).length;
 const PROJECTS_PER_RUN = 2; // desktop + mobile (playwright.config.ts)

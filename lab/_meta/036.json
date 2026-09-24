@@ -1,0 +1,34 @@
+{
+  "id": "036",
+  "slug": "036-exploratory-charters",
+  "file": "lab/036-exploratory-charters.html",
+  "title": "Exploratory Testing Charters — Session-Based Test Kit",
+  "category": "QA & Testing",
+  "tags": ["exploratory-testing", "sbtm", "timer", "seeded-random", "localStorage"],
+  "description": "A session-based exploratory testing kit for a fictional library app: draw charter cards in the form 'Explore <area> with <resources> to discover <information>', edit them, and run a timeboxed session that tracks the test / bug-investigation / setup split and which product area you're in. Quick-tag notes as bug, question, idea or risk, then end the session for a debrief report with time split, findings by tag and a coverage heat strip; past sessions are saved in your browser.",
+  "prompt": "Build 'Exploratory Testing Charters', a kit for session-based exploratory testing. Give me a deck of charter cards in the 'Explore <area> with <resources> to discover <information>' format for a fictional app, a way to draw and edit charters, a timeboxed session timer with pause, a toggle for what I'm doing right now (testing, bug investigation, setup) and which area I'm in, and quick-tag notes (bug / question / idea / risk) that record when and where they were taken. When I end the session, give me a debrief report: duration against the timebox, the T/B/S time split, findings by tag, and a coverage heat strip across the app's areas. Save sessions in localStorage and let me reopen old reports. Draws must be reproducible with ?seed=. Give it a 1970s index-card look — manila, mustard, burnt orange, typewriter text on ruled cards.",
+  "qa": {
+    "methodology": [
+      "Seeded randomness: ?seed=7 must deal the same two cards in the same order on every run and every project; a second seed must deal a different first card.",
+      "Controlled time: page.clock is installed and immediately paused, and the spec advances it only with fastForward, so 10 + 5 + 5 minutes across three modes must report exactly 10:00 / 5:00 / 5:00 and a 50/25/25 split.",
+      "Pause semantics: 30 fast-forwarded minutes while paused must leave the timer at exactly 20:00.",
+      "Boundary around the timebox: no banner at 29 minutes, banner and '02:30 over' at 32:30, and the report states the same overrun.",
+      "Attribution of notes: each note must carry the elapsed time, area and mode that were current when it was written, and the heat strip minutes must match the time spent per area (3 and 5 minutes).",
+      "Persistence across reload: history, note counts and the reopened report come back from localStorage, and deleting the shown session hides its report."
+    ],
+    "risks": [
+      "Time accounting drifting if accrual is skipped on a mode or area switch — every switch settles the running segment before changing state.",
+      "setInterval-driven display lagging behind the stored state; the display is derived from timestamps on each tick, never from counting ticks.",
+      "An in-progress session restored after a reload on a different day would count the gap as test time (a known limitation; pausing before leaving avoids it)."
+    ],
+    "playwright": "Time was the hard part and the clock API made it tractable: install at a fixed instant, pauseAt a few seconds later, then fastForward whole minutes so assertions can use exact mm:ss strings instead of ranges. fastForward was preferred over runFor because the page ticks every 250 ms and replaying every frame for a 30-minute span is slow. Randomness is pinned with ?seed= and a mulberry32 PRNG, so the charter text is asserted verbatim. The prefix shortcut (typing 'q: ') was exercised with pressSequentially rather than fill, since it reacts to individual input events — which is how the first run caught a stray leading space.",
+    "coverage": [
+      "Seeded deck order, re-selecting a drawn card, editing charter fields, different seed",
+      "Test / bug / setup split, pause and resume, debrief duration and percentages",
+      "Timebox banner and overrun reporting",
+      "Tagged notes with time, area and mode; prefix shortcut; findings counts; coverage heat strip minutes",
+      "History persists across reload, report reopens, delete"
+    ]
+  },
+  "a11y": "Mode, area and note-tag pickers are roving-tabindex radiogroups operable with arrow keys, the note field supports typed tag prefixes so tagging never needs the mouse, and the timebox banner and new notes are announced through live regions. The debrief report takes focus when it opens, and the heat strip cells carry text labels with minutes and note counts."
+}
