@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Offline Strategies Lab — caching strategies, simulated</title>
+<meta name="description" content="A simulation (no real service worker) of five caching strategies side by side: cache-first, network-first, stale-while-revalidate, network-only and cache-only. Toggle offline and slow network, publish server updates, send requests on a timeline and compare which source answered, how long it took and how stale the answer was.">
+<style>
+  :root {
+    --bg: #eaf1f7;
+    --bg-2: #dfe9f2;
+    --card: #ffffff;
+    --ink: #13253a;
+    --ink-2: #4b5f75;
+    --ink-3: #8597ab;
+    --line: #cfdbe7;
+    --cache: #1f9d6b;
+    --net: #2f6fd6;
+    --fall: #e2912b;
+    --fail: #d9453b;
+    --font: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    --round: "Segoe UI Variable Display", "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+    --mono: "Cascadia Mono", Consolas, "SF Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: linear-gradient(180deg, #d7e6f3 0, var(--bg) 340px); color: var(--ink); font: 15px/1.45 var(--font); overflow-x: hidden; min-height: 100vh; }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  input, select, pre { max-width: 100%; }
+  :focus-visible { outline: 3px solid var(--fall); outline-offset: 2px; }
+  .back { position: fixed; top: 10px; left: 10px; z-index: 50; background: var(--ink); color: #fff; text-decoration: none; font: 600 13px/1 var(--font); padding: 8px 13px; border-radius: 999px; }
+
+  header { max-width: 1280px; margin: 0 auto; padding: 60px 20px 14px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; align-items: end; }
+  .sim { display: inline-block; font: 700 11px var(--font); letter-spacing: .14em; text-transform: uppercase; background: var(--fall); color: #fff; padding: 3px 9px; border-radius: 999px; }
+  h1 { font: 700 clamp(30px, 5.8vw, 58px)/1.02 var(--round); margin: 8px 0 8px; letter-spacing: -.02em; }
+  .lede { margin: 0; max-width: 68ch; color: var(--ink-2); }
+  .clock { background: var(--card); border-radius: 18px; padding: 12px 18px; box-shadow: 0 6px 20px rgba(19,37,58,.08); display: flex; gap: 18px; align-items: center; }
+  .clock div { text-align: center; }
+  .clock b { display: block; font: 700 26px/1 var(--mono); }
+  .clock span { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-2); }
+  .clock .on { color: var(--cache); } .clock .off { color: var(--fail); }
+
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 8px 20px 50px; }
+  .controls { background: var(--card); border-radius: 18px; padding: 14px 16px; box-shadow: 0 6px 20px rgba(19,37,58,.06); display: grid; gap: 12px; margin-bottom: 18px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; }
+  .row .lbl { font: 700 11px var(--font); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); min-width: 76px; }
+  .switch { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px 5px 6px; background: var(--bg); font-size: 14px; }
+  .switch[aria-checked="true"] { border-color: var(--ink); }
+  .switch .knob { width: 34px; height: 20px; border-radius: 999px; background: var(--ink-3); position: relative; transition: background .15s; flex: none; }
+  .switch .knob::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; }
+  .switch[aria-checked="true"] .knob { background: var(--ink); }
+  .switch[aria-checked="true"] .knob::after { transform: translateX(14px); }
+  .switch.danger[aria-checked="true"] .knob { background: var(--fail); }
+  .btn { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 6px 14px; font-size: 14px; }
+  .btn:hover { border-color: var(--ink); }
+  .btn.primary { background: var(--net); border-color: var(--net); color: #fff; font-weight: 600; }
+  .btn.warm { background: var(--fall); border-color: var(--fall); color: #fff; font-weight: 600; }
+
+  .lanes { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
+  .lane { background: var(--card); border-radius: 16px; padding: 12px 14px; box-shadow: 0 4px 14px rgba(19,37,58,.06); min-width: 0; display: grid; gap: 6px; align-content: start; border-top: 5px solid var(--c); }
+  .lane h3 { margin: 0; font: 700 16px var(--round); }
+  .lane p { margin: 0; font-size: 12.5px; color: var(--ink-2); }
+  .lane .cache { font: 12px var(--mono); color: var(--ink-2); background: var(--bg); border-radius: 8px; padding: 5px 8px; overflow-wrap: anywhere; }
+  .lane .last { border-radius: 10px; padding: 8px 10px; font-size: 13px; background: var(--bg); min-height: 58px; }
+  .lane .last b { display: block; font: 700 15px var(--round); }
+  .last.cache b, .src-cache { color: var(--cache); } .last.network b, .src-network { color: var(--net); }
+  .last.fallback b, .src-fallback { color: var(--fall); } .last.fail b, .src-fail { color: var(--fail); }
+
+  .card { background: var(--card); border-radius: 18px; padding: 14px 16px; box-shadow: 0 6px 20px rgba(19,37,58,.06); margin-bottom: 18px; min-width: 0; }
+  .card h2 { margin: 0 0 10px; font: 700 17px var(--round); display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .card h2 small { font: 400 12.5px var(--font); color: var(--ink-3); }
+  .scroll { overflow-x: auto; }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12.5px; color: var(--ink-2); margin-top: 8px; }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th { text-align: left; font: 700 11px var(--font); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); padding: 6px 8px; border-bottom: 2px solid var(--line); white-space: nowrap; }
+  td { padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.num { font-family: var(--mono); text-align: right; white-space: nowrap; }
+  td.cell { font: 12.5px var(--mono); white-space: nowrap; }
+  td.cell small { color: var(--ink-3); }
+  .best { font-weight: 700; background: #e9f7f0; }
+  .grid2 { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .notes { font-size: 13.5px; color: var(--ink-2); }
+  .notes dt { font-weight: 700; color: var(--ink); margin-top: 8px; }
+  .notes dd { margin: 2px 0 0; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  footer { max-width: 1280px; margin: 0 auto; padding: 0 20px 30px; font-size: 12.5px; color: var(--ink-3); }
+
+  @media (max-width: 1100px) { .lanes { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (max-width: 900px) { header, .grid2 { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 560px) {
+    header, .wrap, footer { padding-left: 12px; padding-right: 12px; }
+    .lanes { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .clock { gap: 12px; padding: 10px 12px; flex-wrap: wrap; }
+    .clock b { font-size: 20px; }
+    .row .lbl { min-width: 0; flex-basis: 100%; }
+  }
+  @media (prefers-reduced-motion: reduce) { .switch .knob, .switch .knob::after { transition: none; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+
+<header>
+  <div>
+    <span class="sim">Simulation · no real service worker</span>
+    <h1>Offline Strategies Lab</h1>
+    <p class="lede">Five copies of the same app, each with a different service-worker caching strategy, all asking for <code>/api/menu.json</code> at the same moments. Pull the plug, slow the network, ship a new version — and see who answers, how fast, and with how old a copy.</p>
+  </div>
+  <div class="clock" aria-live="polite">
+    <div><b data-testid="clock">0.0 s</b><span>sim time</span></div>
+    <div><b data-testid="server-version">v1</b><span>on server</span></div>
+    <div><b data-testid="net-state" class="on">online</b><span>network</span></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="controls" aria-label="Controls">
+    <div class="row"><span class="lbl">Network</span>
+      <button type="button" class="switch danger" role="switch" aria-checked="false" data-testid="offline"><span class="knob"></span>Offline</button>
+      <button type="button" class="switch" role="switch" aria-checked="false" data-testid="slow"><span class="knob"></span>Slow network (4 s)</button>
+      <button type="button" class="switch" role="switch" aria-checked="true" data-testid="nf-timeout"><span class="knob"></span>Network-first gives up after 3 s</button>
+    </div>
+    <div class="row"><span class="lbl">Actions</span>
+      <button type="button" class="btn primary" data-testid="send">Send request</button>
+      <button type="button" class="btn warm" data-testid="publish">Publish update on server</button>
+      <button type="button" class="btn" data-testid="wait-1">Wait 1 s</button>
+      <button type="button" class="btn" data-testid="wait-10">Wait 10 s</button>
+      <button type="button" class="btn" data-testid="clear-caches">Evict caches</button>
+    </div>
+    <div class="row"><span class="lbl">Start over</span>
+      <button type="button" class="switch" role="switch" aria-checked="true" data-testid="precache"><span class="knob"></span>Precache v1 on install</button>
+      <button type="button" class="btn" data-testid="reset">Reset</button>
+      <button type="button" class="btn" data-testid="scenario-commute">Play: the tunnel commute</button>
+      <button type="button" class="btn" data-testid="scenario-release">Play: release day</button>
+    </div>
+  </section>
+
+  <section class="lanes" data-testid="lanes" aria-label="Strategies"></section>
+
+  <section class="card" aria-labelledby="h-tl">
+    <h2 id="h-tl">Timeline <small>each bar is one response; dashed lines are background refreshes</small></h2>
+    <div class="scroll"><svg data-testid="timeline" role="img" aria-label="Timeline of requests per strategy"></svg></div>
+    <div class="legend" aria-hidden="true"><span><i style="background:var(--cache)"></i>cache</span><span><i style="background:var(--net)"></i>network</span><span><i style="background:var(--fall)"></i>cache after network failed or timed out</span><span><i style="background:var(--fail)"></i>failed</span><span><i style="background:repeating-linear-gradient(45deg,#f6d3d0 0 3px,#fff 3px 6px)"></i>offline</span><span><i style="background:#fdebd3"></i>slow</span></div>
+  </section>
+
+  <div class="grid2">
+    <section class="card" aria-labelledby="h-cmp">
+      <h2 id="h-cmp">Comparison <small>over all requests so far</small></h2>
+      <div class="scroll"><table data-testid="compare"></table></div>
+    </section>
+    <section class="card" aria-labelledby="h-log">
+      <h2 id="h-log">Request log <small>version · source · latency · versions behind</small></h2>
+      <div class="scroll" style="max-height:360px;overflow:auto"><table data-testid="log"></table></div>
+    </section>
+  </div>
+
+  <section class="card notes" aria-label="How the simulation works">
+    <h2>How this simulation works</h2>
+    <dl>
+      <dt>Latency</dt><dd>Cache reads take 8 ms, a network round-trip 150 ms (4 s when slow), and a request while offline fails after 30 ms.</dd>
+      <dt>When the cache changes</dt><dd>A network response is written to the cache when it arrives, not when it was requested — so a request sent before a refresh finishes still gets the old copy. Sending a request moves the clock on 0.5 s.</dd>
+      <dt>Staleness</dt><dd>“Behind” counts how many versions the server has published since the copy you got was made.</dd>
+      <dt>Simplifications</dt><dd>One URL, no HTTP caching headers, no quota or cache expiry, and no fetch retries. Real libraries differ in details such as whether a timed-out network response still updates the cache (here it does).</dd>
+    </dl>
+  </section>
+</main>
+<footer>Everything on this page is simulated in JavaScript; no service worker is registered and no network requests are made.</footer>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const CACHE_MS = 8, NET_MS = 150, SLOW_MS = 4000, FAIL_MS = 30, TIMEOUT_MS = 3000, STEP_MS = 500;
+  const STRATS = [
+    { key: 'cache-first', name: 'Cache first', c: '#1f9d6b', desc: 'Serve the cache; only go to the network when nothing is cached.' },
+    { key: 'network-first', name: 'Network first', c: '#2f6fd6', desc: 'Try the network; fall back to the cache when it fails or is too slow.' },
+    { key: 'swr', name: 'Stale-while-revalidate', c: '#8a5cd6', desc: 'Answer from the cache now, refresh it in the background.' },
+    { key: 'network-only', name: 'Network only', c: '#566b82', desc: 'Always the network. Never touches the cache.' },
+    { key: 'cache-only', name: 'Cache only', c: '#b2703a', desc: 'Only what was precached. Never the network.' },
+  ];
+
+  let S;
+  function reset() {
+    const pre = $('[data-testid="precache"]').getAttribute('aria-checked') === 'true';
+    S = { t: 0, version: 1, versions: [{ t: 0, v: 1 }], offline: false, slow: false, periods: [], reqs: [],
+      lanes: Object.fromEntries(STRATS.map((s) => [s.key, { cache: pre && s.key !== 'network-only' ? { v: 1, at: 0 } : null, pending: [], bg: [] }])) };
+    setSwitch('offline', false); setSwitch('slow', false);
+    S.periods.push({ t: 0, offline: false, slow: false });
+    render();
+  }
+  function setSwitch(id, on) { $(`[data-testid="${id}"]`).setAttribute('aria-checked', String(on)); }
+  const timeoutOn = () => $('[data-testid="nf-timeout"]').getAttribute('aria-checked') === 'true';
+
+  // apply every cache write that has landed by time t, in arrival order
+  function flush(t) {
+    STRATS.forEach(({ key }) => {
+      const L = S.lanes[key];
+      L.pending.sort((a, b) => a.at - b.at);
+      while (L.pending.length && L.pending[0].at <= t) { const w = L.pending.shift(); L.cache = { v: w.v, at: w.at }; }
+    });
+  }
+  function advance(ms) { S.t += ms; flush(S.t); }
+
+  function respond(key, t) {
+    const L = S.lanes[key];
+    const net = S.slow ? SLOW_MS : NET_MS;
+    const v = S.version;
+    const cached = L.cache;
+    const ok = (source, latency, ver, extra) => Object.assign({ ok: true, source, latency, v: ver, behind: v - ver }, extra || {});
+    const fail = (latency, why) => ({ ok: false, source: 'fail', latency, v: null, behind: null, why });
+    const fetchOk = () => !S.offline;
+    switch (key) {
+      case 'cache-first':
+        if (cached) return ok('cache', CACHE_MS, cached.v);
+        if (!fetchOk()) return fail(FAIL_MS, 'offline and nothing cached');
+        L.pending.push({ at: t + net, v }); return ok('network', net, v);
+      case 'network-first':
+        if (!fetchOk()) return cached ? ok('fallback', FAIL_MS + CACHE_MS, cached.v, { why: 'offline — served the cached copy' }) : fail(FAIL_MS, 'offline and nothing cached');
+        L.pending.push({ at: t + net, v });
+        if (timeoutOn() && net > TIMEOUT_MS && cached) { L.bg.push({ t, at: t + net }); return ok('fallback', TIMEOUT_MS + CACHE_MS, cached.v, { why: 'network took over 3 s — served the cached copy; the late response still updates the cache' }); }
+        return ok('network', net, v);
+      case 'swr':
+        if (cached) { if (fetchOk()) { L.pending.push({ at: t + net, v }); L.bg.push({ t, at: t + net }); } return ok('cache', CACHE_MS, cached.v, { why: fetchOk() ? 'refreshing in the background' : 'offline — no refresh' }); }
+        if (!fetchOk()) return fail(FAIL_MS, 'offline and nothing cached');
+        L.pending.push({ at: t + net, v }); return ok('network', net, v);
+      case 'network-only':
+        if (!fetchOk()) return fail(FAIL_MS, 'offline');
+        return ok('network', net, v);
+      case 'cache-only':
+        return cached ? ok('cache', CACHE_MS, cached.v) : fail(CACHE_MS, 'not in the cache');
+      default: return fail(0, '?');
+    }
+  }
+
+  function send() {
+    flush(S.t);
+    const t = S.t;
+    const r = { n: S.reqs.length + 1, t, offline: S.offline, slow: S.slow, server: S.version, res: {} };
+    STRATS.forEach(({ key }) => { r.res[key] = respond(key, t); });
+    S.reqs.push(r);
+    advance(STEP_MS);
+    render();
+    const f = STRATS.filter((s) => !r.res[s.key].ok).map((s) => s.name);
+    $('[data-testid="announce"]').textContent = `Request ${r.n} at ${(t / 1000).toFixed(1)} s: ${f.length ? f.join(', ') + ' failed.' : 'every strategy answered.'}`;
+  }
+  function publish() { flush(S.t); S.version += 1; S.versions.push({ t: S.t, v: S.version }); render(); $('[data-testid="announce"]').textContent = `Server now has v${S.version}.`; }
+  function toggleNet(which) {
+    flush(S.t);
+    S[which] = !S[which]; setSwitch(which, S[which]);
+    S.periods.push({ t: S.t, offline: S.offline, slow: S.slow });
+    render();
+  }
+
+  // ---------- stats ----------
+  function stats(key) {
+    const rs = S.reqs.map((r) => r.res[key]);
+    const okr = rs.filter((x) => x.ok);
+    return {
+      n: rs.length, ok: okr.length, fail: rs.length - okr.length,
+      cache: okr.filter((x) => x.source === 'cache' || x.source === 'fallback').length,
+      net: okr.filter((x) => x.source === 'network').length,
+      avg: okr.length ? Math.round(okr.reduce((a, x) => a + x.latency, 0) / okr.length) : null,
+      stale: okr.filter((x) => x.behind > 0).length,
+      maxBehind: okr.reduce((a, x) => Math.max(a, x.behind), 0),
+    };
+  }
+
+  // ---------- render ----------
+  const fmtS = (ms) => (ms / 1000).toFixed(1) + ' s';
+  const srcLabel = { cache: 'from cache', network: 'from network', fallback: 'cache fallback', fail: 'failed' };
+  function render() {
+    $('[data-testid="clock"]').textContent = fmtS(S.t);
+    $('[data-testid="server-version"]').textContent = 'v' + S.version;
+    const ns = $('[data-testid="net-state"]');
+    ns.textContent = S.offline ? 'offline' : S.slow ? 'slow' : 'online'; ns.className = S.offline ? 'off' : 'on';
+    const last = S.reqs[S.reqs.length - 1];
+    $('[data-testid="lanes"]').innerHTML = STRATS.map((s) => {
+      const L = S.lanes[s.key];
+      const r = last && last.res[s.key];
+      const pend = L.pending.length ? ` · update to v${L.pending[L.pending.length - 1].v} arriving at ${fmtS(L.pending[L.pending.length - 1].at)}` : '';
+      return `<article class="lane" style="--c:${s.c}" data-testid="lane-${s.key}" aria-label="${esc(s.name)}">
+        <h3>${esc(s.name)}</h3><p>${esc(s.desc)}</p>
+        <div class="cache" data-testid="cache-${s.key}" data-v="${L.cache ? L.cache.v : ''}">${s.key === 'network-only' ? 'no cache used' : L.cache ? `cache: v${L.cache.v} (stored ${fmtS(L.cache.at)})` : 'cache: empty'}${esc(pend)}</div>
+        <div class="last ${r ? r.source : ''}" data-testid="last-${s.key}" data-source="${r ? r.source : ''}" data-version="${r && r.v !== null ? r.v : ''}" data-latency="${r ? r.latency : ''}" data-behind="${r && r.behind !== null ? r.behind : ''}">
+          ${r ? `<b>${r.ok ? 'v' + r.v + ' · ' : ''}${srcLabel[r.source]}</b>${r.latency} ms${r.ok && r.behind > 0 ? ` · <span class="src-fail">${r.behind} behind</span>` : r.ok ? ' · fresh' : ''}${r.why ? `<br><span style="color:var(--ink-3)">${esc(r.why)}</span>` : ''}` : '<span style="color:var(--ink-3)">No requests yet.</span>'}
+        </div></article>`;
+    }).join('');
+    renderCompare(); renderLog(); renderTimeline();
+  }
+  function renderCompare() {
+    const st = STRATS.map((s) => ({ s, x: stats(s.key) }));
+    const any = S.reqs.length > 0;
+    const bestAvg = Math.min(...st.filter((o) => o.x.avg !== null).map((o) => o.x.avg));
+    const minFail = Math.min(...st.map((o) => o.x.fail));
+    const minStale = Math.min(...st.map((o) => o.x.stale));
+    $('[data-testid="compare"]').innerHTML = `<thead><tr><th>Strategy</th><th>Answered</th><th>Failed</th><th>Cache</th><th>Network</th><th>Avg ms</th><th>Stale</th><th>Max behind</th></tr></thead><tbody>` +
+      st.map(({ s, x }) => `<tr data-testid="cmp-${s.key}" data-ok="${x.ok}" data-fail="${x.fail}" data-cache="${x.cache}" data-net="${x.net}" data-avg="${x.avg === null ? '' : x.avg}" data-stale="${x.stale}" data-maxbehind="${x.maxBehind}">
+        <td>${esc(s.name)}</td><td class="num">${x.ok}/${x.n}</td><td class="num${any && x.fail === minFail ? ' best' : ''}">${x.fail}</td><td class="num">${x.cache}</td><td class="num">${x.net}</td>
+        <td class="num${any && x.avg === bestAvg ? ' best' : ''}">${x.avg === null ? '—' : x.avg}</td><td class="num${any && x.stale === minStale ? ' best' : ''}">${x.stale}</td><td class="num">${x.maxBehind}</td></tr>`).join('') + '</tbody>';
+  }
+  function renderLog() {
+    $('[data-testid="log"]').innerHTML = `<thead><tr><th>#</th><th>At</th><th>Server</th>${STRATS.map((s) => `<th>${esc(s.name)}</th>`).join('')}</tr></thead><tbody>` +
+      (S.reqs.slice().reverse().map((r) => `<tr data-testid="log-row"><td class="num">${r.n}</td><td class="num">${fmtS(r.t)}${r.offline ? ' ✈' : r.slow ? ' 🐢' : ''}</td><td class="num">v${r.server}</td>${STRATS.map((s) => {
+        const x = r.res[s.key];
+        return `<td class="cell"><span class="src-${x.source}">${x.ok ? 'v' + x.v : '✕'}</span> <small>${x.source === 'fallback' ? 'cache*' : x.source} · ${x.latency} ms${x.ok && x.behind ? ' · −' + x.behind : ''}</small></td>`;
+      }).join('')}</tr>`).join('') || `<tr><td colspan="${STRATS.length + 3}" style="color:var(--ink-3)">Send a request to start.</td></tr>`) + '</tbody>';
+  }
+  function renderTimeline() {
+    const svg = $('[data-testid="timeline"]');
+    const box = Math.round(svg.parentNode.getBoundingClientRect().width) || 900;
+    const W = Math.max(560, box - 2), label = 150, laneH = 34, top = 26, H = top + STRATS.length * laneH + 24;
+    const maxBg = Math.max(0, ...STRATS.flatMap((s) => S.lanes[s.key].bg.map((b) => b.at)));
+    const span = Math.max(3000, S.t, ...S.reqs.map((r) => r.t + Math.max(...STRATS.map((s) => r.res[s.key].latency))), maxBg) * 1.04;
+    const X = (ms) => { const v = label + (ms / span) * (W - label - 10); return Number.isFinite(v) ? v : label; };
+    let h = '<defs><pattern id="offp" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#fff"/><rect width="3" height="6" fill="#f6d3d0"/></pattern></defs>';
+    // network condition periods
+    S.periods.forEach((p, i) => {
+      const end = i + 1 < S.periods.length ? S.periods[i + 1].t : span;
+      if (!p.offline && !p.slow) return;
+      h += `<rect x="${X(p.t).toFixed(1)}" y="${top - 6}" width="${Math.max(0, X(end) - X(p.t)).toFixed(1)}" height="${STRATS.length * laneH + 6}" fill="${p.offline ? 'url(#offp)' : '#fdebd3'}"/>`;
+    });
+    STRATS.forEach((s, i) => { const y = top + i * laneH; h += `<text x="6" y="${y + laneH / 2 + 4}" font-size="12" font-weight="700" fill="#13253a">${esc(s.name)}</text><line x1="${label}" y1="${y + laneH - 2}" x2="${W - 10}" y2="${y + laneH - 2}" stroke="#e3ebf3"/>`; });
+    // ticks
+    const step = span > 60000 ? 10000 : span > 20000 ? 5000 : span > 8000 ? 2000 : 1000;
+    for (let m = 0; m <= span; m += step) { const x = X(m); h += `<line x1="${x.toFixed(1)}" y1="${top - 8}" x2="${x.toFixed(1)}" y2="${H - 20}" stroke="#eef3f8"/><text x="${x.toFixed(1)}" y="${H - 6}" font-size="10" fill="#8597ab" text-anchor="middle">${m / 1000}s</text>`; }
+    // server versions
+    S.versions.slice(1).forEach((v) => { const x = X(v.t); h += `<line x1="${x.toFixed(1)}" y1="${top - 12}" x2="${x.toFixed(1)}" y2="${H - 20}" stroke="#e2912b" stroke-width="1.5" stroke-dasharray="3 3"/><text x="${(x + 3).toFixed(1)}" y="${top - 12}" font-size="10.5" font-weight="700" fill="#e2912b">v${v.v}</text>`; });
+    const COL = { cache: '#1f9d6b', network: '#2f6fd6', fallback: '#e2912b', fail: '#d9453b' };
+    STRATS.forEach((s, i) => {
+      const y = top + i * laneH + 6;
+      S.lanes[s.key].bg.forEach((b) => { h += `<line x1="${X(b.t).toFixed(1)}" y1="${y + 17}" x2="${X(b.at).toFixed(1)}" y2="${y + 17}" stroke="#2f6fd6" stroke-dasharray="3 3" stroke-width="1.5"/><circle cx="${X(b.at).toFixed(1)}" cy="${y + 17}" r="3" fill="#2f6fd6"/>`; });
+      S.reqs.forEach((r) => {
+        const x = r.res[s.key]; const x0 = X(r.t), w = Math.max(3, X(r.t + x.latency) - x0);
+        h += `<rect x="${x0.toFixed(1)}" y="${y}" width="${w.toFixed(1)}" height="14" rx="3" fill="${COL[x.source]}"><title>#${r.n} ${esc(s.name)}: ${srcLabel[x.source]}, ${x.latency} ms${x.ok ? ', v' + x.v : ''}</title></rect>`;
+        if (w > 18 && x.ok) h += `<text x="${(x0 + 3).toFixed(1)}" y="${y + 11}" font-size="9.5" fill="#fff" font-weight="700">v${x.v}</text>`;
+      });
+    });
+    h += `<line x1="${X(S.t).toFixed(1)}" y1="${top - 10}" x2="${X(S.t).toFixed(1)}" y2="${H - 20}" stroke="#13253a" stroke-width="1.5"/><text x="${Math.min(W - 30, X(S.t) + 3).toFixed(1)}" y="${top - 14}" font-size="10" fill="#13253a">now</text>`;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('width', W); svg.setAttribute('height', H);
+    svg.innerHTML = h;
+  }
+
+  // ---------- scenarios ----------
+  const SCEN = {
+    commute: ['send', 'wait-10', 'offline', 'send', 'publish', 'send', 'offline', 'slow', 'send', 'wait-10', 'slow', 'send', 'send'],
+    release: ['send', 'publish', 'send', 'wait-1', 'send', 'publish', 'slow', 'send', 'wait-10', 'slow', 'send'],
+  };
+  function act(a) {
+    if (a === 'send') send(); else if (a === 'publish') publish(); else if (a === 'wait-1') { advance(1000); render(); } else if (a === 'wait-10') { advance(10000); render(); }
+    else if (a === 'offline' || a === 'slow') toggleNet(a);
+  }
+  function play(name) { setSwitch('precache', true); setSwitch('nf-timeout', true); reset(); SCEN[name].forEach(act); $('[data-testid="announce"]').textContent = `Scenario finished: ${S.reqs.length} requests.`; }
+
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b || !b.dataset.testid) return;
+    const id = b.dataset.testid;
+    if (id === 'send') send();
+    else if (id === 'publish') publish();
+    else if (id === 'wait-1') { advance(1000); render(); }
+    else if (id === 'wait-10') { advance(10000); render(); }
+    else if (id === 'offline' || id === 'slow') toggleNet(id);
+    else if (id === 'nf-timeout') { setSwitch('nf-timeout', b.getAttribute('aria-checked') !== 'true'); }
+    else if (id === 'precache') { setSwitch('precache', b.getAttribute('aria-checked') !== 'true'); $('[data-testid="announce"]').textContent = 'Takes effect on Reset.'; }
+    else if (id === 'clear-caches') { STRATS.forEach(({ key }) => { S.lanes[key].cache = null; S.lanes[key].pending = []; }); render(); $('[data-testid="announce"]').textContent = 'All caches evicted.'; }
+    else if (id === 'reset') reset();
+    else if (id === 'scenario-commute') play('commute');
+    else if (id === 'scenario-release') play('release');
+  });
+  let rt = 0; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(renderTimeline, 150); });
+
+  const live = document.createElement('p'); live.className = 'sr'; live.setAttribute('aria-live', 'polite'); live.dataset.testid = 'announce'; document.body.appendChild(live);
+  window.__offline = { get state() { return S; } };
+  reset();
+})();
+</script>
+</body>
+</html>

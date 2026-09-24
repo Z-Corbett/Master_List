@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boundary Value Lab — partitions, boundaries and live verdicts</title>
+<meta name="description" content="Define an input field's rule — integer or decimal range, string length, date window or enum — and see its equivalence partitions and boundary values on an animated number line. Generate 2-value or 3-value boundary test cases with on, off and in points, and try any value live for an accept or reject verdict.">
+<style>
+  :root {
+    --bg: #1a1a18;
+    --bg-2: #232320;
+    --panel: #262622;
+    --line: #3b3a34;
+    --ink: #f2efe6;
+    --ink-2: #b9b4a4;
+    --ink-3: #85806f;
+    --yellow: #ffd23f;
+    --yellow-2: #c9a21c;
+    --ok: #57d68d;
+    --bad: #ff5d52;
+    --in: #64b5ff;
+    --head: "Arial Black", "Segoe UI Black", Impact, "Helvetica Neue", sans-serif;
+    --font: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    --mono: "Cascadia Code", Consolas, "SF Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.45 var(--font); overflow-x: hidden; }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  input, select, pre { max-width: 100%; }
+  :focus-visible { outline: 3px solid var(--yellow); outline-offset: 2px; }
+  .back { position: fixed; top: 10px; left: 10px; z-index: 50; background: var(--yellow); color: #1a1a18; text-decoration: none; font: 700 13px/1 var(--font); padding: 8px 12px; border-radius: 3px; }
+
+  .hazard { height: 14px; background: repeating-linear-gradient(-45deg, var(--yellow) 0 14px, #1a1a18 14px 28px); }
+  header { max-width: 1240px; margin: 0 auto; padding: 50px 20px 14px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 420px); gap: 24px; align-items: end; }
+  h1 { font: 900 clamp(32px, 6.4vw, 66px)/.95 var(--head); margin: 0; letter-spacing: -.01em; text-transform: uppercase; }
+  h1 span { color: var(--yellow); }
+  .lede { color: var(--ink-2); margin: 10px 0 0; max-width: 60ch; }
+  .legend { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 13px; color: var(--ink-2); background: var(--bg-2); border: 1px solid var(--line); padding: 10px 12px; border-radius: 4px; }
+  .legend b { font: 700 12px var(--mono); color: var(--ink); }
+  .legend .on { color: var(--yellow); } .legend .off { color: var(--bad); } .legend .inp { color: var(--in); }
+
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 8px 20px 50px; }
+  .tabs { display: flex; gap: 0; flex-wrap: wrap; border-bottom: 3px solid var(--yellow); }
+  .tab { border: 0; background: var(--bg-2); color: var(--ink-2); padding: 10px 16px; font: 700 13px var(--font); letter-spacing: .06em; text-transform: uppercase; border-right: 1px solid var(--line); }
+  .tab[aria-selected="true"] { background: var(--yellow); color: #1a1a18; }
+  .rules { background: var(--panel); border: 1px solid var(--line); border-top: 0; padding: 14px 16px; display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: flex-end; }
+  .field { display: grid; gap: 4px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); min-width: 0; }
+  .field input, .field select { background: var(--bg); border: 1px solid var(--line); border-radius: 3px; padding: 7px 9px; font: 15px var(--mono); color: var(--ink); text-transform: none; letter-spacing: 0; width: 150px; }
+  .field input.wide { width: 260px; }
+  .field.check { display: flex; align-items: center; gap: 6px; text-transform: none; letter-spacing: 0; font-size: 14px; }
+  .rulesay { flex: 1 1 260px; font: 14px var(--mono); color: var(--yellow); min-width: 0; overflow-wrap: anywhere; }
+  .rulewarn { color: var(--bad); flex-basis: 100%; font-size: 13.5px; margin: 0; }
+
+  .linebox { background: #11110f; border: 1px solid var(--line); border-radius: 4px; margin: 18px 0; padding: 8px 0 4px; position: relative; overflow: hidden; }
+  .linebox svg { display: block; width: 100%; height: 190px; }
+  .pin { transition: transform .45s cubic-bezier(.2,.9,.25,1.2), opacity .3s; }
+  .trymark { transition: transform .35s ease-out; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px; }
+  .echip { font: 14px var(--mono); padding: 6px 12px; border-radius: 3px; background: rgba(87,214,141,.14); border: 1px solid var(--ok); color: var(--ok); }
+  .echip.bad { background: rgba(255,93,82,.12); border-color: var(--bad); color: var(--bad); border-style: dashed; }
+
+  .cols { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 14px 16px; min-width: 0; }
+  .panel h2 { font: 900 15px var(--head); letter-spacing: .04em; text-transform: uppercase; margin: 0 0 10px; display: flex; gap: 10px; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
+  .seg button { border: 0; background: var(--bg); color: var(--ink-2); padding: 5px 10px; font: 600 12.5px var(--font); }
+  .seg button[aria-pressed="true"] { background: var(--yellow); color: #1a1a18; }
+  .tablewrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th { text-align: left; font: 700 11px var(--font); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); padding: 6px 8px; border-bottom: 2px solid var(--line); }
+  td { padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.val { font-family: var(--mono); overflow-wrap: anywhere; min-width: 90px; }
+  tr.case { cursor: pointer; }
+  tr.case:hover td { background: rgba(255,210,63,.06); }
+  tr.group td { font: 700 11px var(--font); letter-spacing: .12em; text-transform: uppercase; color: var(--yellow); padding-top: 12px; border-bottom: 1px dashed var(--line); }
+  .pt { font: 700 11px var(--mono); padding: 1px 6px; border-radius: 3px; border: 1px solid currentColor; }
+  .pt.on { color: var(--yellow); } .pt.off { color: var(--bad); } .pt.in { color: var(--in); } .pt.rep { color: var(--ink-2); }
+  .exp { font: 700 12px var(--mono); }
+  .exp.ok { color: var(--ok); } .exp.bad { color: var(--bad); }
+  .rowbtn { border: 0; background: none; padding: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+
+  .try input { width: 100%; background: var(--bg); border: 2px solid var(--line); border-radius: 3px; padding: 10px 12px; font: 18px var(--mono); }
+  .try input:focus { border-color: var(--yellow); outline: none; }
+  .verdict { margin-top: 12px; border-radius: 4px; padding: 14px; background: var(--bg); border: 2px solid var(--line); min-height: 108px; }
+  .verdict .big { font: 900 30px/1 var(--head); letter-spacing: .02em; }
+  .verdict.ok { border-color: var(--ok); } .verdict.ok .big { color: var(--ok); }
+  .verdict.bad { border-color: var(--bad); } .verdict.bad .big { color: var(--bad); }
+  .verdict p { margin: 6px 0 0; color: var(--ink-2); font-size: 14px; }
+  .verdict code { font-family: var(--mono); color: var(--ink); overflow-wrap: anywhere; }
+  .quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .quick button { border: 1px solid var(--line); background: var(--bg); padding: 3px 9px; border-radius: 3px; font: 12.5px var(--mono); color: var(--ink-2); }
+  .notes { font-size: 13px; color: var(--ink-3); margin: 12px 0 0; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  footer { max-width: 1240px; margin: 0 auto; padding: 0 20px 30px; font-size: 12.5px; color: var(--ink-3); }
+
+  @media (max-width: 900px) { header, .cols { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 480px) {
+    header, .wrap, footer { padding-left: 12px; padding-right: 12px; }
+    .tab { padding: 8px 10px; font-size: 11.5px; }
+    .field input, .field input.wide { width: 100%; }
+    .field { flex: 1 1 130px; }
+    .linebox svg { height: 200px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .pin, .trymark { transition: none; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="hazard" aria-hidden="true"></div>
+<header>
+  <div>
+    <h1>Boundary <span>Value</span> Lab</h1>
+    <p class="lede">Bugs cluster at the edges: <code>&lt;</code> written as <code>&lt;=</code>, an off-by-one step, a date window that forgets its last day. Describe a field's rule, see its equivalence partitions, and get the exact boundary values worth testing.</p>
+  </div>
+  <div class="legend" aria-label="Point types">
+    <b class="on">ON</b><span>the boundary value itself</span>
+    <b class="off">OFF</b><span>the nearest value on the other side of the boundary</span>
+    <b class="inp">IN</b><span>the nearest value just inside the partition (3-value BVA)</span>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="tabs" role="tablist" aria-label="Field type" data-testid="tabs"></div>
+  <div class="rules" role="tabpanel" data-testid="rules"></div>
+
+  <div class="linebox" data-testid="linebox">
+    <svg data-testid="numberline" role="img" aria-label="Number line of partitions and boundary values"></svg>
+    <div class="chips" data-testid="enumchips" hidden></div>
+  </div>
+
+  <div class="cols">
+    <section class="panel" aria-labelledby="h-cases">
+      <h2 id="h-cases">Generated test cases
+        <span class="seg" role="group" aria-label="Boundary value analysis">
+          <button type="button" data-bva="2" data-testid="bva-2" aria-pressed="false">2-value</button>
+          <button type="button" data-bva="3" data-testid="bva-3" aria-pressed="true">3-value</button>
+        </span>
+      </h2>
+      <div class="tablewrap"><table data-testid="cases"></table></div>
+      <p class="notes" data-testid="case-summary"></p>
+    </section>
+    <section class="panel try" aria-labelledby="h-try">
+      <h2 id="h-try">Try a value</h2>
+      <label class="sr" for="tryin">Value to validate</label>
+      <input id="tryin" data-testid="try" autocomplete="off" spellcheck="false" placeholder="type a value">
+      <div class="quick" data-testid="quick"></div>
+      <div class="verdict" data-testid="verdict" aria-live="polite"><div class="big">—</div><p>Type a value, or click any generated case.</p></div>
+      <p class="notes">String length counts Unicode code points. Decimals are compared in whole steps, so 0.1 + 0.2 floating-point noise never decides a verdict. Dates are calendar days in the proleptic Gregorian calendar, inclusive at both ends.</p>
+    </section>
+  </div>
+</main>
+<footer>All field names and limits are made-up examples. Values you try never leave the page.</footer>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  const TYPES = {
+    int: { label: 'Integer range', name: 'Tickets per order', min: '1', max: '10' },
+    dec: { label: 'Decimal range', name: 'Transfer amount', min: '0.01', max: '5000.00', step: '0.01' },
+    len: { label: 'String length', name: 'Username', min: '3', max: '16' },
+    date: { label: 'Date window', name: 'Check-in date', min: '2026-10-01', max: '2027-03-31' },
+    enum: { label: 'Enum', name: 'T-shirt size', values: 'XS, S, M, L, XL', ci: false },
+  };
+  const cfg = JSON.parse(JSON.stringify(TYPES));
+  const qp = new URLSearchParams(location.search);
+  let type = TYPES[qp.get('type')] ? qp.get('type') : 'int';
+  let bva = 3;
+
+  // ---------- date helpers (UTC day numbers) ----------
+  const DAY = 86400000;
+  function parseDate(s) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s); if (!m) return null;
+    const y = +m[1], mo = +m[2], d = +m[3];
+    const t = Date.UTC(y, mo - 1, d); const dt = new Date(t);
+    if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return null;
+    return Math.round(t / DAY);
+  }
+  const fmtDate = (n) => new Date(n * DAY).toISOString().slice(0, 10);
+
+  // decimal places of a step like "0.01"
+  const decimals = (s) => { const m = /^\d+(?:\.(\d+))?$/.exec(String(s).trim()); return m ? (m[1] || '').length : -1; };
+  const pow10 = (n) => 10 ** n;
+  function parseDecUnits(s, dp) {
+    // exact: returns integer count of 10^-dp units, or null / 'precision'
+    const m = /^(-?)(\d+)(?:\.(\d+))?$/.exec(s); if (!m) return null;
+    const frac = m[3] || '';
+    if (frac.replace(/0+$/, '').length > dp) return 'precision';
+    const units = Number(m[2]) * pow10(dp) + Number((frac + '0'.repeat(dp)).slice(0, dp) || 0);
+    return m[1] ? -units : units;
+  }
+  const fmtDec = (u, dp) => { const neg = u < 0; u = Math.abs(u); const s = String(u).padStart(dp + 1, '0'); return (neg ? '-' : '') + (dp ? s.slice(0, -dp) + '.' + s.slice(-dp) : s); };
+  const sampleString = (n) => { const base = 'abcdefghijklmnopqrstuvwxyz0123456789'; let s = ''; for (let i = 0; i < n; i++) s += base[i % base.length]; return s; };
+
+  // ---------- domain: everything in integer units ----------
+  function domain() {
+    const c = cfg[type];
+    if (type === 'enum') {
+      const vals = [...new Set(c.values.split(',').map((s) => s.trim()).filter(Boolean))];
+      if (!vals.length) return { err: 'List at least one allowed value.' };
+      return { kind: 'enum', vals, ci: c.ci };
+    }
+    if (type === 'int') {
+      if (!/^-?\d+$/.test(c.min.trim()) || !/^-?\d+$/.test(c.max.trim())) return { err: 'Min and max must be whole numbers.' };
+      const lo = Number(c.min), hi = Number(c.max);
+      if (!Number.isSafeInteger(lo) || !Number.isSafeInteger(hi)) return { err: 'Keep the limits within ±9,007,199,254,740,991.' };
+      if (lo > hi) return { err: 'Min is greater than max: the valid partition is empty.' };
+      return { kind: 'int', lo, hi, fmt: (u) => String(u), unit: '1', floor: -Infinity };
+    }
+    if (type === 'dec') {
+      const dp = decimals(c.step);
+      if (dp < 0 || !/^0*\.?0*1$|^1$/.test(c.step.trim().replace(/^0+(?=\d)/, ''))) return { err: 'Step must be 1, 0.1, 0.01, 0.001 …' };
+      if (dp > 6) return { err: 'This lab stops at 6 decimal places.' };
+      const lo = parseDecUnits(c.min.trim(), dp), hi = parseDecUnits(c.max.trim(), dp);
+      if (lo === null || hi === null) return { err: 'Min and max must be plain decimal numbers.' };
+      if (lo === 'precision' || hi === 'precision') return { err: `Min and max can't be more precise than the step (${c.step}).` };
+      if (!Number.isSafeInteger(lo) || !Number.isSafeInteger(hi)) return { err: 'Those limits are too large for this step.' };
+      if (lo > hi) return { err: 'Min is greater than max: the valid partition is empty.' };
+      return { kind: 'dec', lo, hi, dp, fmt: (u) => fmtDec(u, dp), unit: c.step.trim(), floor: -Infinity };
+    }
+    if (type === 'len') {
+      if (!/^\d+$/.test(c.min.trim()) || !/^\d+$/.test(c.max.trim())) return { err: 'Lengths must be whole numbers, 0 or more.' };
+      const lo = Number(c.min), hi = Number(c.max);
+      if (hi > 5000) return { err: 'Keep the maximum length at 5000 or less here.' };
+      if (lo > hi) return { err: 'Min length is greater than max length.' };
+      return { kind: 'len', lo, hi, fmt: (u) => `${u} char${u === 1 ? '' : 's'}`, unit: '1 char', floor: 0 };
+    }
+    const lo = parseDate(c.min.trim()), hi = parseDate(c.max.trim());
+    if (lo === null || hi === null) return { err: 'Dates must be real calendar dates as YYYY-MM-DD.' };
+    if (lo > hi) return { err: 'The window starts after it ends.' };
+    return { kind: 'date', lo, hi, fmt: fmtDate, unit: '1 day', floor: -Infinity };
+  }
+
+  // the literal string to type for a unit value
+  const literal = (D, u) => (D.kind === 'len' ? sampleString(u) : D.kind === 'date' ? fmtDate(u) : D.kind === 'dec' ? fmtDec(u, D.dp) : String(u));
+
+  function cases(D) {
+    if (D.err) return [];
+    const out = [];
+    if (D.kind === 'enum') {
+      D.vals.forEach((v) => out.push({ g: 'Valid classes', val: v, pt: 'rep', part: 'allowed: ' + v, exp: true }));
+      const v0 = D.vals[0];
+      const variant = v0.toLowerCase() !== v0 ? v0.toLowerCase() : v0.toUpperCase() !== v0 ? v0.toUpperCase() : null;
+      if (variant && !D.vals.includes(variant)) out.push({ g: 'Invalid classes', val: variant, pt: 'rep', part: 'different case', exp: D.ci });
+      out.push({ g: 'Invalid classes', val: ' ' + v0, pt: 'rep', part: 'padded with whitespace', exp: false });
+      out.push({ g: 'Invalid classes', val: '', pt: 'rep', part: 'empty', exp: false });
+      let unknown = 'XXL'; let k = 2; while (D.vals.some((x) => x.toLowerCase() === unknown.toLowerCase())) unknown = 'X'.repeat(++k) + 'L';
+      out.push({ g: 'Invalid classes', val: unknown, pt: 'rep', part: 'not in the list', exp: false });
+      return out;
+    }
+    const { lo, hi } = D;
+    const add = (g, u, pt, part, exp) => { if (u < D.floor) return; if (out.some((c) => c.u === u && c.g === g)) return; out.push({ g, u, val: literal(D, u), pt, part, exp }); };
+    const B = 'Boundary values';
+    add(B, lo - 1, 'off', 'invalid: below', false);
+    add(B, lo, 'on', 'valid', true);
+    if (bva === 3 && lo + 1 <= hi) add(B, lo + 1, 'in', 'valid', true);
+    if (bva === 3 && hi - 1 >= lo) add(B, hi - 1, 'in', 'valid', true);
+    add(B, hi, 'on', 'valid', true);
+    add(B, hi + 1, 'off', 'invalid: above', false);
+    const E = 'Partition representatives';
+    const span = Math.max(1, hi - lo);
+    add(E, lo + Math.floor(span / 2), 'rep', 'valid (nominal)', true);
+    if (lo - 1 >= D.floor) add(E, Math.max(D.floor, lo - Math.max(5, Math.round(span / 2))), 'rep', 'invalid: below', false);
+    add(E, hi + Math.max(5, Math.round(span / 2)), 'rep', 'invalid: above', false);
+    const T = 'Wrong type / format';
+    if (D.kind === 'int') { out.push({ g: T, val: '', pt: 'rep', part: 'empty', exp: false }, { g: T, val: '2.5', pt: 'rep', part: 'not a whole number', exp: false }, { g: T, val: 'ten', pt: 'rep', part: 'not a number', exp: false }); }
+    if (D.kind === 'dec') { out.push({ g: T, val: fmtDec(lo, D.dp) + '1', pt: 'rep', part: 'more decimals than the step', exp: false }, { g: T, val: '1e3', pt: 'rep', part: 'exponent notation', exp: false }, { g: T, val: '', pt: 'rep', part: 'empty', exp: false }); }
+    if (D.kind === 'date') { out.push({ g: T, val: '2027-02-29', pt: 'rep', part: 'not a real date', exp: false }, { g: T, val: fmtDate(lo).split('-').reverse().join('/'), pt: 'rep', part: 'wrong format', exp: false }); }
+    if (D.kind === 'len') { out.push({ g: T, val: '👍'.repeat(Math.max(1, lo)), pt: 'rep', part: `${Math.max(1, lo)} emoji = ${Math.max(1, lo)} code points`, exp: Math.max(1, lo) >= lo && Math.max(1, lo) <= hi }); }
+    return out;
+  }
+
+  // ---------- validator (the "system under test" oracle) ----------
+  function judge(D, s) {
+    if (D.err) return { ok: false, why: D.err, part: 'no rule' };
+    if (D.kind === 'enum') {
+      if (D.vals.includes(s)) return { ok: true, part: 'allowed value', why: `“${s}” is in the list.` };
+      if (D.ci && D.vals.some((v) => v.toLowerCase() === s.toLowerCase())) return { ok: true, part: 'allowed value (case-insensitive)', why: 'Matches ignoring case.' };
+      if (s === '') return { ok: false, part: 'empty', why: 'Nothing was entered.' };
+      if (s !== s.trim() && D.vals.includes(s.trim())) return { ok: false, part: 'whitespace', why: 'Would match after trimming, but the rule compares exactly.' };
+      return { ok: false, part: 'not in the list', why: `Allowed: ${D.vals.join(', ')}.` };
+    }
+    let u;
+    if (D.kind === 'len') { u = [...s].length; }
+    else if (D.kind === 'int') {
+      if (s === '') return { ok: false, part: 'empty', why: 'Nothing was entered.' };
+      if (!/^-?\d+$/.test(s)) return { ok: false, part: 'wrong type', why: 'Only whole numbers like 7 or -3 (no spaces, decimals or words).' };
+      u = Number(s);
+    } else if (D.kind === 'dec') {
+      if (s === '') return { ok: false, part: 'empty', why: 'Nothing was entered.' };
+      const r = parseDecUnits(s, D.dp);
+      if (r === null) return { ok: false, part: 'wrong format', why: 'Use a plain decimal like 12.50 (no exponent, spaces or thousands separators).' };
+      if (r === 'precision') return { ok: false, part: 'too precise', why: `More decimal places than the step ${D.unit} allows.` };
+      u = r;
+    } else {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return { ok: false, part: 'wrong format', why: 'Dates must be YYYY-MM-DD.' };
+      const d = parseDate(s); if (d === null) return { ok: false, part: 'not a real date', why: 'That day does not exist in the calendar.' };
+      u = d;
+    }
+    const where = D.kind === 'len' ? `length ${u}` : literal(D, u);
+    if (u < D.lo) return { ok: false, u, part: 'invalid: below', why: `${where} is below the minimum ${D.fmt(D.lo)}${u === D.lo - 1 ? ' — the off point, one step outside.' : '.'}` };
+    if (u > D.hi) return { ok: false, u, part: 'invalid: above', why: `${where} is above the maximum ${D.fmt(D.hi)}${u === D.hi + 1 ? ' — the off point, one step outside.' : '.'}` };
+    const on = u === D.lo || u === D.hi;
+    return { ok: true, u, part: 'valid', why: `${where} is inside [${D.fmt(D.lo)} … ${D.fmt(D.hi)}]${on ? ' — exactly on a boundary.' : '.'}` };
+  }
+
+  // ---------- rendering ----------
+  function renderTabs() {
+    $('[data-testid="tabs"]').innerHTML = Object.entries(TYPES).map(([k, t]) => `<button type="button" role="tab" class="tab" data-type="${k}" data-testid="tab-${k}" aria-selected="${k === type}">${t.label}</button>`).join('');
+  }
+  function renderRules() {
+    const c = cfg[type];
+    let h = `<label class="field">Field<input data-k="name" data-testid="r-name" value="${esc(c.name)}" class="wide"></label>`;
+    if (type === 'enum') {
+      h += `<label class="field">Allowed values (comma-separated)<input data-k="values" data-testid="r-values" value="${esc(c.values)}" class="wide"></label>
+        <label class="field check"><input type="checkbox" data-k="ci" data-testid="r-ci"${c.ci ? ' checked' : ''}> Ignore case</label>`;
+    } else {
+      const kind = type === 'date' ? 'date' : 'text';
+      const mm = type === 'len' ? ['Min length', 'Max length'] : type === 'date' ? ['From (inclusive)', 'To (inclusive)'] : ['Min (inclusive)', 'Max (inclusive)'];
+      h += `<label class="field">${mm[0]}<input type="${kind}" data-k="min" data-testid="r-min" value="${esc(c.min)}" inputmode="${type === 'date' ? 'numeric' : 'decimal'}"></label>
+        <label class="field">${mm[1]}<input type="${kind}" data-k="max" data-testid="r-max" value="${esc(c.max)}" inputmode="${type === 'date' ? 'numeric' : 'decimal'}"></label>`;
+      if (type === 'dec') h += `<label class="field">Step<select data-k="step" data-testid="r-step">${['1', '0.1', '0.01', '0.001'].map((s) => `<option${s === c.step ? ' selected' : ''}>${s}</option>`).join('')}</select></label>`;
+    }
+    h += `<div class="rulesay" data-testid="rule-say"></div><p class="rulewarn" data-testid="rule-warn" role="alert"></p>`;
+    $('[data-testid="rules"]').innerHTML = h;
+  }
+
+  let D = null, lastTry = null;
+  function update() {
+    D = domain();
+    const c = cfg[type];
+    $('[data-testid="rule-warn"]').textContent = D.err || '';
+    $('[data-testid="rule-say"]').textContent = D.err ? '' : D.kind === 'enum'
+      ? `${c.name} ∈ { ${D.vals.join(', ')} }${D.ci ? ' (case-insensitive)' : ''}`
+      : `${c.name}: ${D.fmt(D.lo)} ≤ x ≤ ${D.fmt(D.hi)}${D.kind === 'dec' || D.kind === 'date' || D.kind === 'len' ? ' · step ' + D.unit : ''}`;
+    document.querySelectorAll('[data-bva]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.bva) === bva)));
+    document.querySelectorAll('[data-bva]').forEach((b) => { b.disabled = D.kind === 'enum'; });
+    renderCases(); renderLine(); renderQuick(); runTry();
+  }
+
+  let CASES = [];
+  function renderCases() {
+    CASES = cases(D);
+    const t = $('[data-testid="cases"]');
+    if (D.err) { t.innerHTML = `<tr><td>${esc(D.err)}</td></tr>`; $('[data-testid="case-summary"]').textContent = ''; return; }
+    let g = '';
+    let h = '<thead><tr><th>Value</th><th>Point</th><th>Partition</th><th>Expected</th></tr></thead><tbody>';
+    CASES.forEach((c, i) => {
+      if (c.g !== g) { g = c.g; h += `<tr class="group"><td colspan="4">${esc(g)}</td></tr>`; }
+      const shown = c.val === '' ? '(empty)' : D.kind === 'len' ? `${esc(c.val.length > 24 ? c.val.slice(0, 22) + '…' : c.val)} <span style="color:var(--ink-3)">· ${[...c.val].length}</span>` : esc(c.val.replace(/ /g, '␠'));
+      h += `<tr class="case" data-testid="case" data-i="${i}" data-group="${esc(c.g)}" data-point="${c.pt}" data-exp="${c.exp ? 'accept' : 'reject'}" data-value="${esc(c.val)}">
+        <td class="val"><button type="button" class="rowbtn" data-i="${i}" aria-label="Try ${esc(c.val || 'empty value')}">${shown}</button></td>
+        <td><span class="pt ${c.pt}">${c.pt === 'rep' ? 'EP' : c.pt.toUpperCase()}</span></td><td>${esc(c.part)}</td>
+        <td class="exp ${c.exp ? 'ok' : 'bad'}">${c.exp ? 'accept' : 'reject'}</td></tr>`;
+    });
+    t.innerHTML = h + '</tbody>';
+    const nb = CASES.filter((c) => c.g === 'Boundary values').length;
+    $('[data-testid="case-summary"]').textContent = D.kind === 'enum'
+      ? `${CASES.length} cases: every allowed value is its own class, plus invalid representatives. Boundary analysis doesn't apply to an unordered list.`
+      : `${CASES.length} cases, ${nb} of them boundary values (${bva}-value BVA). ${bva === 2 ? 'Each boundary gets its on point and its off point.' : 'Each boundary gets off, on and in points.'}`;
+  }
+
+  // piecewise axis around the two boundaries
+  function axis(W) {
+    const { lo, hi } = D;
+    const pad = 40, usable = Math.max(100, W - 2 * pad);
+    const steps = hi - lo;
+    if (steps <= 12) {
+      const a = lo - 2, b = hi + 2;
+      const x = (u) => pad + (u - a) / Math.max(1, b - a) * usable;
+      return { x, ticks: range(a, b), brk: null, a, b };
+    }
+    const k = W < 520 ? 2 : 3, w = usable * (W < 520 ? 0.43 : 0.4), gapW = usable - 2 * w;
+    const La = lo - k, Lb = lo + k, Ra = hi - k, Rb = hi + k;
+    const x = (u) => {
+      if (u <= Lb) return pad + (u - La) / (Lb - La) * w;
+      if (u >= Ra) return pad + w + gapW + (u - Ra) / (Rb - Ra) * w;
+      return pad + w + (u - Lb) / Math.max(1, Ra - Lb) * gapW;
+    };
+    return { x, ticks: range(La, Lb).concat(range(Ra, Rb)), brk: [pad + w, pad + w + gapW], a: La, b: Rb };
+  }
+  function range(a, b) { const r = []; for (let u = a; u <= b; u++) r.push(u); return r; }
+
+  const PIN_KEYS = ['lo-off', 'lo-on', 'lo-in', 'hi-in', 'hi-on', 'hi-off'];
+  function renderLine() {
+    const svg = $('[data-testid="numberline"]'), chips = $('[data-testid="enumchips"]');
+    if (D.kind === 'enum' || D.err) {
+      svg.style.display = 'none';
+      chips.hidden = D.kind !== 'enum';
+      if (D.kind === 'enum') chips.innerHTML = D.vals.map((v) => `<span class="echip" data-testid="echip">${esc(v)}</span>`).join('') + '<span class="echip bad">anything else</span>';
+      return;
+    }
+    svg.style.display = ''; chips.hidden = true;
+    const W = Math.max(300, Math.round(svg.getBoundingClientRect().width) || 900);
+    const H = 190, Y = 104;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    const A = axis(W);
+    const X = (u) => { const v = A.x(u); return Number.isFinite(v) ? v : 0; };
+    const sm = W < 520;
+    const bLo = (X(D.lo - 1) + X(D.lo)) / 2, bHi = (X(D.hi) + X(D.hi + 1)) / 2;
+    const floorX = Number.isFinite(D.floor) ? (X(D.floor - 1) + X(D.floor)) / 2 : 0;
+    let h = `<defs><pattern id="stripe" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" fill="rgba(255,93,82,.12)"/><rect width="3" height="8" fill="rgba(255,93,82,.28)"/></pattern></defs>`;
+    h += `<rect x="${Math.max(0, floorX).toFixed(1)}" y="${Y - 16}" width="${Math.max(0, bLo - Math.max(0, floorX)).toFixed(1)}" height="32" fill="url(#stripe)" data-testid="band-low"/>`;
+    h += `<rect x="${bLo.toFixed(1)}" y="${Y - 16}" width="${Math.max(0, bHi - bLo).toFixed(1)}" height="32" fill="rgba(87,214,141,.2)" data-testid="band-valid"/>`;
+    h += `<rect x="${bHi.toFixed(1)}" y="${Y - 16}" width="${Math.max(0, W - bHi).toFixed(1)}" height="32" fill="url(#stripe)" data-testid="band-high"/>`;
+    if (Number.isFinite(D.floor)) h += `<text x="${Math.max(4, floorX - 4)}" y="${Y + 34}" font-size="10" fill="#85806f" text-anchor="end">no ${D.kind === 'len' ? 'negative lengths' : 'values'}</text>`;
+    h += `<line x1="0" y1="${Y}" x2="${W}" y2="${Y}" stroke="#f2efe6" stroke-width="2"/>`;
+    if (A.brk) {
+      h += `<rect x="${A.brk[0] + 6}" y="${Y - 20}" width="${A.brk[1] - A.brk[0] - 12}" height="40" fill="#11110f"/>`;
+      h += `<path d="M${A.brk[0] + 6} ${Y + 8} l8 -16 M${A.brk[0] + 14} ${Y + 8} l8 -16 M${A.brk[1] - 22} ${Y + 8} l8 -16 M${A.brk[1] - 14} ${Y + 8} l8 -16" stroke="#ffd23f" stroke-width="2"/>`;
+      h += `<text x="${(A.brk[0] + A.brk[1]) / 2}" y="${Y + 5}" font-size="12" fill="#b9b4a4" text-anchor="middle" font-family="Consolas, monospace">${sm ? '⋯' : D.hi - D.lo - 7 > 0 ? '… ' + (D.hi - D.lo - 7).toLocaleString('en-US') + ' more …' : '…'}</text>`;
+    }
+    const lblEvery = sm && A.ticks.length > 9 ? 2 : 1;
+    A.ticks.forEach((u, i) => {
+      if (u < D.floor) return;
+      const x = X(u); const edge = u === D.lo || u === D.hi;
+      h += `<line x1="${x.toFixed(1)}" y1="${Y - (edge ? 12 : 6)}" x2="${x.toFixed(1)}" y2="${Y + (edge ? 12 : 6)}" stroke="${edge ? '#ffd23f' : '#b9b4a4'}" stroke-width="${edge ? 3 : 1}"/>`;
+      if (edge || i % lblEvery === 0) {
+        const lab = D.kind === 'date' ? fmtDate(u).slice(5) : D.kind === 'dec' ? fmtDec(u, D.dp) : String(u);
+        h += `<text x="${x.toFixed(1)}" y="${Y + 30}" font-size="${sm ? 9 : 11}" fill="${edge ? '#ffd23f' : '#85806f'}" text-anchor="middle" font-family="Consolas, monospace" transform="rotate(${sm && D.kind !== 'int' && D.kind !== 'len' ? -35 : 0} ${x.toFixed(1)} ${Y + 30})">${esc(lab)}</text>`;
+      }
+    });
+    h += `<text x="${Math.max(10, (Math.max(0, floorX) + bLo) / 2)}" y="${Y - 24}" font-size="${sm ? 10 : 12}" fill="#ff5d52" text-anchor="middle" font-weight="700">INVALID</text>`;
+    h += `<text x="${(bLo + bHi) / 2}" y="${Y - 24}" font-size="${sm ? 10 : 12}" fill="#57d68d" text-anchor="middle" font-weight="700">VALID</text>`;
+    h += `<text x="${Math.min(W - 10, (bHi + W) / 2)}" y="${Y - 24}" font-size="${sm ? 10 : 12}" fill="#ff5d52" text-anchor="middle" font-weight="700">INVALID</text>`;
+    // pins: persistent keys so they glide when the rule changes
+    const bvals = { 'lo-off': D.lo - 1, 'lo-on': D.lo, 'lo-in': D.lo + 1, 'hi-in': D.hi - 1, 'hi-on': D.hi, 'hi-off': D.hi + 1 };
+    const prev = {};
+    svg.querySelectorAll('g.pin').forEach((g) => { prev[g.dataset.key] = g.style.transform; });
+    h += '<g data-layer="pins">';
+    PIN_KEYS.forEach((k, idx) => {
+      const u = bvals[k]; const pt = k.split('-')[1];
+      const show = !(pt === 'in' && bva === 2) && u >= D.floor && !(pt === 'in' && (D.lo + 1 > D.hi));
+      const color = pt === 'on' ? '#ffd23f' : pt === 'off' ? '#ff5d52' : '#64b5ff';
+      const lift = (idx % 2) * 18;
+      h += `<g class="pin" data-key="${k}" data-testid="pin" data-point="${pt}" data-u="${u}" style="transform:${prev[k] || `translate(${X(u).toFixed(1)}px,0)`};opacity:${show ? 1 : 0}"${show ? '' : ' aria-hidden="true"'}>
+        <line x1="0" y1="${Y - 12}" x2="0" y2="${Y - 46 - lift}" stroke="${color}" stroke-width="2"/><circle cx="0" cy="${Y - 50 - lift}" r="5" fill="${color}"/>
+        <text x="0" y="${Y - 60 - lift}" font-size="10" fill="${color}" text-anchor="middle" font-family="Consolas, monospace" font-weight="700">${pt.toUpperCase()}</text></g>`;
+    });
+    h += '</g><g class="trymark" data-testid="trymark" style="opacity:0"><path d="M0 0 l-7 -12 h14z" fill="#f2efe6"/></g>';
+    svg.innerHTML = h;
+    requestAnimationFrame(() => {
+      svg.querySelectorAll('g.pin').forEach((g) => { const u = Number(g.dataset.u); g.style.transform = `translate(${X(u).toFixed(1)}px,0)`; });
+      placeTry();
+    });
+    svg._X = X; svg._A = A; svg._Y = Y;
+  }
+  function placeTry() {
+    const svg = $('[data-testid="numberline"]'); const m = svg.querySelector('[data-testid="trymark"]');
+    if (!m || !svg._X) return;
+    if (!lastTry || lastTry.u === undefined || D.kind === 'enum') { m.style.opacity = '0'; return; }
+    const u = Math.max(svg._A.a, Math.min(svg._A.b, lastTry.u));
+    const x = svg._X(u);
+    if (!Number.isFinite(x)) { m.style.opacity = '0'; return; }
+    m.style.opacity = '1'; m.style.transform = `translate(${x.toFixed(1)}px, ${svg._Y + 58}px) rotate(180deg)`;
+    m.querySelector('path').setAttribute('fill', lastTry.ok ? '#57d68d' : '#ff5d52');
+  }
+
+  function renderQuick() {
+    const q = CASES.filter((c) => c.g === 'Boundary values' || D.kind === 'enum').slice(0, 6);
+    $('[data-testid="quick"]').innerHTML = q.map((c) => `<button type="button" data-quick="${esc(c.val)}">${esc(c.val === '' ? '(empty)' : D.kind === 'len' ? [...c.val].length + ' chars' : c.val)}</button>`).join('');
+  }
+  function runTry() {
+    const v = $('[data-testid="try"]').value;
+    const box = $('[data-testid="verdict"]');
+    if (v === '' && !box.dataset.touched) { lastTry = null; placeTry(); return; }
+    const r = judge(D, v);
+    lastTry = r;
+    box.className = 'verdict ' + (r.ok ? 'ok' : 'bad');
+    box.dataset.verdict = r.ok ? 'accept' : 'reject';
+    box.innerHTML = `<div class="big" data-testid="verdict-word">${r.ok ? 'ACCEPT' : 'REJECT'}</div><p><span data-testid="verdict-part">${esc(r.part)}</span> — ${esc(r.why)}</p><p>Input: <code>${esc(JSON.stringify(v))}</code>${D.kind === 'len' ? ` · ${[...v].length} code point${[...v].length === 1 ? '' : 's'}` : ''}</p>`;
+    placeTry();
+  }
+
+  // ---------- events ----------
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('button, tr.case'); if (!b) return;
+    if (b.dataset.type) { type = b.dataset.type; renderTabs(); renderRules(); const t = $('[data-testid="try"]'); t.value = ''; delete $('[data-testid="verdict"]').dataset.touched; $('[data-testid="verdict"]').className = 'verdict'; $('[data-testid="verdict"]').innerHTML = '<div class="big">—</div><p>Type a value, or click any generated case.</p>'; update(); $(`[data-testid="tab-${type}"]`).focus(); }
+    else if (b.dataset.bva) { bva = Number(b.dataset.bva); update(); }
+    else if (b.dataset.quick !== undefined) { const t = $('[data-testid="try"]'); t.value = b.dataset.quick; $('[data-testid="verdict"]').dataset.touched = '1'; runTry(); }
+    else if (b.dataset.i !== undefined) { const c = CASES[Number(b.dataset.i)]; if (!c) return; const t = $('[data-testid="try"]'); t.value = c.val; $('[data-testid="verdict"]').dataset.touched = '1'; runTry(); }
+  });
+  $('[data-testid="tabs"]').addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    const keys = Object.keys(TYPES); const i = keys.indexOf(type);
+    const n = keys[(i + (e.key === 'ArrowRight' ? 1 : -1) + keys.length) % keys.length];
+    e.preventDefault(); $(`[data-testid="tab-${n}"]`).click();
+  });
+  $('[data-testid="rules"]').addEventListener('input', (e) => {
+    const k = e.target.dataset.k; if (!k) return;
+    cfg[type][k] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    update();
+  });
+  $('[data-testid="rules"]').addEventListener('change', (e) => { if (e.target.dataset.k) { cfg[type][e.target.dataset.k] = e.target.type === 'checkbox' ? e.target.checked : e.target.value; update(); } });
+  $('[data-testid="try"]').addEventListener('input', () => { $('[data-testid="verdict"]').dataset.touched = '1'; runTry(); });
+  let rt = 0;
+  window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(renderLine, 120); });
+
+  window.__bva = { judge: (s) => judge(D, s), cases: () => CASES.map((c) => ({ val: c.val, pt: c.pt, exp: c.exp, g: c.g })) };
+  renderTabs(); renderRules(); update();
+})();
+</script>
+</body>
+</html>

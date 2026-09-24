@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Example Mapping — a BDD workshop board</title>
+<meta name="description" content="A tabletop example-mapping board: one yellow story card, blue rule cards, green example cards under each rule and red question cards. Add, edit and drag cards with pointer or keyboard, run a 25-minute timebox, get a readiness verdict and export the rules and examples as Gherkin.">
+<style>
+  :root {
+    --table: #d9cbb0;
+    --table-2: #cbb993;
+    --ink: #2e2618;
+    --ink-2: #5e5039;
+    --story: #ffd95a;
+    --rule: #9cc9f5;
+    --example: #a9e3a4;
+    --question: #ff9f94;
+    --paper: #fbf6ea;
+    --hand: "Ink Free", "Segoe Print", "Bradley Hand", "Comic Neue", "Chalkboard SE", cursive;
+    --font: "Franklin Gothic Medium", "Arial Narrow", "Segoe UI", system-ui, sans-serif;
+    --mono: Consolas, "SF Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { color: var(--ink); font: 15px/1.4 var(--font); overflow-x: hidden; background-color: var(--table);
+    background-image: radial-gradient(rgba(90,64,20,.12) 1px, transparent 1.4px), radial-gradient(rgba(255,255,255,.18) 1px, transparent 1.6px);
+    background-size: 7px 7px, 11px 11px; background-position: 0 0, 3px 5px; }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  input, select, textarea, pre { max-width: 100%; }
+  :focus-visible { outline: 3px solid #1f4fa3; outline-offset: 2px; }
+  .back { position: fixed; top: 10px; left: 10px; z-index: 60; background: var(--ink); color: var(--paper); text-decoration: none; font: 13px/1 var(--font); padding: 8px 12px; border-radius: 3px; box-shadow: 2px 2px 0 rgba(0,0,0,.25); }
+
+  header { max-width: 1280px; margin: 0 auto; padding: 58px 20px 10px; display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: flex-end; justify-content: space-between; }
+  h1 { font: 400 clamp(30px, 5.4vw, 54px)/1 var(--font); margin: 0; letter-spacing: -.01em; }
+  h1 i { font-family: var(--hand); font-style: normal; color: #7a4f00; font-size: .7em; }
+  .lede { margin: 8px 0 0; max-width: 62ch; color: var(--ink-2); }
+  .timer { display: flex; gap: 12px; align-items: center; background: var(--paper); padding: 10px 14px; border-radius: 4px; box-shadow: 0 2px 0 rgba(0,0,0,.12), 0 8px 18px rgba(60,40,0,.15); }
+  .timer svg { width: 58px; height: 58px; flex: none; }
+  .timer .clock { font: 700 28px/1 var(--mono); }
+  .timer .tlabel { font-size: 12px; text-transform: uppercase; letter-spacing: .12em; color: var(--ink-2); }
+  .timer .tbtns { display: flex; gap: 6px; margin-top: 6px; }
+  .timer.over .clock { color: #b3261e; }
+  .btn { border: 2px solid var(--ink); background: var(--paper); border-radius: 3px; padding: 5px 11px; font-size: 13.5px; box-shadow: 2px 2px 0 var(--ink); }
+  .btn:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--ink); }
+  .btn.small { padding: 3px 8px; font-size: 12.5px; box-shadow: 1px 1px 0 var(--ink); }
+
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 8px 20px 50px; }
+  .top { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 20px; align-items: start; margin-bottom: 18px; }
+  .card { position: relative; border-radius: 2px; padding: 12px 12px 10px; box-shadow: 0 1px 0 rgba(0,0,0,.08), 0 6px 14px rgba(60,40,0,.18); min-width: 0; }
+  .card textarea { width: 100%; border: 0; background: transparent; resize: none; font: 18px/1.3 var(--hand); color: var(--ink); padding: 2px; overflow: hidden; min-height: 2.6em; display: block; }
+  .card textarea:focus { outline: 2px dashed rgba(0,0,0,.35); outline-offset: 2px; }
+  .card .kind { font: 11px/1 var(--font); letter-spacing: .14em; text-transform: uppercase; opacity: .65; display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+  .story { background: var(--story); padding: 18px 20px 16px; transform: rotate(-.6deg); }
+  .story::before { content: ""; position: absolute; top: -9px; left: 50%; width: 90px; height: 20px; margin-left: -45px; background: rgba(255,255,255,.55); transform: rotate(2deg); box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+  .story textarea { font-size: 23px; }
+  .rule { background: var(--rule); }
+  .example { background: var(--example); }
+  .question { background: var(--question); }
+  .x { border: 0; background: none; padding: 0 3px; font-size: 15px; line-height: 1; opacity: .6; }
+  .x:hover { opacity: 1; }
+  .grip { border: 0; background: rgba(0,0,0,.08); border-radius: 3px; width: 26px; height: 22px; font-size: 13px; line-height: 22px; padding: 0; touch-action: none; cursor: grab; flex: none; }
+  .grip:active { cursor: grabbing; }
+
+  .panel { background: var(--paper); border-radius: 4px; padding: 14px 16px; box-shadow: 0 2px 0 rgba(0,0,0,.1); min-width: 0; }
+  .panel h2 { font: 400 13px var(--font); letter-spacing: .16em; text-transform: uppercase; margin: 0 0 8px; color: var(--ink-2); }
+  .verdict { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: center; }
+  .stamp { width: 74px; height: 74px; border-radius: 50%; border: 3px double currentColor; display: grid; place-items: center; text-align: center; font: 700 11px/1.1 var(--font); letter-spacing: .08em; text-transform: uppercase; transform: rotate(-10deg); padding: 6px; }
+  .v-ready { color: #1e6b2d; } .v-questions { color: #b3261e; } .v-split { color: #1f4fa3; } .v-examples { color: #8a5a00; } .v-empty { color: var(--ink-2); }
+  .verdict p { margin: 0; }
+  .verdict .vt { font-size: 19px; }
+  .counts { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 10px; font-size: 13px; color: var(--ink-2); }
+  .counts span b { color: var(--ink); font-family: var(--mono); }
+  .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+  .limits { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; font-size: 13px; }
+  .limits label { display: inline-flex; align-items: center; gap: 5px; }
+  .limits input { width: 56px; padding: 3px 5px; border: 1px solid #b9a988; border-radius: 3px; background: #fff; }
+
+  .board { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 280px); gap: 20px; align-items: start; }
+  .rules { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 18px; align-items: start; }
+  .col { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 6px; border-radius: 6px; transition: background .12s; }
+  .col.drop { background: rgba(255,255,255,.35); box-shadow: inset 0 0 0 2px rgba(31,79,163,.5); }
+  .col .ex-list { display: flex; flex-direction: column; gap: 9px; min-height: 30px; padding-left: 12px; border-left: 2px dashed rgba(46,38,24,.25); margin-left: 6px; }
+  .example.dragging { opacity: .35; }
+  .example.lifted { box-shadow: 0 0 0 3px #1f4fa3, 0 10px 20px rgba(0,0,0,.25); }
+  .add { border: 2px dashed rgba(46,38,24,.45); background: rgba(255,255,255,.25); border-radius: 3px; padding: 6px 10px; font-size: 13.5px; text-align: left; }
+  .add:hover { background: rgba(255,255,255,.5); }
+  .ghost { position: fixed; z-index: 80; pointer-events: none; width: 220px; transform: rotate(3deg); opacity: .92; }
+  .qcol { display: flex; flex-direction: column; gap: 10px; }
+  .qhead { font: 400 13px var(--font); letter-spacing: .16em; text-transform: uppercase; color: var(--ink-2); margin: 6px 0 0; }
+
+  .export { margin-top: 24px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 20px; align-items: start; }
+  pre.gherkin { margin: 0; background: #2b2418; color: #f3e9d2; border-radius: 4px; padding: 14px 16px; font: 13px/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 460px; overflow: auto; }
+  pre.gherkin .kw { color: #ffd95a; } pre.gherkin .cm { color: #b9a988; font-style: italic; } pre.gherkin .rk { color: #9cc9f5; } pre.gherkin .sk { color: #a9e3a4; }
+  .ebtns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .howto ol { margin: 6px 0 0; padding-left: 20px; color: var(--ink-2); }
+  .howto li { margin-bottom: 5px; }
+  .howto kbd { font: 12px var(--mono); background: #fff; border: 1px solid #b9a988; border-bottom-width: 2px; border-radius: 3px; padding: 0 4px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  footer { text-align: center; font-size: 12.5px; color: var(--ink-2); padding: 0 20px 30px; }
+
+  @media (max-width: 860px) {
+    .top, .board, .export { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 480px) {
+    header, .wrap { padding-left: 14px; padding-right: 14px; }
+    .rules { grid-template-columns: minmax(0, 1fr); }
+    .timer { width: 100%; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } .ghost { transform: none; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+
+<header>
+  <div>
+    <h1>Example Mapping <i>workshop board</i></h1>
+    <p class="lede">Before writing a line of Gherkin, map the story: the <b>rules</b> it has to follow, concrete <b>examples</b> of each rule, and the <b>questions</b> nobody can answer yet. A technique introduced by Matt Wynne of the Cucumber team; this board is a practice space with a made-up shop.</p>
+  </div>
+  <div class="timer" data-testid="timer" role="group" aria-label="Timebox">
+    <svg viewBox="0 0 60 60" aria-hidden="true"><circle cx="30" cy="30" r="25" fill="none" stroke="#e6dcc6" stroke-width="7"/><circle data-testid="timer-ring" cx="30" cy="30" r="25" fill="none" stroke="#e0a800" stroke-width="7" stroke-dasharray="157.08" stroke-dashoffset="0" transform="rotate(-90 30 30)"/></svg>
+    <div>
+      <div class="tlabel">Timebox</div>
+      <div class="clock" data-testid="clock" aria-live="off">25:00</div>
+      <div class="tbtns">
+        <button class="btn small" type="button" data-testid="timer-toggle">Start</button>
+        <button class="btn small" type="button" data-testid="timer-reset">Reset</button>
+      </div>
+    </div>
+    <span class="sr" aria-live="polite" data-testid="timer-status"></span>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="top">
+    <div class="card story" data-testid="story">
+      <div class="kind"><span>Story</span></div>
+      <textarea rows="2" data-testid="story-text" aria-label="Story card"></textarea>
+    </div>
+    <section class="panel" aria-labelledby="vh">
+      <h2 id="vh">Readiness</h2>
+      <div class="verdict" data-testid="verdict" aria-live="polite">
+        <div class="stamp" data-testid="stamp"></div>
+        <div><p class="vt" data-testid="verdict-title"></p><p data-testid="verdict-why" style="color:var(--ink-2);font-size:14px"></p></div>
+      </div>
+      <div class="counts" data-testid="counts"></div>
+      <div class="limits">
+        <label>Split above <input type="number" min="1" max="12" data-testid="max-rules"> rules</label>
+        <label>Not ready above <input type="number" min="0" max="12" data-testid="max-questions"> questions</label>
+      </div>
+    </section>
+  </div>
+
+  <div class="board">
+    <section aria-label="Rules and examples">
+      <div class="rules" data-testid="rules"></div>
+      <div style="margin-top:14px"><button class="btn" type="button" data-testid="add-rule">+ Blue card: add a rule</button></div>
+    </section>
+    <section class="qcol" aria-label="Questions">
+      <p class="qhead">Questions</p>
+      <div class="qcol" data-testid="questions"></div>
+      <button class="add" type="button" data-testid="add-question">+ Red card: something we don't know</button>
+    </section>
+  </div>
+
+  <div class="export">
+    <section class="panel howto" aria-label="How to use">
+      <h2>How the board works</h2>
+      <ol>
+        <li>Write the story on the yellow card.</li>
+        <li>Each blue card is one rule (an acceptance criterion). Under it, green cards are concrete examples — “the one where the card has expired”.</li>
+        <li>Red cards park questions so the conversation keeps moving.</li>
+        <li>Drag a green card by its <b>⠿</b> grip to another rule. From the keyboard, focus the grip and use <kbd>←</kbd> <kbd>→</kbd> to move it between rules and <kbd>↑</kbd> <kbd>↓</kbd> to reorder.</li>
+        <li>Lots of red means the story isn't ready; lots of blue means it's probably two stories.</li>
+        <li>Write <i>Given / When / Then</i> on separate lines of a green card and the export keeps them.</li>
+      </ol>
+      <div class="ebtns"><button class="btn small" type="button" data-testid="reset-board">Load the sample story</button><button class="btn small" type="button" data-testid="clear-board">Blank board</button></div>
+    </section>
+    <section class="panel" aria-labelledby="gh">
+      <h2 id="gh">Export · Gherkin</h2>
+      <pre class="gherkin" data-testid="gherkin" tabindex="0"></pre>
+      <div class="ebtns">
+        <button class="btn small" type="button" data-testid="copy">Copy</button>
+        <button class="btn small" type="button" data-testid="download">Download .feature</button>
+        <span data-testid="copy-status" aria-live="polite" style="font-size:13px;color:var(--ink-2);align-self:center"></span>
+      </div>
+    </section>
+  </div>
+  <p class="sr" aria-live="assertive" data-testid="announce"></p>
+</main>
+<footer>The board saves to this browser as you type. Larkspur &amp; Co. is a made-up shop.</footer>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s, r = document) => r.querySelector(s);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const KEY = 'lab082-example-map';
+  let nid = 1;
+  const id = () => 'c' + (nid++);
+  const sample = () => ({
+    story: 'As a Larkspur & Co. shopper I want to pay with a gift card so that I can spend my balance at checkout',
+    rules: [
+      { id: id(), text: 'A gift card can cover part or all of the order', examples: [
+        { id: id(), text: 'The one where the balance covers everything\nGiven a gift card with $50.00\nWhen I pay for a $30.00 order\nThen the order is paid and $20.00 remains' },
+        { id: id(), text: 'The one where the balance runs out: $20 card, $30 order, $10 left to pay by bank card' }] },
+      { id: id(), text: 'Expired gift cards are refused', examples: [
+        { id: id(), text: 'The one where the card expired yesterday' }] },
+      { id: id(), text: 'Only one gift card per order', examples: [
+        { id: id(), text: 'The one where a second card is entered' }] },
+    ],
+    questions: [{ id: id(), text: 'Can a gift card pay for shipping?' }],
+    maxRules: 4, maxQuestions: 2,
+  });
+  const blank = () => ({ story: '', rules: [], questions: [], maxRules: 4, maxQuestions: 2 });
+
+  let S;
+  try { const raw = localStorage.getItem(KEY); if (raw) { S = JSON.parse(raw); } } catch (e) { S = null; }
+  if (!S || !Array.isArray(S.rules) || !Array.isArray(S.questions)) S = sample();
+  // re-key ids so new cards never collide with stored ones
+  const maxId = JSON.stringify(S).match(/"c(\d+)"/g) || [];
+  maxId.forEach((m) => { nid = Math.max(nid, Number(m.slice(2, -1)) + 1); });
+  if (!Number.isFinite(S.maxRules)) S.maxRules = 4;
+  if (!Number.isFinite(S.maxQuestions)) S.maxQuestions = 2;
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* storage unavailable */ } };
+  const announce = (t) => { $('[data-testid="announce"]').textContent = t; };
+
+  // ---------- rendering ----------
+  const tilt = (cid) => { let h = 0; for (const ch of cid) h = (h * 31 + ch.charCodeAt(0)) | 0; return ((Math.abs(h) % 7) - 3) * 0.35; };
+  function autosize(t) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 2 + 'px'; }
+
+  function render() {
+    const rulesEl = $('[data-testid="rules"]');
+    rulesEl.innerHTML = S.rules.map((r, ri) => `
+      <div class="col" data-testid="rule-col" data-rule="${r.id}">
+        <div class="card rule" data-testid="rule" style="transform:rotate(${tilt(r.id)}deg)">
+          <div class="kind"><span>Rule ${ri + 1}</span><button class="x" type="button" data-del-rule="${r.id}" data-testid="del-rule" aria-label="Delete rule ${ri + 1} and its examples">✕</button></div>
+          <textarea rows="2" data-edit="rule" data-id="${r.id}" data-testid="rule-text" aria-label="Rule ${ri + 1}">${esc(r.text)}</textarea>
+        </div>
+        <div class="ex-list" data-testid="ex-list">
+          ${r.examples.map((x, xi) => `
+          <div class="card example" data-testid="example" data-id="${x.id}" style="transform:rotate(${tilt(x.id)}deg)">
+            <div class="kind"><button class="grip" type="button" data-grip="${x.id}" data-testid="grip" aria-label="Move example ${xi + 1} of rule ${ri + 1}. Arrow keys move it.">⠿</button><span>Example</span><button class="x" type="button" data-del-ex="${x.id}" data-testid="del-example" aria-label="Delete example ${xi + 1} of rule ${ri + 1}">✕</button></div>
+            <textarea rows="2" data-edit="example" data-id="${x.id}" data-testid="example-text" aria-label="Example ${xi + 1} of rule ${ri + 1}">${esc(x.text)}</textarea>
+          </div>`).join('')}
+        </div>
+        <button class="add" type="button" data-add-ex="${r.id}" data-testid="add-example">+ Green card: example</button>
+      </div>`).join('') || '<p style="color:var(--ink-2);margin:0">No rules yet. Start with the first thing that must always be true.</p>';
+    $('[data-testid="questions"]').innerHTML = S.questions.map((q, qi) => `
+      <div class="card question" data-testid="question" style="transform:rotate(${tilt(q.id)}deg)">
+        <div class="kind"><span>Question ${qi + 1}</span><button class="x" type="button" data-del-q="${q.id}" data-testid="del-question" aria-label="Delete question ${qi + 1}">✕</button></div>
+        <textarea rows="2" data-edit="question" data-id="${q.id}" data-testid="question-text" aria-label="Question ${qi + 1}">${esc(q.text)}</textarea>
+      </div>`).join('');
+    const st = $('[data-testid="story-text"]');
+    if (document.activeElement !== st) st.value = S.story;
+    document.querySelectorAll('textarea').forEach(autosize);
+    $('[data-testid="max-rules"]').value = S.maxRules;
+    $('[data-testid="max-questions"]').value = S.maxQuestions;
+    renderSummary();
+  }
+
+  function verdict() {
+    const nr = S.rules.length, nq = S.questions.length;
+    const bare = S.rules.filter((r) => r.examples.length === 0).length;
+    if (!nr && !S.story.trim()) return { k: 'empty', stamp: 'Blank', t: 'Nothing on the table yet', why: 'Write the story, then its first rule.' };
+    if (nq > S.maxQuestions) return { k: 'questions', stamp: 'Not ready', t: 'Too many open questions', why: `${nq} red cards (limit ${S.maxQuestions}). Take them to someone who can answer before estimating.` };
+    if (nr > S.maxRules) return { k: 'split', stamp: 'Split it', t: 'Too many rules — split the story', why: `${nr} blue cards (limit ${S.maxRules}). Group related rules and slice them into smaller stories.` };
+    if (!nr) return { k: 'examples', stamp: 'Needs rules', t: 'No rules yet', why: 'A story with no rules has nothing to test.' };
+    if (bare) return { k: 'examples', stamp: 'Needs examples', t: `${bare} rule${bare > 1 ? 's' : ''} without an example`, why: 'Every rule needs at least one concrete example before it can become a scenario.' };
+    return { k: 'ready', stamp: 'Ready', t: nq ? 'Ready, with a question parked' : 'Ready to write scenarios', why: nq ? `${nq} question${nq > 1 ? 's' : ''} still open, within the limit of ${S.maxQuestions}. Note who will answer.` : 'Every rule has an example and nothing is blocking.' };
+  }
+
+  let lastVerdict = '';
+  function renderSummary() {
+    const v = verdict();
+    const vEl = $('[data-testid="verdict"]');
+    vEl.className = 'verdict v-' + v.k; vEl.dataset.verdict = v.k;
+    $('[data-testid="stamp"]').textContent = v.stamp;
+    $('[data-testid="verdict-title"]').textContent = v.t;
+    $('[data-testid="verdict-why"]').textContent = v.why;
+    lastVerdict = v.k;
+    const ne = S.rules.reduce((a, r) => a + r.examples.length, 0);
+    $('[data-testid="counts"]').innerHTML = `<span><i class="sw" style="background:var(--rule)"></i>Rules <b data-testid="n-rules">${S.rules.length}</b></span><span><i class="sw" style="background:var(--example)"></i>Examples <b data-testid="n-examples">${ne}</b></span><span><i class="sw" style="background:var(--question)"></i>Questions <b data-testid="n-questions">${S.questions.length}</b></span>`;
+    renderGherkin();
+  }
+
+  function gherkinText() {
+    const L = [];
+    const clean = (s) => s.replace(/\s+/g, ' ').trim();
+    S.questions.forEach((q) => L.push('# Open question: ' + clean(q.text || '(blank)')));
+    if (S.questions.length) L.push('');
+    L.push('Feature: ' + (S.story.trim() ? clean(titleFrom(S.story)) : 'Untitled story'));
+    if (S.story.trim()) L.push('  ' + clean(S.story));
+    S.rules.forEach((r) => {
+      L.push('');
+      L.push('  Rule: ' + (clean(r.text) || 'Untitled rule'));
+      if (!r.examples.length) { L.push('    # TODO: no examples yet'); return; }
+      r.examples.forEach((x) => {
+        const lines = x.text.split('\n').map((l) => l.trim()).filter(Boolean);
+        const steps = lines.filter((l) => /^(Given|When|Then|And|But)\b/i.test(l));
+        const title = lines.filter((l) => !/^(Given|When|Then|And|But)\b/i.test(l)).join(' ') || 'Untitled example';
+        L.push('');
+        L.push('    Example: ' + clean(title));
+        if (steps.length) steps.forEach((s) => L.push('      ' + s[0].toUpperCase() + s.slice(1)));
+        else L.push('      # TODO: Given / When / Then');
+      });
+    });
+    return L.join('\n') + '\n';
+  }
+  function titleFrom(story) {
+    const m = story.match(/I want (?:to )?(.+?)(?: so that|$)/i);
+    const t = (m ? m[1] : story).trim();
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  }
+  function renderGherkin() {
+    const txt = gherkinText();
+    $('[data-testid="gherkin"]').innerHTML = txt.split('\n').map((l) => {
+      const e = esc(l);
+      if (/^\s*#/.test(l)) return `<span class="cm">${e}</span>`;
+      return e.replace(/^(\s*)(Feature:|Rule:|Example:|Given|When|Then|And|But)/, (m0, sp, k) => `${sp}<span class="${k === 'Rule:' ? 'rk' : k === 'Example:' ? 'sk' : 'kw'}">${k}</span>`);
+    }).join('\n');
+  }
+
+  // ---------- editing ----------
+  const findEx = (xid) => { for (const r of S.rules) { const i = r.examples.findIndex((x) => x.id === xid); if (i >= 0) return { r, i }; } return null; };
+  document.addEventListener('input', (e) => {
+    const t = e.target;
+    if (t.matches('[data-testid="story-text"]')) { S.story = t.value; autosize(t); save(); renderSummary(); return; }
+    if (t.dataset.edit === 'rule') { const r = S.rules.find((x) => x.id === t.dataset.id); if (r) r.text = t.value; }
+    else if (t.dataset.edit === 'example') { const f = findEx(t.dataset.id); if (f) f.r.examples[f.i].text = t.value; }
+    else if (t.dataset.edit === 'question') { const q = S.questions.find((x) => x.id === t.dataset.id); if (q) q.text = t.value; }
+    else if (t.matches('[data-testid="max-rules"]')) { const v = parseInt(t.value, 10); if (Number.isFinite(v) && v >= 1) S.maxRules = v; }
+    else if (t.matches('[data-testid="max-questions"]')) { const v = parseInt(t.value, 10); if (Number.isFinite(v) && v >= 0) S.maxQuestions = v; }
+    else return;
+    if (t.tagName === 'TEXTAREA') autosize(t);
+    save(); renderSummary();
+  });
+  const focusSel = (sel) => { const el = $(sel); if (el) el.focus(); };
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.matches('[data-testid="add-rule"]')) { const r = { id: id(), text: '', examples: [] }; S.rules.push(r); save(); render(); focusSel(`[data-edit="rule"][data-id="${r.id}"]`); announce('Rule ' + S.rules.length + ' added'); }
+    else if (b.dataset.addEx) { const r = S.rules.find((x) => x.id === b.dataset.addEx); if (!r) return; const x = { id: id(), text: '' }; r.examples.push(x); save(); render(); focusSel(`[data-edit="example"][data-id="${x.id}"]`); announce('Example added'); }
+    else if (b.matches('[data-testid="add-question"]')) { const q = { id: id(), text: '' }; S.questions.push(q); save(); render(); focusSel(`[data-edit="question"][data-id="${q.id}"]`); announce('Question added'); }
+    else if (b.dataset.delRule) { S.rules = S.rules.filter((r) => r.id !== b.dataset.delRule); save(); render(); announce('Rule deleted'); }
+    else if (b.dataset.delEx) { const f = findEx(b.dataset.delEx); if (f) f.r.examples.splice(f.i, 1); save(); render(); announce('Example deleted'); }
+    else if (b.dataset.delQ) { S.questions = S.questions.filter((q) => q.id !== b.dataset.delQ); save(); render(); announce('Question deleted'); }
+    else if (b.matches('[data-testid="reset-board"]')) { S = sample(); save(); render(); announce('Sample story loaded'); }
+    else if (b.matches('[data-testid="clear-board"]')) { S = blank(); save(); render(); announce('Board cleared'); }
+    else if (b.matches('[data-testid="copy"]')) {
+      const st = $('[data-testid="copy-status"]');
+      try { navigator.clipboard.writeText(gherkinText()).then(() => { st.textContent = 'Copied.'; }, () => { st.textContent = 'Clipboard blocked — select the text instead.'; }); }
+      catch (err) { st.textContent = 'Clipboard blocked — select the text instead.'; }
+    } else if (b.matches('[data-testid="download"]')) {
+      const url = URL.createObjectURL(new Blob([gherkinText()], { type: 'text/plain' }));
+      const a = document.createElement('a'); a.href = url; a.download = (titleFrom(S.story || 'story').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'story') + '.feature';
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+      $('[data-testid="copy-status"]').textContent = 'Downloaded ' + a.download;
+    }
+  });
+
+  // ---------- moving examples ----------
+  function moveExample(xid, toRule, toIndex) {
+    const f = findEx(xid); if (!f) return false;
+    const dest = S.rules.find((r) => r.id === toRule); if (!dest) return false;
+    const [x] = f.r.examples.splice(f.i, 1);
+    let idx = Math.max(0, Math.min(Number.isFinite(toIndex) ? toIndex : dest.examples.length, dest.examples.length));
+    dest.examples.splice(idx, 0, x);
+    save(); render();
+    const g = $(`[data-grip="${xid}"]`); if (g) g.focus();
+    const ri = S.rules.indexOf(dest) + 1;
+    announce(`Example moved to rule ${ri}, position ${idx + 1} of ${dest.examples.length}`);
+    return true;
+  }
+  document.addEventListener('keydown', (e) => {
+    const g = e.target.closest && e.target.closest('[data-grip]'); if (!g) return;
+    const f = findEx(g.dataset.grip); if (!f) return;
+    const ri = S.rules.indexOf(f.r);
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      const nr = ri + (e.key === 'ArrowRight' ? 1 : -1);
+      e.preventDefault();
+      if (nr < 0 || nr >= S.rules.length) { announce('No rule further ' + (e.key === 'ArrowRight' ? 'right' : 'left')); return; }
+      moveExample(g.dataset.grip, S.rules[nr].id, Math.min(f.i, S.rules[nr].examples.length));
+    } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      const ni = f.i + (e.key === 'ArrowDown' ? 1 : -1);
+      if (ni < 0 || ni >= f.r.examples.length) return;
+      moveExample(g.dataset.grip, f.r.id, ni);
+    }
+  });
+
+  let drag = null;
+  document.addEventListener('pointerdown', (e) => {
+    const g = e.target.closest('[data-grip]'); if (!g || e.button > 0) return;
+    const card = g.closest('.example');
+    e.preventDefault();
+    const r = card.getBoundingClientRect();
+    const ghost = card.cloneNode(true); ghost.classList.add('ghost'); ghost.removeAttribute('data-testid'); ghost.querySelectorAll('[data-testid]').forEach((n) => n.removeAttribute('data-testid'));
+    ghost.style.width = Math.max(160, Math.min(260, r.width)) + 'px';
+    document.body.appendChild(ghost);
+    drag = { id: g.dataset.grip, card, ghost, dx: e.clientX - r.left, dy: e.clientY - r.top, target: null, index: 0, moved: false, pid: e.pointerId };
+    card.classList.add('dragging');
+    placeGhost(e.clientX, e.clientY);
+    try { g.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+  });
+  function placeGhost(x, y) {
+    if (!drag) return;
+    const gx = x - drag.dx, gy = y - drag.dy;
+    if (Number.isFinite(gx) && Number.isFinite(gy)) { drag.ghost.style.left = gx + 'px'; drag.ghost.style.top = gy + 'px'; }
+  }
+  document.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    drag.moved = true;
+    placeGhost(e.clientX, e.clientY);
+    document.querySelectorAll('.col.drop').forEach((c) => c.classList.remove('drop'));
+    const under = document.elementFromPoint(e.clientX, e.clientY);
+    const col = under && under.closest('[data-rule]');
+    drag.target = col ? col.dataset.rule : null;
+    if (col) {
+      col.classList.add('drop');
+      const cards = [...col.querySelectorAll('.example')].filter((c) => c !== drag.card);
+      drag.index = cards.filter((c) => { const b = c.getBoundingClientRect(); return b.top + b.height / 2 < e.clientY; }).length;
+    }
+    // keep the board scrolling on touch when dragging near the edges
+    if (e.clientY > innerHeight - 40) scrollBy(0, 12); else if (e.clientY < 40) scrollBy(0, -12);
+  });
+  function endDrag(commit) {
+    if (!drag) return;
+    const d = drag; drag = null;
+    d.ghost.remove(); d.card.classList.remove('dragging');
+    document.querySelectorAll('.col.drop').forEach((c) => c.classList.remove('drop'));
+    if (commit && d.moved && d.target) moveExample(d.id, d.target, d.index);
+  }
+  document.addEventListener('pointerup', () => endDrag(true));
+  document.addEventListener('pointercancel', () => endDrag(false));
+
+  // ---------- timebox ----------
+  const TOTAL = 25 * 60 * 1000;
+  const T = { left: TOTAL, endAt: 0, running: false, iv: 0 };
+  const fmt = (ms) => { const s = Math.ceil(Math.max(0, ms) / 1000); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
+  function paintTimer() {
+    $('[data-testid="clock"]').textContent = fmt(T.left);
+    const frac = Math.max(0, Math.min(1, T.left / TOTAL));
+    const off = 157.08 * (1 - frac);
+    $('[data-testid="timer-ring"]').setAttribute('stroke-dashoffset', Number.isFinite(off) ? off.toFixed(2) : '0');
+    $('[data-testid="timer-ring"]').setAttribute('stroke', T.left < 5 * 60000 ? '#c2410c' : '#e0a800');
+    $('[data-testid="timer-toggle"]').textContent = T.running ? 'Pause' : (T.left < TOTAL && T.left > 0 ? 'Resume' : 'Start');
+    $('[data-testid="timer"]').classList.toggle('over', T.left <= 0);
+    $('[data-testid="timer"]').dataset.state = T.left <= 0 ? 'over' : T.running ? 'running' : 'idle';
+  }
+  let warned = false;
+  function tick() {
+    T.left = Math.max(0, T.endAt - Date.now());
+    if (!warned && T.left <= 5 * 60000 && T.left > 0) { warned = true; $('[data-testid="timer-status"]').textContent = 'Five minutes left.'; }
+    if (T.left <= 0) {
+      T.running = false; clearInterval(T.iv);
+      const v = verdict();
+      $('[data-testid="timer-status"]').textContent = `Time's up. Verdict: ${v.t}.`;
+      announce(`Time's up. ${v.t}.`);
+    }
+    paintTimer();
+  }
+  $('[data-testid="timer-toggle"]').addEventListener('click', () => {
+    if (T.running) { T.left = Math.max(0, T.endAt - Date.now()); T.running = false; clearInterval(T.iv); $('[data-testid="timer-status"]').textContent = 'Paused at ' + fmt(T.left); }
+    else { if (T.left <= 0) T.left = TOTAL; T.endAt = Date.now() + T.left; T.running = true; warned = T.left <= 5 * 60000; clearInterval(T.iv); T.iv = setInterval(tick, 250); $('[data-testid="timer-status"]').textContent = 'Timebox running.'; }
+    paintTimer();
+  });
+  $('[data-testid="timer-reset"]').addEventListener('click', () => { clearInterval(T.iv); T.running = false; T.left = TOTAL; warned = false; $('[data-testid="timer-status"]').textContent = 'Timebox reset to 25 minutes.'; paintTimer(); });
+
+  window.__exmap = { get state() { return S; }, gherkin: gherkinText, verdict };
+  render(); paintTimer();
+})();
+</script>
+</body>
+</html>

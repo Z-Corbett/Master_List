@@ -1,0 +1,34 @@
+{
+  "id": "097",
+  "slug": "097-sundial",
+  "file": "lab/097-sundial.html",
+  "title": "Sundial — a horizontal dial designer",
+  "category": "Data Viz",
+  "tags": ["astronomy", "svg", "solar-position", "page-clock", "analemma"],
+  "description": "Enter a latitude and longitude (default Austin, Texas) and get an accurate horizontal sundial. Its hour lines are laid out with tan θ = sin φ · tan h, the gnomon is set at the latitude, and a live shadow is placed from a NOAA-style solar position calculation. The page converts the dial's reading to clock time with the equation-of-time, longitude and daylight-saving corrections, and plots the year as an analemma.",
+  "prompt": "Build an accurate horizontal sundial designer. I enter latitude and longitude (default Austin, TX) and the page computes the hour-line angles with tan θ = sin φ · tan h, sets the gnomon angle equal to the latitude, draws the dial, and shows the shadow at the current time using the sun's real position (implement a standard NOAA-style solar position algorithm). Include the equation-of-time and longitude corrections that convert sundial time to clock time, and add a year-long analemma-style chart. Tests should pin the time with page.clock and check the hour-line angles against the formula.",
+  "qa": {
+    "methodology": [
+      "Formula oracle: every drawn hour line from 7 AM to 5 PM is checked against atan(sin φ · tan h) computed in the test, for Austin, Greenwich and a typed latitude. The 6 o'clock lines must sit at exactly ±90°, and the gnomon readout must equal |φ|.",
+      "Astronomical reference values under page.clock: at the 2026 June solstice the declination is 23.42–23.45° and Austin's noon elevation is about 83.2° (90 − (φ − δ)). The November equation-of-time peak is about +16.4 min and the February trough below −14 min, and the declination is near 0 at the March equinox.",
+      "Conversion round-trip: dial time − equation of time − longitude correction (+ daylight saving) must reproduce the displayed clock time to within about a second. The longitude correction for Austin is exactly −30m 58s.",
+      "Time-zone independence: the page computes local time from an explicit UTC offset and DST rule (US, EU or NSW), so results don't depend on the test machine's time zone. The spec pins UTC instants.",
+      "Edge cases: night (no shadow, labelled), the southern hemisphere (hour lines mirror, orientation text says true south, Australian summer time), and latitudes rejected as too close to the equator or above 65°."
+    ],
+    "risks": [
+      "Sign conventions (east-positive longitude, morning-negative hour angle, hemisphere mirroring) are easy to flip; each has at least one assertion that would catch a flip.",
+      "DST boundary rules are hand-coded; a wrong transition hour would shift the clock readout by an hour near March, April, October and November.",
+      "The NOAA spreadsheet equations are accurate to roughly a minute; tests use tolerances that fit that accuracy rather than exact seconds.",
+      "Browser time zone leaking in through Date's local getters; the page only uses UTC getters."
+    ],
+    "playwright": "page.clock.install() followed by pauseAt() fixes the instant, so the sun is in a known place and the readouts are stable. The UTC instants in the spec were chosen from astronomy, not from snapshots: solstice solar noon in Austin, the early-November equation-of-time peak, Sydney's summer solar noon. The page exposes __sundial.last with the raw numbers behind every readout, so the tests can check relationships (the conversion identity and the analemma extremes) as well as the formatted text. The SVG dial is verified through its hour-line table, the presence of the shadow element and its aria-label, not through pixel snapshots.",
+    "coverage": [
+      "Hour-line angles vs formula at three latitudes, extra summer hours at 51.5° N, gnomon angle",
+      "Solstice declination, noon elevation, EoT, solar noon, longitude correction, shadow on the noon line",
+      "November EoT peak, conversion identity, analemma extremes, DST on and off",
+      "Night, picked equinox morning (shadow west), Now button",
+      "Sydney: mirrored hours, south orientation, AU DST; latitude guards"
+    ]
+  },
+  "a11y": "All inputs are labelled native fields, and the place presets are toggle buttons. The readouts are text in an aria-live region, and the dial's aria-label states the latitude, gnomon angle and where the shadow falls. The hour-line angles are also given as a table, and the analemma is labelled with its extremes."
+}

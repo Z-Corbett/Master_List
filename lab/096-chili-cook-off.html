@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chili Cook-Off — a Texas red chili game</title>
+<meta name="description" content="Cook a bowl of Texas red for a fictional cook-off: pick cuts of beef and dried chiles (ancho, guajillo, pasilla, árbol and more), plan your spice dumps, then run a live pot with heat, stirring, reduction and scorching before three fictional judges score flavour, heat balance, texture and aroma. No beans, per Texas tradition. Deterministic with ?seed=.">
+<style>
+  :root {
+    --masa: #f4e6c8;
+    --masa-2: #ead6ab;
+    --red: #a3201a;
+    --red-2: #c7361f;
+    --paprika: #d9531e;
+    --char: #2a2320;
+    --char-2: #463a33;
+    --poblano: #4f6b35;
+    --gold: #e7a92b;
+    --ink: #231c18;
+    --muted: #6c5a4a;
+    --card: #fff8e8;
+    --poster: "Bahnschrift", "DIN Condensed", "Arial Narrow", "Roboto Condensed", "Segoe UI", sans-serif;
+    --body: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --slab: "Georgia", "Times New Roman", serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--masa); color: var(--ink); font: 15px/1.55 var(--body); overflow-x: hidden;
+    background-image: radial-gradient(circle at 1px 1px, rgba(163,32,26,.10) 1px, transparent 1.5px); background-size: 14px 14px; }
+  :focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; background: var(--red); color: #fff4df; text-decoration: none; font: 700 13px/1 var(--poster); letter-spacing: .06em; text-transform: uppercase;
+    padding: 9px 12px; border-radius: 3px; box-shadow: 3px 3px 0 var(--char); }
+  a.back:hover { background: var(--char); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 60px 18px 40px; }
+  .poster { background: var(--red); color: #fff4df; border-radius: 4px; padding: 22px 24px 20px; box-shadow: 6px 6px 0 var(--char); position: relative; overflow: hidden; }
+  .poster::after { content: ""; position: absolute; right: -40px; top: -40px; width: 220px; height: 220px; border-radius: 50%; border: 18px dotted rgba(255,244,223,.12); }
+  .poster .k { font: 700 13px/1.2 var(--poster); letter-spacing: .3em; text-transform: uppercase; color: var(--gold); margin: 0; }
+  h1 { margin: 4px 0 6px; font: 700 clamp(44px, 8vw, 90px)/.9 var(--poster); letter-spacing: .01em; text-transform: uppercase; }
+  .poster p { margin: 0; max-width: 62ch; color: #ffe5c6; }
+  .steps { display: flex; gap: 6px; flex-wrap: wrap; margin: 18px 0 14px; }
+  .steps span { font: 700 13px/1 var(--poster); letter-spacing: .1em; text-transform: uppercase; padding: 8px 12px; border-radius: 2px; background: var(--masa-2); color: var(--muted); }
+  .steps span.on { background: var(--char); color: var(--gold); }
+  h2 { font: 700 30px/1.05 var(--poster); text-transform: uppercase; letter-spacing: .02em; margin: 0 0 4px; color: var(--red); }
+  .sub { margin: 0 0 14px; color: var(--muted); }
+  section { scroll-margin-top: 58px; }
+  .panel { background: var(--card); border: 2px solid var(--char); border-radius: 4px; padding: 16px 18px; box-shadow: 4px 4px 0 var(--char); min-width: 0; }
+  .grid { display: grid; gap: 16px; }
+  .g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cuts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .cut { text-align: left; min-height: 72px; padding: 10px 12px; border-radius: 3px; border: 2px solid var(--char-2); background: #fffdf6; color: var(--ink); cursor: pointer; font: 14px/1.3 var(--body); min-width: 0; }
+  .cut b { display: block; font: 700 16px/1.1 var(--poster); letter-spacing: .03em; text-transform: uppercase; }
+  .cut small { color: var(--muted); }
+  .cut[aria-pressed="true"] { border-color: var(--red); background: #fde6d8; box-shadow: inset 0 0 0 2px var(--red); }
+  .cut.beans { border-style: dashed; opacity: .85; }
+  .list { display: grid; gap: 6px; }
+  .item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px dashed #d6c39c; }
+  .item:last-child { border-bottom: 0; }
+  .item .nm b { font: 700 15px/1.1 var(--poster); letter-spacing: .03em; text-transform: uppercase; }
+  .item .nm small { display: block; color: var(--muted); font-size: 12px; }
+  .pep { color: var(--red-2); letter-spacing: -1px; font-size: 12px; }
+  .stepper { display: inline-flex; align-items: center; border: 2px solid var(--char-2); border-radius: 3px; overflow: hidden; }
+  .stepper button { width: 36px; height: 36px; border: 0; background: var(--masa-2); color: var(--ink); font: 700 18px/1 var(--body); cursor: pointer; }
+  .stepper button:disabled { opacity: .35; cursor: default; }
+  .stepper output { min-width: 34px; text-align: center; font: 700 15px/1 var(--poster); font-variant-numeric: tabular-nums; }
+  .opts { display: flex; flex-wrap: wrap; gap: 12px 18px; margin-top: 10px; }
+  .opts label { display: inline-flex; gap: 8px; align-items: center; font-weight: 600; }
+  .opts input { width: 18px; height: 18px; accent-color: var(--red); }
+  select { font: 15px var(--body); padding: 8px 10px; border: 2px solid var(--char-2); border-radius: 3px; background: #fffdf6; max-width: 100%; }
+  .meter { height: 10px; border-radius: 5px; background: #ecdcb8; overflow: hidden; }
+  .meter i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #f1c24b, var(--paprika), var(--red)); transition: width .3s; }
+  .preview { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; align-items: center; font-size: 14px; margin-top: 8px; }
+  .cta { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; align-items: center; }
+  .btn { min-height: 48px; padding: 10px 20px; border: 0; border-radius: 3px; background: var(--red); color: #fff4df; font: 700 17px/1 var(--poster); letter-spacing: .08em; text-transform: uppercase; cursor: pointer; box-shadow: 3px 3px 0 var(--char); max-width: 100%; }
+  .btn:hover { background: var(--red-2); }
+  .btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--char); }
+  .btn.dark { background: var(--char); color: var(--gold); }
+  .btn.green { background: var(--poblano); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .msg { min-height: 1.5em; font-weight: 600; color: var(--red); margin: 8px 0 0; }
+
+  .potgrid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  canvas { display: block; width: 100%; height: auto; aspect-ratio: 520 / 400; border-radius: 3px; background: #1d1714; touch-action: manipulation; }
+  .clock { font: 700 44px/1 var(--poster); color: var(--red); font-variant-numeric: tabular-nums; }
+  .gauges { display: grid; gap: 10px; margin: 10px 0; }
+  .gauge { display: grid; grid-template-columns: 96px minmax(0, 1fr) 54px; gap: 8px; align-items: center; font-size: 13px; }
+  .gauge b { font: 700 13px/1 var(--poster); letter-spacing: .06em; text-transform: uppercase; }
+  .gauge .bar { height: 12px; border-radius: 6px; background: #ecdcb8; overflow: hidden; position: relative; }
+  .gauge .bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 6px; }
+  .gauge .bar .zone { position: absolute; top: 0; bottom: 0; background: rgba(79,107,53,.25); border-left: 1px solid var(--poblano); border-right: 1px solid var(--poblano); }
+  .gauge output { text-align: right; font: 700 13px/1 var(--poster); font-variant-numeric: tabular-nums; }
+  .knob { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .knob button { min-height: 44px; border-radius: 3px; border: 2px solid var(--char-2); background: #fffdf6; font: 700 14px/1 var(--poster); letter-spacing: .06em; text-transform: uppercase; cursor: pointer; min-width: 0; }
+  .knob button[aria-checked="true"] { background: var(--paprika); color: #fff; border-color: var(--paprika); }
+  .log { list-style: none; margin: 10px 0 0; padding: 0; max-height: 150px; overflow: auto; font-size: 13px; border-top: 1px dashed #d6c39c; }
+  .log li { padding: 3px 0; }
+  .log time { font: 700 12px var(--poster); color: var(--muted); margin-right: 6px; }
+
+  .judges { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+  .judge { background: var(--card); border: 2px solid var(--char); border-radius: 4px; padding: 14px; min-width: 0; box-shadow: 4px 4px 0 var(--char); }
+  .judge header { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 10px; align-items: center; margin-bottom: 8px; }
+  .judge h3 { margin: 0; font: 700 18px/1.1 var(--poster); text-transform: uppercase; letter-spacing: .03em; }
+  .judge .who { font-size: 12px; color: var(--muted); }
+  .judge table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .judge td { padding: 4px 0; border-bottom: 1px dotted #d6c39c; }
+  .judge td:last-child { text-align: right; font: 700 15px var(--poster); font-variant-numeric: tabular-nums; }
+  .judge .tot { font: 700 30px/1 var(--poster); color: var(--red); text-align: right; margin-top: 6px; }
+  .judge blockquote { margin: 8px 0 0; font: italic 14px/1.45 var(--slab); color: var(--char-2); border-left: 3px solid var(--gold); padding-left: 10px; }
+  .result { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px; align-items: center; margin: 22px 0 18px 10px; }
+  .ribbon { width: 96px; height: 96px; border-radius: 50%; display: grid; place-items: center; text-align: center; font: 700 15px/1.05 var(--poster); text-transform: uppercase; color: #fff; background: var(--red); box-shadow: 0 0 0 6px var(--gold), 0 0 0 9px var(--char); padding: 8px; }
+  .ribbon.first { background: #1f4fa3; } .ribbon.second { background: #a3201a; } .ribbon.third { background: #b8870f; } .ribbon.none { background: var(--char-2); }
+  .score-big { font: 700 48px/1 var(--poster); color: var(--char); }
+  footer { margin-top: 26px; text-align: center; font-size: 13px; color: var(--muted); }
+  footer code { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 3px; }
+  @media (max-width: 900px) { .g3, .judges { grid-template-columns: minmax(0, 1fr); } .potgrid { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 560px) { .cuts { grid-template-columns: repeat(2, minmax(0, 1fr)); } .gauge { grid-template-columns: 78px minmax(0, 1fr) 46px; } .knob { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 380px) { .cuts { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <div class="poster">
+    <p class="k">Caliche Flats Volunteer Fire Dept. · 12th annual (fictional)</p>
+    <h1>Chili Cook-Off</h1>
+    <p>Texas red: beef, dried chiles, and patience. Build your pot, run it for a few hours without scorching it, and turn in a cup to three judges who don't agree about anything. Beans stay home. That's tradition, and around here tradition wins arguments.</p>
+  </div>
+  <div class="steps" aria-label="Progress"><span id="st1" class="on">1 · Pantry</span><span id="st2">2 · The pot</span><span id="st3">3 · Judging</span></div>
+
+  <!-- 1. pantry -->
+  <section id="pantry" aria-labelledby="h-pantry" data-testid="pantry">
+    <h2 id="h-pantry">The pantry</h2>
+    <p class="sub">Pick up to two cuts of beef, your dried chiles and the spice blend. Spices go in as "dumps" during the cook; you decide when.</p>
+    <div class="grid g3">
+      <div class="panel" style="grid-column: 1 / -1">
+        <h3 style="margin:0 0 8px;font:700 18px var(--poster);text-transform:uppercase">Beef <small style="font:12px var(--body);color:var(--muted);text-transform:none">(pick 1 or 2)</small></h3>
+        <div class="cuts" id="cuts"></div>
+        <p class="msg" id="cutMsg" role="status" aria-live="polite" data-testid="cut-msg"></p>
+      </div>
+      <div class="panel">
+        <h3 style="margin:0 0 6px;font:700 18px var(--poster);text-transform:uppercase">Dried chiles <small style="font:12px var(--body);color:var(--muted);text-transform:none">pods</small></h3>
+        <div class="list" id="chiles"></div>
+      </div>
+      <div class="panel">
+        <h3 style="margin:0 0 6px;font:700 18px var(--poster);text-transform:uppercase">Spice blend</h3>
+        <div class="list" id="spices"></div>
+      </div>
+      <div class="panel">
+        <h3 style="margin:0 0 6px;font:700 18px var(--poster);text-transform:uppercase">Liquid &amp; prep</h3>
+        <label for="liquid" style="font-weight:700;font-size:13px">Braising liquid</label><br>
+        <select id="liquid" data-testid="liquid"><option value="broth">Beef broth</option><option value="lager">Half broth, half Texas lager</option><option value="water">Water</option></select>
+        <div class="opts"><label><input type="checkbox" id="toast" checked data-testid="toast"> Toast &amp; soak the chiles</label></div>
+        <div class="preview" aria-live="polite">
+          <span>Heat in the pot, before reduction</span><b id="shu" data-testid="heat-preview">–</b>
+          <div class="meter" style="grid-column:1/-1" aria-hidden="true"><i id="heatBar"></i></div>
+          <span>Chile depth</span><b id="depthPrev" data-testid="depth-preview">–</b>
+        </div>
+      </div>
+    </div>
+    <div class="cta"><button class="btn" id="toPot" data-testid="to-pot">Light the burner →</button><span class="msg" id="pantryMsg" data-testid="pantry-msg"></span></div>
+  </section>
+
+  <!-- 2. pot -->
+  <section id="potSec" aria-labelledby="h-pot" hidden data-testid="pot">
+    <h2 id="h-pot">The pot</h2>
+    <p class="sub">Keep it at a lazy simmer. Stir so the bottom doesn't catch. Add each spice dump when you think it's time; late dumps keep more aroma, early ones meld better. Turn in after at least an hour of cooking.</p>
+    <div class="potgrid">
+      <div class="panel">
+        <canvas id="cv" width="520" height="400" data-testid="pot-canvas" role="img" aria-label="The chili pot"></canvas>
+        <div class="cta">
+          <button class="btn dark" id="stir" data-testid="stir">Stir (S)</button>
+          <button class="btn green" id="dump" data-testid="dump">Spice dump 1 of 2</button>
+          <button class="btn dark" id="speed" data-testid="speed" aria-pressed="false">Speed ×1</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div style="display:flex;justify-content:space-between;align-items:end;gap:10px;flex-wrap:wrap"><div><small style="font:700 12px var(--poster);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Cooking time</small><div class="clock" id="clock" data-testid="clock">0h 00m</div></div><div id="temp" style="font:700 20px var(--poster)" data-testid="temp">70 °F</div></div>
+        <div style="margin-top:10px"><span id="knobLbl" style="font:700 13px var(--poster);letter-spacing:.08em;text-transform:uppercase">Burner</span>
+          <div class="knob" role="radiogroup" aria-labelledby="knobLbl" id="knob"></div></div>
+        <div class="gauges">
+          <div class="gauge"><b>Tender</b><div class="bar"><i id="gT" style="background:var(--poblano)"></i></div><output id="oT" data-testid="g-tender">0%</output></div>
+          <div class="gauge"><b>Thickness</b><div class="bar"><span class="zone" style="left:52%;width:22%"></span><i id="gK" style="background:var(--paprika);opacity:.85"></i></div><output id="oK" data-testid="g-thick">0%</output></div>
+          <div class="gauge"><b>Scorch</b><div class="bar"><i id="gS" style="background:var(--char)"></i></div><output id="oS" data-testid="g-scorch">0%</output></div>
+          <div class="gauge"><b>Since stir</b><div class="bar"><i id="gW" style="background:var(--gold)"></i></div><output id="oW" data-testid="g-stir">0m</output></div>
+        </div>
+        <div class="cta" style="margin-top:4px"><button class="btn" id="turnIn" data-testid="turn-in">Turn in a cup</button></div>
+        <p class="msg" id="potMsg" role="status" aria-live="polite" data-testid="pot-msg"></p>
+        <ol class="log" id="log" data-testid="log" aria-label="Cook log"></ol>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. judging -->
+  <section id="judgeSec" aria-labelledby="h-judge" hidden data-testid="judging">
+    <h2 id="h-judge">The judges' table</h2>
+    <div class="result"><div class="ribbon" id="ribbon" data-testid="ribbon">–</div><div><div class="score-big" id="total" data-testid="total">0</div><div id="placing" data-testid="placing"></div></div></div>
+    <div class="judges" id="judges"></div>
+    <div class="cta"><button class="btn" id="again" data-testid="again">Cook another pot</button></div>
+  </section>
+  <footer>Built by Zac Corbett · a game, not a recipe audit: heat levels are rough Scoville ranges · judges, town and cook-off are fictional · add <code>?seed=</code> for repeatable judging</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const fin = (v, d = 0) => (Number.isFinite(v) ? v : d);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const params = new URLSearchParams(location.search);
+  const SEED = (parseInt(params.get('seed'), 10) >>> 0) || 1977;
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  // ---------- ingredients ----------
+  // need = minutes at a simmer to go tender; dry = minutes after which a lean cut starts drying out
+  const CUTS = [
+    { id: 'chuck', name: 'Chuck, cubed', note: 'The classic. Marbled, rich, forgiving.', flavor: 0.85, fat: 0.6, need: 150, dry: 999, cubed: true },
+    { id: 'brisket', name: 'Brisket point', note: 'Deep beefy flavour, wants time.', flavor: 0.9, fat: 0.8, need: 180, dry: 999, cubed: true },
+    { id: 'shortrib', name: 'Short rib', note: 'Luxurious, lots of collagen.', flavor: 0.92, fat: 0.9, need: 170, dry: 999, cubed: true },
+    { id: 'chiligrind', name: 'Chili grind', note: 'Coarse-ground chuck. Quick to cook.', flavor: 0.7, fat: 0.55, need: 50, dry: 999, cubed: false },
+    { id: 'sirloin', name: 'Sirloin', note: 'Lean. Tender early, dries out if you go long.', flavor: 0.65, fat: 0.2, need: 40, dry: 110, cubed: true },
+    { id: 'venison', name: 'Venison', note: 'Lean and a little gamey. Hunting-season pot.', flavor: 0.75, fat: 0.15, need: 90, dry: 170, cubed: true },
+  ];
+  // Scoville ranges are approximate and vary pod to pod.
+  const CHILES = [
+    { id: 'ancho', name: 'Ancho', shu: [1000, 1500], depth: 3.0, note: 'dried poblano · raisin, sweet', col: [92, 30, 22] },
+    { id: 'guajillo', name: 'Guajillo', shu: [2500, 5000], depth: 2.5, note: 'bright, tangy, berry', col: [160, 36, 24] },
+    { id: 'pasilla', name: 'Pasilla', shu: [1000, 2500], depth: 2.4, note: 'chilaca · earthy, cocoa', col: [60, 30, 26] },
+    { id: 'newmex', name: 'New Mexico', shu: [800, 1400], depth: 1.6, note: 'clean, earthy red', col: [150, 40, 26] },
+    { id: 'morita', name: 'Chipotle morita', shu: [5000, 10000], depth: 2.0, note: 'smoked jalapeño · smoky', col: [96, 34, 28] },
+    { id: 'arbol', name: 'Chile de árbol', shu: [15000, 30000], depth: 0.5, note: 'sharp, fast heat', col: [190, 40, 22] },
+    { id: 'pequin', name: 'Chile pequín', shu: [40000, 60000], depth: 0.3, note: 'tiny, fierce, Texas native', col: [200, 44, 24] },
+  ];
+  const SPICES = [
+    { id: 'cumin', name: 'Cumin', unit: 'tbsp', max: 4, aroma: 1.2, note: 'the backbone' },
+    { id: 'oregano', name: 'Mexican oregano', unit: 'tsp', max: 4, aroma: 0.8, note: 'citrusy, not Italian' },
+    { id: 'garlic', name: 'Garlic powder', unit: 'tsp', max: 4, aroma: 0.9, note: 'savoury' },
+    { id: 'onion', name: 'Onion powder', unit: 'tsp', max: 4, aroma: 0.5, note: 'sweet depth' },
+    { id: 'salt', name: 'Salt', unit: 'tsp', max: 5, aroma: 0, note: 'season as you go' },
+    { id: 'cocoa', name: 'Cocoa', unit: 'tsp', max: 3, aroma: 0.4, note: 'dark, a little goes far' },
+    { id: 'masa', name: 'Masa harina', unit: 'tbsp', max: 3, aroma: 0.2, note: 'thickens at the end' },
+  ];
+
+  const P = { cuts: ['chuck'], chiles: { ancho: 3, guajillo: 2, pasilla: 1, newmex: 0, morita: 0, arbol: 1, pequin: 0 },
+    spices: { cumin: 2, oregano: 2, garlic: 2, onion: 1, salt: 3, cocoa: 1, masa: 1 }, liquid: 'broth', toast: true };
+
+  // ---------- pantry UI ----------
+  function stepper(key, val, max, label) {
+    return `<span class="stepper"><button type="button" data-k="${key}" data-d="-1" aria-label="Less ${label}" ${val <= 0 ? 'disabled' : ''}>−</button><output data-testid="qty-${key.split(':')[1]}" aria-live="polite">${val}</output><button type="button" data-k="${key}" data-d="1" aria-label="More ${label}" ${val >= max ? 'disabled' : ''}>+</button></span>`;
+  }
+  function renderPantry() {
+    $('cuts').innerHTML = CUTS.map((c) => `<button type="button" class="cut" data-cut="${c.id}" aria-pressed="${P.cuts.includes(c.id)}" data-testid="cut-${c.id}"><b>${esc(c.name)}</b><small>${esc(c.note)}</small></button>`).join('') +
+      `<button type="button" class="cut beans" data-cut="beans" aria-pressed="false" data-testid="cut-beans"><b>Pinto beans</b><small>Hmm.</small></button>`;
+    $('chiles').innerHTML = CHILES.map((c) => {
+      const peppers = '🌶'.repeat(Math.max(1, Math.round(Math.log10(c.shu[1]) - 2.3)));
+      return `<div class="item"><div class="nm"><b>${esc(c.name)}</b> <span class="pep" aria-hidden="true">${peppers}</span><small>${esc(c.note)} · ${c.shu[0].toLocaleString('en-US')}–${c.shu[1].toLocaleString('en-US')} SHU</small></div>${stepper('chile:' + c.id, P.chiles[c.id], 6, c.name)}</div>`;
+    }).join('');
+    $('spices').innerHTML = SPICES.map((s) => `<div class="item"><div class="nm"><b>${esc(s.name)}</b><small>${esc(s.note)} · ${s.unit}</small></div>${stepper('spice:' + s.id, P.spices[s.id], s.max, s.name)}</div>`).join('');
+    const pv = pantryPreview();
+    $('shu').textContent = `${pv.heat.toFixed(1)} / 10`;
+    $('heatBar').style.width = (pv.heat * 10) + '%';
+    $('depthPrev').textContent = `${pv.depth.toFixed(1)} / 10`;
+  }
+  const avgShu = (c) => (c.shu[0] + c.shu[1]) / 2;
+  function pantryPreview() {
+    let shu = 0, depth = 0;
+    for (const c of CHILES) { shu += P.chiles[c.id] * avgShu(c); depth += P.chiles[c.id] * c.depth; }
+    return { shu, heat: 10 * (1 - Math.exp(-shu / 40000)), depth: Math.min(10, depth * (P.toast ? 1.15 : 1) / 1.8) };
+  }
+  $('pantry').addEventListener('click', (e) => {
+    const cut = e.target.closest('.cut');
+    if (cut) {
+      const id = cut.dataset.cut;
+      if (id === 'beans') { $('cutMsg').textContent = 'Beans? Not in Texas red. Bring them to the side-dish table and nobody gets hurt.'; return; }
+      const i = P.cuts.indexOf(id);
+      if (i >= 0) { if (P.cuts.length > 1) P.cuts.splice(i, 1); else { $('cutMsg').textContent = 'You need at least one cut of beef.'; return; } }
+      else { if (P.cuts.length >= 2) { $('cutMsg').textContent = 'Two cuts is plenty. Unpick one first.'; return; } P.cuts.push(id); }
+      $('cutMsg').textContent = `Beef: ${P.cuts.map((c) => CUTS.find((x) => x.id === c).name).join(' and ')}.`;
+      renderPantry(); document.querySelector(`[data-cut="${id}"]`).focus();
+      return;
+    }
+    const b = e.target.closest('.stepper button');
+    if (b) {
+      const [kind, id] = b.dataset.k.split(':'), d = +b.dataset.d;
+      if (kind === 'chile') P.chiles[id] = clamp(P.chiles[id] + d, 0, 6);
+      else P.spices[id] = clamp(P.spices[id] + d, 0, SPICES.find((s) => s.id === id).max);
+      renderPantry();
+      const again = document.querySelector(`.stepper button[data-k="${b.dataset.k}"][data-d="${d}"]`);
+      (again && !again.disabled ? again : document.querySelector(`.stepper button[data-k="${b.dataset.k}"]:not([disabled])`))?.focus();
+    }
+  });
+  $('liquid').addEventListener('change', () => { P.liquid = $('liquid').value; });
+  $('toast').addEventListener('change', () => { P.toast = $('toast').checked; renderPantry(); });
+
+  // ---------- the pot simulation (game minutes) ----------
+  const STEP = 0.5;                                   // minutes per simulation step
+  const SETPOINT = { off: 70, low: 188, med: 200, high: 212 };   // °F
+  const EVAP = { off: 0, low: 0.004, med: 0.0053, high: 0.009 }; // liquid fraction lost per minute at temperature
+  let K = null;                                        // the cook
+  function startCook() {
+    const rng = mulberry32(SEED);
+    // seeded events: a gust that knocks the flame down, and a neighbour who wants a taste
+    const events = [{ at: 40 + Math.floor(rng() * 50), kind: 'gust' }, { at: 95 + Math.floor(rng() * 60), kind: 'taste' }];
+    K = { t: 0, temp: 70, heat: 'med', liquid: 1, sinceStir: 0, scorch: 0, cookMin: 0, dumps: [], stirs: 0, events, log: [], judged: false, gustLeft: 0,
+      tender: Object.fromEntries(P.cuts.map((c) => [c, 0])), dryness: Object.fromEntries(P.cuts.map((c) => [c, 0])), boilMin: 0, rng };
+    say('The pot is on at medium. Get it to a simmer, then think about your first dump.');
+    addLog('Browned the beef and poured in the ' + { broth: 'beef broth', lager: 'broth and lager', water: 'water' }[P.liquid] + (P.toast ? '; toasted chiles blended in.' : '; chiles blended in.'));
+  }
+  function stepSim() {
+    const k = K; const dt = STEP;
+    k.t += dt;
+    // events
+    for (const ev of k.events) if (!ev.done && k.t >= ev.at) {
+      ev.done = true;
+      if (ev.kind === 'gust') { k.gustLeft = 6; addLog('A gust off the caliche flats knocks the flame down for a few minutes.'); say('Wind! The burner sputters.'); }
+      else addLog('A neighbour asks for a taste. You say no. Rules are rules.');
+    }
+    // temperature approaches the burner's setpoint (a gust drags it down)
+    let set = SETPOINT[k.heat];
+    if (k.gustLeft > 0) { k.gustLeft -= dt; set = Math.min(set, 150); }
+    k.temp += (set - k.temp) * (1 - Math.exp(-dt / 6));
+    const simmering = k.temp >= 185;
+    // reduction
+    const boilFactor = clamp((k.temp - 180) / 32, 0, 1);
+    k.liquid = Math.max(0.05, k.liquid - EVAP[k.heat] * boilFactor * dt);
+    // stirring and scorch: the bottom catches when it's hot, thick and neglected
+    k.sinceStir += dt;
+    const thick = 1 - k.liquid;
+    const risk = (k.heat === 'high' ? 1 : k.heat === 'med' ? 0.35 : 0.08) * boilFactor * (0.4 + thick * 1.4) * Math.max(0, k.sinceStir - 12) / 12;
+    k.scorch = clamp(k.scorch + risk * 0.0035 * dt, 0, 1);
+    if (k.heat === 'high' && simmering) k.boilMin += dt;
+    // beef
+    if (simmering) {
+      k.cookMin += dt;
+      for (const id of P.cuts) {
+        const c = CUTS.find((x) => x.id === id);
+        k.tender[id] = 1 - Math.exp(-k.cookMin / (c.need / 2.3));                       // ~90% tender at `need`
+        const over = Math.max(0, k.cookMin - c.dry) * (k.heat === 'high' ? 1.6 : 1);
+        k.dryness[id] = clamp(over / 120, 0, 1);
+      }
+    }
+  }
+  function stir() { if (!K || K.judged) return; K.sinceStir = 0; K.stirs++; stirAnim = 1; if (K.stirs <= 3 || K.stirs % 5 === 0) addLog('Stirred, scraping the bottom.'); }
+  function dump() {
+    if (!K || K.dumps.length >= 2) return;
+    K.dumps.push({ at: K.t });
+    addLog(`Spice dump ${K.dumps.length} of 2.`);
+    say(K.dumps.length === 1 ? 'First dump in. The pot smells like a cook-off now.' : 'Second dump in. That’s everything.');
+    syncButtons();
+  }
+  function setHeat(h) { if (!K) return; K.heat = h; syncKnob(); addLog(`Burner to ${h}.`); }
+  function addLog(text) { if (!K) return; K.log.push({ t: K.t, text }); const li = document.createElement('li'); li.innerHTML = `<time>${fmtT(K.t)}</time>`; li.appendChild(document.createTextNode(text)); $('log').prepend(li); }
+  const fmtT = (m) => `${Math.floor(m / 60)}h ${String(Math.floor(m % 60)).padStart(2, '0')}m`;
+
+  // ---------- judging ----------
+  const JUDGES = [
+    { id: 'dolores', name: 'Dolores Ybarra', who: 'Retired school cook, 30 years judging. Traditionalist.', idealHeat: 4.5, w: { flavor: 0.35, heat: 0.2, texture: 0.3, aroma: 0.15 }, hat: '#6b3f1f' },
+    { id: 'hank', name: 'Hank Pruitt', who: 'Pipeline welder. Grows his own pequíns. Wants to sweat.', idealHeat: 7.5, w: { flavor: 0.3, heat: 0.4, texture: 0.15, aroma: 0.15 }, hat: '#d8c7a0' },
+    { id: 'rosalind', name: 'Rosalind Beaumont', who: 'Caterer with a very good nose. Notices everything.', idealHeat: 5.5, w: { flavor: 0.35, heat: 0.15, texture: 0.15, aroma: 0.35 }, hat: '#2f4a5e' },
+  ];
+  function analyse() {
+    const k = K, pv = pantryPreview();
+    const reduction = clamp(1 - k.liquid, 0, 1);
+    const conc = 1 + (0.45 - k.liquid) * 0.6;                            // reduction concentrates heat and salt
+    const heat = clamp(pv.heat * conc, 0, 10);
+    const meld = clamp(k.cookMin / 120, 0, 1);
+    const depth = clamp(pv.depth * (0.55 + 0.45 * meld), 0, 10);
+    const cuts = P.cuts.map((id) => CUTS.find((x) => x.id === id));
+    const beef = cuts.reduce((a, c) => a + c.flavor, 0) / cuts.length * (P.liquid === 'broth' ? 1.05 : P.liquid === 'lager' ? 1.08 : 0.92);
+    const tender = P.cuts.reduce((a, id) => a + k.tender[id] * (1 - 0.6 * k.dryness[id]), 0) / P.cuts.length;
+    const ground = cuts.some((c) => !c.cubed);
+    const thickness = clamp(reduction + P.spices.masa * 0.07, 0, 1);
+    // spices: split evenly between the dumps actually made; missing dumps mean missing spice
+    const blendAroma = SPICES.reduce((a, s) => a + s.aroma * P.spices[s.id] * (s.unit === 'tbsp' ? 1 : 0.4), 0);
+    let fresh = 0, meldSp = 0;
+    for (const d of k.dumps) { const age = k.t - d.at; fresh += 0.5 * Math.exp(-age / 110); meldSp += 0.5 * (1 - Math.exp(-age / 35)); }
+    const spiceShare = k.dumps.length / 2;
+    const aromaRaw = clamp(blendAroma / 5, 0, 1.4) * (0.35 + fresh * 1.3) * (P.toast ? 1.1 : 1);
+    const salt = P.spices.salt * conc / 3;                                // 1 = well seasoned
+    const cuminOver = Math.max(0, P.spices.cumin - 2.5);
+    const sweet = P.spices.cocoa * 0.5 + (P.liquid === 'lager' ? 0.2 : 0);
+    const complexity = (P.spices.cocoa >= 1 && P.spices.cocoa <= 2 ? 0.6 : 0) + (P.chiles.morita > 0 ? 0.3 : 0) + (new Set(CHILES.filter((c) => P.chiles[c.id] > 0).map((c) => c.id)).size >= 3 ? 0.5 : 0);
+    return { heat, depth, beef, tender, ground, thickness, fresh, meldSp, spiceShare, aromaRaw, salt, cuminOver, sweet, complexity, scorch: k.scorch, cookMin: k.cookMin, boilMin: k.boilMin, dumps: k.dumps.length, lean: cuts.some((c) => c.dry < 999), dryness: Math.max(...P.cuts.map((id) => k.dryness[id])) };
+  }
+  function scoreFor(j, A, rng) {
+    const saltTerm = A.salt < 0.5 ? -2 : A.salt < 0.8 ? -0.8 : A.salt <= 1.35 ? 0.4 : A.salt <= 1.7 ? -1 : -2.5;
+    let flavor = 1.5 + A.depth * 0.38 + A.beef * 2.4 + A.meldSp * 1.2 + saltTerm + A.complexity * (j.id === 'rosalind' ? 1.4 : 0.8) - A.scorch * 7 - A.cuminOver * 1.1 - (1 - A.spiceShare) * 2.2;
+    if (j.id === 'dolores' && A.sweet > 1) flavor -= (A.sweet - 1) * 1.5;
+    // Hank minds a mild pot far more than a fiery one; the others want the fire balanced by chile depth
+    const over = A.heat - j.idealHeat;
+    let heat = j.id === 'hank' ? 10 - (over < 0 ? 1.5 * -over : 0.5 * over) : 10 - 1.5 * Math.abs(over) - (A.heat > A.depth + 3 ? 1.5 : 0);
+    if (j.id === 'hank' && A.heat < 5) heat -= 1;
+    let texture = 10 - 14 * Math.max(0, Math.abs(A.thickness - 0.63) - 0.07) - (1 - A.tender) * 7 - A.dryness * 3 - (A.ground && j.id === 'dolores' ? 1.5 : 0) - A.scorch * 2;
+    let aroma = 2 + A.aromaRaw * 5.5 + (A.toastBonus || 0) - A.scorch * (j.id === 'rosalind' ? 9 : 6) - (A.dumps === 0 ? 2 : 0);
+    const cat = { flavor, heat, texture, aroma };
+    for (const key in cat) cat[key] = Math.round(clamp(cat[key] + (rng() - 0.5) * 0.5, 1, 10) * 2) / 2;
+    const total = Math.round((cat.flavor * j.w.flavor + cat.heat * j.w.heat + cat.texture * j.w.texture + cat.aroma * j.w.aroma) * 10 * 10) / 10;
+    return { cat, total, comment: commentFor(j, A, cat) };
+  }
+  function commentFor(j, A, cat) {
+    const lines = [];
+    if (A.scorch > 0.25) lines.push(j.id === 'rosalind' ? 'I can taste the bottom of the pot. Burnt is not a flavour note.' : 'Somebody forgot to stir. That scorched taste runs all the way through.');
+    if (j.id === 'dolores') {
+      if (A.ground) lines.push('Ground meat is for tacos. A bowl of red wants cubes.');
+      if (A.sweet > 1) lines.push("It's chili, mijo, not mole. Ease up on the chocolate.");
+      if (A.tender > 0.85 && !A.ground) lines.push('The beef falls apart on the spoon. That is how you do it.');
+      if (A.depth > 6) lines.push('Real chile flavour, not just powder. Somebody raised you right.');
+    }
+    if (j.id === 'hank') {
+      if (A.heat < 4) lines.push("Where's the fire? My grandbaby could eat this.");
+      else if (A.heat > 8.5) lines.push('Now THAT is chili. I can feel my ears.');
+      else if (A.heat >= 6) lines.push('Good honest burn. Could stand one more árbol.');
+    }
+    if (j.id === 'rosalind') {
+      if (A.fresh > 0.45) lines.push('The cumin and oregano are still bright; that late dump was clever.');
+      else if (A.dumps && A.fresh < 0.25) lines.push('The spices cooked out hours ago. It smells tired.');
+      if (A.complexity > 1) lines.push('Layers: smoke, a whisper of cocoa, several chiles. Lovely.');
+    }
+    if (A.dumps === 0) lines.push('No spices at all? That is braised beef in chile water.');
+    if (A.salt < 0.6) lines.push('Needs salt. Badly.'); else if (A.salt > 1.7) lines.push('Salty enough to cure a ham.');
+    if (A.cuminOver > 0.5) lines.push('Cumin overload. It tastes like a seasoning packet.');
+    if (A.thickness < 0.45) lines.push('Thin as soup. Let it reduce.'); else if (A.thickness > 0.85) lines.push('You could stand a spoon in it. Too thick.');
+    if (A.dryness > 0.3) lines.push('That lean meat went dry and stringy from the long cook.');
+    if (A.tender < 0.6) lines.push('The meat is still chewy. It needed more time.');
+    if (!lines.length) { const best = Object.entries(cat).sort((a, b) => b[1] - a[1])[0][0]; lines.push({ flavor: 'Balanced and beefy. No complaints.', heat: 'The heat sits just right.', texture: 'Lovely body on it.', aroma: 'Smells like a cook-off should.' }[best]); }
+    return lines.slice(0, 2).join(' ');
+  }
+  let lastResult = null;
+  function judge() {
+    const A = analyse();
+    A.toastBonus = P.toast ? 0.6 : 0;
+    const rng = mulberry32(SEED ^ 0xc0ffee);
+    const scores = JUDGES.map((j) => ({ judge: j, ...scoreFor(j, A, rng) }));
+    const total = Math.round(scores.reduce((a, s) => a + s.total, 0) / scores.length * 10) / 10;
+    // the rest of the field: 23 other entries, seeded
+    const field = []; const fr = mulberry32(SEED ^ 0x5eed);
+    for (let i = 0; i < 23; i++) { const n = (fr() + fr() + fr() - 1.5) * 13; field.push(Math.round(clamp(63 + n, 30, 92) * 10) / 10); }
+    const place = 1 + field.filter((f) => f > total).length;
+    lastResult = { A, scores, total, field, place };
+    renderJudging();
+  }
+  function ordinal(n) { const s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); }
+  function renderJudging() {
+    const R = lastResult;
+    $('total').textContent = R.total.toFixed(1);
+    $('placing').textContent = `Average of three judges, out of 100. You placed ${ordinal(R.place)} of 24 entries.`;
+    const rb = $('ribbon');
+    rb.className = 'ribbon ' + (R.place === 1 ? 'first' : R.place === 2 ? 'second' : R.place === 3 ? 'third' : 'none');
+    rb.textContent = R.place <= 3 ? `${ordinal(R.place)} place` : 'Thanks for cooking';
+    $('judges').innerHTML = R.scores.map((s) => `
+      <article class="judge" data-testid="judge-${s.judge.id}">
+        <header>${portrait(s.judge)}<div><h3>${esc(s.judge.name)}</h3><div class="who">${esc(s.judge.who)}</div></div></header>
+        <table><tbody>
+          <tr><td>Flavour</td><td data-testid="${s.judge.id}-flavor">${s.cat.flavor.toFixed(1)}</td></tr>
+          <tr><td>Heat balance</td><td data-testid="${s.judge.id}-heat">${s.cat.heat.toFixed(1)}</td></tr>
+          <tr><td>Texture</td><td data-testid="${s.judge.id}-texture">${s.cat.texture.toFixed(1)}</td></tr>
+          <tr><td>Aroma</td><td data-testid="${s.judge.id}-aroma">${s.cat.aroma.toFixed(1)}</td></tr>
+        </tbody></table>
+        <div class="tot" data-testid="${s.judge.id}-total">${s.total.toFixed(1)}</div>
+        <blockquote data-testid="${s.judge.id}-comment">“${esc(s.comment)}”</blockquote>
+      </article>`).join('');
+  }
+  function portrait(j) {
+    const skin = { dolores: '#b07a55', hank: '#e0b08c', rosalind: '#7a4b33' }[j.id];
+    return `<svg width="58" height="58" viewBox="0 0 58 58" aria-hidden="true"><circle cx="29" cy="29" r="28" fill="#f3dfb5"/><circle cx="29" cy="33" r="13" fill="${skin}"/>
+      ${j.id === 'hank' ? `<path d="M6 25h46l-6-5H12z" fill="${j.hat}"/><rect x="17" y="10" width="24" height="12" rx="4" fill="${j.hat}"/>` : j.id === 'dolores' ? `<path d="M15 30c0-12 28-12 28 0v-6c0-10-28-10-28 0z" fill="#3a2a22"/><circle cx="29" cy="15" r="5" fill="#3a2a22"/>` : `<path d="M14 36c-2-16 32-16 30 0 2-20-32-22-30 0z" fill="${j.hat}"/>`}
+      <circle cx="24" cy="33" r="1.6" fill="#231c18"/><circle cx="34" cy="33" r="1.6" fill="#231c18"/><path d="M24 40q5 3 10 0" stroke="#231c18" stroke-width="1.6" fill="none"/></svg>`;
+  }
+
+  // ---------- pot drawing ----------
+  const cv = $('cv'), ctx = cv.getContext('2d');
+  let stirAnim = 0, bubbles = [], drawT = 0;
+  const brng = mulberry32(SEED ^ 0xb0b);
+  function potColour() {
+    let r = 0, g = 0, b = 0, n = 0;
+    for (const c of CHILES) { const q = P.chiles[c.id]; r += c.col[0] * q; g += c.col[1] * q; b += c.col[2] * q; n += q; }
+    if (!n) return [120, 70, 40];
+    const scorch = K ? K.scorch : 0, thick = K ? 1 - K.liquid : 0;
+    const f = 1 - scorch * 0.45 - thick * 0.18;
+    return [r / n * f + 30, g / n * f + 12, b / n * f + 6].map((v) => Math.round(clamp(v, 0, 255)));
+  }
+  function drawPot(dtReal) {
+    drawT += dtReal;
+    const W = 520, H = 400;
+    ctx.fillStyle = '#1d1714'; ctx.fillRect(0, 0, W, H);
+    // burner and flame
+    ctx.fillStyle = '#3b3431'; ctx.fillRect(120, 330, 280, 18); ctx.fillStyle = '#2a2523'; ctx.fillRect(100, 348, 320, 30);
+    const heat = K ? K.heat : 'off', gust = K && K.gustLeft > 0;
+    const fl = { off: 0, low: 10, med: 18, high: 28 }[heat] * (gust ? 0.35 : 1);
+    if (fl > 0) for (let i = 0; i < 14; i++) {
+      const x = 140 + i * 17.5, h = fl * (0.75 + 0.25 * Math.sin(drawT * 9 + i * 1.7) * (reduced ? 0 : 1));
+      const g = ctx.createLinearGradient(0, 330 - h, 0, 330); g.addColorStop(0, 'rgba(90,150,255,0)'); g.addColorStop(0.5, 'rgba(90,150,255,.8)'); g.addColorStop(1, 'rgba(160,210,255,.95)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(x - 5, 330); ctx.quadraticCurveTo(x, 330 - h * 1.4, x + 5, 330); ctx.fill();
+    }
+    // pot body (cast iron)
+    ctx.fillStyle = '#121010';
+    ctx.beginPath(); ctx.moveTo(110, 150); ctx.lineTo(410, 150); ctx.lineTo(398, 318); ctx.quadraticCurveTo(260, 336, 122, 318); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#2b2624'; ctx.fillRect(90, 170, 22, 14); ctx.fillRect(408, 170, 22, 14);
+    // surface of the chili
+    const liquid = K ? K.liquid : 1;
+    const level = 172 + (1 - liquid) * 60;
+    const [r, g, b] = potColour();
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    ctx.beginPath(); ctx.ellipse(260, level, 146 - (level - 172) * 0.08, 22, 0, 0, 6.283); ctx.fill();
+    ctx.fillStyle = 'rgba(255,170,60,.18)';                 // a sheen of red fat
+    ctx.beginPath(); ctx.ellipse(230, level - 5, 70, 7, -0.1, 0, 6.283); ctx.fill();
+    // meat chunks
+    const rr = mulberry32(99);
+    for (let i = 0; i < 16; i++) { const a = rr() * 6.283, d = rr() * 120; const x = 260 + Math.cos(a) * d, y = level + Math.sin(a) * 16; ctx.fillStyle = `rgba(${70 + rr() * 30},${34 + rr() * 10},${24},.9)`; ctx.beginPath(); ctx.ellipse(x + (stirAnim > 0 ? Math.sin(drawT * 10 + i) * 6 * stirAnim : 0), y, 7 + rr() * 5, 4 + rr() * 2, rr(), 0, 6.283); ctx.fill(); }
+    // bubbles
+    const temp = K ? K.temp : 70;
+    if (!reduced && temp > 180 && brng() < (temp - 180) / 40) bubbles.push({ x: 150 + brng() * 220, y: level + (brng() - 0.5) * 24, r: 1, life: 1 });
+    for (const bb of bubbles) { bb.r += dtReal * 14; bb.life -= dtReal * 1.6; ctx.strokeStyle = `rgba(255,210,170,${fin(clamp(bb.life, 0, 1) * 0.6)})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(bb.x, bb.y, fin(bb.r), 0, 6.283); ctx.stroke(); }
+    bubbles = bubbles.filter((bb) => bb.life > 0);
+    // steam
+    if (temp > 170) for (let i = 0; i < 5; i++) {
+      const t = (drawT * 0.4 + i / 5) % 1, x = 170 + i * 45 + Math.sin(drawT + i) * 10, y = level - 20 - t * 120;
+      ctx.fillStyle = `rgba(240,230,220,${fin((1 - t) * 0.12 * clamp((temp - 170) / 40, 0, 1))})`; ctx.beginPath(); ctx.arc(x, y, 14 + t * 20, 0, 6.283); ctx.fill();
+    }
+    // spoon when stirring
+    if (stirAnim > 0) {
+      const a = drawT * 6;
+      ctx.strokeStyle = '#a0763f'; ctx.lineWidth = 8; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(260 + Math.cos(a) * 60, level + Math.sin(a) * 10); ctx.lineTo(330 + Math.cos(a) * 40, 60); ctx.stroke();
+      stirAnim = Math.max(0, stirAnim - dtReal * 1.2);
+    }
+    // scorch warning glow
+    if (K && K.scorch > 0.15) { ctx.fillStyle = `rgba(20,10,5,${fin(K.scorch * 0.5)})`; ctx.beginPath(); ctx.ellipse(260, 316, 130, 10, 0, 0, 6.283); ctx.fill(); }
+  }
+
+  // ---------- flow & HUD ----------
+  let manual = false, speed = 1;
+  const MIN_PER_SEC = 4;                                    // game minutes per real second at ×1
+  function hud() {
+    if (!K) return;
+    $('clock').textContent = fmtT(K.t);
+    $('temp').textContent = Math.round(K.temp) + ' °F';
+    const avgT = P.cuts.reduce((a, id) => a + K.tender[id], 0) / P.cuts.length;
+    const thick = clamp(1 - K.liquid, 0, 1);
+    $('gT').style.width = (avgT * 100) + '%'; $('oT').textContent = Math.round(avgT * 100) + '%';
+    $('gK').style.width = (thick * 100) + '%'; $('oK').textContent = Math.round(thick * 100) + '%';
+    $('gS').style.width = (K.scorch * 100) + '%'; $('oS').textContent = Math.round(K.scorch * 100) + '%';
+    $('gW').style.width = clamp(K.sinceStir / 40 * 100, 0, 100) + '%'; $('oW').textContent = Math.round(K.sinceStir) + 'm';
+    cv.setAttribute('aria-label', `The pot at ${Math.round(K.temp)} °F on ${K.heat} heat after ${fmtT(K.t)}; beef ${Math.round(avgT * 100)}% tender, ${Math.round(thick * 100)}% reduced, scorch ${Math.round(K.scorch * 100)}%.`);
+    if (K.scorch > 0.2 && !K.warned) { K.warned = true; say('Smell that? The bottom is catching. Stir, and turn it down.'); }
+  }
+  function syncKnob() {
+    $('knob').querySelectorAll('button').forEach((b) => { const on = K && b.dataset.h === K.heat; b.setAttribute('aria-checked', on); b.tabIndex = on ? 0 : -1; });
+  }
+  function syncButtons() {
+    const n = K ? K.dumps.length : 0;
+    $('dump').disabled = n >= 2; $('dump').textContent = n >= 2 ? 'Spices all in' : `Spice dump ${n + 1} of 2`;
+  }
+  $('knob').innerHTML = ['off', 'low', 'med', 'high'].map((h) => `<button type="button" role="radio" data-h="${h}" data-testid="heat-${h}">${h}</button>`).join('');
+  $('knob').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setHeat(b.dataset.h); });
+  $('knob').addEventListener('keydown', (e) => {
+    const hs = ['off', 'low', 'med', 'high']; let i = hs.indexOf(K ? K.heat : 'med');
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') i = Math.min(3, i + 1); else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') i = Math.max(0, i - 1); else return;
+    e.preventDefault(); setHeat(hs[i]); $('knob').querySelector(`[data-h="${hs[i]}"]`).focus();
+  });
+  $('stir').addEventListener('click', stir);
+  $('dump').addEventListener('click', dump);
+  $('speed').addEventListener('click', () => { speed = speed === 1 ? 4 : speed === 4 ? 10 : 1; $('speed').textContent = `Speed ×${speed}`; $('speed').setAttribute('aria-pressed', speed > 1); });
+  addEventListener('keydown', (e) => { if ((e.key === 's' || e.key === 'S') && !$('potSec').hidden && !/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) { e.preventDefault(); stir(); } });
+  $('toPot').addEventListener('click', () => {
+    const chileCount = Object.values(P.chiles).reduce((a, b) => a + b, 0);
+    if (!chileCount) { $('pantryMsg').textContent = 'No chiles? Then it isn’t chili. Add at least one pod.'; return; }
+    $('pantryMsg').textContent = '';
+    $('pantry').hidden = true; $('potSec').hidden = false; $('judgeSec').hidden = true;
+    $('st1').className = ''; $('st2').className = 'on'; $('st3').className = '';
+    $('log').innerHTML = '';
+    startCook(); syncKnob(); syncButtons(); hud();
+    $('potSec').scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+  });
+  $('turnIn').addEventListener('click', () => {
+    if (!K) return;
+    if (K.cookMin < 60) { say(`Not yet: it has only simmered ${Math.round(K.cookMin)} minutes. Give it at least an hour.`); return; }
+    K.judged = true; addLog('Turned in a cup to the judges.');
+    judge();
+    $('potSec').hidden = true; $('judgeSec').hidden = false;
+    $('st2').className = ''; $('st3').className = 'on';
+    $('judgeSec').scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+    $('h-judge').setAttribute('tabindex', '-1'); $('h-judge').focus({ preventScroll: true });
+  });
+  $('again').addEventListener('click', () => {
+    K = null; lastResult = null;
+    $('judgeSec').hidden = true; $('pantry').hidden = false; $('st3').className = ''; $('st1').className = 'on';
+    renderPantry(); $('pantry').scrollIntoView({ behavior: reduced ? 'auto' : 'smooth' });
+  });
+  function say(m) { $('potMsg').textContent = m; }
+
+  let last = null, acc = 0;
+  function frame(ts) {
+    requestAnimationFrame(frame);
+    if (last === null) last = ts;
+    let dt = (ts - last) / 1000; last = ts; if (!Number.isFinite(dt) || dt < 0) dt = 0; dt = Math.min(dt, 0.25);
+    if (K && !K.judged && !$('potSec').hidden) {
+      if (!manual) { acc += dt * MIN_PER_SEC * speed; while (acc >= STEP) { stepSim(); acc -= STEP; } hud(); }
+      drawPot(dt);
+    }
+  }
+
+  window.__chili = {
+    get pantry() { return JSON.parse(JSON.stringify(P)); },
+    get pot() { return K ? { t: K.t, temp: K.temp, heat: K.heat, liquid: K.liquid, scorch: K.scorch, sinceStir: K.sinceStir, cookMin: K.cookMin, tender: { ...K.tender }, dryness: { ...K.dryness }, dumps: K.dumps.slice(), stirs: K.stirs, log: K.log.map((l) => l.text) } : null; },
+    get result() { return lastResult ? JSON.parse(JSON.stringify({ total: lastResult.total, place: lastResult.place, A: lastResult.A, scores: lastResult.scores.map((s) => ({ judge: s.judge.id, cat: s.cat, total: s.total, comment: s.comment, w: s.judge.w })) })) : null; },
+    manual(on) { manual = !!on; acc = 0; },
+    advance(minutes) { const n = Math.round(minutes / STEP); for (let i = 0; i < n; i++) stepSim(); hud(); return this.pot; },
+    preview: pantryPreview, CHILES, CUTS,
+  };
+
+  renderPantry(); drawPot(0);
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

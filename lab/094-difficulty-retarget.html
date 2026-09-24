@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Difficulty Retarget — Bitcoin's adjustment, simulated</title>
+<meta name="description" content="A simulation of Bitcoin's difficulty adjustment: every 2016 blocks the target is scaled by actual over expected time, clamped to a factor of four, measured over 2015 intervals (the historical off-by-one). Run hashrate scenarios and watch block times and difficulty epochs respond.">
+<style>
+  :root {
+    --paper: #fbfaf6;
+    --grid: #ebe7dc;
+    --grid-2: #ddd7c8;
+    --ink: #1c2230;
+    --ink-2: #3b4456;
+    --muted: #6b7384;
+    --orange: #d9730d;
+    --blue: #2b59c3;
+    --good: #2f7d4f;
+    --warn: #b3261e;
+    --card: #fffefb;
+    --line: #d9d3c4;
+    --head: "Franklin Gothic Medium", "Arial Narrow", "Segoe UI", Arial, sans-serif;
+    --body: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --mono: "Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", ui-monospace, monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background-color: var(--paper); color: var(--ink); font: 15px/1.55 var(--body); overflow-x: hidden;
+    background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 24px 24px; background-position: -1px -1px; }
+  :focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; background: var(--ink); color: #fff; text-decoration: none; font: 600 13px/1 var(--mono); padding: 8px 11px; border-radius: 3px; }
+  a.back:hover { background: var(--orange); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 58px 18px 40px; }
+  .sim-tag { display: inline-block; font: 700 11px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--orange); border: 1.5px solid var(--orange); padding: 5px 8px; border-radius: 2px; background: var(--card); }
+  h1 { font: 400 clamp(36px, 6vw, 64px)/1 var(--head); margin: 12px 0 8px; letter-spacing: -.01em; }
+  h1 b { color: var(--orange); font-weight: 400; }
+  .lede { max-width: 70ch; color: var(--ink-2); margin: 0 0 22px; }
+  h2 { font: 400 24px/1.2 var(--head); margin: 0 0 10px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 4px; padding: 16px 18px; min-width: 0; box-shadow: 0 1px 0 rgba(0,0,0,.03); }
+  .grid2 { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 18px; margin-bottom: 18px; }
+  .formula { font: 14px/1.7 var(--mono); background: #f4f1e8; border-left: 3px solid var(--orange); padding: 10px 12px; margin: 10px 0; overflow-wrap: anywhere; }
+  .note { font-size: 14px; color: var(--ink-2); }
+  .note b { color: var(--ink); }
+  .calc { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: end; }
+  label { font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px; color: var(--ink-2); }
+  input[type=number], select { font: 15px var(--mono); padding: 8px 10px; border: 1px solid #bdb5a3; border-radius: 3px; background: #fff; color: var(--ink); width: 100%; max-width: 100%; min-width: 0; }
+  .calc-out { grid-column: 1 / -1; font: 14px/1.6 var(--mono); border-top: 1px dashed var(--line); padding-top: 10px; }
+  .calc-out .big { font: 400 30px/1.2 var(--head); }
+  .up { color: var(--good); } .down { color: var(--warn); }
+  .clampflag { display: inline-block; font: 700 11px/1 var(--mono); padding: 3px 6px; border-radius: 2px; background: #fbe3d0; color: #8a3f00; margin-left: 6px; vertical-align: 3px; }
+
+  .toolbar { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: flex-end; margin-bottom: 14px; }
+  .scen { display: flex; flex-wrap: wrap; gap: 6px; }
+  .scen button { min-height: 40px; padding: 6px 12px; border-radius: 3px; border: 1px solid var(--ink); background: var(--card); color: var(--ink); font: 600 13px/1.1 var(--body); cursor: pointer; }
+  .scen button[aria-checked="true"] { background: var(--ink); color: #fff; }
+  .opt { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+  .opt input { width: 18px; height: 18px; accent-color: var(--orange); }
+  .small { width: 110px; }
+  .btn { min-height: 40px; padding: 8px 14px; border-radius: 3px; border: 1px solid var(--orange); background: var(--orange); color: #fff; font: 700 13px/1 var(--body); cursor: pointer; }
+  .btn.ghost { background: var(--card); color: var(--orange); }
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 4px; padding: 10px 12px; min-width: 0; }
+  .stat small { display: block; font: 600 11px/1.3 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .stat b { display: block; font: 400 24px/1.25 var(--head); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .chart { position: relative; }
+  .chart svg { display: block; width: 100%; height: auto; overflow: visible; touch-action: pan-y; }
+  .chart .ttl { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: baseline; margin-bottom: 6px; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--ink-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { display: inline-block; width: 18px; height: 0; border-top: 2px solid; }
+  .legend i.dash { border-top-style: dashed; }
+  .tip { position: absolute; pointer-events: none; background: var(--ink); color: #fff; font: 12px/1.45 var(--mono); padding: 8px 10px; border-radius: 3px; min-width: 150px; max-width: 220px; box-shadow: 0 6px 16px rgba(0,0,0,.2); z-index: 5; }
+  .tip b { font-size: 13px; }
+  .tip .k { display: inline-block; width: 12px; height: 0; border-top: 2px solid; vertical-align: 3px; margin-right: 5px; }
+  table { width: 100%; border-collapse: collapse; font: 13px/1.4 var(--mono); }
+  th, td { padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--grid-2); white-space: nowrap; }
+  th { font-weight: 700; color: var(--muted); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+  th:first-child, td:first-child { text-align: left; }
+  .tablewrap { overflow-x: auto; max-width: 100%; }
+  .status { min-height: 1.4em; font: 13px var(--mono); color: var(--ink-2); margin: 8px 0 0; }
+  details.why summary { cursor: pointer; font-weight: 700; }
+  footer { margin-top: 28px; font-size: 13px; color: var(--muted); text-align: center; }
+  @media (max-width: 860px) { .grid2 { grid-template-columns: minmax(0, 1fr); } .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 440px) { .calc { grid-template-columns: minmax(0, 1fr); } .stat b { font-size: 20px; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <span class="sim-tag">Simulation · relative units</span>
+  <h1>Difficulty <b>Retarget</b></h1>
+  <p class="lede">Bitcoin aims for one block every ten minutes, but miners come and go. Every 2016 blocks, every node recomputes the target from how long those blocks actually took. This page runs that rule on made-up hashrate scenarios so you can watch block times drift and the difficulty chase them. Hashrate and difficulty are relative (both start at 1.0), block times are drawn from an exponential distribution, and timestamp rules and real history aren't modelled.</p>
+
+  <div class="grid2">
+    <section class="card" aria-labelledby="h-rule">
+      <h2 id="h-rule">The rule</h2>
+      <div class="formula">expected = 2016 × 600 s = 1,209,600 s (14 days)<br>actual = time(last block) − time(first block) of the period<br>actual = clamp(actual, expected ÷ 4, expected × 4)<br>new target = old target × actual ÷ expected</div>
+      <p class="note">Difficulty is inversely proportional to the target, so it moves by <b>expected ÷ actual</b>. Blocks that came too fast lower the target (harder), and slow blocks raise it. The clamp means one retarget can never change difficulty by more than a factor of 4 either way.</p>
+      <details class="why" data-testid="offbyone"><summary>The off-by-one</summary>
+        <p class="note">Bitcoin Core measures from the first block of the period to the last, which spans <b>2015</b> intervals rather than 2016, yet compares it with 2016 × 600 s. At steady hashrate the difficulty therefore settles where blocks average 600 × 2016⁄2015 ≈ <b>600.3 s</b>. And because consecutive windows don't overlap, the interval between one period's last block and the next period's first is never measured at all, which is the root of the known "time warp" attack. Changing it would take a consensus change, so the quirk stays. Tick "measure 2016 intervals" below to see the hypothetical fix settle at exactly 600 s.</p>
+      </details>
+    </section>
+    <section class="card" aria-labelledby="h-calc">
+      <h2 id="h-calc">One retarget, by hand</h2>
+      <div class="calc">
+        <div><label for="cDays">Actual time for the period (days)</label><input id="cDays" type="number" min="0.1" max="200" step="0.1" value="12" data-testid="calc-days"></div>
+        <div><label for="cDiff">Current difficulty (relative)</label><input id="cDiff" type="number" min="0.0001" step="any" value="1" data-testid="calc-diff"></div>
+        <div class="calc-out" aria-live="polite" data-testid="calc-out" id="calcOut"></div>
+      </div>
+    </section>
+  </div>
+
+  <section class="card" aria-labelledby="h-sim">
+    <h2 id="h-sim">Hashrate scenarios</h2>
+    <div class="toolbar">
+      <div><label id="scenLbl">Scenario</label>
+        <div class="scen" role="radiogroup" aria-labelledby="scenLbl" id="scen"></div></div>
+      <div><label for="epochs">Epochs</label><input id="epochs" class="small" type="number" min="2" max="40" value="12" data-testid="epochs"></div>
+      <div><label for="seed">Seed</label><input id="seed" class="small" type="number" min="1" value="21" data-testid="seed"></div>
+      <div class="opt"><input type="checkbox" id="luck" checked data-testid="luck"><label for="luck" style="margin:0">Random luck (Poisson blocks)</label></div>
+      <div class="opt"><input type="checkbox" id="fix" data-testid="fix"><label for="fix" style="margin:0">Measure 2016 intervals (hypothetical fix)</label></div>
+      <div class="btns"><button type="button" class="btn" id="play" data-testid="play">▶ Replay</button></div>
+    </div>
+    <p class="note" id="scenDesc" data-testid="scen-desc"></p>
+    <div class="stats">
+      <div class="stat"><small>Mean block time</small><b id="sMean" data-testid="stat-mean">–</b></div>
+      <div class="stat"><small>Last epoch</small><b id="sLast" data-testid="stat-last">–</b></div>
+      <div class="stat"><small>Biggest move</small><b id="sBig" data-testid="stat-big">–</b></div>
+      <div class="stat"><small>Final difficulty</small><b id="sDiff" data-testid="stat-diff">–</b></div>
+    </div>
+    <div class="chart" id="c1">
+      <div class="ttl"><b>Block interval, 144-block rolling mean (about a day)</b><div class="legend"><span><i style="border-color:var(--ink)"></i>observed</span><span><i class="dash" style="border-color:var(--muted)"></i>600 s target</span></div></div>
+      <svg id="svg1" viewBox="0 0 800 260" role="img" aria-label="Block interval over time" data-testid="chart-interval"></svg>
+    </div>
+    <div class="chart" id="c2" style="margin-top:14px">
+      <div class="ttl"><b>Hashrate vs difficulty, indexed to 1.0 at the start (log scale)</b><div class="legend"><span><i style="border-color:var(--blue)"></i>hashrate</span><span><i style="border-color:var(--orange)"></i>difficulty</span></div></div>
+      <svg id="svg2" viewBox="0 0 800 240" role="img" aria-label="Hashrate and difficulty over time" data-testid="chart-diff"></svg>
+    </div>
+    <div class="tip" id="tip" hidden data-testid="tooltip"></div>
+    <p class="status" id="status" role="status" aria-live="polite" data-testid="status"></p>
+  </section>
+
+  <section class="card" style="margin-top:18px" aria-labelledby="h-table">
+    <h2 id="h-table">Epoch by epoch</h2>
+    <div class="tablewrap" tabindex="0" aria-label="Epoch table, scrollable">
+      <table data-testid="epoch-table">
+        <thead><tr><th scope="col">Epoch</th><th scope="col">Heights</th><th scope="col">Difficulty</th><th scope="col">Mean interval</th><th scope="col">Measured</th><th scope="col">Actual span</th><th scope="col">Change</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </section>
+  <footer>Built by Zac Corbett, a long-time Bitcoiner who likes watching this rule do its job. It's a teaching simulation, not a price or hashrate forecast. Real history: after China's 2021 mining ban, the 3 July 2021 retarget was about −28%, the largest downward adjustment on record.</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const fin = (v, d = 0) => (Number.isFinite(v) ? v : d);
+  const NS = 'http://www.w3.org/2000/svg';
+  const INTERVAL = 2016, SPACING = 600, EXPECTED = INTERVAL * SPACING;
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const pct = (f) => (f >= 1 ? '+' : '−') + Math.abs((f - 1) * 100).toFixed(2) + '%';
+  const days = (s) => (s / 86400).toFixed(2) + ' d';
+
+  // ---------- the retarget rule ----------
+  function retarget(actual) {
+    const clamped = Math.min(Math.max(actual, EXPECTED / 4), EXPECTED * 4);
+    return { actual, clamped, isClamped: clamped !== actual, targetFactor: clamped / EXPECTED, diffFactor: EXPECTED / clamped };
+  }
+
+  // ---------- scenarios: hashrate relative to the start, as a function of time in days ----------
+  const SCEN = {
+    steady: { name: 'Steady', h: () => 1, desc: 'Hashrate never changes. With luck on, block times wobble around the target and retargets hover within a few percent.' },
+    growth: { name: 'Growth', h: (d) => Math.pow(2, d / 180), desc: 'Hashrate doubles every six months. Blocks run a little fast all the time, because the retarget always looks back at a period that is already stale.' },
+    drop: { name: 'Sudden 50% drop', h: (d) => (d < 21 ? 1 : 0.5), desc: 'Half the miners switch off on day 21, mid-epoch. Blocks slow to about 20 minutes until the next retarget, which cuts difficulty (not by the full half at first, because part of the window was mined before the drop).' },
+    rapid: { name: 'Rapid growth', h: (d) => Math.pow(2, d / 21), desc: 'Hashrate doubles every three weeks. Blocks arrive far too fast, epochs finish in well under 14 days, and difficulty climbs in big steps but lags behind.' },
+    crash: { name: '90% crash', h: (d) => (d < 21 ? 1 : 0.1), desc: 'Nine in ten miners leave on day 21. The next period takes so long that the 4× clamp kicks in, so difficulty can only fall to a quarter, and the following epoch is still slow.' },
+  };
+
+  // ---------- the simulation ----------
+  let cfg = { scen: 'drop', epochs: 12, seed: 21, luck: true, fix: false };
+  let R = null;
+  function simulate(c) {
+    const rng = mulberry32(c.seed >>> 0 || 1);
+    const N = c.epochs * INTERVAL;
+    const time = new Float64Array(N + 1);          // time[h] = timestamp of block h (block 0 at t = 0)
+    const diffAt = new Float64Array(N + 1);
+    let D = 1, t = 0;
+    const epochs = [];
+    let epochStart = 1;
+    const before = -SPACING;                       // a virtual block before block 0, for the 2016-interval variant
+    for (let h = 1; h <= N; h++) {
+      if (h > 1 && (h - 1) % INTERVAL === 0) {
+        // retarget at the first block of a new period (h - 1 is a multiple of 2016 counting from block 1)
+        const last = h - 1, first = last - (INTERVAL - 1);
+        const firstT = c.fix ? (first - 1 >= 0 ? time[first - 1] : before) : time[first];
+        const actual = time[last] - firstT;
+        const r = retarget(actual);
+        const ep = epochs[epochs.length - 1];
+        Object.assign(ep, { measuredIntervals: c.fix ? INTERVAL : INTERVAL - 1, actualSpan: actual, clampedSpan: r.clamped, clamped: r.isClamped, factor: r.diffFactor });
+        D = D * r.diffFactor;
+        epochStart = h;
+      }
+      if (h === epochStart) epochs.push({ n: epochs.length + 1, start: h, end: h + INTERVAL - 1, difficulty: D, startT: t });
+      const H = SCEN[c.scen].h(t / 86400);
+      const mean = SPACING * D / H;
+      const dt = c.luck ? -Math.log(1 - rng()) * mean : mean;
+      t += fin(dt, SPACING);
+      time[h] = t; diffAt[h] = D;
+    }
+    for (const ep of epochs) { ep.endT = time[ep.end]; ep.meanInterval = (time[ep.end] - time[ep.start - 1]) / INTERVAL; }
+    return { cfg: { ...c }, time, diffAt, epochs, N, totalDays: t / 86400 };
+  }
+
+  // ---------- charts ----------
+  const M = { l: 56, r: 14, t: 12, b: 30 };
+  function el(tag, attrs, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+  let series = null;       // sampled points for charts + tooltip
+  function buildSeries() {
+    const pts = [], step = 24, win = 144;
+    for (let h = win; h <= R.N; h += step) {
+      const tDays = R.time[h] / 86400;
+      pts.push({ h, d: tDays, interval: (R.time[h] - R.time[h - win]) / win, hash: SCEN[R.cfg.scen].h(tDays), diff: R.diffAt[h] });
+    }
+    series = pts;
+  }
+  function niceTicks(min, max, n) {
+    const span = max - min, raw = span / n, mag = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / mag;
+    const step = (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * mag;
+    const out = []; for (let v = Math.ceil(min / step) * step; v <= max + 1e-9; v += step) out.push(+v.toFixed(10));
+    return out;
+  }
+  let reveal = 1;
+  function drawCharts() {
+    const s1 = $('svg1'), s2 = $('svg2');
+    s1.innerHTML = ''; s2.innerHTML = '';
+    CW = ($('c1').clientWidth || 800) < 560 ? 420 : 800;
+    const W = CW, H1 = CW < 800 ? 250 : 260, H2 = CW < 800 ? 230 : 240;
+    s1.setAttribute('viewBox', `0 0 ${W} ${H1}`); s2.setAttribute('viewBox', `0 0 ${W} ${H2}`);
+    const maxD = R.totalDays;
+    const x = (d) => M.l + (d / maxD) * (W - M.l - M.r);
+    const upto = series.filter((p) => p.d <= maxD * reveal);
+    // --- chart 1: interval
+    const ivs = series.map((p) => p.interval);
+    let y1max = Math.max(900, ...ivs) * 1.08, y1min = Math.max(0, Math.min(300, ...ivs) * 0.9);
+    const y1 = (v) => M.t + (1 - (v - y1min) / (y1max - y1min)) * (H1 - M.t - M.b);
+    axes(s1, x, y1, niceTicks(y1min, y1max, 5), (v) => Math.round(v) + ' s', H1, maxD);
+    epochLines(s1, x, H1);
+    el('line', { x1: M.l, x2: W - M.r, y1: y1(600), y2: y1(600), stroke: '#6b7384', 'stroke-width': 1.5, 'stroke-dasharray': '5 4' }, s1);
+    el('path', { d: pathOf(upto, x, (p) => y1(p.interval)), fill: 'none', stroke: '#1c2230', 'stroke-width': 2, 'stroke-linejoin': 'round' }, s1);
+    // --- chart 2: log2 indexed
+    const vals = series.flatMap((p) => [p.hash, p.diff]);
+    const lmin = Math.floor(Math.log2(Math.min(...vals)) * 2) / 2 - 0.25, lmax = Math.ceil(Math.log2(Math.max(...vals)) * 2) / 2 + 0.25;
+    const y2 = (v) => M.t + (1 - (Math.log2(v) - lmin) / (lmax - lmin)) * (H2 - M.t - M.b);
+    const NICE = [0.01, 0.02, 0.05, 0.1, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 15, 20, 30, 40, 50, 60, 80, 100, 150, 200, 300, 400, 500, 1000];
+    const allT = NICE.filter((v) => Math.log2(v) >= lmin && Math.log2(v) <= lmax);
+    let t2 = allT;
+    const onSteps = (ms) => allT.filter((v) => ms.some((m) => Math.abs(Math.log10(v / m) - Math.round(Math.log10(v / m))) < 1e-9));
+    if (t2.length > 7) t2 = onSteps([1, 1.5, 2, 3, 5]);
+    if (t2.length > 8) t2 = onSteps([1, 2, 5]);
+    if (t2.length > 8) t2 = onSteps([1]);
+    while (t2.length > 8) t2 = t2.filter((v, i) => i % 2 === 0);
+    axes(s2, x, y2, t2, (v) => (v >= 1 ? v.toFixed(v >= 10 ? 0 : 2).replace(/\.00$/, '') : v.toFixed(2)) + '×', H2, maxD);
+    epochLines(s2, x, H2);
+    el('path', { d: pathOf(upto, x, (p) => y2(p.hash)), fill: 'none', stroke: '#2b59c3', 'stroke-width': 2 }, s2);
+    // difficulty as steps
+    let dPath = '';
+    upto.forEach((p, i) => { const X = x(p.d), Y = y2(p.diff); dPath += i ? `H${X.toFixed(1)}V${Y.toFixed(1)}` : `M${X.toFixed(1)} ${Y.toFixed(1)}`; });
+    el('path', { d: dPath, fill: 'none', stroke: '#d9730d', 'stroke-width': 2 }, s2);
+    if (reveal >= 1 && upto.length) {
+      const lp = upto[upto.length - 1];
+      label(s2, x(lp.d) - 4, y2(lp.diff) - 6, 'difficulty', '#8a3f00');
+    }
+    // cursor layers
+    for (const [svg, H] of [[s1, H1], [s2, H2]]) {
+      el('line', { class: 'cursor', x1: -10, x2: -10, visibility: 'hidden', y1: M.t, y2: H - M.b, stroke: '#1c2230', 'stroke-width': 1, opacity: 0.6 }, svg);
+      el('rect', { class: 'hit', x: M.l, y: 0, width: W - M.l - M.r, height: H, fill: 'transparent' }, svg);
+    }
+    $('svg1').setAttribute('aria-label', `Block interval over ${maxD.toFixed(0)} days, rolling mean from ${Math.round(Math.min(...ivs))} to ${Math.round(Math.max(...ivs))} seconds against the 600 second target`);
+    $('svg2').setAttribute('aria-label', `Hashrate and difficulty over ${maxD.toFixed(0)} days; final difficulty ${R.epochs[R.epochs.length - 1].difficulty.toFixed(3)} times the start`);
+    chartX = x;
+  }
+  let chartX = null, CW = 800;
+  addEventListener('resize', () => { const c = ($('c1').clientWidth || 800) < 560 ? 420 : 800; if (R && c !== CW) { hideTip(); drawCharts(); } });
+  function pathOf(pts, x, y) { return pts.map((p, i) => (i ? 'L' : 'M') + fin(x(p.d)).toFixed(1) + ' ' + fin(y(p)).toFixed(1)).join(''); }
+  function label(svg, X, Y, txt, col) { const t = el('text', { x: X, y: Y, 'text-anchor': 'end', 'font-size': 11, fill: col, 'font-family': 'Consolas, monospace' }, svg); t.textContent = txt; }
+  function axes(svg, x, y, ticks, fmt, H, maxD) {
+    for (const v of ticks) {
+      const Y = y(v); if (!Number.isFinite(Y) || Y < M.t - 1 || Y > H - M.b + 1) continue;
+      el('line', { x1: M.l, x2: CW - M.r, y1: Y, y2: Y, stroke: '#ebe7dc', 'stroke-width': 1 }, svg);
+      const t = el('text', { x: M.l - 6, y: Y + 4, 'text-anchor': 'end', 'font-size': 11, fill: '#6b7384', 'font-family': 'Consolas, monospace' }, svg); t.textContent = fmt(v);
+    }
+    const dt = niceTicks(0, maxD, CW < 800 ? 4 : 6);
+    for (const d of dt) { const t = el('text', { x: x(d), y: H - 10, 'text-anchor': 'middle', 'font-size': 11, fill: '#6b7384', 'font-family': 'Consolas, monospace' }, svg); t.textContent = d + (d === dt[dt.length - 1] ? ' days' : ''); }
+    el('line', { x1: M.l, x2: CW - M.r, y1: H - M.b, y2: H - M.b, stroke: '#bdb5a3', 'stroke-width': 1 }, svg);
+  }
+  function epochLines(svg, x, H) {
+    for (const ep of R.epochs.slice(1)) {
+      const X = x(ep.startT / 86400);
+      if (ep.startT / 86400 > R.totalDays * reveal) continue;
+      el('line', { x1: X, x2: X, y1: M.t, y2: H - M.b, stroke: '#ddd7c8', 'stroke-width': 1 }, svg);
+    }
+  }
+  // tooltip
+  function showTip(clientX, svgEl) {
+    if (!series || !chartX) return;
+    const r = svgEl.getBoundingClientRect(), vx = (clientX - r.left) * CW / r.width;
+    const d = (vx - M.l) / (CW - M.l - M.r) * R.totalDays;
+    let best = series[0]; for (const p of series) if (Math.abs(p.d - d) < Math.abs(best.d - d)) best = p;
+    placeTip(best);
+  }
+  function placeTip(p) {
+    const ep = R.epochs.find((e) => p.h >= e.start && p.h <= e.end) || R.epochs[R.epochs.length - 1];
+    const tip = $('tip');
+    tip.innerHTML = '';
+    const lines = [[`Day ${p.d.toFixed(1)} · block ${p.h.toLocaleString('en-US')}`, null], [`${p.interval.toFixed(0)} s`, '#1c2230', ' mean interval'], [`${p.hash.toFixed(3)}×`, '#2b59c3', ' hashrate'], [`${p.diff.toFixed(3)}×`, '#d9730d', ' difficulty'], [`epoch ${ep.n}`, null]];
+    for (const [v, col, name] of lines) {
+      const div = document.createElement('div');
+      if (col) { const k = document.createElement('span'); k.className = 'k'; k.style.borderColor = col; div.appendChild(k); const b = document.createElement('b'); b.textContent = v; div.appendChild(b); div.appendChild(document.createTextNode(name)); }
+      else div.textContent = v;
+      tip.appendChild(div);
+    }
+    tip.hidden = false;
+    const X = chartX(p.d);
+    for (const svg of [$('svg1'), $('svg2')]) { const c = svg.querySelector('.cursor'); if (c) { c.setAttribute('x1', X); c.setAttribute('x2', X); c.setAttribute('visibility', 'visible'); } }
+    const host = $('c1').parentElement.getBoundingClientRect(), s1 = $('svg1').getBoundingClientRect();
+    const px = s1.left - host.left + X * s1.width / CW;
+    const left = Math.min(Math.max(8, px + 14), host.width - 230);
+    tip.style.left = left + 'px';
+    tip.style.top = ($('c1').offsetTop + 34) + 'px';
+    tipPoint = p;
+  }
+  let tipPoint = null;
+  function hideTip() { $('tip').hidden = true; tipPoint = null; for (const svg of [$('svg1'), $('svg2')]) { const c = svg.querySelector('.cursor'); if (c) c.setAttribute('visibility', 'hidden'); } }
+  for (const id of ['svg1', 'svg2']) {
+    const s = $(id);
+    s.addEventListener('pointermove', (e) => showTip(e.clientX, s));
+    s.addEventListener('pointerdown', (e) => showTip(e.clientX, s));
+    s.addEventListener('pointerleave', hideTip);
+    s.tabIndex = 0;
+    s.addEventListener('keydown', (e) => {
+      if (!series) return;
+      let i = tipPoint ? series.indexOf(tipPoint) : -1;
+      if (e.key === 'ArrowRight') i = i < 0 ? 0 : Math.min(series.length - 1, i + 6); else if (e.key === 'ArrowLeft') i = Math.max(0, (i < 0 ? series.length : i) - 6);
+      else if (e.key === 'Escape') { hideTip(); return; } else return;
+      e.preventDefault(); placeTip(series[i]);
+    });
+    s.addEventListener('blur', hideTip);
+  }
+
+  // ---------- table & stats ----------
+  function render() {
+    const tb = $('tbody'); tb.innerHTML = '';
+    for (const ep of R.epochs) {
+      const tr = document.createElement('tr'); tr.setAttribute('data-testid', 'epoch-row');
+      const cells = [String(ep.n), `${ep.start.toLocaleString('en-US')}–${ep.end.toLocaleString('en-US')}`, ep.difficulty.toFixed(4), ep.meanInterval.toFixed(1) + ' s',
+        ep.measuredIntervals ? ep.measuredIntervals + ' int.' : '—', ep.actualSpan ? days(ep.actualSpan) : 'in progress', ep.factor ? pct(ep.factor) : '—'];
+      cells.forEach((c, i) => { const td = document.createElement('td'); td.textContent = c; if (i === 6 && ep.factor) { td.className = ep.factor >= 1 ? 'up' : 'down'; if (ep.clamped) { const f = document.createElement('span'); f.className = 'clampflag'; f.textContent = 'CLAMPED'; td.appendChild(f); } } tr.appendChild(td); });
+      tb.appendChild(tr);
+    }
+    const all = R.time[R.N] / R.N;
+    $('sMean').textContent = all.toFixed(1) + ' s';
+    const last = R.epochs[R.epochs.length - 1];
+    $('sLast').textContent = last.meanInterval.toFixed(1) + ' s';
+    const moves = R.epochs.filter((e) => e.factor);
+    const big = moves.reduce((a, e) => (Math.abs(Math.log(e.factor)) > Math.abs(Math.log(a.factor)) ? e : a), moves[0] || { factor: 1, n: 0 });
+    $('sBig').textContent = moves.length ? `${pct(big.factor)} (ep. ${big.n})` : '—';
+    $('sDiff').textContent = last.difficulty.toFixed(3) + '×';
+    $('scenDesc').textContent = SCEN[cfg.scen].desc;
+    $('status').textContent = `${SCEN[cfg.scen].name}: ${R.epochs.length} epochs, ${R.N.toLocaleString('en-US')} blocks over ${R.totalDays.toFixed(1)} days; ${moves.filter((e) => e.clamped).length} clamped retarget${moves.filter((e) => e.clamped).length === 1 ? '' : 's'}.`;
+  }
+  function run(animate) {
+    R = simulate(cfg);
+    buildSeries();
+    render();
+    hideTip();
+    if (animate && !reduced) {
+      reveal = 0; const t0 = performance.now();
+      cancelAnimationFrame(anim);
+      const tick = (now) => { reveal = Math.min(1, (now - t0) / 2600); drawCharts(); if (reveal < 1) anim = requestAnimationFrame(tick); };
+      anim = requestAnimationFrame(tick);
+    } else { cancelAnimationFrame(anim); reveal = 1; drawCharts(); }
+  }
+  let anim = 0;
+
+  // ---------- controls ----------
+  const scen = $('scen');
+  for (const k of Object.keys(SCEN)) {
+    const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'radio'); b.dataset.k = k; b.setAttribute('data-testid', 'scen-' + k); b.textContent = SCEN[k].name; scen.appendChild(b);
+  }
+  function syncScen() { scen.querySelectorAll('button').forEach((b) => { const on = b.dataset.k === cfg.scen; b.setAttribute('aria-checked', on); b.tabIndex = on ? 0 : -1; }); }
+  scen.addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; cfg.scen = b.dataset.k; syncScen(); run(true); });
+  scen.addEventListener('keydown', (e) => {
+    const keys = Object.keys(SCEN); let i = keys.indexOf(cfg.scen);
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') i = (i + 1) % keys.length; else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') i = (i + keys.length - 1) % keys.length; else return;
+    e.preventDefault(); cfg.scen = keys[i]; syncScen(); run(true); scen.querySelector(`[data-k="${keys[i]}"]`).focus();
+  });
+  const intIn = (id, lo, hi, dflt) => { const v = parseInt($(id).value, 10); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : dflt; };
+  $('epochs').addEventListener('change', () => { cfg.epochs = intIn('epochs', 2, 40, 12); $('epochs').value = cfg.epochs; run(true); });
+  $('seed').addEventListener('change', () => { cfg.seed = intIn('seed', 1, 2 ** 31, 21); $('seed').value = cfg.seed; run(true); });
+  $('luck').addEventListener('change', () => { cfg.luck = $('luck').checked; run(true); });
+  $('fix').addEventListener('change', () => { cfg.fix = $('fix').checked; run(true); });
+  $('play').addEventListener('click', () => run(true));
+
+  // ---------- hand calculator ----------
+  function calc() {
+    const d = parseFloat($('cDays').value), D = parseFloat($('cDiff').value);
+    const out = $('calcOut');
+    if (!(d > 0) || !(D > 0)) { out.innerHTML = '<span class="down">Enter a positive number of days and a positive difficulty.</span>'; return; }
+    const r = retarget(d * 86400);
+    const nd = D * r.diffFactor;
+    out.innerHTML = '';
+    const big = document.createElement('div'); big.className = 'big ' + (r.diffFactor > 1 ? 'up' : r.diffFactor < 1 ? 'down' : ''); big.setAttribute('data-testid', 'calc-change');
+    big.textContent = Math.abs(r.diffFactor - 1) < 1e-12 ? 'No change' : pct(r.diffFactor);
+    if (r.isClamped) { const f = document.createElement('span'); f.className = 'clampflag'; f.textContent = 'CLAMPED'; big.appendChild(f); }
+    const p = document.createElement('div');
+    p.setAttribute('data-testid', 'calc-detail');
+    p.textContent = `${r.isClamped ? `${d} days is outside 3.5 to 56 days, so it counts as ${(r.clamped / 86400).toFixed(1)} days. ` : ''}Difficulty ${D} × (14 ÷ ${(r.clamped / 86400).toFixed(4).replace(/\.?0+$/, '')}) = ${+nd.toPrecision(8)}. Target × ${+r.targetFactor.toPrecision(6)}.`;
+    out.appendChild(big); out.appendChild(p);
+  }
+  $('cDays').addEventListener('input', calc); $('cDiff').addEventListener('input', calc);
+
+  window.__retarget = { simulate, retarget, get result() { return R; }, get cfg() { return { ...cfg }; }, EXPECTED, epochsSummary: () => R.epochs.map((e) => ({ ...e })), blockTime: (h) => R.time[h] };
+
+  syncScen(); calc(); run(false);
+})();
+</script>
+</body>
+</html>

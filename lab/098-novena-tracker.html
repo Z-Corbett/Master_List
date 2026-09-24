@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Novena Tracker — nine days of prayer</title>
+<meta name="description" content="A gentle nine-day prayer tracker. Start a novena with an optional title, intention and your own prayer text, check in each day on a nine-bead ring, keep a note for each day, resume or restart if you miss a day, and see it all on a calendar. Everything stays in your browser: no accounts, no notifications, no network.">
+<style>
+  :root {
+    --cream: #faf6ef;
+    --paper: #fffdf8;
+    --rose: #b9787a;
+    --rose-2: #9c5d60;
+    --sage: #7f9b82;
+    --sage-2: #5e7a62;
+    --gold: #c9a24a;
+    --navy: #2c3550;
+    --ink: #2a2d36;
+    --muted: #6f6a66;
+    --line: #e8dfd1;
+    --serif: "Garamond", "EB Garamond", "Cormorant Garamond", "Hoefler Text", Georgia, serif;
+    --sans: "Gill Sans", "Gill Sans MT", "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--cream); color: var(--ink); font: 16px/1.6 var(--sans); overflow-x: hidden;
+    background-image: radial-gradient(ellipse at 50% -10%, rgba(201,162,74,.18), transparent 55%), radial-gradient(ellipse at 100% 100%, rgba(127,155,130,.14), transparent 50%); }
+  :focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
+  a.back { position: fixed; top: 12px; left: 12px; z-index: 40; color: var(--navy); background: rgba(255,253,248,.92); border: 1px solid var(--line); text-decoration: none; font: 14px/1 var(--sans); padding: 8px 12px; border-radius: 999px; }
+  a.back:hover { border-color: var(--rose); color: var(--rose-2); }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 64px 18px 40px; }
+  header.top { text-align: center; margin-bottom: 22px; }
+  .cross { color: var(--gold); font-size: 22px; line-height: 1; }
+  h1 { font: 400 clamp(40px, 7vw, 64px)/1.05 var(--serif); margin: 6px 0 6px; color: var(--navy); letter-spacing: .01em; }
+  h1 i { color: var(--rose-2); }
+  .lede { max-width: 56ch; margin: 0 auto; color: var(--muted); }
+  .privacy { display: inline-block; margin-top: 12px; font-size: 13px; color: var(--sage-2); background: rgba(127,155,130,.12); border: 1px solid rgba(127,155,130,.35); border-radius: 999px; padding: 5px 12px; }
+  .card { background: var(--paper); border: 1px solid var(--line); border-radius: 18px; padding: 20px 22px; box-shadow: 0 18px 40px -30px rgba(44,53,80,.45); min-width: 0; }
+  h2 { font: 400 28px/1.15 var(--serif); color: var(--navy); margin: 0 0 8px; }
+  .field { margin-bottom: 14px; min-width: 0; }
+  .field label { display: block; font-size: 14px; color: var(--navy); margin-bottom: 4px; }
+  .field small { color: var(--muted); font-size: 13px; }
+  input[type=text], input[type=date], textarea { width: 100%; max-width: 100%; min-width: 0; font: 16px/1.4 var(--sans); padding: 10px 12px; border: 1px solid #d9cdb9; border-radius: 10px; background: #fff; color: var(--ink); }
+  textarea { min-height: 88px; resize: vertical; font-family: var(--serif); font-size: 17px; }
+  .check { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; }
+  .check input { width: 20px; height: 20px; margin-top: 3px; accent-color: var(--rose); flex: none; }
+  .btn { min-height: 46px; padding: 10px 20px; border-radius: 999px; border: 1px solid var(--rose-2); background: var(--rose-2); color: #fff; font: 600 15px/1 var(--sans); cursor: pointer; max-width: 100%; }
+  .btn:hover { background: var(--rose); }
+  .btn.ghost { background: transparent; color: var(--rose-2); }
+  .btn.sage { background: var(--sage-2); border-color: var(--sage-2); }
+  .btn.quiet { background: transparent; border-color: var(--line); color: var(--muted); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 14px; }
+
+  .main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 22px; align-items: start; }
+  .ringcard { text-align: center; }
+  #ring { display: block; width: 100%; max-width: 360px; height: auto; margin: 0 auto; }
+  #ring .bead { cursor: pointer; }
+  #ring .bead circle.b { transition: fill .3s; }
+  #ring .bead:focus { outline: none; }
+  #ring .bead:focus-visible circle.halo { stroke: var(--gold); stroke-width: 3; }
+  #ring .bead.today circle.halo { stroke: var(--rose); stroke-width: 2; animation: glow 2.4s ease-in-out infinite; }
+  @keyframes glow { 50% { stroke-opacity: .25; } }
+  @media (prefers-reduced-motion: reduce) { #ring .bead.today circle.halo { animation: none; } #ring .bead circle.b { transition: none; } }
+  .ringtitle { font: italic 22px/1.25 var(--serif); color: var(--navy); margin: 8px 0 2px; overflow-wrap: anywhere; }
+  .intent { color: var(--muted); font-size: 15px; overflow-wrap: anywhere; }
+  .legend { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin-top: 10px; }
+  .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+  .legend .l-done::before { background: var(--gold); }
+  .legend .l-today::before { background: #fff; border: 2px solid var(--rose); }
+  .legend .l-missed::before { background: #fff; border: 2px dashed var(--rose-2); }
+  .legend .l-up::before { background: #efe7da; }
+  .daycard .dayhead { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: baseline; }
+  .daycard .dayhead b { font: 400 30px/1.1 var(--serif); color: var(--navy); }
+  .daycard .date { color: var(--muted); }
+  .state { display: inline-block; font-size: 13px; padding: 3px 10px; border-radius: 999px; background: #efe7da; color: var(--muted); }
+  .state.done { background: rgba(201,162,74,.2); color: #7a5d17; }
+  .state.missed { background: rgba(185,120,122,.15); color: var(--rose-2); }
+  .state.today { background: rgba(127,155,130,.18); color: var(--sage-2); }
+  .prayer { font: 18px/1.6 var(--serif); color: var(--ink); background: #fbf7ee; border-left: 3px solid var(--gold); border-radius: 0 12px 12px 0; padding: 12px 16px; margin: 12px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .prayer .cap { display: block; font: 600 12px/1.3 var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; white-space: normal; }
+  .banner { background: rgba(185,120,122,.10); border: 1px solid rgba(185,120,122,.4); border-radius: 14px; padding: 14px 16px; margin-bottom: 16px; }
+  .banner p { margin: 0 0 10px; }
+  .done-banner { background: rgba(201,162,74,.14); border-color: rgba(201,162,74,.5); text-align: center; }
+  .done-banner h3 { font: 400 30px/1.2 var(--serif); color: var(--navy); margin: 0 0 6px; }
+  .status { min-height: 1.5em; color: var(--sage-2); font-size: 14px; margin: 8px 0 0; }
+
+  .cal { margin-top: 22px; }
+  .calhead { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .calhead b { font: 400 24px/1.2 var(--serif); color: var(--navy); }
+  .calhead button { min-width: 44px; min-height: 40px; border-radius: 999px; border: 1px solid var(--line); background: #fff; cursor: pointer; font-size: 18px; color: var(--navy); }
+  .grid7 { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+  .grid7 .dow { text-align: center; font-size: 12px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; padding-bottom: 4px; }
+  .cell { aspect-ratio: 1 / .82; border-radius: 10px; background: #fff; border: 1px solid var(--line); position: relative; padding: 4px 6px; font-size: 13px; color: var(--muted); min-width: 0; overflow: hidden; }
+  .cell.out { background: transparent; border-color: transparent; }
+  .cell .n { position: absolute; right: 6px; bottom: 4px; font: 400 15px/1 var(--serif); color: var(--navy); }
+  .cell.nov { background: #fbf4e4; border-color: #ecdcb6; }
+  .cell.prayed { background: rgba(201,162,74,.5); border-color: #a9832f; }
+  .cell.missed { background: #fff; border: 1.5px dashed var(--rose-2); }
+  .cell.today { box-shadow: inset 0 0 0 2px var(--sage-2); }
+  .cell .d { font-weight: 600; color: var(--ink); }
+  .history { margin-top: 22px; }
+  .history ul { list-style: none; padding: 0; margin: 0; }
+  .history li { padding: 8px 0; border-bottom: 1px dotted var(--line); display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .history li span { color: var(--muted); font-size: 14px; }
+  footer { text-align: center; margin-top: 28px; color: var(--muted); font-size: 13px; }
+  @media (max-width: 820px) { .main { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 480px) { .two { grid-template-columns: minmax(0, 1fr); } .cell { font-size: 11px; padding: 2px 4px; } .cell .n { font-size: 13px; } .card { padding: 16px; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="top">
+    <div class="cross" aria-hidden="true">✝</div>
+    <h1>Novena <i>Tracker</i></h1>
+    <p class="lede">A novena is nine days of prayer (from the Latin <i>novem</i>, nine), echoing the disciples who prayed together with Mary between the Ascension and Pentecost. This is a quiet place to keep your place: one bead a day, a note if you want one, and grace for the days you miss.</p>
+    <span class="privacy" data-testid="privacy">Stored only in this browser · no accounts · no notifications · nothing is sent anywhere</span>
+  </header>
+
+  <!-- start form -->
+  <section class="card" id="startCard" aria-labelledby="h-start" data-testid="start-card">
+    <h2 id="h-start">Begin a novena</h2>
+    <form id="startForm" novalidate>
+      <div class="two">
+        <div class="field"><label for="title">Title <small>(optional)</small></label><input type="text" id="title" maxlength="80" placeholder="e.g. Novena to St. Joseph" data-testid="title"></div>
+        <div class="field"><label for="start">First day</label><input type="date" id="start" data-testid="start-date"></div>
+      </div>
+      <div class="field"><label for="intention">Intention <small>(optional, private to this device)</small></label><input type="text" id="intention" maxlength="200" data-testid="intention"></div>
+      <div class="field"><label for="prayer">Your novena's prayer <small>(optional: paste or type the prayer you're using)</small></label><textarea id="prayer" maxlength="4000" data-testid="prayer"></textarea></div>
+      <div class="field check"><input type="checkbox" id="glory" data-testid="glory"><label for="glory">Close each day with the Glory Be</label></div>
+      <div class="row"><button type="submit" class="btn" data-testid="begin">Begin the novena</button><span class="status" id="startMsg" role="status" aria-live="polite" data-testid="start-msg"></span></div>
+    </form>
+  </section>
+
+  <!-- active novena -->
+  <div id="active" hidden data-testid="active">
+    <div class="banner" id="missed" hidden data-testid="missed-banner" role="region" aria-label="Missed day">
+      <p id="missedText" data-testid="missed-text"></p>
+      <div class="row">
+        <button type="button" class="btn sage" id="resume" data-testid="resume">Resume today</button>
+        <button type="button" class="btn ghost" id="restart" data-testid="restart">Restart from day 1</button>
+        <button type="button" class="btn quiet" id="forgot" data-testid="forgot">I did pray, I just forgot to tap</button>
+      </div>
+    </div>
+    <div class="banner done-banner" id="complete" hidden data-testid="complete-banner">
+      <h3>Novena complete</h3>
+      <p id="completeText" data-testid="complete-text"></p>
+      <div class="row" style="justify-content:center"><button type="button" class="btn" id="another" data-testid="another">Begin another</button></div>
+    </div>
+    <div class="main">
+      <section class="card ringcard" aria-labelledby="ringTitle">
+        <svg id="ring" viewBox="0 0 320 320" role="group" aria-label="Nine beads" data-testid="ring"></svg>
+        <div class="ringtitle" id="ringTitle" data-testid="novena-title"></div>
+        <div class="intent" id="ringIntent" data-testid="novena-intention"></div>
+        <div class="legend"><span class="l-done">prayed</span><span class="l-today">today</span><span class="l-missed">missed</span><span class="l-up">to come</span></div>
+      </section>
+      <section class="card daycard" aria-labelledby="dayTitle" data-testid="day-card">
+        <div class="dayhead"><b id="dayTitle" data-testid="day-title">Day 1 of 9</b><span class="date" id="dayDate" data-testid="day-date"></span></div>
+        <span class="state" id="dayState" data-testid="day-state"></span>
+        <div class="prayer" id="dayPrayer" data-testid="day-prayer" hidden></div>
+        <div class="prayer" id="gloryText" data-testid="glory-text" hidden><span class="cap">Glory Be</span>Glory be to the Father, and to the Son, and to the Holy Spirit, as it was in the beginning, is now, and ever shall be, world without end. Amen.</div>
+        <div class="row" style="margin:12px 0"><button type="button" class="btn" id="prayed" data-testid="prayed">I prayed today</button></div>
+        <div class="field"><label for="note">A note for this day <small>(saved as you type)</small></label><textarea id="note" maxlength="2000" data-testid="note"></textarea></div>
+        <p class="status" id="dayMsg" role="status" aria-live="polite" data-testid="day-msg"></p>
+        <div class="row"><button type="button" class="btn quiet" id="end" data-testid="end">End this novena</button></div>
+      </section>
+    </div>
+  </div>
+
+  <section class="card cal" aria-labelledby="calTitle" data-testid="calendar">
+    <div class="calhead"><button type="button" id="prevM" aria-label="Previous month" data-testid="prev-month">‹</button><b id="calTitle" data-testid="cal-title"></b><button type="button" id="nextM" aria-label="Next month" data-testid="next-month">›</button></div>
+    <div class="grid7" id="grid" role="grid" aria-labelledby="calTitle"></div>
+  </section>
+
+  <section class="card history" aria-labelledby="h-hist" data-testid="history">
+    <h2 id="h-hist">Past novenas</h2>
+    <ul id="hist"></ul>
+  </section>
+  <footer>Built by Zac Corbett · no prayer text is bundled except the traditional Glory Be; bring the prayer of your novena · data lives in this browser's localStorage and can be erased by ending a novena or clearing site data</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const KEY = 'lab098-novena';
+  const NS = 'http://www.w3.org/2000/svg';
+
+  // ---------- dates as local calendar days ----------
+  const pad = (n) => String(n).padStart(2, '0');
+  const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const parse = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+  const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return ymd(d); };
+  const today = () => ymd(new Date());
+  const nice = (s, opts = { weekday: 'long', month: 'long', day: 'numeric' }) => parse(s).toLocaleDateString('en-US', opts);
+
+  // ---------- storage (guarded) ----------
+  function load() { try { const v = JSON.parse(localStorage.getItem(KEY) || 'null'); return v && typeof v === 'object' ? v : { active: null, history: [] }; } catch (e) { return { active: null, history: [] }; } }
+  let storageOk = true;
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(D)); storageOk = true; } catch (e) { storageOk = false; } }
+  let D = load();
+  if (!Array.isArray(D.history)) D.history = [];
+
+  // ---------- model ----------
+  function newNovena(fields, start) {
+    return { id: Date.now().toString(36), title: fields.title || '', intention: fields.intention || '', prayer: fields.prayer || '', glory: !!fields.glory, created: new Date().toISOString(), resumed: 0,
+      days: Array.from({ length: 9 }, (_, i) => ({ n: i + 1, date: addDays(start, i), prayed: false, prayedOn: null, note: '' })) };
+  }
+  function statusOf(day, t) { return day.prayed ? 'done' : day.date < t ? 'missed' : day.date === t ? 'today' : 'upcoming'; }
+  const firstMissed = (a, t) => a.days.find((d) => statusOf(d, t) === 'missed');
+  let viewDay = null;             // day number shown in the day card
+  let calMonth = null;            // 'YYYY-MM'
+
+  // ---------- ring ----------
+  function drawRing(a, t) {
+    const svg = $('ring'); svg.innerHTML = '';
+    const cx = 160, cy = 160, R = 118;
+    const ringPath = document.createElementNS(NS, 'circle');
+    Object.entries({ cx, cy, r: R, fill: 'none', stroke: '#d8c9ae', 'stroke-width': 1.5 }).forEach(([k, v]) => ringPath.setAttribute(k, v));
+    svg.appendChild(ringPath);
+    // a small medal where the ring closes
+    const medal = document.createElementNS(NS, 'g');
+    medal.innerHTML = `<line x1="160" y1="${cy + R}" x2="160" y2="${cy + R + 14}" stroke="#d8c9ae" stroke-width="1.5"/><path d="M160 ${cy + R + 14} l0 22 M152 ${cy + R + 22} l16 0" stroke="#c9a24a" stroke-width="3" stroke-linecap="round"/>`;
+    svg.appendChild(medal);
+    const done = a.days.filter((d) => d.prayed).length;
+    a.days.forEach((d, i) => {
+      const ang = Math.PI / 2 + ((i + 1) / 10) * Math.PI * 2;       // start just left of the medal and go round clockwise
+      const x = cx + Math.cos(ang) * R, y = cy + Math.sin(ang) * R;
+      const st = statusOf(d, t);
+      const g = document.createElementNS(NS, 'g');
+      g.setAttribute('class', `bead ${st}`); g.setAttribute('tabindex', '0'); g.setAttribute('role', 'button');
+      g.setAttribute('data-testid', `bead-${d.n}`); g.setAttribute('data-state', st);
+      g.setAttribute('aria-label', `Day ${d.n}, ${nice(d.date, { month: 'long', day: 'numeric' })}: ${{ done: 'prayed', missed: 'missed', today: 'today', upcoming: 'to come' }[st]}`);
+      g.setAttribute('aria-pressed', String(viewDay === d.n));
+      const fill = st === 'done' ? '#c9a24a' : st === 'upcoming' ? '#efe7da' : '#ffffff';
+      const stroke = st === 'missed' ? '#9c5d60' : st === 'today' ? '#b9787a' : st === 'done' ? '#a9832f' : '#d8c9ae';
+      g.innerHTML = `<circle class="halo" cx="${x}" cy="${y}" r="${viewDay === d.n ? 24 : 21}" fill="none" stroke="${viewDay === d.n ? '#2c3550' : 'transparent'}" stroke-width="1.5"/>
+        <circle class="b" cx="${x}" cy="${y}" r="16" fill="${fill}" stroke="${stroke}" stroke-width="2" ${st === 'missed' ? 'stroke-dasharray="4 3"' : ''}/>
+        <text x="${x}" y="${y + 5}" text-anchor="middle" font-size="14" font-family="Garamond, Georgia, serif" fill="${st === 'done' ? '#fff' : '#2c3550'}">${d.n}</text>`;
+      svg.appendChild(g);
+    });
+    const c = document.createElementNS(NS, 'text');
+    c.setAttribute('x', cx); c.setAttribute('y', cy + 12); c.setAttribute('text-anchor', 'middle'); c.setAttribute('font-size', '40'); c.setAttribute('font-family', 'Garamond, Georgia, serif'); c.setAttribute('fill', '#2c3550');
+    c.textContent = `${done} / 9`; svg.appendChild(c);
+    const c2 = document.createElementNS(NS, 'text');
+    c2.setAttribute('x', cx); c2.setAttribute('y', cy + 36); c2.setAttribute('text-anchor', 'middle'); c2.setAttribute('font-size', '13'); c2.setAttribute('fill', '#6f6a66'); c2.setAttribute('font-family', 'Segoe UI, Arial, sans-serif');
+    c2.textContent = done === 9 ? 'complete' : 'days prayed'; svg.appendChild(c2);
+    svg.setAttribute('aria-label', `Nine beads: ${done} of 9 days prayed`);
+  }
+
+  // ---------- render ----------
+  function render() {
+    const t = today();
+    const a = D.active;
+    $('startCard').hidden = !!a; $('active').hidden = !a;
+    if (!$('start').value) $('start').value = t;
+    if (a) {
+      const complete = a.days.every((d) => d.prayed);
+      const miss = complete ? null : firstMissed(a, t);
+      $('missed').hidden = !miss;
+      if (miss) {
+        const count = a.days.filter((d) => statusOf(d, t) === 'missed').length;
+        $('missedText').textContent = `Day ${miss.n} (${nice(miss.date)}) went by without a check-in${count > 1 ? `, and ${count - 1} more after it` : ''}. That's all right. You can pick up where you left off today, begin again from day 1, or mark it prayed if you simply forgot to tap.`;
+      }
+      $('complete').hidden = !complete;
+      if (complete) $('completeText').textContent = `Nine days, from ${nice(a.days[0].date, { month: 'long', day: 'numeric' })} to ${nice(a.days[8].date, { month: 'long', day: 'numeric' })}. Well done, and may your prayer be heard.`;
+      if (viewDay === null || !a.days[viewDay - 1]) {
+        const cur = a.days.find((d) => d.date === t) || miss || a.days.find((d) => !d.prayed) || a.days[8];
+        viewDay = cur.n;
+      }
+      drawRing(a, t);
+      $('ringTitle').textContent = a.title || 'Your novena';
+      $('ringIntent').textContent = a.intention ? `For: ${a.intention}` : '';
+      const d = a.days[viewDay - 1], st = statusOf(d, t);
+      $('dayTitle').textContent = `Day ${d.n} of 9`;
+      $('dayDate').textContent = nice(d.date);
+      $('dayState').className = 'state ' + st;
+      $('dayState').textContent = { done: `Prayed${d.prayedOn && d.prayedOn !== d.date ? ` (checked in ${nice(d.prayedOn, { month: 'short', day: 'numeric' })})` : ''}`, missed: 'Missed', today: 'Today', upcoming: 'Still to come' }[st];
+      $('dayPrayer').hidden = !a.prayer; $('dayPrayer').textContent = a.prayer;
+      $('gloryText').hidden = !a.glory;
+      const pb = $('prayed');
+      pb.disabled = st !== 'today' || !!miss;
+      pb.textContent = st === 'done' ? 'Prayed ✓' : st === 'upcoming' ? `Opens ${nice(d.date, { weekday: 'long' })}` : 'I prayed today';
+      if (document.activeElement !== $('note')) $('note').value = d.note;
+    }
+    renderCal(t); renderHistory();
+  }
+  function renderCal(t) {
+    if (!calMonth) calMonth = (D.active ? D.active.days[0].date : t).slice(0, 7);
+    const [y, m] = calMonth.split('-').map(Number);
+    const first = new Date(y, m - 1, 1), days = new Date(y, m, 0).getDate();
+    $('calTitle').textContent = first.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const map = {};
+    const all = [...D.history.filter((h) => h.status !== 'ended'), ...(D.active ? [D.active] : [])];
+    for (const nv of all) for (const d of nv.days) { const st = statusOf(d, t); if (!map[d.date] || (nv === D.active)) map[d.date] = { st, n: d.n }; }
+    let html = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((w) => `<div class="dow" role="columnheader">${w}</div>`).join('');
+    for (let i = 0; i < first.getDay(); i++) html += '<div class="cell out" aria-hidden="true"></div>';
+    for (let dd = 1; dd <= days; dd++) {
+      const s = `${y}-${pad(m)}-${pad(dd)}`, e = map[s];
+      const cls = ['cell'];
+      let label = nice(s, { month: 'long', day: 'numeric' });
+      if (e) { cls.push('nov'); if (e.st === 'done') cls.push('prayed'); if (e.st === 'missed') cls.push('missed'); label += `, novena day ${e.n}, ${{ done: 'prayed', missed: 'missed', today: 'today', upcoming: 'to come' }[e.st]}`; }
+      if (s === t) { cls.push('today'); label += ' (today)'; }
+      html += `<div class="${cls.join(' ')}" role="gridcell" aria-label="${label}" data-testid="cal-${s}">${e ? `<span class="d">D${e.n}</span>` : ''}<span class="n">${dd}</span></div>`;
+    }
+    $('grid').innerHTML = html;
+  }
+  function renderHistory() {
+    const ul = $('hist');
+    if (!D.history.length) { ul.innerHTML = '<li><span>None yet. Completed and restarted novenas will be listed here.</span></li>'; return; }
+    ul.innerHTML = D.history.slice().reverse().map((h) => `<li data-testid="hist-item"><b>${escapeHtml(h.title || 'Untitled novena')}</b><span>${{ complete: 'Completed', restarted: 'Restarted', ended: 'Ended early' }[h.status]} · ${nice(h.days[0].date, { month: 'short', day: 'numeric' })}–${nice(h.days[8].date, { month: 'short', day: 'numeric', year: 'numeric' })} · ${h.days.filter((d) => d.prayed).length}/9 prayed</span></li>`).join('');
+  }
+  const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  // ---------- actions ----------
+  $('startForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const start = $('start').value || today();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) { $('startMsg').textContent = 'Pick a first day.'; return; }
+    if (start < today()) { $('startMsg').textContent = 'The first day can be today or later.'; $('start').focus(); return; }
+    D.active = newNovena({ title: $('title').value.trim(), intention: $('intention').value.trim(), prayer: $('prayer').value.trim(), glory: $('glory').checked }, start);
+    viewDay = null; calMonth = null; save(); render();
+    $('dayMsg').textContent = start === today() ? 'Day 1 begins today.' : `Day 1 begins ${nice(start)}.`;
+    $('dayTitle').setAttribute('tabindex', '-1'); $('dayTitle').focus();
+  });
+  $('prayed').addEventListener('click', () => {
+    const a = D.active; if (!a) return;
+    const d = a.days[viewDay - 1], t = today();
+    if (statusOf(d, t) !== 'today') return;
+    d.prayed = true; d.prayedOn = t; save();
+    const left = a.days.filter((x) => !x.prayed).length;
+    const complete = left === 0;
+    if (complete) finish('complete');
+    render();
+    $('dayMsg').textContent = complete ? 'Day 9 prayed. Your novena is complete.' : `Day ${d.n} prayed. ${left} to go.`;
+  });
+  $('note').addEventListener('input', () => {
+    const a = D.active; if (!a) return;
+    a.days[viewDay - 1].note = $('note').value; save();
+    $('dayMsg').textContent = storageOk ? 'Note saved on this device.' : 'This browser is blocking storage, so notes will not be kept.';
+  });
+  $('ring').addEventListener('click', (e) => { const b = e.target.closest('.bead'); if (b) { viewDay = +b.dataset.testid.split('-')[1]; render(); document.querySelector(`[data-testid="bead-${viewDay}"]`).focus(); } });
+  $('ring').addEventListener('keydown', (e) => {
+    const b = e.target.closest('.bead'); if (!b) return;
+    let n = +b.dataset.testid.split('-')[1];
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); viewDay = n; render(); document.querySelector(`[data-testid="bead-${n}"]`).focus(); return; }
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') n = n % 9 + 1; else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') n = (n + 7) % 9 + 1; else return;
+    e.preventDefault(); viewDay = n; render(); document.querySelector(`[data-testid="bead-${n}"]`).focus();
+  });
+  $('resume').addEventListener('click', () => {
+    const a = D.active, t = today(), miss = firstMissed(a, t); if (!miss) return;
+    // the missed day becomes today, and every day after it moves along with it
+    for (let i = miss.n - 1; i < 9; i++) a.days[i].date = addDays(t, i - (miss.n - 1));
+    a.resumed++; viewDay = miss.n; save(); render();
+    $('dayMsg').textContent = `Resumed: day ${miss.n} is today, and day 9 falls on ${nice(a.days[8].date)}.`;
+  });
+  $('restart').addEventListener('click', () => {
+    const a = D.active; if (!a) return;
+    finish('restarted');
+    D.active = newNovena(a, today());
+    viewDay = null; calMonth = null; save(); render();
+    $('dayMsg').textContent = 'Begun again from day 1, today.';
+  });
+  $('forgot').addEventListener('click', () => {
+    const a = D.active, t = today(), miss = firstMissed(a, t); if (!miss) return;
+    miss.prayed = true; miss.prayedOn = t; save(); viewDay = miss.n; render();
+    $('dayMsg').textContent = `Day ${miss.n} marked as prayed.`;
+  });
+  $('end').addEventListener('click', () => {
+    if (!D.active) return;
+    if (!confirm('End this novena? Its notes will stay in your history on this device.')) return;
+    finish('ended'); viewDay = null; save(); render();
+    $('startMsg').textContent = 'That novena has ended. You can begin another whenever you like.';
+  });
+  $('another').addEventListener('click', () => { D.active = null; save(); viewDay = null; calMonth = null; render(); $('title').focus(); });
+  function finish(status) {
+    const a = D.active; if (!a) return;
+    D.history.push({ ...JSON.parse(JSON.stringify(a)), status, finished: today() });
+    if (status !== 'complete') D.active = null;
+    save();
+  }
+  $('prevM').addEventListener('click', () => { const [y, m] = calMonth.split('-').map(Number); const d = new Date(y, m - 2, 1); calMonth = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; renderCal(today()); });
+  $('nextM').addEventListener('click', () => { const [y, m] = calMonth.split('-').map(Number); const d = new Date(y, m, 1); calMonth = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; renderCal(today()); });
+
+  // re-check the date now and then (the page may stay open past midnight)
+  let lastDay = today();
+  const tick = () => { const t = today(); if (t !== lastDay) { lastDay = t; viewDay = null; $('dayMsg').textContent = ''; render(); } };
+  setInterval(tick, 30000);
+  addEventListener('focus', tick); document.addEventListener('visibilitychange', tick);
+
+  window.__novena = { get data() { return JSON.parse(JSON.stringify(D)); }, today };
+  render();
+})();
+</script>
+</body>
+</html>

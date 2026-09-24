@@ -1,0 +1,34 @@
+{
+  "id": "090",
+  "slug": "090-offline-strategies",
+  "file": "lab/090-offline-strategies.html",
+  "title": "Offline Strategies Lab — Service-Worker Caching, Simulated",
+  "category": "Tools",
+  "tags": ["pwa", "service-worker", "caching", "offline", "simulation"],
+  "description": "A clearly labelled simulation (no real service worker) of five caching strategies answering the same requests side by side: cache-first, network-first, stale-while-revalidate, network-only and cache-only. Toggle offline and a slow network, publish server updates, advance a simulated clock, and read off which source answered, the latency and how many versions behind each answer was, on a timeline, in a request log and in a comparison table; two scripted scenarios replay a tunnel commute and a release day.",
+  "prompt": "Build 'Offline Strategies Lab': a simulation, with no real service worker, of caching strategies — cache-first, network-first, stale-while-revalidate, network-only and cache-only. Let me toggle offline, a slow network and server updates, send requests on a timeline, and see which source answered, the latency and the staleness. Include a comparison table. Model the timing honestly (a cache write happens when the response arrives, not when it was requested), document the simplifications, and make it feel light and friendly rather than like a DevTools clone.",
+  "qa": {
+    "methodology": [
+      "Model-based oracles: each strategy's expected source, version, latency and staleness is derived from the documented constants (cache 8 ms, network 150 ms, slow 4 s, offline failure 30 ms, network-first timeout 3 s) and asserted per lane through data attributes.",
+      "State-transition scenarios: server update then two requests (stale-while-revalidate is stale once, then fresh; cache-first stays stale), offline with and without a precache, and back online.",
+      "Timing semantics with the simulated clock: a slow network-first request falls back at 3 s, the late response lands in the cache at exactly 4 s and not before, and turning the timeout off makes it wait the full 4 s.",
+      "Golden scenario: the 'tunnel commute' script is worked by hand into the full comparison table (answered, failed, cache, network, average latency, stale count, max behind) for all five strategies.",
+      "Visual review of the timeline at 1280 and 390 px, since bars, background-refresh lines, offline hatching and version markers are not asserted pixel by pixel."
+    ],
+    "risks": [
+      "Cache writes applied at request time instead of arrival time, which would hide stale-while-revalidate's one-request lag.",
+      "Network-first's timeout fallback forgetting to update the cache when the slow response finally arrives.",
+      "Average latency rounding and whether failed responses count towards it (they don't).",
+      "Readers mistaking the simulation for real service-worker behaviour; the page says so in the header, notes and footer."
+    ],
+    "playwright": "Time is simulated inside the page and advanced by buttons, so no page.clock is needed and runs are fully deterministic without a seed. Every lane's last response and every comparison row expose data-source, data-version, data-latency, data-behind and count attributes, which lets toEqual compare whole records instead of parsing text like '3008 ms · 1 behind'. The commute test is the regression net: a hand-computed table for thirteen scripted steps. The SVG timeline was reviewed by screenshot only.",
+    "coverage": [
+      "Precached online request across all five strategies, clock step, log row",
+      "Server update: stale cache-first, one-request lag for SWR, fresh network-first",
+      "Offline fallback, network-only failure, empty-cache failures, recovery online",
+      "Slow network timeout fallback, late cache write at 4 s, timeout switched off",
+      "Tunnel commute scenario comparison table for every strategy"
+    ]
+  },
+  "a11y": "Network conditions are role=switch buttons with aria-checked, actions are plain buttons, and every result on the timeline is also in the lane cards, the request log table and the comparison table. Request outcomes and scenario completion are announced in a polite live region."
+}

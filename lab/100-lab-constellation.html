@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Lab Constellation — every Lab page as a star chart</title>
+<meta name="description" content="The finale of Zac's Lab: every Lab page plotted as a star, clustered into constellations by category, with brightness set by how many Playwright tests guard it. Hover or tap a star for its title, description and thumbnail, filter by category, search, or take a guided tour through all of them in order.">
+<style>
+  :root {
+    --night: #070b1a;
+    --night-2: #0e1530;
+    --ink: #e9ecf8;
+    --muted: #9aa3c4;
+    --star: #fff6dc;
+    --gold: #f4c96b;
+    --line: rgba(160,180,255,.28);
+    --panel: rgba(12,18,40,.88);
+    --serif: "Didot", "Bodoni MT", "Bodoni 72", "Playfair Display", Georgia, serif;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --mono: "Consolas", "SFMono-Regular", ui-monospace, monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--night); color: var(--ink); font: 15px/1.55 var(--sans); overflow-x: hidden; min-height: 100vh;
+    background-image: radial-gradient(ellipse at 50% -20%, #1b2552 0%, transparent 60%); }
+  :focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+  a { color: var(--gold); }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 50; color: var(--ink); background: rgba(7,11,26,.8); border: 1px solid rgba(244,201,107,.45); text-decoration: none; font: 600 13px/1 var(--sans); padding: 8px 12px; border-radius: 999px; }
+  a.back:hover { background: var(--gold); color: var(--night); }
+  .wrap { max-width: 1320px; margin: 0 auto; padding: 60px 18px 40px; }
+  header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 24px; align-items: end; margin-bottom: 14px; }
+  .kicker { margin: 0; font: 600 12px/1.3 var(--sans); letter-spacing: .32em; text-transform: uppercase; color: var(--gold); }
+  h1 { margin: 6px 0 4px; font: 400 clamp(36px, 6vw, 68px)/1.02 var(--serif); letter-spacing: .01em; }
+  h1 i { color: var(--gold); }
+  .lede { margin: 0; color: var(--muted); max-width: 64ch; }
+  .totals { text-align: right; font: 13px/1.5 var(--mono); color: var(--muted); }
+  .totals b { display: block; font: 400 34px/1 var(--serif); color: var(--star); }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin: 10px 0 12px; }
+  .search { position: relative; flex: 1 1 240px; min-width: 0; max-width: 380px; }
+  .search input { width: 100%; max-width: 100%; min-width: 0; font: 15px var(--sans); padding: 10px 12px 10px 34px; border-radius: 999px; border: 1px solid rgba(154,163,196,.4); background: rgba(14,21,48,.9); color: var(--ink); }
+  .search svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); }
+  .btn { min-height: 42px; padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(244,201,107,.6); background: transparent; color: var(--gold); font: 600 14px/1 var(--sans); cursor: pointer; }
+  .btn:hover { background: rgba(244,201,107,.12); }
+  .btn.solid { background: var(--gold); color: var(--night); }
+  .btn[aria-pressed="true"] { background: var(--gold); color: var(--night); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .chip { min-height: 36px; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(154,163,196,.35); background: rgba(14,21,48,.7); color: var(--ink); font: 600 13px/1 var(--sans); cursor: pointer; display: inline-flex; gap: 7px; align-items: center; }
+  .chip i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .chip b { font: 600 12px var(--mono); color: var(--muted); }
+  .chip[aria-pressed="true"] { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); }
+  .sky { position: relative; border-radius: 18px; overflow: hidden; border: 1px solid rgba(154,163,196,.18);
+    background: radial-gradient(ellipse at 50% 55%, #121c44 0%, #0a1030 55%, #050817 100%); }
+  #sky { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+  #sky.drag { cursor: grabbing; }
+  #sky .star { cursor: pointer; }
+  #sky .star .core { transition: r .2s; }
+  #sky .star:focus { outline: none; }
+  #sky .star:focus-visible .ring, #sky .star.sel .ring { stroke: var(--gold); stroke-opacity: 1; }
+  #sky .star.dim { opacity: .16; }
+  #sky .cline.dim, #sky .clabel.dim { opacity: .12; }
+  @media (prefers-reduced-motion: reduce) { #sky .star .core { transition: none; } }
+  .zoom { position: absolute; right: 12px; top: 12px; display: flex; flex-direction: column; gap: 6px; }
+  .zoom button { width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(154,163,196,.4); background: rgba(7,11,26,.75); color: var(--ink); font: 600 18px/1 var(--sans); cursor: pointer; }
+  .card { position: absolute; left: 12px; bottom: 12px; width: min(380px, calc(100% - 24px)); background: var(--panel); border: 1px solid rgba(244,201,107,.4); border-radius: 14px; padding: 12px 34px 12px 12px; backdrop-filter: blur(6px);
+    display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 12px; box-shadow: 0 14px 40px rgba(0,0,0,.5); }
+  .card.top { top: 12px; bottom: auto; }
+  .card img { width: 112px; height: 84px; object-fit: cover; border-radius: 8px; background: #1a2350; display: block; }
+  .card .meta { font: 12px/1.3 var(--mono); color: var(--gold); letter-spacing: .04em; }
+  .card h2 { font: 400 19px/1.2 var(--serif); margin: 3px 0 4px; overflow-wrap: anywhere; }
+  .card p { margin: 0 0 8px; font-size: 13px; line-height: 1.45; color: #c9cfe6; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .card a.open { font: 600 13px var(--sans); }
+  .card .close { position: absolute; top: 6px; right: 8px; background: none; border: 0; color: var(--muted); font-size: 18px; cursor: pointer; width: 32px; height: 32px; }
+  .tourbar { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); display: flex; gap: 6px; align-items: center; background: var(--panel); border: 1px solid rgba(244,201,107,.4); border-radius: 999px; padding: 5px 8px; max-width: calc(100% - 80px); }
+  .tourbar button { min-width: 36px; height: 34px; border-radius: 999px; border: 0; background: transparent; color: var(--ink); cursor: pointer; font: 600 14px var(--sans); }
+  .tourbar span { font: 12px var(--mono); color: var(--gold); white-space: nowrap; padding: 0 4px; }
+  .empty { padding: 60px 24px; text-align: center; color: var(--muted); }
+  .empty h2 { font: 400 28px/1.2 var(--serif); color: var(--ink); margin: 0 0 8px; }
+  .status { min-height: 1.5em; font-size: 14px; color: var(--muted); margin: 10px 0 0; }
+  details.list { margin-top: 18px; background: rgba(14,21,48,.6); border: 1px solid rgba(154,163,196,.2); border-radius: 14px; padding: 12px 16px; }
+  details.list summary { cursor: pointer; font-weight: 600; }
+  .cols { columns: 3 280px; column-gap: 28px; margin-top: 10px; }
+  .cols section { break-inside: avoid; margin-bottom: 14px; }
+  .cols h3 { font: 400 18px/1.2 var(--serif); margin: 0 0 4px; color: var(--gold); }
+  .cols ol { margin: 0; padding-left: 0; list-style: none; font-size: 14px; }
+  .cols li { padding: 2px 0; }
+  .cols li span { font: 12px var(--mono); color: var(--muted); margin-right: 6px; }
+  footer { text-align: center; color: var(--muted); font-size: 13px; margin-top: 24px; }
+  @media (max-width: 700px) {
+    header { grid-template-columns: minmax(0, 1fr); }
+    .totals { text-align: left; }
+    #sky { aspect-ratio: 4 / 5; }
+    .card { grid-template-columns: 84px minmax(0, 1fr); }
+    .card img { width: 84px; height: 63px; }
+    .card.top { width: calc(100% - 76px); }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <div>
+      <p class="kicker">No. 100 · the finale</p>
+      <h1>The Lab <i>Constellation</i></h1>
+      <p class="lede">Every page in the Lab is a star. Each category is its own constellation, joined in the order the pages were made, and the more Playwright tests a page has, the brighter its star. Hover or tap to read about one, click to visit it, or take the tour through all of them.</p>
+    </div>
+    <div class="totals" data-testid="totals"><b id="nPages">–</b><span id="nTests">loading the sky…</span></div>
+  </header>
+
+  <div id="ui">
+    <div class="bar">
+      <label class="search"><span class="sr" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Search the Lab</span>
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="none" stroke="#9aa3c4" stroke-width="1.6"/><path d="M11 11l4 4" stroke="#9aa3c4" stroke-width="1.6"/></svg>
+        <input id="q" type="search" placeholder="Search titles, tags, descriptions" autocomplete="off" data-testid="search"></label>
+      <button type="button" class="btn solid" id="tour" data-testid="tour">✦ Take the tour</button>
+      <span class="status" id="status" role="status" aria-live="polite" data-testid="status" style="margin:0"></span>
+    </div>
+    <div class="chips" role="group" aria-label="Filter by category" id="chips"></div>
+  </div>
+
+  <div class="sky" id="skyWrap">
+    <svg id="sky" viewBox="0 0 1600 1000" role="group" aria-label="Star chart of the Lab" data-testid="sky"></svg>
+    <div class="zoom" id="zoomCtl"><button type="button" id="zin" aria-label="Zoom in" data-testid="zoom-in">+</button><button type="button" id="zout" aria-label="Zoom out" data-testid="zoom-out">−</button><button type="button" id="zreset" aria-label="Show the whole sky" data-testid="zoom-reset">⤢</button></div>
+    <div class="tourbar" id="tourbar" hidden data-testid="tourbar">
+      <button type="button" id="tPrev" aria-label="Previous star" data-testid="tour-prev">‹</button>
+      <button type="button" id="tPause" aria-label="Pause the tour" data-testid="tour-pause">❚❚</button>
+      <span id="tPos" data-testid="tour-pos">1 / 1</span>
+      <button type="button" id="tNext" aria-label="Next star" data-testid="tour-next">›</button>
+      <button type="button" id="tStop" aria-label="End the tour" data-testid="tour-stop">✕</button>
+    </div>
+    <div class="card" id="card" hidden data-testid="card" aria-live="polite">
+      <img id="cImg" alt="" data-testid="card-thumb">
+      <div style="min-width:0">
+        <div class="meta" id="cMeta" data-testid="card-meta"></div>
+        <h2 id="cTitle" data-testid="card-title"></h2>
+        <p id="cDesc" data-testid="card-desc"></p>
+        <a class="open" id="cOpen" href="#" data-testid="card-open">Open this page →</a>
+      </div>
+      <button type="button" class="close" id="cClose" aria-label="Close">×</button>
+    </div>
+    <div class="empty" id="empty" hidden data-testid="empty">
+      <h2>The sky is overcast</h2>
+      <p>The Lab's project list (<code>data/projects.js</code>) didn't load, so there are no stars to chart. Everything is still reachable from <a href="../index.html#lab">the Lab gallery</a>.</p>
+    </div>
+  </div>
+
+  <details class="list" id="listView" data-testid="list-view"><summary>Browse the constellations as a list</summary><div class="cols" id="cols"></div></details>
+  <footer>Built by Zac Corbett: one hundred pages, each with its own Playwright spec. The chart reads the site's own data file, and nothing else is loaded.</footer>
+</div>
+<script src="../data/projects.js"></script>
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const fin = (v, d = 0) => (Number.isFinite(v) ? v : d);
+  const NS = 'http://www.w3.org/2000/svg';
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const hash = (s) => { let h = 2166136261; for (const c of String(s)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  // ---------- data ----------
+  const all = Array.isArray(window.PROJECTS) ? window.PROJECTS : null;
+  const items = (all || []).filter((p) => p && (p.kind === 'lab' || /^lab\//.test(p.file || '')) && p.id && p.file)
+    .map((p) => ({ id: String(p.id), title: String(p.title || p.id), category: String(p.category || 'Other'), tags: Array.isArray(p.tags) ? p.tags.map(String) : [], description: String(p.description || ''), file: String(p.file), tests: Number.isFinite(+p.tests) ? +p.tests : 0, thumb: p.thumb ? String(p.thumb) : '' }))
+    .sort((a, b) => a.id.localeCompare(b.id, 'en', { numeric: true }));
+
+  if (!all || !items.length) {
+    $('empty').hidden = false; $('ui').hidden = true; $('zoomCtl').hidden = true; $('sky').setAttribute('hidden', ''); $('listView').hidden = true;
+    $('nPages').textContent = '0'; $('nTests').textContent = 'no project data';
+    window.__constellation = { get stars() { return []; }, missing: true };
+    return;
+  }
+
+  // ---------- constellations ----------
+  const ORDER = ['QA & Testing', 'AI & Agents', 'Tools', 'Games', 'Generative', 'Data Viz', 'Audio', 'Landing Pages'];
+  const COLORS = { 'QA & Testing': '#7fb4ff', 'AI & Agents': '#c59bff', 'Tools': '#7ee0c8', 'Games': '#ff9f8a', 'Generative': '#ffd36e', 'Data Viz': '#9fe07a', 'Audio': '#ff8fc8', 'Landing Pages': '#f5f0e0' };
+  const cats = [...new Set(items.map((i) => i.category))].sort((a, b) => (ORDER.indexOf(a) + 1 || 99) - (ORDER.indexOf(b) + 1 || 99) || a.localeCompare(b));
+  const EXTRA = ['#b0c4de', '#e0b0ff', '#ffdab9'];
+  cats.forEach((c, i) => { if (!COLORS[c]) COLORS[c] = EXTRA[i % EXTRA.length]; });
+  const minT = Math.min(...items.map((i) => i.tests)), maxT = Math.max(...items.map((i) => i.tests));
+  let VW = 1600, VH = 1000;
+  function layout(portrait) {
+    const cx = VW / 2, cy = VH / 2 + 10;
+    const rx = portrait ? 300 : 590, ry = portrait ? 450 : 330;
+    const centers = {};
+    cats.forEach((c, i) => { const a = -Math.PI / 2 + (i / cats.length) * Math.PI * 2 + 0.2; centers[c] = { x: cx + Math.cos(a) * rx, y: cy + Math.sin(a) * ry }; });
+    for (const c of cats) {
+      const list = items.filter((i) => i.category === c);
+      const r = mulberry32(hash(c));
+      const phase = r() * 6.28;
+      let ang = phase;
+      list.forEach((it, k) => {
+        // a loose spiral in id order, so each line joins near neighbours and the shape reads as one constellation
+        if (k) ang += 1.75 / Math.sqrt(k);
+        const rad = k ? (portrait ? 22 : 25) * Math.sqrt(k) + 8 : 0;
+        const j = mulberry32(hash(it.id));
+        it.x = centers[c].x + Math.cos(ang) * rad + (j() - 0.5) * 10;
+        it.y = centers[c].y + Math.sin(ang) * rad * 0.9 + (j() - 0.5) * 10;
+        it.r = 2.6 + (maxT > minT ? (it.tests - minT) / (maxT - minT) : 0.5) * 4.6;
+      });
+    }
+    return centers;
+  }
+
+  // ---------- drawing ----------
+  const svg = $('sky');
+  let centers = null, portrait = false;
+  function el(tag, a, p) { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; }
+  function draw() {
+    portrait = svg.clientWidth > 0 && svg.clientWidth < 700;
+    VW = portrait ? 1000 : 1600; VH = portrait ? 1250 : 1000;
+    view = { x: 0, y: 0, w: VW, h: VH }; home = { ...view };
+    centers = layout(portrait);
+    svg.innerHTML = '';
+    const defs = el('defs', {}, svg);
+    const glow = el('radialGradient', { id: 'glow' }, defs); el('stop', { offset: '0', 'stop-color': '#fff', 'stop-opacity': '.9' }, glow); el('stop', { offset: '1', 'stop-color': '#fff', 'stop-opacity': '0' }, glow);
+    // background field of faint stars and a milky band
+    const bg = el('g', { 'aria-hidden': 'true' }, svg);
+    el('ellipse', { cx: VW / 2, cy: VH / 2, rx: 900, ry: 120, fill: 'rgba(150,170,255,.05)', transform: `rotate(-18 ${VW / 2} ${portrait ? 625 : 500})` }, bg);
+    const r = mulberry32(100);
+    for (let i = 0; i < 420; i++) el('circle', { cx: (r() * VW).toFixed(1), cy: (r() * VH).toFixed(1), r: (0.3 + r() * 1.1).toFixed(2), fill: '#fff', opacity: (0.15 + r() * 0.45).toFixed(2) }, bg);
+    // constellation lines and labels
+    const lines = el('g', {}, svg);
+    for (const c of cats) {
+      const list = items.filter((i) => i.category === c);
+      if (list.length > 1) el('polyline', { class: 'cline', 'data-cat': c, points: list.map((i) => `${i.x.toFixed(1)},${i.y.toFixed(1)}`).join(' '), fill: 'none', stroke: COLORS[c], 'stroke-opacity': '.28', 'stroke-width': 1.2, 'stroke-linejoin': 'round' }, lines);
+      const maxY = Math.max(...list.map((i) => i.y)), minY = Math.min(...list.map((i) => i.y));
+      const below = centers[c].y > VH / 2;
+      const t = el('text', { class: 'clabel', 'data-cat': c, x: centers[c].x, y: below ? maxY + 34 : minY - 22, 'text-anchor': 'middle', 'font-size': portrait ? 24 : 18, 'letter-spacing': 4, fill: COLORS[c], opacity: .85, 'font-family': 'Segoe UI, Arial, sans-serif' }, lines);
+      t.textContent = c.toUpperCase();
+    }
+    // the stars: real links, so they are focusable and Enter opens them
+    const g = el('g', {}, svg);
+    for (const it of items) {
+      const a = el('a', { class: 'star', href: '../' + it.file, 'data-id': it.id, 'data-cat': it.category, 'data-testid': 'star-' + it.id, 'aria-label': `${it.id}: ${it.title} (${it.category}, ${it.tests} tests)` }, g);
+      const k = portrait ? 1.25 : 1;
+      el('circle', { cx: it.x, cy: it.y, r: 16 * k, fill: 'transparent' }, a);                      // generous hit area
+      el('circle', { cx: it.x, cy: it.y, r: it.r * 3.2 * k, fill: 'url(#glow)', opacity: (0.18 + (it.r - 2.6) / 4.6 * 0.35).toFixed(2) }, a);
+      el('circle', { class: 'core', cx: it.x, cy: it.y, r: (it.r * k).toFixed(2), fill: COLORS[it.category], 'data-r': it.r.toFixed(3) }, a);
+      el('circle', { cx: it.x, cy: it.y, r: (it.r * 0.45 * k).toFixed(2), fill: '#fff' }, a);
+      el('circle', { class: 'ring', cx: it.x, cy: it.y, r: (it.r * k + 6).toFixed(2), fill: 'none', stroke: '#fff', 'stroke-opacity': 0, 'stroke-width': 1.5 }, a);
+      it.el = a;
+    }
+    applyFilter(); applyView(false);
+  }
+
+  // ---------- camera ----------
+  let view = { x: 0, y: 0, w: VW, h: VH }, home = { ...view }, animFrom = null, animTo = null, animT0 = 0;
+  function applyView(animate, target) {
+    if (target) {
+      if (animate && !reduced) { animFrom = { ...view }; animTo = target; animT0 = performance.now(); requestAnimationFrame(animStep); return; }
+      view = target;
+    }
+    svg.setAttribute('viewBox', `${fin(view.x).toFixed(1)} ${fin(view.y).toFixed(1)} ${fin(view.w, VW).toFixed(1)} ${fin(view.h, VH).toFixed(1)}`);
+  }
+  function animStep(now) {
+    if (!animTo) return;
+    const t = Math.min(1, (now - animT0) / 700), e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    view = { x: animFrom.x + (animTo.x - animFrom.x) * e, y: animFrom.y + (animTo.y - animFrom.y) * e, w: animFrom.w + (animTo.w - animFrom.w) * e, h: animFrom.h + (animTo.h - animFrom.h) * e };
+    applyView(false);
+    if (t < 1) requestAnimationFrame(animStep); else { view = { ...animTo }; animTo = null; applyView(false); }
+  }
+  function zoomTo(cx, cy, f, animate = true) {
+    const w = Math.max(home.w / 6, Math.min(home.w, home.w / f)), h = w * home.h / home.w;
+    applyView(animate, { x: cx - w / 2, y: cy - h / 2, w, h });
+  }
+  $('zin').addEventListener('click', () => zoomTo(view.x + view.w / 2, view.y + view.h / 2, home.w / view.w * 1.6));
+  $('zout').addEventListener('click', () => zoomTo(view.x + view.w / 2, view.y + view.h / 2, home.w / view.w / 1.6));
+  $('zreset').addEventListener('click', () => applyView(true, { ...home }));
+  // drag to pan
+  let drag = null;
+  svg.addEventListener('pointerdown', (e) => { if (e.target.closest('.star')) return; drag = { x: e.clientX, y: e.clientY, v: { ...view }, id: e.pointerId, moved: false }; svg.classList.add('drag'); });
+  svg.addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const k = view.w / svg.clientWidth, dx = (e.clientX - drag.x) * k, dy = (e.clientY - drag.y) * k;
+    if (Math.abs(dx) + Math.abs(dy) > 2) drag.moved = true;
+    view = { ...drag.v, x: drag.v.x - dx, y: drag.v.y - dy }; applyView(false);
+  });
+  const endDrag = () => { drag = null; svg.classList.remove('drag'); };
+  svg.addEventListener('pointerup', endDrag); svg.addEventListener('pointercancel', endDrag);
+
+  // ---------- card ----------
+  let shown = null;
+  function show(it, pin) {
+    shown = it;
+    $('card').hidden = false;
+    $('cMeta').textContent = `No. ${it.id} · ${it.category} · ${it.tests} tests`;
+    $('cTitle').textContent = it.title;
+    $('cDesc').textContent = it.description;
+    $('cOpen').href = '../' + it.file;
+    const img = $('cImg');
+    if (it.thumb) { img.hidden = false; img.src = '../' + it.thumb; img.alt = `Thumbnail of ${it.title}`; } else { img.hidden = true; img.removeAttribute('src'); }
+    items.forEach((x) => x.el.classList.toggle('sel', x === it));
+    // keep the card clear of the star: stars in the lower half get the card at the top
+    const wr = $('skyWrap').getBoundingClientRect(), sb = it.el.getBoundingClientRect();
+    $('card').classList.toggle('top', !tour.on && sb.top + sb.height / 2 - wr.top > wr.height / 2);
+    if (pin) pinned = it;
+  }
+  let pinned = null;
+  $('cImg').addEventListener('error', () => { $('cImg').hidden = true; });
+  function hide() { if (tour.on) return; $('card').hidden = true; shown = null; pinned = null; items.forEach((x) => x.el.classList.remove('sel')); }
+  $('cClose').addEventListener('click', hide);
+  const byEl = (t) => { const a = t.closest && t.closest('.star'); return a ? items.find((i) => i.id === a.dataset.id) : null; };
+  svg.addEventListener('pointerover', (e) => { if (e.pointerType === 'touch' || tour.on) return; const it = byEl(e.target); if (it) show(it); });
+  svg.addEventListener('pointerout', (e) => { if (e.pointerType === 'touch' || tour.on) return; const it = byEl(e.target); if (it && !pinned && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('.star') === it.el)) hide(); });
+  svg.addEventListener('focusin', (e) => { const it = byEl(e.target); if (it) show(it); });
+  // touch: the first tap on a star shows its card; a second tap (or the card's link) opens it
+  let lastPointer = 'mouse', wasPinned = null;
+  svg.addEventListener('pointerdown', (e) => { lastPointer = e.pointerType; wasPinned = pinned; }, true);
+  svg.addEventListener('click', (e) => {
+    const it = byEl(e.target); if (!it) return;
+    if (lastPointer === 'touch' && wasPinned !== it) { e.preventDefault(); show(it, true); say(`${it.title}. Tap again, or use the card's link, to open it.`); }
+  });
+
+  // ---------- filter & search ----------
+  let cat = 'all', query = '';
+  function counts() { const c = {}; for (const it of items) c[it.category] = (c[it.category] || 0) + 1; return c; }
+  function renderChips() {
+    const c = counts();
+    $('chips').innerHTML = `<button type="button" class="chip" data-c="all" aria-pressed="${cat === 'all'}" data-testid="chip-all">All <b>${items.length}</b></button>` +
+      cats.map((k) => `<button type="button" class="chip" data-c="${esc(k)}" aria-pressed="${cat === k}" data-testid="chip-${esc(k.toLowerCase().replace(/[^a-z]+/g, '-'))}"><i style="background:${COLORS[k]}"></i>${esc(k)} <b data-testid="count-${esc(k.toLowerCase().replace(/[^a-z]+/g, '-'))}">${c[k]}</b></button>`).join('');
+  }
+  const matches = (it) => { if (!query) return true; const q = query.toLowerCase(); return (it.title + ' ' + it.tags.join(' ') + ' ' + it.description + ' ' + it.id).toLowerCase().includes(q); };
+  function applyFilter() {
+    let n = 0;
+    for (const it of items) { const on = (cat === 'all' || it.category === cat) && matches(it); it.el.classList.toggle('dim', !on); it.el.setAttribute('data-on', on); if (on) n++; }
+    svg.querySelectorAll('.cline, .clabel').forEach((l) => l.classList.toggle('dim', (cat !== 'all' && l.dataset.cat !== cat) || (!!query && !items.some((i) => i.category === l.dataset.cat && matches(i)))));
+    $('chips').querySelectorAll('.chip').forEach((b) => b.setAttribute('aria-pressed', b.dataset.c === cat));
+    say(query || cat !== 'all' ? `${n} of ${items.length} pages shown${query ? ` for “${query}”` : ''}${cat !== 'all' ? ` in ${cat}` : ''}.` : `${items.length} pages in ${cats.length} constellations.`);
+    return n;
+  }
+  $('chips').addEventListener('click', (e) => {
+    const b = e.target.closest('.chip'); if (!b) return;
+    cat = b.dataset.c; applyFilter();
+    if (cat !== 'all' && centers[cat]) zoomTo(centers[cat].x, centers[cat].y, 2); else applyView(true, { ...home });
+  });
+  $('q').addEventListener('input', () => { query = $('q').value.trim(); applyFilter(); });
+  $('q').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const first = items.find((i) => i.el.getAttribute('data-on') === 'true'); if (!first) return;
+    e.preventDefault(); show(first, true); zoomTo(first.x, first.y, 2.5); first.el.focus({ preventScroll: true });
+  });
+  function say(m) { $('status').textContent = m; }
+
+  // ---------- tour ----------
+  const tour = { on: false, i: 0, paused: false, timer: 0 };
+  const STEP_MS = 2600;
+  function tourGo(i) {
+    tour.i = (i + items.length) % items.length;
+    const it = items[tour.i];
+    show(it);
+    zoomTo(it.x, it.y, 3);
+    $('tPos').textContent = `${tour.i + 1} / ${items.length}`;
+  }
+  function schedule() { clearTimeout(tour.timer); if (tour.on && !tour.paused) tour.timer = setTimeout(() => { if (tour.i === items.length - 1) { tourEnd(true); return; } tourGo(tour.i + 1); schedule(); }, STEP_MS); }
+  function tourStart() {
+    tour.on = true; tour.paused = false; $('tourbar').hidden = false; $('tour').setAttribute('aria-pressed', 'true'); $('tour').textContent = 'Touring…';
+    $('tPause').textContent = '❚❚'; $('tPause').setAttribute('aria-label', 'Pause the tour');
+    tourGo(0); schedule(); say(`Touring all ${items.length} pages in order.`);
+  }
+  function tourEnd(finished) {
+    tour.on = false; clearTimeout(tour.timer); $('tourbar').hidden = true; $('tour').setAttribute('aria-pressed', 'false'); $('tour').textContent = '✦ Take the tour';
+    applyView(true, { ...home }); say(finished ? `That's all ${items.length}. Thanks for visiting the Lab.` : 'Tour ended.');
+  }
+  $('tour').addEventListener('click', () => (tour.on ? tourEnd(false) : tourStart()));
+  $('tNext').addEventListener('click', () => { tourGo(tour.i + 1); schedule(); });
+  $('tPrev').addEventListener('click', () => { tourGo(tour.i - 1); schedule(); });
+  $('tStop').addEventListener('click', () => tourEnd(false));
+  $('tPause').addEventListener('click', () => {
+    tour.paused = !tour.paused; $('tPause').textContent = tour.paused ? '▶' : '❚❚'; $('tPause').setAttribute('aria-label', tour.paused ? 'Resume the tour' : 'Pause the tour');
+    schedule(); say(tour.paused ? 'Tour paused.' : 'Tour resumed.');
+  });
+  addEventListener('keydown', (e) => {
+    if (!tour.on || /INPUT|TEXTAREA/.test(e.target.tagName)) return;
+    if (e.key === 'ArrowRight') { e.preventDefault(); tourGo(tour.i + 1); schedule(); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); tourGo(tour.i - 1); schedule(); }
+    else if (e.key === 'Escape') tourEnd(false);
+  });
+
+  // ---------- totals & list ----------
+  const totalTests = items.reduce((a, i) => a + i.tests, 0);
+  $('nPages').textContent = items.length;
+  // Distinct Lab-page tests; the homepage's larger figure also counts both viewports plus the site-wide suites.
+  $('nTests').textContent = `pages · ${totalTests} page tests, each run on desktop + mobile · ${cats.length} constellations`;
+  $('cols').innerHTML = cats.map((c) => `<section><h3>${esc(c)}</h3><ol>${items.filter((i) => i.category === c).map((i) => `<li><span>${esc(i.id)}</span><a href="../${esc(i.file)}" data-testid="list-${esc(i.id)}">${esc(i.title)}</a></li>`).join('')}</ol></section>`).join('');
+
+  renderChips(); draw();
+  let lastPortrait = portrait;
+  addEventListener('resize', () => { const p = svg.clientWidth < 700; if (p !== lastPortrait) { lastPortrait = p; draw(); if (shown) show(shown); } });
+
+  window.__constellation = {
+    get stars() { return items.map((i) => ({ id: i.id, title: i.title, category: i.category, tests: i.tests, x: i.x, y: i.y, r: i.r, on: i.el.getAttribute('data-on') === 'true' })); },
+    get tour() { return { on: tour.on, i: tour.i, paused: tour.paused }; },
+    get view() { return { ...view }; },
+    center(id) { const it = items.find((i) => i.id === id); const b = it.el.querySelector('.core').getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; },
+    categories: cats, STEP_MS,
+  };
+})();
+</script>
+</body>
+</html>

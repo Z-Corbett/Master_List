@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wind Chimes — a generative porch chime</title>
+<meta name="description" content="A generative audio-visual wind chime. Seeded gusts push a pendulum striker into hanging tubes, and each collision rings a synthesized stack of metallic partials. Choose a pentatonic, Aeolian or church-bell tuning, set the wind, or tap a tube yourself.">
+<style>
+  :root {
+    --paper: #eef1ec;
+    --paper-2: #e2e8e1;
+    --slate: #34495a;
+    --slate-2: #22313d;
+    --brass: #b8914a;
+    --brass-2: #e3c887;
+    --sage: #7d9a86;
+    --blush: #e8b9a4;
+    --ink: #1d262d;
+    --muted: #5e6d77;
+    --serif: "Iowan Old Style", "Charter", "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
+    --sans: "Avenir Next", "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { min-height: 100vh; background: var(--paper); color: var(--ink); font: 15px/1.55 var(--sans); overflow-x: hidden;
+    background-image: linear-gradient(180deg, #f6ede4 0%, var(--paper) 38%, var(--paper-2) 100%); }
+  :focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; }
+  a.back { position: fixed; top: 12px; left: 12px; z-index: 30; color: var(--slate); text-decoration: none; font: 600 13px/1 var(--sans); letter-spacing: .04em;
+    padding: 8px 12px; border-radius: 4px; background: rgba(255,255,255,.75); border: 1px solid rgba(52,73,90,.3); backdrop-filter: blur(4px); }
+  a.back:hover { background: var(--slate); color: #fff; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 60px 18px 40px; display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 34px; align-items: start; }
+  .stagecol { min-width: 0; }
+  .title { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
+  h1 { font: 400 clamp(38px, 6vw, 60px)/1 var(--serif); margin: 0; letter-spacing: -.01em; color: var(--slate-2); }
+  h1 i { color: var(--brass); }
+  .lede { margin: 0 0 16px; color: var(--muted); max-width: 56ch; }
+  .frame { position: relative; border-radius: 3px; overflow: hidden; box-shadow: 0 1px 0 rgba(255,255,255,.9) inset, 0 24px 50px -24px rgba(34,49,61,.45); background: #dfe7e4; }
+  canvas { display: block; width: 100%; height: auto; aspect-ratio: 720 / 700; touch-action: manipulation; cursor: pointer; }
+  .caption { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin-top: 8px; }
+  .notes { display: flex; gap: 6px; flex-wrap: wrap; min-height: 34px; margin-top: 12px; align-items: center; }
+  .notes .lbl { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-right: 4px; }
+  .note { font: 600 13px/1 var(--sans); padding: 6px 9px; border-radius: 999px; background: #fff; border: 1px solid #cdd6d2; color: var(--slate); animation: pop .5s ease-out; }
+  @keyframes pop { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .note { animation: none; } }
+
+  .rail { background: rgba(255,255,255,.72); border: 1px solid rgba(52,73,90,.18); border-radius: 6px; padding: 20px 20px 16px; min-width: 0; position: sticky; top: 16px; }
+  .rail h2 { font: 400 13px/1.2 var(--sans); letter-spacing: .22em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+  .block { padding: 14px 0; border-top: 1px solid rgba(52,73,90,.14); }
+  .block:first-of-type { border-top: 0; padding-top: 0; }
+  .seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border: 1px solid var(--slate); border-radius: 4px; overflow: hidden; }
+  .seg button { min-height: 44px; border: 0; border-left: 1px solid var(--slate); background: transparent; color: var(--slate); font: 600 13px/1.15 var(--sans); cursor: pointer; padding: 6px 4px; min-width: 0; }
+  .seg button:first-child { border-left: 0; }
+  .seg button[aria-checked="true"] { background: var(--slate); color: #fff; }
+  .tdesc { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+  .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: baseline; }
+  .row label { font-weight: 600; font-size: 14px; }
+  .row output { font: 600 13px/1 var(--sans); color: var(--brass); font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; max-width: 100%; accent-color: var(--slate); margin: 8px 0 2px; height: 28px; }
+  .btn { min-height: 44px; padding: 10px 14px; border-radius: 4px; border: 1px solid var(--slate); background: #fff; color: var(--slate); font: 600 14px/1.1 var(--sans); cursor: pointer; max-width: 100%; }
+  .btn.primary { background: var(--slate); color: #fff; }
+  .btn.primary:hover { background: var(--slate-2); }
+  .btn[aria-pressed="true"] { background: var(--blush); border-color: #b0735a; color: #5a2d1a; }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .tubes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+  .tubes button { min-height: 40px; border-radius: 4px; border: 1px solid #b9c4bf; background: #fff; color: var(--slate-2); font: 600 13px/1 var(--sans); cursor: pointer; min-width: 0; padding: 4px; }
+  .tubes button:hover { border-color: var(--brass); }
+  .tubes button.lit { background: var(--brass-2); border-color: var(--brass); }
+  .status { font-size: 13px; color: var(--slate); min-height: 1.4em; margin: 10px 0 0; }
+  .stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 4px; }
+  .stat { background: #fff; border: 1px solid #d4dcd8; border-radius: 4px; padding: 8px 10px; min-width: 0; }
+  .stat small { display: block; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .stat b { font: 400 22px/1.2 var(--serif); color: var(--slate-2); font-variant-numeric: lining-nums tabular-nums; overflow-wrap: anywhere; }
+  .about { font-size: 13px; color: var(--muted); margin: 0; }
+  footer { grid-column: 1 / -1; text-align: center; font-size: 13px; color: var(--muted); }
+  footer code { background: rgba(0,0,0,.05); padding: 1px 5px; border-radius: 3px; }
+  @media (max-width: 900px) {
+    .wrap { grid-template-columns: minmax(0, 1fr); }
+    .rail { position: static; }
+  }
+  @media (max-width: 400px) {
+    .seg button { font-size: 12px; }
+    .tubes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <div class="stagecol">
+    <div class="title"><h1>Wind <i>Chimes</i></h1></div>
+    <p class="lede">A ring of tubes on the back porch, a striker on a string and a sail to catch the breeze. Gusts come from seeded noise, the striker swings as a pendulum, and every collision rings a stack of synthesized partials. Tap a tube to ring it yourself.</p>
+    <div class="frame">
+      <canvas id="cv" width="720" height="700" data-testid="scene" role="img" aria-label="Wind chimes"></canvas>
+    </div>
+    <div class="caption"><span id="windText" data-testid="wind-text">Light breeze</span><span id="seedText" data-testid="seed">seed</span></div>
+    <div class="notes" id="notes" data-testid="notes"><span class="lbl">Heard</span></div>
+  </div>
+
+  <aside class="rail" aria-label="Chime controls">
+    <div class="block">
+      <h2 id="h-tune">Tuning</h2>
+      <div class="seg" role="radiogroup" aria-labelledby="h-tune" id="tuneSeg">
+        <button type="button" role="radio" data-t="pentatonic" data-testid="tune-pentatonic">Pentatonic</button>
+        <button type="button" role="radio" data-t="aeolian" data-testid="tune-aeolian">Aeolian</button>
+        <button type="button" role="radio" data-t="bells" data-testid="tune-bells">Church bells</button>
+      </div>
+      <p class="tdesc" id="tuneDesc" data-testid="tune-desc"></p>
+      <div class="tubes" id="tubeBtns" aria-label="Ring a single tube"></div>
+    </div>
+    <div class="block">
+      <h2>Weather</h2>
+      <div class="row"><label for="wind">Wind strength</label><output id="windOut" for="wind" data-testid="wind-out">45%</output></div>
+      <input id="wind" type="range" min="0" max="100" value="45" data-testid="wind">
+      <div class="row"><label for="gust">Gustiness</label><output id="gustOut" for="gust">50%</output></div>
+      <input id="gust" type="range" min="0" max="100" value="50" data-testid="gust">
+      <div class="btns"><button type="button" class="btn" id="calmBtn" data-testid="calm">Still the air</button><button type="button" class="btn" id="reseedBtn" data-testid="reseed">New weather</button></div>
+    </div>
+    <div class="block">
+      <h2>Sound</h2>
+      <div class="btns">
+        <button type="button" class="btn primary" id="soundBtn" data-testid="sound">Let it ring</button>
+        <button type="button" class="btn" id="muteBtn" data-testid="mute" aria-pressed="false" disabled>Mute</button>
+      </div>
+      <p class="status" id="status" role="status" aria-live="polite" data-testid="status">Sound is off until you press Let it ring.</p>
+    </div>
+    <div class="block">
+      <div class="stats">
+        <div class="stat"><small>Strikes</small><b id="hitCount" data-testid="hit-count">0</b></div>
+        <div class="stat"><small>Per minute</small><b id="hitRate" data-testid="hit-rate">0</b></div>
+      </div>
+    </div>
+    <div class="block">
+      <p class="about">Tubes use the mode ratios of a free–free bar (1 : 2.756 : 5.404 : 8.933). The bell set uses the classic church-bell partials (hum, prime, minor-third tierce, quint and nominal at 0.5 : 1 : 1.2 : 1.5 : 2) on the four notes of the Westminster Quarters plus the octave. Keys <kbd>1</kbd>–<kbd>7</kbd> ring tubes.</p>
+    </div>
+  </aside>
+  <footer>Built by Zac Corbett · pendulum physics at 240 Hz · Web Audio synthesis · add <code>?seed=</code> for repeatable weather</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const fin = (v, d = 0) => (Number.isFinite(v) ? v : d);
+  const params = new URLSearchParams(location.search);
+  let SEED = (parseInt(params.get('seed'), 10) >>> 0) || 2718;
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+  // ---------- tunings ----------
+  const NAMES = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+  const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
+  const mname = (m) => NAMES[m % 12] + (Math.floor(m / 12) - 1);
+  const TUBE_PARTIALS = [[1, 1, 1], [2.756, 0.5, 0.55], [5.404, 0.28, 0.3], [8.933, 0.14, 0.18]];      // ratio, gain, decay factor
+  const BELL_PARTIALS = [[0.5, 0.55, 1.6], [1, 0.8, 1], [1.2, 0.45, 0.7], [1.5, 0.3, 0.55], [2, 0.5, 0.45], [2.5, 0.12, 0.3], [3, 0.08, 0.25]];
+  const TUNINGS = {
+    pentatonic: { name: 'Pentatonic', midi: [72, 74, 76, 79, 81, 84], partials: TUBE_PARTIALS, desc: 'C major pentatonic, C5 to C6. No two notes clash, which is why most chimes are tuned this way.' },
+    aeolian: { name: 'Aeolian', midi: [69, 71, 72, 74, 76, 77, 79], partials: TUBE_PARTIALS, desc: 'A natural minor (the Aeolian mode), A4 to G5. Seven tubes, a little more wistful.' },
+    bells: { name: 'Church bells', midi: [59, 64, 66, 68, 71], partials: BELL_PARTIALS, desc: 'B3, E4, F♯4, G♯4 (the Westminster Quarters notes) and B4, with bell partials instead of tube modes.' },
+  };
+
+  // ---------- physics (top-down plane; metres, seconds) ----------
+  const DT = 1 / 240, G = 9.81;
+  const RING_R = 0.062, STRIKER_R = 0.034, TUBE_R = 0.009, STRIKER_L = 0.30;
+  const M_STRIKER = 1, M_TUBE = 2.2, RESTITUTION = 0.55;
+  let tuning = 'pentatonic', tubes = [], striker, simT = 0, rngW, noiseTab = [];
+  let wind = 0.45, gust = 0.5;
+  const hits = [];                                     // {t, tube, midi, freq, amp, source}
+
+  function buildNoise() {
+    rngW = mulberry32(SEED);
+    noiseTab = [];
+    for (let k = 0; k < 4; k++) { const a = []; for (let i = 0; i < 512; i++) a.push(rngW()); noiseTab.push(a); }
+  }
+  function vnoise(ch, x) {
+    const t = noiseTab[ch], i = Math.floor(x), f = x - i, a = t[((i % 512) + 512) % 512], b = t[(((i + 1) % 512) + 512) % 512];
+    const s = f * f * (3 - 2 * f);
+    return a + (b - a) * s;                              // 0..1
+  }
+  function windAt(t) {
+    // slow swell + faster gusts, direction wanders around the prevailing (from the left)
+    const swell = vnoise(0, t * 0.11), g1 = vnoise(1, t * 0.6), g2 = vnoise(2, t * 1.9);
+    let mag = wind * (0.45 + 0.9 * swell * (1 - gust * 0.5) + gust * (1.2 * (g1 - 0.35) + 0.4 * (g2 - 0.5)));
+    mag = Math.max(0, mag);
+    const dir = (vnoise(3, t * 0.23) - 0.5) * 2.2 + (g2 - 0.5) * gust * 0.8;
+    return { mag, dir, x: Math.cos(dir) * mag, z: Math.sin(dir) * mag };
+  }
+  function build() {
+    const T = TUNINGS[tuning];
+    const n = T.midi.length;
+    tubes = T.midi.map((m, i) => {
+      const f = mtof(m), ang = -Math.PI / 2 + (i / n) * Math.PI * 2;
+      const L = 0.34 * Math.sqrt(mtof(T.midi[0]) / f) + 0.08;          // longer tubes for lower notes (length ~ 1/sqrt(f))
+      return { i, midi: m, freq: f, name: mname(m), ang, ax: Math.cos(ang) * RING_R, az: Math.sin(ang) * RING_R, x: 0, z: 0, vx: 0, vz: 0, L, vib: 0, cool: 0 };
+    });
+    striker = { x: 0, z: 0, vx: 0, vz: 0 };
+  }
+  function tubePos(t) { return { x: t.ax + t.x * 0.5, z: t.az + t.z * 0.5 }; }     // striker height is about halfway down the tube
+  function step() {
+    simT += DT;
+    const w = windAt(simT);
+    const aW = w.mag * 4.2;                               // wind acceleration on striker + sail, m/s^2 per unit
+    // striker pendulum
+    const k = G / STRIKER_L;
+    striker.vx += (-k * striker.x - 0.35 * striker.vx + Math.cos(w.dir) * aW) * DT;
+    striker.vz += (-k * striker.z - 0.35 * striker.vz + Math.sin(w.dir) * aW) * DT;
+    striker.x += striker.vx * DT; striker.z += striker.vz * DT;
+    // the striker hangs inside the ring of tubes and cannot slip out between them
+    const sr = Math.hypot(striker.x, striker.z), maxR = RING_R - 0.012;
+    if (sr > maxR) {
+      const ux = striker.x / sr, uz = striker.z / sr, vout = striker.vx * ux + striker.vz * uz;
+      striker.x = ux * maxR; striker.z = uz * maxR;
+      if (vout > 0) { striker.vx -= vout * ux; striker.vz -= vout * uz; }
+    }
+    // tubes: stiffer, heavier pendulums that barely feel the wind
+    for (const t of tubes) {
+      const kt = G / t.L;
+      t.vx += (-kt * t.x - 0.9 * t.vx + Math.cos(w.dir) * aW * 0.12) * DT;
+      t.vz += (-kt * t.z - 0.9 * t.vz + Math.sin(w.dir) * aW * 0.12) * DT;
+      t.x += t.vx * DT; t.z += t.vz * DT;
+      if (t.cool > 0) t.cool -= DT;
+      t.vib *= Math.exp(-DT / 1.4);
+      // collision with the striker (circles in the plane)
+      const p = tubePos(t);
+      const dx = striker.x - p.x, dz = striker.z - p.z, d = Math.hypot(dx, dz), min = STRIKER_R + TUBE_R;
+      if (d < min && d > 1e-9) {
+        const nx = dx / d, nz = dz / d;
+        const rel = (striker.vx - t.vx * 0.5) * nx + (striker.vz - t.vz * 0.5) * nz;
+        if (rel < 0) {
+          const j = -(1 + RESTITUTION) * rel / (1 / M_STRIKER + 1 / M_TUBE);
+          striker.vx += (j / M_STRIKER) * nx; striker.vz += (j / M_STRIKER) * nz;
+          t.vx -= (j / M_TUBE) * nx * 2; t.vz -= (j / M_TUBE) * nz * 2;
+          if (t.cool <= 0 && -rel > 0.012) ring(t, Math.min(1, -rel / 0.22), 'wind');
+          t.cool = 0.06;
+        }
+        const push = min - d;                             // separate
+        striker.x += nx * push * 0.7; striker.z += nz * push * 0.7;
+        t.x -= nx * push * 0.6; t.z -= nz * push * 0.6;
+      }
+    }
+    // keep everything finite whatever happens
+    for (const o of [striker, ...tubes]) for (const key of ['x', 'z', 'vx', 'vz']) if (!Number.isFinite(o[key])) o[key] = 0;
+    // leaves drifting on the wind (visual only)
+    for (const l of leaves) {
+      l.x += (40 + w.mag * 520) * DT * l.s; l.y += (Math.sin(simT * 1.3 + l.p) * 18 + 10) * DT; l.r += DT * (1 + w.mag * 4) * l.s;
+      if (l.x > 760) { l.x = -30; l.y = 60 + l.p * 60; }
+      if (l.y > 700) l.y = 40;
+    }
+  }
+
+  // ---------- audio ----------
+  let AC = null, master = null, wet = null, muted = false, voices = [];
+  function ensureAudio() {
+    if (AC) return AC.resume();
+    const Ctor = window.AudioContext || window.webkitAudioContext;
+    if (!Ctor) { say('Web Audio is not available in this browser.'); return Promise.resolve(); }
+    AC = new Ctor();
+    master = AC.createGain(); master.gain.value = 0.8;
+    const comp = AC.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
+    const conv = AC.createConvolver();
+    const len = Math.floor(AC.sampleRate * 2.6), ir = AC.createBuffer(2, len, AC.sampleRate);
+    const rr = mulberry32(99);
+    for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (rr() * 2 - 1) * Math.pow(1 - i / len, 3.2); }
+    conv.buffer = ir;
+    wet = AC.createGain(); wet.gain.value = 0.28;
+    master.connect(comp); master.connect(conv); conv.connect(wet); wet.connect(comp); comp.connect(AC.destination);
+    return AC.resume();
+  }
+  function voice(t, amp) {
+    if (!AC || muted || AC.state !== 'running') return false;
+    const now = AC.currentTime, T = TUNINGS[tuning], bell = tuning === 'bells';
+    const base = 4.2 * Math.sqrt(440 / t.freq) * (bell ? 1.5 : 1);
+    const out = AC.createGain(); out.gain.value = 0.22 * amp; out.connect(master);
+    const oscs = [];
+    T.partials.forEach(([ratio, g, dk], k) => {
+      for (const det of bell && k > 0 ? [-0.6, 0.6] : [0]) {      // bells: slightly split doublets beat against each other
+        const o = AC.createOscillator(), e = AC.createGain();
+        o.type = 'sine'; o.frequency.value = t.freq * ratio + det;
+        const tau = base * dk;
+        e.gain.setValueAtTime(0, now);
+        e.gain.linearRampToValueAtTime(g * (bell && k > 0 ? 0.6 : 1), now + 0.004);
+        e.gain.setTargetAtTime(0, now + 0.004, tau / 4.6);
+        o.connect(e); e.connect(out); o.start(now); o.stop(now + tau * 1.2 + 0.1);
+        oscs.push(o);
+      }
+    });
+    const v = { out, oscs, end: now + base * 1.3 };
+    oscs[0].onended = () => { voices = voices.filter((x) => x !== v); try { out.disconnect(); } catch (e) { /* already gone */ } };
+    voices.push(v);
+    while (voices.length > 20) { const old = voices.shift(); old.oscs.forEach((o) => { try { o.stop(); } catch (e) { /* stopped */ } }); }
+    return true;
+  }
+  let hitTimes = [];
+  function ring(t, amp, source) {
+    amp = Math.max(0.05, Math.min(1, fin(amp, 0.5)));
+    t.vib = Math.min(1, t.vib + amp);
+    const sounded = voice(t, amp);
+    hits.push({ t: +simT.toFixed(4), tube: t.i, midi: t.midi, name: t.name, freq: +t.freq.toFixed(2), amp: +amp.toFixed(3), source, sounded });
+    if (hits.length > 400) hits.shift();
+    hitTimes.push(simT);
+    noteChip(t.name);
+    const b = document.querySelector(`#tubeBtns button[data-i="${t.i}"]`);
+    if (b) { b.classList.add('lit'); setTimeout(() => b.classList.remove('lit'), 260); }
+  }
+  let chipCount = 0;
+  function noteChip(name) {
+    const box = $('notes');
+    const s = document.createElement('span'); s.className = 'note'; s.textContent = name; s.setAttribute('data-testid', 'note-chip');
+    box.appendChild(s); chipCount++;
+    const chips = box.querySelectorAll('.note'); if (chips.length > 12) chips[0].remove();
+  }
+
+  // ---------- drawing ----------
+  const cv = $('cv'), ctx = cv.getContext('2d');
+  const W = 720, H = 700, CX = 360, RING_Y = 118, PXM = 2300;           // pixels per metre (horizontal; the chime is drawn larger than life)
+  const leaves = [];
+  function makeLeaves() { const r = mulberry32(SEED ^ 0xbeef); leaves.length = 0; for (let i = 0; i < 7; i++) leaves.push({ x: r() * W, y: 60 + r() * 520, r: r() * 6, s: 0.6 + r() * 0.8, p: r() * 6 }); }
+  function tubeScreen(t) {
+    const topX = CX + t.ax * PXM, topY = RING_Y + t.az * PXM * 0.32;
+    const len = 150 + (t.L - 0.08) * 820;
+    const botX = topX + t.x * PXM * 0.45, botY = topY + len + t.z * PXM * 0.1;
+    return { topX, topY, botX, botY, len };
+  }
+  function draw() {
+    // sky and porch
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#f3e3d6'); g.addColorStop(0.55, '#dfe8e6'); g.addColorStop(1, '#c9d7d3');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(125,154,134,.35)';
+    ctx.beginPath(); ctx.moveTo(0, 600);
+    for (let x = 0; x <= W; x += 20) ctx.lineTo(x, 585 - 26 * Math.sin(x / 90) - 14 * Math.sin(x / 37 + 1));
+    ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.fill();
+    ctx.fillStyle = 'rgba(52,73,90,.18)'; ctx.fillRect(0, 640, W, 60);
+    // porch beam
+    ctx.fillStyle = '#6b513a'; ctx.fillRect(0, 0, W, 34);
+    ctx.fillStyle = '#846548'; ctx.fillRect(0, 26, W, 8);
+    ctx.fillStyle = 'rgba(0,0,0,.08)'; ctx.fillRect(0, 34, W, 5);
+    // leaves
+    for (const l of leaves) {
+      ctx.save(); ctx.translate(fin(l.x), fin(l.y)); ctx.rotate(fin(l.r));
+      ctx.fillStyle = 'rgba(184,145,74,.55)'; ctx.beginPath(); ctx.ellipse(0, 0, 7, 3, 0, 0, 6.283); ctx.fill(); ctx.restore();
+    }
+    // hanging cords from beam to ring
+    const bell = tuning === 'bells';
+    ctx.strokeStyle = '#4a4036'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(CX, 34); ctx.lineTo(CX, RING_Y - 38);
+    for (const a of [0.5, 2.6, 4.7]) { ctx.moveTo(CX, RING_Y - 38); ctx.lineTo(CX + Math.cos(a) * RING_R * PXM, RING_Y + Math.sin(a) * RING_R * PXM * 0.32); }
+    ctx.stroke();
+    // sort tubes back to front
+    const order = tubes.slice().sort((a, b) => a.az - b.az);
+    const back = order.filter((t) => t.az < 0), front = order.filter((t) => t.az >= 0);
+    drawRing(true);
+    back.forEach((t) => drawTube(t, bell));
+    drawStriker();
+    drawRing(false);
+    front.forEach((t) => drawTube(t, bell));
+    drawInset();
+  }
+  function drawRing(backHalf) {
+    ctx.strokeStyle = '#7a5a3a'; ctx.lineWidth = 9;
+    ctx.beginPath();
+    ctx.ellipse(CX, RING_Y, RING_R * PXM + 8, RING_R * PXM * 0.32 + 3, 0, backHalf ? Math.PI : 0, backHalf ? Math.PI * 2 : Math.PI);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.25)'; ctx.lineWidth = 2; ctx.stroke();
+  }
+  function drawTube(t, bell) {
+    const s = tubeScreen(t);
+    const vib = reduced ? 0 : t.vib * Math.sin(simT * 90 + t.i) * 1.6;
+    const wdt = bell ? 15 : 11;
+    ctx.strokeStyle = '#3f3a33'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(s.topX, s.topY); ctx.lineTo(s.topX + (s.botX - s.topX) * 0.05, s.topY + 16); ctx.stroke();
+    ctx.save();
+    ctx.translate(s.topX + (s.botX - s.topX) * 0.05, s.topY + 16);
+    const ang = Math.atan2(s.botX - s.topX, s.botY - s.topY);
+    ctx.rotate(-fin(ang));
+    const len = s.len - 16;
+    const grad = ctx.createLinearGradient(-wdt / 2 + vib, 0, wdt / 2 + vib, 0);
+    if (bell) { grad.addColorStop(0, '#6e4a22'); grad.addColorStop(0.35, '#d9a55a'); grad.addColorStop(0.6, '#b07a36'); grad.addColorStop(1, '#5a3a18'); }
+    else { grad.addColorStop(0, '#7d8a93'); grad.addColorStop(0.3, '#f4f7f8'); grad.addColorStop(0.55, '#b9c4cb'); grad.addColorStop(1, '#6b7780'); }
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(-wdt / 2 + vib, 0, wdt, len, 3) : ctx.rect(-wdt / 2 + vib, 0, wdt, len); ctx.fill();
+    if (t.vib > 0.03) {
+      ctx.strokeStyle = bell ? `rgba(255,214,140,${fin(t.vib * 0.8)})` : `rgba(255,255,255,${fin(t.vib * 0.9)})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.roundRect ? ctx.roundRect(-wdt / 2 - 3, -3, wdt + 6, len + 6, 5) : ctx.rect(-wdt / 2 - 3, -3, wdt + 6, len + 6); ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(29,38,45,.55)'; ctx.font = '600 11px "Segoe UI", Arial, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(t.name, vib, len + 16);
+    ctx.restore();
+  }
+  function drawStriker() {
+    const topX = CX, topY = RING_Y - 30;
+    const sx = CX + striker.x * PXM, sy = RING_Y + 175 + striker.z * PXM * 0.32;
+    const sailY = sy + 190;
+    ctx.strokeStyle = '#3f3a33'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(topX, topY); ctx.lineTo(fin(sx), fin(sy)); ctx.lineTo(fin(sx + striker.x * PXM * 0.6), fin(sailY)); ctx.stroke();
+    // striker disk (seen slightly from above)
+    ctx.fillStyle = '#8a6a48';
+    ctx.beginPath(); ctx.ellipse(fin(sx), fin(sy), STRIKER_R * PXM, STRIKER_R * PXM * 0.32, 0, 0, 6.283); ctx.fill();
+    ctx.fillStyle = '#a8845d'; ctx.beginPath(); ctx.ellipse(fin(sx), fin(sy - 3), STRIKER_R * PXM, STRIKER_R * PXM * 0.32, 0, 0, 6.283); ctx.fill();
+    // sail
+    const w = windAt(simT), tilt = Math.max(-0.5, Math.min(0.5, w.x * 0.9));
+    ctx.save(); ctx.translate(fin(sx + striker.x * PXM * 0.6), fin(sailY)); ctx.rotate(-fin(tilt));
+    ctx.fillStyle = '#b0735a';
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(26, 18); ctx.lineTo(18, 86); ctx.lineTo(-18, 86); ctx.lineTo(-26, 18); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.4)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, 8); ctx.lineTo(0, 80); ctx.stroke();
+    ctx.restore();
+  }
+  function drawInset() {
+    // top-down view: ring, tubes, striker trail, wind arrow
+    const ix = W - 96, iy = H - 96, sc = 520;
+    ctx.fillStyle = 'rgba(255,255,255,.72)'; ctx.beginPath(); ctx.arc(ix, iy, 74, 0, 6.283); ctx.fill();
+    ctx.strokeStyle = 'rgba(52,73,90,.35)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.strokeStyle = 'rgba(122,90,58,.6)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(ix, iy, RING_R * sc + 4, 0, 6.283); ctx.stroke();
+    for (const t of tubes) {
+      const p = tubePos(t);
+      ctx.fillStyle = t.vib > 0.05 ? '#b8914a' : '#5e6d77';
+      ctx.beginPath(); ctx.arc(ix + p.x * sc, iy + p.z * sc, TUBE_R * sc, 0, 6.283); ctx.fill();
+    }
+    trail.push([striker.x, striker.z]); if (trail.length > 90) trail.shift();
+    ctx.strokeStyle = 'rgba(176,115,90,.45)'; ctx.lineWidth = 1.5; ctx.beginPath();
+    trail.forEach(([x, z], i) => { const X = ix + fin(x) * sc, Y = iy + fin(z) * sc; if (i) ctx.lineTo(X, Y); else ctx.moveTo(X, Y); });
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(138,106,72,.85)'; ctx.beginPath(); ctx.arc(ix + fin(striker.x) * sc, iy + fin(striker.z) * sc, STRIKER_R * sc, 0, 6.283); ctx.fill();
+    const w = windAt(simT), L = 16 + Math.min(1.4, w.mag) * 30;
+    ctx.save(); ctx.translate(ix - 58, iy - 58); ctx.rotate(fin(w.dir));
+    ctx.strokeStyle = '#34495a'; ctx.fillStyle = '#34495a'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(L, 0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(L + 6, 0); ctx.lineTo(L - 2, -5); ctx.lineTo(L - 2, 5); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = 'rgba(29,38,45,.6)'; ctx.font = '600 10px "Segoe UI", Arial, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('FROM ABOVE', ix, iy + 64);
+  }
+  const trail = [];
+
+  // ---------- UI ----------
+  function say(m) { $('status').textContent = m; }
+  function windWords(v) { return v === 0 ? 'Dead calm' : v < 0.15 ? 'Light air' : v < 0.35 ? 'Light breeze' : v < 0.55 ? 'Gentle breeze' : v < 0.75 ? 'Fresh breeze' : v < 0.9 ? 'Strong breeze' : 'Near gale'; }
+  function renderTuning() {
+    document.querySelectorAll('#tuneSeg button').forEach((b) => { const on = b.dataset.t === tuning; b.setAttribute('aria-checked', on); b.tabIndex = on ? 0 : -1; });
+    const T = TUNINGS[tuning];
+    $('tuneDesc').textContent = T.desc;
+    $('tubeBtns').innerHTML = tubes.map((t, i) => `<button type="button" data-i="${i}" data-testid="tube-${i}" aria-label="Ring ${t.name} (${t.freq.toFixed(1)} hertz)">${i + 1} · ${t.name}</button>`).join('');
+    updateAria();
+  }
+  function setTuning(t) { tuning = t; build(); trail.length = 0; renderTuning(); say(`Retuned to ${TUNINGS[t].name}: ${tubes.map((x) => x.name).join(', ')}.`); }
+  $('tuneSeg').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setTuning(b.dataset.t); });
+  $('tuneSeg').addEventListener('keydown', (e) => {
+    const keys = Object.keys(TUNINGS), i = keys.indexOf(tuning);
+    let j = null; if (e.key === 'ArrowRight' || e.key === 'ArrowDown') j = (i + 1) % keys.length; if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') j = (i + keys.length - 1) % keys.length;
+    if (j === null) return; e.preventDefault(); setTuning(keys[j]); document.querySelector(`#tuneSeg [data-t="${keys[j]}"]`).focus();
+  });
+  $('tubeBtns').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; strikeTube(+b.dataset.i, 0.8, 'tap'); });
+  function strikeTube(i, amp, source) {
+    const t = tubes[i]; if (!t) return;
+    ring(t, amp, source);
+    const nx = Math.cos(t.ang), nz = Math.sin(t.ang);
+    t.vx += nx * 0.25 * amp; t.vz += nz * 0.25 * amp;
+    if (AC && AC.state !== 'running' && !muted) ensureAudio();
+  }
+  function setWind(v) { wind = Math.max(0, Math.min(1, v)); $('wind').value = Math.round(wind * 100); $('windOut').textContent = Math.round(wind * 100) + '%'; $('windText').textContent = windWords(wind) + (wind > 0 ? ` · ${Math.round(wind * 100)}% strength` : ''); updateAria(); }
+  function setGust(v) { gust = Math.max(0, Math.min(1, v)); $('gust').value = Math.round(gust * 100); $('gustOut').textContent = Math.round(gust * 100) + '%'; }
+  $('wind').addEventListener('input', () => setWind($('wind').value / 100));
+  $('gust').addEventListener('input', () => setGust($('gust').value / 100));
+  $('calmBtn').addEventListener('click', () => { setWind(0); say('The air goes still. The striker will settle.'); });
+  $('reseedBtn').addEventListener('click', () => {
+    SEED = (Math.floor(Math.random() * 1e9) >>> 0) || 1; buildNoise(); makeLeaves();
+    $('seedText').textContent = `seed ${SEED}`;
+    try { const u = new URL(location.href); u.searchParams.set('seed', SEED); history.replaceState(null, '', u); } catch (e) { /* ignore */ }
+    say('New weather rolls in.');
+  });
+  $('soundBtn').addEventListener('click', async () => {
+    await ensureAudio();
+    if (AC) {
+      $('muteBtn').disabled = false;
+      $('soundBtn').textContent = 'Sound on';
+      $('soundBtn').disabled = true;
+      say('Sound is on. Listen for the next gust.');
+    }
+  });
+  $('muteBtn').addEventListener('click', () => {
+    muted = !muted;
+    $('muteBtn').setAttribute('aria-pressed', muted);
+    $('muteBtn').textContent = muted ? 'Unmute' : 'Mute';
+    if (master && AC) master.gain.setTargetAtTime(muted ? 0 : 0.8, AC.currentTime, 0.03);
+    say(muted ? 'Muted. The chimes still swing.' : 'Sound is on.');
+  });
+  addEventListener('keydown', (e) => {
+    if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+    const n = parseInt(e.key, 10);
+    if (n >= 1 && n <= tubes.length) { e.preventDefault(); strikeTube(n - 1, 0.8, 'key'); }
+  });
+  cv.addEventListener('pointerdown', (e) => {
+    const r = cv.getBoundingClientRect();
+    const x = (e.clientX - r.left) * (W / r.width), y = (e.clientY - r.top) * (H / r.height);
+    let best = null, bd = 26;
+    for (const t of tubes) {
+      const s = tubeScreen(t);
+      if (y < s.topY + 10 || y > s.botY + 12) continue;
+      const k = (y - s.topY) / (s.botY - s.topY), tx = s.topX + (s.botX - s.topX) * k, d = Math.abs(x - tx);
+      if (d < bd) { bd = d; best = t; }
+    }
+    if (best) strikeTube(best.i, 0.75, 'tap');
+  });
+  function updateAria() {
+    cv.setAttribute('aria-label', `Wind chimes tuned ${TUNINGS[tuning].name}: ${tubes.map((t) => t.name).join(', ')}. ${windWords(wind)}. ${hits.length} strikes so far.`);
+  }
+  let lastStats = 0;
+  function stats() {
+    $('hitCount').textContent = hits.length;
+    hitTimes = hitTimes.filter((t) => simT - t <= 60);
+    const span = Math.min(60, Math.max(simT, 15));
+    $('hitRate').textContent = Math.round(hitTimes.length * 60 / span);
+    if (simT - lastStats > 2) { lastStats = simT; updateAria(); }
+  }
+
+  // ---------- loop ----------
+  let manual = false, acc = 0, last = null;
+  function frame(ts) {
+    requestAnimationFrame(frame);
+    if (last === null) last = ts;
+    let dt = (ts - last) / 1000; last = ts;
+    if (!Number.isFinite(dt) || dt < 0) dt = 0;
+    if (manual) return;
+    acc += Math.min(dt, 0.1);
+    while (acc >= DT) { step(); acc -= DT; }
+    draw(); stats();
+  }
+
+  window.__chimes = {
+    get state() {
+      return { tuning, seed: SEED, t: simT, wind, gust, muted, audio: AC ? AC.state : 'none', masterGain: master ? master.gain.value : null, voices: voices.length,
+        striker: { ...striker }, tubes: tubes.map((t) => ({ i: t.i, name: t.name, midi: t.midi, freq: t.freq, L: t.L, x: t.x, z: t.z, vib: t.vib })), hits: hits.slice() };
+    },
+    manual(on) { manual = !!on; acc = 0; },
+    /** back to t = 0 with everything at rest (the seed and wind settings are kept) */
+    reset() { simT = 0; build(); hits.length = 0; hitTimes = []; trail.length = 0; draw(); stats(); },
+    frames(n) { for (let i = 0; i < n; i++) step(); draw(); stats(); return this.state; },
+    push(vx, vz = 0) { striker.vx += vx; striker.vz += vz; },
+    setWind, setGust, windAt, strike: (i, amp = 0.8) => strikeTube(i, amp, 'api'),
+    tubeScreen: (i) => { const s = tubeScreen(tubes[i]); const r = cv.getBoundingClientRect(); return { x: r.left + ((s.topX + s.botX) / 2) * r.width / W, y: r.top + ((s.topY + s.botY) / 2) * r.height / H }; },
+    PERIOD: 2 * Math.PI * Math.sqrt(STRIKER_L / G), DT,
+  };
+
+  buildNoise(); makeLeaves(); build(); renderTuning(); setWind(reduced ? 0.3 : 0.45); setGust(0.5);
+  $('seedText').textContent = `seed ${SEED}`;
+  draw();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

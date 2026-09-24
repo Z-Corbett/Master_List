@@ -1,0 +1,34 @@
+{
+  "id": "098",
+  "slug": "098-novena-tracker",
+  "file": "lab/098-novena-tracker.html",
+  "title": "Novena Tracker — nine days of prayer",
+  "category": "Tools",
+  "tags": ["localstorage", "svg", "calendar", "page-clock", "privacy"],
+  "description": "A gentle tracker for a novena, nine days of prayer. You give it an optional title and intention and paste in your own prayer, then check in each day on a nine-bead ring and keep a note for the day. If you miss a day you can resume (the remaining days move along), restart from day 1, or mark it prayed if you only forgot to tap, and a calendar and history show where you are. Everything stays in localStorage: no accounts, notifications or network.",
+  "prompt": "Make a gentle nine-day prayer tracker for novenas. I can start one with a title and intention (both optional, stored only in localStorage), see a nine-bead progress ring, check in day by day with a notes field, and have missed days handled kindly: resume or restart. Add a calendar view. Only include the text of a short public-domain prayer if you're certain of its traditional wording; otherwise let me supply the prayer text. No notifications and no network. The tests should use page.clock.",
+  "qa": {
+    "methodology": [
+      "Calendar arithmetic under page.clock: the start date defaults to the faked today and the nine dates are consecutive local days. fastForward(24 h) opens the next day on its own through the page's date watcher, and a novena that crosses a month boundary is checked on both calendar pages.",
+      "Missed-day handling as data: after skipping days, the first missed day and the count after it are reported. 'Resume' re-dates exactly the remaining days from today (asserted as a full date list), 'Restart' archives the old novena as restarted with its prayed count, and 'forgot to tap' records the check-in date separately.",
+      "Check-in rules: only today's bead can be checked, and only once. Future days show when they open, and check-in is blocked while a missed day is unresolved.",
+      "Persistence and privacy: title, intention, notes (saved on every keystroke) and history survive reloads, and a request listener proves nothing leaves the page.",
+      "Content accuracy: the only bundled prayer is the traditional Glory Be. The user's own prayer text is shown as entered."
+    ],
+    "risks": [
+      "Time-zone and DST boundaries: dates are handled as local calendar strings rather than timestamps, so a 23- or 25-hour day can't skip or repeat a novena day.",
+      "A page left open across midnight: a periodic, focus and visibility check re-renders on date change; the tests cover it with fastForward.",
+      "Private intentions in localStorage: the page says clearly where data lives and how to erase it.",
+      "Encouraging, not guilt-inducing copy for missed days; wording is part of the review."
+    ],
+    "playwright": "Everything here depends on dates, so every test starts with page.clock.install() and pauseAt() at a local time and then moves days with fastForward(n × 24 h). fastForward fires the page's 30-second date watcher once, which is exactly how a real open tab crosses midnight. Assertions read the stored model through __novena.data (the full date list after a resume, the history status) and check the user-facing text and bead data-state attributes. The privacy claim is a network assertion rather than a code review. The ring is SVG with focusable beads, so arrow-key navigation is tested with real key presses.",
+    "coverage": [
+      "Begin: defaults, nine consecutive dates, user prayer and Glory Be, reload, no network",
+      "Check-in once per day, notes autosave, future days closed, next day opens, bead keyboard nav",
+      "Missed days: banner text, resume re-dating, calendar classes",
+      "Forgot-to-tap, restart with history entry",
+      "Full nine-day completion across a month boundary, calendar paging, begin another"
+    ]
+  },
+  "a11y": "The ring's nine beads are focusable buttons with labels such as 'Day 3, October 3: missed', and arrow keys move between them. Form fields are labelled, and status messages, the missed-day banner and the calendar cells (as a labelled grid) give the state as text as well as colour. The pulsing highlight on today's bead stops under reduced motion."
+}

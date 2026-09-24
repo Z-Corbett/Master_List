@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Accessible Data Table — an ARIA grid showcase</title>
+<meta name="description" content="A showcase data table for a fictional plant nursery's 200-row inventory: sortable columns with aria-sort, filters, pagination, checkbox row selection, a sticky header, ARIA grid keyboard navigation (arrows, Home/End, PageUp/PageDown) and a live region announcing results, with a panel that shows the ARIA attributes of the focused cell as you move.">
+<style>
+  :root {
+    --bg: #f7f8f4;
+    --card: #ffffff;
+    --ink: #1f2a22;
+    --ink-2: #536157;
+    --ink-3: #87948a;
+    --line: #dfe5dc;
+    --line-2: #eef2ec;
+    --green: #2d6a4f;
+    --green-2: #1b4332;
+    --mint: #d8f3dc;
+    --sel: #fff4d6;
+    --focus: #b4530b;
+    --serif: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+    --font: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    --mono: Consolas, "SF Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font); overflow-x: hidden; }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  input, select, pre { max-width: 100%; }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .back { position: fixed; top: 10px; left: 10px; z-index: 50; background: var(--card); color: var(--green-2); text-decoration: none; font: 600 13px/1 var(--font); padding: 8px 12px; border-radius: 999px; border: 1px solid var(--line); box-shadow: 0 2px 6px rgba(0,0,0,.06); }
+
+  header { max-width: 1240px; margin: 0 auto; padding: 64px 20px 16px; }
+  .eyebrow { font: 600 12px var(--font); letter-spacing: .16em; text-transform: uppercase; color: var(--green); }
+  h1 { font: 400 clamp(30px, 5.4vw, 52px)/1.05 var(--serif); margin: 6px 0 10px; color: var(--green-2); }
+  .lede { max-width: 72ch; color: var(--ink-2); margin: 0; }
+  .keys { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px; font-size: 13px; color: var(--ink-2); }
+  kbd { font: 12px var(--mono); background: var(--card); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 1px 5px; color: var(--ink); }
+
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 8px 20px 50px; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; min-width: 0; box-shadow: 0 1px 2px rgba(0,0,0,.03); }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: flex-end; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+  .toolbar label { display: grid; gap: 3px; font-size: 12px; font-weight: 600; color: var(--ink-2); min-width: 0; }
+  .toolbar input, .toolbar select { border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; background: var(--bg); min-width: 0; }
+  .toolbar input[type=search] { width: 230px; }
+  .selinfo { margin-left: auto; font-size: 13.5px; color: var(--ink-2); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .selinfo b { color: var(--ink); }
+  .btn { border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 6px 12px; font-size: 13.5px; }
+  .btn:hover:not(:disabled) { border-color: var(--green); color: var(--green); }
+  .btn:disabled { opacity: .45; cursor: default; }
+
+  .tablebox { max-height: 560px; overflow: auto; position: relative; }
+  table { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 760px; font-size: 14px; }
+  caption { text-align: left; padding: 10px 16px 6px; font: 400 15px var(--serif); color: var(--ink-2); }
+  th, td { padding: 9px 12px; border-bottom: 1px solid var(--line-2); text-align: left; white-space: nowrap; }
+  thead th { position: sticky; top: 0; background: var(--green-2); color: #fff; font-weight: 600; z-index: 2; padding: 0; }
+  thead th:first-child { border-top-left-radius: 0; }
+  .sortbtn { width: 100%; border: 0; background: none; color: inherit; padding: 10px 12px; display: flex; gap: 6px; align-items: center; justify-content: space-between; font-weight: 600; text-align: left; }
+  .sortbtn:hover { background: rgba(255,255,255,.08); }
+  .sortbtn:focus-visible { outline: 3px solid #ffb86b; outline-offset: -3px; }
+  .sortbtn svg { width: 12px; height: 14px; flex: none; opacity: .5; }
+  th[aria-sort] .sortbtn svg { opacity: 1; }
+  th.num .sortbtn { justify-content: flex-end; flex-direction: row-reverse; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  th.check, td.check { width: 44px; text-align: center; padding: 0 8px; }
+  thead th.check { padding: 10px 8px; }
+  input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--green); margin: 0; vertical-align: middle; }
+  tbody tr:nth-child(even) td { background: #fbfcfa; }
+  tbody tr:hover td { background: var(--mint); }
+  tbody tr[aria-selected="true"] td { background: var(--sel); }
+  td:focus { outline: 3px solid var(--focus); outline-offset: -3px; }
+  td.sku { font-family: var(--mono); font-size: 13px; color: var(--ink-2); }
+  .cat { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--line-2); color: var(--ink-2); }
+  .low { color: #b42318; font-weight: 600; }
+  .empty { padding: 40px; text-align: center; color: var(--ink-3); }
+  .pager { display: flex; flex-wrap: wrap; gap: 8px 12px; justify-content: space-between; align-items: center; padding: 12px 16px; border-top: 1px solid var(--line); font-size: 13.5px; }
+  .pager nav { display: flex; gap: 4px; flex-wrap: wrap; }
+  .pager .pg[aria-current="page"] { background: var(--green-2); color: #fff; border-color: var(--green-2); }
+
+  .aria { position: sticky; top: 12px; padding: 16px; }
+  .aria h2 { font: 400 20px var(--serif); margin: 0 0 4px; color: var(--green-2); }
+  .aria p.sub { margin: 0 0 12px; color: var(--ink-3); font-size: 13px; }
+  dl.attrs { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 5px 10px; margin: 0; font-size: 13px; }
+  dl.attrs dt { font-family: var(--mono); color: var(--green); }
+  dl.attrs dd { margin: 0; font-family: var(--mono); overflow-wrap: anywhere; }
+  pre.snip { margin: 12px 0 0; background: var(--green-2); color: #e9f5ec; border-radius: 10px; padding: 10px 12px; font: 12px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .live { margin-top: 12px; border-left: 3px solid var(--focus); padding: 6px 10px; background: #fff7ef; font-size: 13.5px; }
+  .live small { display: block; font: 600 11px var(--font); letter-spacing: .12em; text-transform: uppercase; color: var(--focus); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  footer { max-width: 1240px; margin: 0 auto; padding: 0 20px 30px; font-size: 12.5px; color: var(--ink-3); }
+
+  @media (max-width: 980px) { .wrap { grid-template-columns: minmax(0, 1fr); } .aria { position: static; } }
+  @media (max-width: 520px) {
+    header, .wrap, footer { padding-left: 12px; padding-right: 12px; }
+    .toolbar input[type=search] { width: 100%; }
+    .toolbar label.q { flex: 1 1 100%; }
+    .selinfo { margin-left: 0; }
+    .tablebox { max-height: 480px; }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+
+<header>
+  <div class="eyebrow">Component showcase</div>
+  <h1>Accessible Data Table</h1>
+  <p class="lede">A sortable, filterable, paginated table with selectable rows that follows the ARIA grid pattern: one tab stop, arrow-key navigation between cells, <code>aria-sort</code> on the sorted column, row and column indices that survive pagination, and a live region that says what changed. The panel on the right shows the attributes a screen reader gets for whichever cell has focus.</p>
+  <div class="keys" aria-label="Keyboard shortcuts"><span><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> move</span><span><kbd>Home</kbd>/<kbd>End</kbd> row start/end</span><span><kbd>Ctrl</kbd>+<kbd>Home</kbd>/<kbd>End</kbd> first/last cell</span><span><kbd>PgUp</kbd>/<kbd>PgDn</kbd> 5 rows</span><span><kbd>Space</kbd> select row</span><span><kbd>Enter</kbd> on a header sorts</span></div>
+</header>
+
+<main class="wrap">
+  <section class="card" aria-label="Plant inventory">
+    <div class="toolbar">
+      <label class="q">Search plants <input type="search" data-testid="search" placeholder="name, SKU or bench"></label>
+      <label>Category <select data-testid="category"></select></label>
+      <label>Stock <select data-testid="stock"><option value="all">Any</option><option value="low">Low (under 20)</option><option value="out">Out of stock</option></select></label>
+      <label>Rows per page <select data-testid="pagesize"><option>10</option><option>25</option><option>50</option></select></label>
+      <div class="selinfo"><span><b data-testid="sel-count">0</b> selected</span><button class="btn" type="button" data-testid="clear-sel" disabled>Clear selection</button></div>
+    </div>
+    <div class="tablebox" data-testid="tablebox">
+      <table role="grid" data-testid="grid" aria-labelledby="cap" aria-describedby="gridhelp">
+        <caption id="cap">Hollow Oak Nursery — bench inventory (fictional)</caption>
+        <thead><tr role="row" aria-rowindex="1" data-testid="head-row"></tr></thead>
+        <tbody data-testid="tbody"></tbody>
+      </table>
+      <p id="gridhelp" class="sr">Use arrow keys to move between cells, Space to select a row, Enter on a column header to sort.</p>
+    </div>
+    <div class="pager">
+      <span data-testid="page-info" aria-hidden="true"></span>
+      <nav aria-label="Pagination" data-testid="pager"></nav>
+    </div>
+  </section>
+
+  <aside class="card aria" aria-label="ARIA inspector" data-testid="inspector">
+    <h2>What assistive tech hears</h2>
+    <p class="sub">Move focus into the grid; this panel follows it.</p>
+    <dl class="attrs" data-testid="attrs"></dl>
+    <pre class="snip" data-testid="snippet" aria-hidden="true"></pre>
+    <div class="live"><small>Live region (polite)</small><span data-testid="live" role="status" aria-live="polite"></span></div>
+  </aside>
+</main>
+<footer>The nursery, SKUs and stock figures are generated from a seed (?seed= to change it). No real business is represented.</footer>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+  // ---------- data ----------
+  const PLANTS = {
+    Fern: ['Maidenhair fern', 'Boston fern', 'Bird’s nest fern', 'Staghorn fern', 'Holly fern', 'Painted fern'],
+    Succulent: ['Jade plant', 'Echeveria', 'Haworthia', 'String of pearls', 'Aloe', 'Panda plant'],
+    Herb: ['Rosemary', 'Thyme', 'Sweet basil', 'Lemon balm', 'Sage', 'Oregano', 'Chives'],
+    Climber: ['Star jasmine', 'Clematis', 'Honeysuckle', 'Climbing hydrangea', 'Passionflower'],
+    Shrub: ['Boxwood', 'Lavender', 'Hydrangea', 'Camellia', 'Rosemary hedge', 'Viburnum'],
+    Perennial: ['Coneflower', 'Black-eyed Susan', 'Salvia', 'Hosta', 'Daylily', 'Yarrow', 'Coral bells'],
+    Houseplant: ['Monstera', 'Snake plant', 'Pothos', 'Peace lily', 'Rubber plant', 'ZZ plant', 'Calathea'],
+  };
+  const CATS = Object.keys(PLANTS);
+  const seedQ = Number.parseInt(new URLSearchParams(location.search).get('seed') || '11', 10);
+  const rand = mulberry32(Number.isFinite(seedQ) ? seedQ : 11);
+  const ROWS = [];
+  for (let i = 0; i < 200; i++) {
+    const cat = CATS[Math.floor(rand() * CATS.length)];
+    const names = PLANTS[cat];
+    const name = names[Math.floor(rand() * names.length)];
+    const size = ['4 in', '6 in', '1 gal', '3 gal'][Math.floor(rand() * 4)];
+    const r = rand();
+    const stock = r < 0.06 ? 0 : r < 0.2 ? 1 + Math.floor(rand() * 19) : 20 + Math.floor(rand() * 220);
+    const base = { Fern: 9, Succulent: 6, Herb: 4, Climber: 18, Shrub: 22, Perennial: 11, Houseplant: 15 }[cat];
+    const mult = { '4 in': 1, '6 in': 1.6, '1 gal': 2.4, '3 gal': 4.1 }[size];
+    const price = Math.round((base * mult + rand() * 6) * 4) / 4;
+    const day = 1 + Math.floor(rand() * 24);
+    ROWS.push({ id: i, sku: 'HO-' + (1001 + i), plant: `${name} (${size})`, cat, bench: 'ABCD'[Math.floor(rand() * 4)] + (1 + Math.floor(rand() * 6)), stock, price, watered: `2026-09-${String(day).padStart(2, '0')}` });
+  }
+  const COLS = [
+    { key: 'select', label: 'Select', check: true },
+    { key: 'sku', label: 'SKU' },
+    { key: 'plant', label: 'Plant' },
+    { key: 'cat', label: 'Category' },
+    { key: 'bench', label: 'Bench' },
+    { key: 'stock', label: 'Stock', num: true },
+    { key: 'price', label: 'Price', num: true },
+    { key: 'watered', label: 'Last watered' },
+  ];
+  const fmtCell = (row, c) => c.key === 'price' ? '$' + row.price.toFixed(2) : c.key === 'watered' ? new Date(row.watered + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) : String(row[c.key]);
+
+  // ---------- state ----------
+  const st = { sort: null, dir: 'ascending', q: '', cat: 'all', stock: 'all', size: 10, page: 0, sel: new Set(), fr: 1, fc: 1 };
+  // fr: focused grid row index (0 = header, 1.. = data rows on the page); fc: column 0..7
+
+  function view() {
+    const q = st.q.trim().toLowerCase();
+    let list = ROWS.filter((r) => (st.cat === 'all' || r.cat === st.cat)
+      && (st.stock === 'all' || (st.stock === 'low' ? r.stock > 0 && r.stock < 20 : r.stock === 0))
+      && (!q || (r.plant + ' ' + r.sku + ' ' + r.bench).toLowerCase().includes(q)));
+    if (st.sort) {
+      const k = st.sort, m = st.dir === 'ascending' ? 1 : -1;
+      list = list.slice().sort((a, b) => {
+        const x = a[k], y = b[k];
+        const c = typeof x === 'number' ? x - y : String(x).localeCompare(String(y), 'en', { numeric: true, sensitivity: 'base' });
+        return c * m || a.id - b.id;
+      });
+    }
+    return list;
+  }
+
+  const ARROW = (dir) => dir === 'ascending'
+    ? '<svg viewBox="0 0 12 14" aria-hidden="true"><path d="M6 1l5 6H1z" fill="currentColor"/><path d="M6 13l5-6H1z" fill="currentColor" opacity=".25"/></svg>'
+    : dir === 'descending' ? '<svg viewBox="0 0 12 14" aria-hidden="true"><path d="M6 1l5 6H1z" fill="currentColor" opacity=".25"/><path d="M6 13l5-6H1z" fill="currentColor"/></svg>'
+      : '<svg viewBox="0 0 12 14" aria-hidden="true"><path d="M6 1l5 6H1z" fill="currentColor"/><path d="M6 13l5-6H1z" fill="currentColor"/></svg>';
+
+  let LIST = [], PAGE = [];
+  function render(focusAfter) {
+    LIST = view();
+    const pages = Math.max(1, Math.ceil(LIST.length / st.size));
+    st.page = Math.max(0, Math.min(st.page, pages - 1));
+    PAGE = LIST.slice(st.page * st.size, (st.page + 1) * st.size);
+    const grid = $('[data-testid="grid"]');
+    grid.setAttribute('aria-rowcount', String(LIST.length + 1));
+    grid.setAttribute('aria-colcount', String(COLS.length));
+    grid.setAttribute('aria-multiselectable', 'true');
+    // header
+    const onPageSel = PAGE.filter((r) => st.sel.has(r.id)).length;
+    $('[data-testid="head-row"]').innerHTML = COLS.map((c, ci) => {
+      if (c.check) return `<th role="columnheader" class="check" aria-colindex="${ci + 1}" scope="col"><input type="checkbox" data-testid="select-page" aria-label="Select all ${PAGE.length} rows on this page" tabindex="-1"${PAGE.length && onPageSel === PAGE.length ? ' checked' : ''}${PAGE.length ? '' : ' disabled'}></th>`;
+      const sorted = st.sort === c.key;
+      return `<th role="columnheader" scope="col" aria-colindex="${ci + 1}" class="${c.num ? 'num' : ''}"${sorted ? ` aria-sort="${st.dir}"` : ''} data-testid="th-${c.key}"><button type="button" class="sortbtn" data-sort="${c.key}" tabindex="-1" data-testid="sort-${c.key}">${c.label}${ARROW(sorted ? st.dir : 'none')}</button></th>`;
+    }).join('');
+    const pc = $('[data-testid="select-page"]'); pc.indeterminate = onPageSel > 0 && onPageSel < PAGE.length;
+    // body
+    const tb = $('[data-testid="tbody"]');
+    if (!PAGE.length) { tb.innerHTML = `<tr role="row" aria-rowindex="2"><td role="gridcell" colspan="${COLS.length}" class="empty" aria-colindex="1" tabindex="-1" data-testid="empty">No plants match these filters.</td></tr>`; }
+    else tb.innerHTML = PAGE.map((r, i) => {
+      const sel = st.sel.has(r.id);
+      return `<tr role="row" aria-rowindex="${st.page * st.size + i + 2}" aria-selected="${sel}" data-testid="row" data-id="${r.id}" data-sku="${r.sku}">` + COLS.map((c, ci) => {
+        if (c.check) return `<td role="gridcell" class="check" aria-colindex="${ci + 1}"><input type="checkbox" tabindex="-1" data-testid="row-check" aria-label="Select ${esc(r.plant)}, ${r.sku}"${sel ? ' checked' : ''}></td>`;
+        const v = fmtCell(r, c);
+        const cls = [c.num ? 'num' : '', c.key === 'sku' ? 'sku' : ''].join(' ').trim();
+        const inner = c.key === 'cat' ? `<span class="cat">${esc(v)}</span>` : c.key === 'stock' && r.stock < 20 ? `<span class="low">${v}${r.stock === 0 ? ' · out' : ''}</span>` : esc(v);
+        return `<td role="gridcell" aria-colindex="${ci + 1}" tabindex="-1" data-col="${c.key}" data-v="${esc(String(r[c.key]))}"${cls ? ` class="${cls}"` : ''}>${inner}</td>`;
+      }).join('') + '</tr>';
+    }).join('');
+    // pager
+    $('[data-testid="page-info"]').textContent = LIST.length ? `Rows ${st.page * st.size + 1}–${st.page * st.size + PAGE.length} of ${LIST.length}` : '0 rows';
+    const nums = [];
+    for (let p = 0; p < pages; p++) if (p === 0 || p === pages - 1 || Math.abs(p - st.page) <= 1) nums.push(p); else if (nums[nums.length - 1] !== '…') nums.push('…');
+    $('[data-testid="pager"]').innerHTML = `<button class="btn" type="button" data-page="prev" data-testid="prev"${st.page === 0 ? ' disabled' : ''} aria-label="Previous page">‹</button>` +
+      nums.map((p) => p === '…' ? '<span aria-hidden="true" style="padding:6px 2px;color:var(--ink-3)">…</span>' : `<button class="btn pg" type="button" data-page="${p}" data-testid="page-${p + 1}" aria-label="Page ${p + 1}"${p === st.page ? ' aria-current="page"' : ''}>${p + 1}</button>`).join('') +
+      `<button class="btn" type="button" data-page="next" data-testid="next"${st.page >= pages - 1 ? ' disabled' : ''} aria-label="Next page">›</button>`;
+    $('[data-testid="sel-count"]').textContent = st.sel.size;
+    $('[data-testid="clear-sel"]').disabled = st.sel.size === 0;
+    // roving tabindex: clamp the remembered position and make exactly one element tabbable
+    st.fr = Math.max(0, Math.min(st.fr, PAGE.length ? PAGE.length : 0));
+    st.fc = Math.max(0, Math.min(st.fc, COLS.length - 1));
+    const t = target(st.fr, st.fc);
+    if (t) { t.tabIndex = 0; if (focusAfter) t.focus(); }
+    inspect(focusAfter ? t : null);
+  }
+
+  // the focusable element for a grid position: the widget inside the cell if there is one, else the cell
+  function cellAt(r, c) {
+    const row = r === 0 ? $('[data-testid="head-row"]') : $('[data-testid="tbody"]').children[r - 1];
+    if (!row) return null;
+    if (row.querySelector('[data-testid="empty"]')) return row.firstElementChild;
+    return row.children[c] || null;
+  }
+  function target(r, c) { const cell = cellAt(r, c); if (!cell) return null; return cell.querySelector('button, input') || cell; }
+  function moveTo(r, c) {
+    const maxR = PAGE.length; const empty = !PAGE.length;
+    st.fr = Math.max(0, Math.min(r, empty ? 1 : maxR));
+    st.fc = Math.max(0, Math.min(c, COLS.length - 1));
+    if (empty && st.fr === 1) st.fc = 0;
+    document.querySelectorAll('[data-testid="grid"] [tabindex="0"]').forEach((el) => { el.tabIndex = -1; });
+    const t = target(st.fr, st.fc);
+    if (t) { t.tabIndex = 0; t.focus(); }
+    inspect(t);
+  }
+
+  function inspect(el) {
+    const attrs = $('[data-testid="attrs"]'), snip = $('[data-testid="snippet"]');
+    const grid = $('[data-testid="grid"]');
+    const base = [['grid role', 'grid'], ['aria-rowcount', grid.getAttribute('aria-rowcount')], ['aria-colcount', grid.getAttribute('aria-colcount')], ['aria-multiselectable', 'true']];
+    if (!el) { attrs.innerHTML = base.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join(''); snip.textContent = 'Focus a cell to see its markup.'; return; }
+    const cell = el.closest('th, td'); const row = el.closest('tr');
+    const th = st.fc < COLS.length ? $(`[data-testid="head-row"]`).children[st.fc] : null;
+    const list = [
+      ['focused', el.tagName.toLowerCase() + (el.type ? '[type=' + el.type + ']' : '')],
+      ['role', cell.getAttribute('role')],
+      ['aria-rowindex', row.getAttribute('aria-rowindex')],
+      ['aria-colindex', cell.getAttribute('aria-colindex')],
+      ['column', COLS[st.fc] ? COLS[st.fc].label : '—'],
+      ['aria-sort (column)', th && th.getAttribute('aria-sort') || '(none)'],
+      ['aria-selected (row)', row.getAttribute('aria-selected') || '(header row)'],
+      ['accessible name', el.getAttribute('aria-label') || el.textContent.trim().replace(/\s+/g, ' ') || '(empty)'],
+    ].concat(base.slice(1, 3));
+    attrs.innerHTML = list.map(([k, v]) => `<dt>${k}</dt><dd data-testid="attr-${k.split(' ')[0]}">${esc(v)}</dd>`).join('');
+    const clone = cell.cloneNode(true); clone.querySelectorAll('svg').forEach((s) => s.replaceWith('…'));
+    snip.textContent = clone.outerHTML.replace(/ data-[a-z-]+="[^"]*"/g, '').replace(/ class="[^"]*"/g, '').replace(/ style="[^"]*"/g, '');
+  }
+
+  let liveTimer = 0;
+  function announce(msg) {
+    const el = $('[data-testid="live"]');
+    el.textContent = msg;
+  }
+  const summary = () => {
+    const sortTxt = st.sort ? `, sorted by ${COLS.find((c) => c.key === st.sort).label} ${st.dir}` : '';
+    return `Showing ${LIST.length} of ${ROWS.length} plants${sortTxt}. Page ${st.page + 1} of ${Math.max(1, Math.ceil(LIST.length / st.size))}.`;
+  };
+
+  // ---------- events ----------
+  function sortBy(key) {
+    if (st.sort === key) st.dir = st.dir === 'ascending' ? 'descending' : 'ascending';
+    else { st.sort = key; st.dir = 'ascending'; }
+    st.page = 0; st.fr = 0; st.fc = COLS.findIndex((c) => c.key === key);
+    render(true); announce(summary());
+  }
+  function toggleRow(r) {
+    const row = PAGE[r - 1]; if (!row) return;
+    st.sel.has(row.id) ? st.sel.delete(row.id) : st.sel.add(row.id);
+    render(true);
+    announce(`${row.plant} ${st.sel.has(row.id) ? 'selected' : 'not selected'}. ${st.sel.size} selected.`);
+  }
+  function togglePage() {
+    const all = PAGE.length && PAGE.every((r) => st.sel.has(r.id));
+    PAGE.forEach((r) => (all ? st.sel.delete(r.id) : st.sel.add(r.id)));
+    render(true);
+    announce(`${all ? 'Deselected' : 'Selected'} ${PAGE.length} rows on this page. ${st.sel.size} selected.`);
+  }
+
+  const grid = $('[data-testid="grid"]');
+  grid.addEventListener('click', (e) => {
+    const cell = e.target.closest('th, td'); if (!cell) return;
+    const row = cell.parentElement;
+    const r = row.parentElement.tagName === 'THEAD' ? 0 : [...row.parentElement.children].indexOf(row) + 1;
+    const c = [...row.children].indexOf(cell);
+    st.fr = r; st.fc = Math.max(0, c);
+    const sb = e.target.closest('[data-sort]');
+    if (sb) { sortBy(sb.dataset.sort); return; }
+    if (e.target.matches('[data-testid="select-page"]')) { e.preventDefault(); togglePage(); return; }
+    if (e.target.matches('[data-testid="row-check"]')) { e.preventDefault(); toggleRow(r); return; }
+    moveTo(r, st.fc);
+  });
+  grid.addEventListener('focusin', (e) => {
+    const cell = e.target.closest('th, td'); if (!cell) return;
+    const row = cell.parentElement;
+    const r = row.parentElement.tagName === 'THEAD' ? 0 : [...row.parentElement.children].indexOf(row) + 1;
+    const c = [...row.children].indexOf(cell);
+    if (r !== st.fr || c !== st.fc) { st.fr = r; st.fc = Math.max(0, c); document.querySelectorAll('[data-testid="grid"] [tabindex="0"]').forEach((el) => { if (el !== e.target) el.tabIndex = -1; }); e.target.tabIndex = 0; }
+    inspect(e.target);
+  });
+  grid.addEventListener('keydown', (e) => {
+    const { fr, fc } = st;
+    const ctrl = e.ctrlKey || e.metaKey;
+    let handled = true;
+    switch (e.key) {
+      case 'ArrowRight': moveTo(fr, fc + 1); break;
+      case 'ArrowLeft': moveTo(fr, fc - 1); break;
+      case 'ArrowDown': moveTo(fr + 1, fc); break;
+      case 'ArrowUp': moveTo(fr - 1, fc); break;
+      case 'Home': ctrl ? moveTo(0, 0) : moveTo(fr, 0); break;
+      case 'End': ctrl ? moveTo(PAGE.length, COLS.length - 1) : moveTo(fr, COLS.length - 1); break;
+      case 'PageDown': moveTo(Math.min(PAGE.length, fr + 5), fc); break;
+      case 'PageUp': moveTo(Math.max(fr === 0 ? 0 : 1, fr - 5), fc); break;
+      case ' ':
+        if (fr === 0 && fc === 0) togglePage();
+        else if (fr > 0) toggleRow(fr);
+        else handled = false;
+        break;
+      case 'Enter':
+        if (fr === 0 && fc > 0) sortBy(COLS[fc].key); else if (fr === 0 && fc === 0) togglePage(); else handled = false;
+        break;
+      case 'a': case 'A':
+        if (ctrl) togglePage(); else handled = false;
+        break;
+      default: handled = false;
+    }
+    if (handled) e.preventDefault();
+  });
+  $('[data-testid="pager"]').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-page]'); if (!b || b.disabled) return;
+    const pages = Math.max(1, Math.ceil(LIST.length / st.size));
+    st.page = b.dataset.page === 'prev' ? st.page - 1 : b.dataset.page === 'next' ? st.page + 1 : Number(b.dataset.page);
+    st.page = Math.max(0, Math.min(pages - 1, st.page));
+    render(false); announce(summary());
+    const same = $(`[data-testid="pager"] [data-page="${b.dataset.page}"]`); if (same && !same.disabled) same.focus(); else { const cur = $('[data-testid="pager"] [aria-current="page"]'); if (cur) cur.focus(); }
+  });
+  $('[data-testid="search"]').addEventListener('input', (e) => { st.q = e.target.value; st.page = 0; render(false); announce(summary()); });
+  $('[data-testid="category"]').innerHTML = '<option value="all">All</option>' + CATS.map((c) => `<option>${c}</option>`).join('');
+  $('[data-testid="category"]').addEventListener('change', (e) => { st.cat = e.target.value; st.page = 0; render(false); announce(summary()); });
+  $('[data-testid="stock"]').addEventListener('change', (e) => { st.stock = e.target.value; st.page = 0; render(false); announce(summary()); });
+  $('[data-testid="pagesize"]').addEventListener('change', (e) => { st.size = Number(e.target.value) || 10; st.page = 0; render(false); announce(summary()); });
+  $('[data-testid="clear-sel"]').addEventListener('click', () => { const n = st.sel.size; st.sel.clear(); render(false); announce(`Cleared ${n} selected rows.`); $('[data-testid="search"]').focus(); });
+
+  window.__table = { rows: ROWS, view: () => LIST.map((r) => r.sku) };
+  render(false);
+  announce(summary());
+})();
+</script>
+</body>
+</html>

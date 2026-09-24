@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Plan Board — split a goal across parallel sub-agents</title>
+<meta name="description" content="Break a goal into subtasks with dependencies, estimate durations, detect cycles, compute the critical path and the parallelism at each level of the graph, schedule the work onto parallel sub-agents on a swimlane timeline, and export the plan as a Markdown brief. Presets for shipping a feature, fixing a flaky suite and migrating a repo.">
+<style>
+  :root {
+    --bg: #f4f2ed;
+    --card: #ffffff;
+    --ink: #111111;
+    --ink-2: #4a4a4a;
+    --ink-3: #8b8b8b;
+    --line: #d9d5cc;
+    --crit: #e3342f;
+    --l1: #cfe3cf; --l2: #cfe0f2; --l3: #f6dcc2; --l4: #e3d6f0; --l5: #f2e7a8; --l6: #d6ece8;
+    --head: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --mono: "SF Mono", Consolas, "Cascadia Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.45 var(--head); overflow-x: hidden; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  input, select, pre, textarea { max-width: 100%; }
+  :focus-visible { outline: 3px solid var(--crit); outline-offset: 2px; }
+  .back { position: fixed; top: 10px; left: 10px; z-index: 50; background: var(--ink); color: #fff; text-decoration: none; font: 700 13px/1 var(--head); padding: 8px 12px; }
+
+  header { max-width: 1280px; margin: 0 auto; padding: 60px 20px 18px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: end; border-bottom: 6px solid var(--ink); }
+  h1 { font: 800 clamp(34px, 7vw, 76px)/.9 var(--head); letter-spacing: -.035em; margin: 0; }
+  h1 em { font-style: normal; color: var(--crit); }
+  .lede { margin: 12px 0 0; max-width: 64ch; color: var(--ink-2); }
+  .kpis { display: grid; grid-template-columns: repeat(4, auto); gap: 0; border: 2px solid var(--ink); background: var(--card); }
+  .kpi { padding: 8px 14px; border-right: 2px solid var(--ink); min-width: 0; }
+  .kpi:last-child { border-right: 0; }
+  .kpi b { display: block; font: 800 26px/1.05 var(--head); letter-spacing: -.02em; }
+  .kpi span { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-2); }
+  .kpi.crit b { color: var(--crit); }
+
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 18px 20px 50px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; margin-bottom: 14px; }
+  .bar label { font-size: 13px; font-weight: 700; display: inline-flex; gap: 6px; align-items: center; min-width: 0; }
+  .bar input[type=text] { width: 320px; border: 2px solid var(--ink); background: var(--card); padding: 6px 9px; min-width: 0; }
+  .btn { border: 2px solid var(--ink); background: var(--card); padding: 6px 12px; font: 700 13px var(--head); }
+  .btn:hover { background: var(--ink); color: #fff; }
+  .btn.on { background: var(--ink); color: #fff; }
+  .presets { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  .grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+  .card { background: var(--card); border: 2px solid var(--ink); padding: 14px; min-width: 0; margin-bottom: 18px; }
+  .card h2 { margin: 0 0 10px; font: 800 13px var(--head); letter-spacing: .14em; text-transform: uppercase; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .card h2 small { font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ink-3); font-size: 12.5px; }
+  .tasks { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .tasks th { text-align: left; font: 700 11px var(--head); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-2); padding: 4px 4px; border-bottom: 2px solid var(--ink); }
+  .tasks td { padding: 4px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  .tasks td.id { font: 700 13px var(--mono); white-space: nowrap; }
+  .tasks tr.crit td.id { color: var(--crit); }
+  .tasks input { width: 100%; border: 1px solid transparent; background: transparent; padding: 5px 6px; min-width: 0; }
+  .tasks input:hover, .tasks input:focus { border-color: var(--line); background: #fbfaf7; }
+  .tasks input.dur { width: 64px; text-align: right; font-family: var(--mono); }
+  .tasks input.deps { font-family: var(--mono); font-size: 13px; }
+  .tasks input[aria-invalid="true"] { border-color: var(--crit); background: #fff1f0; }
+  .tasks .slack { font: 12px var(--mono); color: var(--ink-3); white-space: nowrap; }
+  .x { border: 0; background: none; font-size: 16px; color: var(--ink-3); padding: 2px 6px; }
+  .x:hover { color: var(--crit); }
+  .alert { border: 2px solid var(--crit); background: #fff1f0; color: #8d1b17; padding: 10px 12px; margin-bottom: 12px; font-weight: 700; }
+  .alert code { font-family: var(--mono); }
+  .warnlist { color: #8d1b17; font-size: 13px; margin: 8px 0 0; padding-left: 18px; }
+
+  .scroll { overflow-x: auto; }
+  svg text { font-family: var(--head); }
+  .levels { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .lv { border: 2px solid var(--ink); padding: 4px 10px; font-size: 13px; }
+  .lv b { font-family: var(--mono); }
+  .lv.max { background: var(--ink); color: #fff; }
+  .agents { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; font-size: 13.5px; }
+  .agents input[type=range] { width: 160px; accent-color: var(--crit); }
+  .agents output { font: 800 22px var(--head); }
+  .note { font-size: 13px; color: var(--ink-2); margin: 8px 0 0; }
+  pre.md { margin: 0; background: #111; color: #f4f2ed; padding: 14px; font: 12.5px/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 420px; overflow: auto; }
+  .row2 { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; align-items: center; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  footer { max-width: 1280px; margin: 0 auto; padding: 0 20px 30px; font-size: 12.5px; color: var(--ink-3); }
+
+  @media (max-width: 980px) { .grid { grid-template-columns: minmax(0, 1fr); } header { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 560px) {
+    header, .wrap, footer { padding-left: 12px; padding-right: 12px; }
+    .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .kpi:nth-child(2) { border-right: 0; }
+    .kpi:nth-child(-n+2) { border-bottom: 2px solid var(--ink); }
+    .bar input[type=text] { width: 100%; }
+    .bar label.goal { flex: 1 1 100%; }
+    .card { padding: 10px; }
+    .tasks th.hide-s, .tasks td.hide-s { display: none; }
+    .tasks input.dur { width: 52px; }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+
+<header>
+  <div>
+    <h1>Agent Plan <em>Board</em></h1>
+    <p class="lede">Before fanning a goal out to parallel sub-agents, draw the dependency graph. The critical path tells you the fastest the work can possibly finish; the width of each level tells you how many agents are actually worth running.</p>
+  </div>
+  <div class="kpis" aria-live="polite">
+    <div class="kpi"><b data-testid="k-work">0</b><span>total work</span></div>
+    <div class="kpi crit"><b data-testid="k-cp">0</b><span>critical path</span></div>
+    <div class="kpi"><b data-testid="k-par">0</b><span>max parallel</span></div>
+    <div class="kpi"><b data-testid="k-finish">0</b><span>finish with agents</span></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="bar">
+    <label class="goal">Goal <input type="text" data-testid="goal" aria-label="Goal"></label>
+    <div class="presets" role="group" aria-label="Presets" data-testid="presets"></div>
+  </div>
+
+  <div class="grid">
+    <section class="card" aria-labelledby="h-tasks">
+      <h2 id="h-tasks">Subtasks <small>durations in minutes · depends on = task ids, comma-separated</small></h2>
+      <div class="alert" data-testid="cycle" role="alert" hidden></div>
+      <div class="scroll"><table class="tasks" data-testid="tasks"></table></div>
+      <ul class="warnlist" data-testid="warnings" aria-live="polite"></ul>
+      <div class="row2"><button class="btn" type="button" data-testid="add-task">+ Add subtask</button></div>
+    </section>
+
+    <section class="card" aria-labelledby="h-dag">
+      <h2 id="h-dag">Dependency graph <small>columns = levels · red = critical path</small></h2>
+      <div class="scroll"><svg data-testid="dag" role="img" aria-label="Dependency graph by level"></svg></div>
+      <div class="levels" data-testid="levels"></div>
+    </section>
+  </div>
+
+  <section class="card" aria-labelledby="h-lanes">
+    <h2 id="h-lanes">Sub-agent swimlanes <small>list scheduling: ready tasks go to the next free agent, longest remaining chain first</small></h2>
+    <div class="agents"><label for="agents">Parallel agents</label><input id="agents" type="range" min="1" max="6" step="1" value="3" data-testid="agents"><output data-testid="agents-out">3</output>
+      <span data-testid="lane-verdict"></span></div>
+    <div class="scroll" style="margin-top:10px"><svg data-testid="lanes" role="img" aria-label="Swimlane timeline"></svg></div>
+    <p class="note">Estimates are yours to make; the board only does the arithmetic. Real agents add hand-off and review time — pad the estimates, not the schedule.</p>
+  </section>
+
+  <section class="card" aria-labelledby="h-md">
+    <h2 id="h-md">Markdown brief <small>paste it into the lead agent's prompt</small></h2>
+    <pre class="md" data-testid="markdown" tabindex="0"></pre>
+    <div class="row2"><button class="btn" type="button" data-testid="copy-md">Copy</button><button class="btn" type="button" data-testid="download-md">Download .md</button><span data-testid="md-status" aria-live="polite" style="font-size:13px;color:var(--ink-2)"></span></div>
+  </section>
+</main>
+<footer>All plans and estimates in the presets are illustrative.</footer>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const hm = (m) => { m = Math.max(0, Math.round(m)); return Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0'); };
+  const LANE_COLORS = ['var(--l1)', 'var(--l2)', 'var(--l3)', 'var(--l4)', 'var(--l5)', 'var(--l6)'];
+  const LANE_HEX = ['#cfe3cf', '#cfe0f2', '#f6dcc2', '#e3d6f0', '#f2e7a8', '#d6ece8'];
+
+  const PRESETS = {
+    feature: { label: 'Ship a feature', goal: 'Ship saved searches', tasks: [
+      ['Read the issue and the existing search code', 20, ''], ['Design the data model', 30, 'T1'], ['Write the migration', 25, 'T2'],
+      ['Build the API endpoints', 60, 'T2'], ['Build the UI panel', 70, 'T2'], ['Unit tests for the API', 35, 'T4'],
+      ['E2E test: save and reload a search', 45, 'T4, T5'], ['Update docs and changelog', 15, 'T4'], ['Review, fix and open the PR', 30, 'T3, T6, T7, T8']] },
+    flaky: { label: 'Fix a flaky suite', goal: 'Get the checkout suite green and stable', tasks: [
+      ['Collect the last 20 failing CI runs', 15, ''], ['Rerun the suspects 50× locally', 40, ''], ['Group failures by error signature', 20, 'T1'],
+      ['Check for shared test data', 25, 'T3'], ['Check for fixed sleeps and timing waits', 25, 'T3, T2'], ['Check for test-order dependence', 30, 'T3'],
+      ['Fix the root causes', 60, 'T4, T5, T6'], ['Quarantine tag and tracking issue', 15, 'T3'], ['Verify 100 green runs', 40, 'T7']] },
+    migrate: { label: 'Migrate a repo', goal: 'Move three packages into the monorepo', tasks: [
+      ['Inventory packages and scripts', 30, ''], ['Pick the target layout', 20, 'T1'], ['Move package A', 45, 'T2'], ['Move package B', 45, 'T2'],
+      ['Move package C', 45, 'T2'], ['Rewrite the CI pipeline', 60, 'T2'], ['Fix imports and paths', 40, 'T3, T4, T5'], ['Run the full test suite', 30, 'T6, T7'],
+      ['Update README and onboarding', 20, 'T7'], ['Cut over and archive the old repo', 15, 'T8, T9']] },
+  };
+
+  let goal = '', tasks = [], preset = 'feature', nextId = 1;
+  function loadPreset(k) {
+    preset = k; goal = PRESETS[k].goal; nextId = 1;
+    tasks = PRESETS[k].tasks.map(([title, dur, deps]) => ({ id: 'T' + nextId++, title, dur, deps }));
+    $('[data-testid="goal"]').value = goal;
+    renderPresets(); renderTasks(); recompute();
+  }
+  const parseDeps = (s) => String(s).split(/[,\s]+/).map((x) => x.trim().toUpperCase()).filter(Boolean);
+
+  // ---------- analysis ----------
+  function analyse() {
+    const byId = new Map(tasks.map((t) => [t.id, t]));
+    const warnings = [];
+    const deps = new Map();
+    tasks.forEach((t) => {
+      const list = [];
+      parseDeps(t.deps).forEach((d) => {
+        if (d === t.id) { warnings.push({ id: t.id, msg: `${t.id} depends on itself.` }); list.push(d); return; }
+        if (!byId.has(d)) { warnings.push({ id: t.id, msg: `${t.id} depends on ${d}, which doesn't exist — ignored.` }); return; }
+        if (!list.includes(d)) list.push(d);
+      });
+      deps.set(t.id, list);
+      if (!(Number.isFinite(t.dur) && t.dur > 0)) warnings.push({ id: t.id, msg: `${t.id} needs a duration above 0 — counted as 0.` });
+    });
+    const dur = (id) => { const d = byId.get(id).dur; return Number.isFinite(d) && d > 0 ? d : 0; };
+    // cycle detection (DFS with colours), reporting one cycle path
+    const color = new Map(); let cycle = null; const stack = [];
+    const visit = (id) => {
+      if (cycle) return;
+      color.set(id, 1); stack.push(id);
+      for (const d of deps.get(id)) {
+        if (cycle) return;
+        if (color.get(d) === 1) { cycle = stack.slice(stack.indexOf(d)).concat(d); return; }
+        if (!color.get(d)) visit(d);
+      }
+      stack.pop(); color.set(id, 2);
+    };
+    tasks.forEach((t) => { if (!color.get(t.id)) visit(t.id); });
+    if (cycle) return { cycle: cycle.reverse(), warnings, deps };
+    // topological order (Kahn), levels, earliest/latest times
+    const children = new Map(tasks.map((t) => [t.id, []]));
+    deps.forEach((ds, id) => ds.forEach((d) => children.get(d).push(id)));
+    const indeg = new Map(tasks.map((t) => [t.id, deps.get(t.id).length]));
+    const order = []; const q = tasks.filter((t) => indeg.get(t.id) === 0).map((t) => t.id);
+    while (q.length) { const id = q.shift(); order.push(id); children.get(id).forEach((c) => { indeg.set(c, indeg.get(c) - 1); if (indeg.get(c) === 0) q.push(c); }); }
+    const level = new Map(), es = new Map(), ef = new Map();
+    order.forEach((id) => {
+      const ds = deps.get(id);
+      level.set(id, ds.length ? Math.max(...ds.map((d) => level.get(d))) + 1 : 0);
+      es.set(id, ds.length ? Math.max(...ds.map((d) => ef.get(d))) : 0);
+      ef.set(id, es.get(id) + dur(id));
+    });
+    const cp = order.length ? Math.max(...order.map((id) => ef.get(id))) : 0;
+    const lf = new Map(), ls = new Map(), tail = new Map();
+    [...order].reverse().forEach((id) => {
+      const ch = children.get(id);
+      lf.set(id, ch.length ? Math.min(...ch.map((c) => ls.get(c))) : cp);
+      ls.set(id, lf.get(id) - dur(id));
+      tail.set(id, dur(id) + (ch.length ? Math.max(...ch.map((c) => tail.get(c))) : 0));
+    });
+    const slack = new Map(order.map((id) => [id, ls.get(id) - es.get(id)]));
+    // one critical chain: start at a zero-slack root with the longest tail, follow zero-slack children
+    let chain = [];
+    let cur = order.filter((id) => !deps.get(id).length && slack.get(id) === 0).sort((a, b) => tail.get(b) - tail.get(a))[0];
+    while (cur) { chain.push(cur); const nx = children.get(cur).filter((c) => slack.get(c) === 0 && es.get(c) === ef.get(cur)).sort((a, b) => tail.get(b) - tail.get(a))[0]; cur = nx; }
+    const byLevel = []; order.forEach((id) => { const l = level.get(id); (byLevel[l] = byLevel[l] || []).push(id); });
+    const maxPar = byLevel.reduce((a, l) => Math.max(a, l.length), 0);
+    const work = tasks.reduce((a, t) => a + dur(t.id), 0);
+    return { deps, children, order, level, es, ef, ls, lf, slack, tail, cp, chain, byLevel, maxPar, work, dur, warnings, byId };
+  }
+
+  function schedule(A, n) {
+    // list scheduling with n agents; priority = longest remaining chain (tail), then id order
+    const done = new Map(), start = new Map(), agentOf = new Map();
+    const free = new Array(n).fill(0);
+    const remaining = new Set(A.order);
+    let t = 0; let guard = 0;
+    while (remaining.size && guard++ < 10000) {
+      const ready = [...remaining].filter((id) => A.deps.get(id).every((d) => done.has(d) && done.get(d) <= t))
+        .sort((a, b) => A.tail.get(b) - A.tail.get(a) || A.order.indexOf(a) - A.order.indexOf(b));
+      for (const id of ready) {
+        const ag = free.findIndex((f) => f <= t); if (ag < 0) break;
+        start.set(id, t); agentOf.set(id, ag); free[ag] = t + A.dur(id); done.set(id, t + A.dur(id)); remaining.delete(id);
+      }
+      const future = [...free.filter((f) => f > t), ...[...done.values()].filter((f) => f > t)];
+      if (!future.length) continue;
+      t = Math.min(...future);
+    }
+    const makespan = Math.max(0, ...[...done.values()]);
+    return { start, agentOf, makespan, end: done };
+  }
+
+  // ---------- render ----------
+  function renderPresets() {
+    $('[data-testid="presets"]').innerHTML = Object.entries(PRESETS).map(([k, p]) => `<button type="button" class="btn${preset === k ? ' on' : ''}" data-preset="${k}" data-testid="preset-${k}" aria-pressed="${preset === k}">${esc(p.label)}</button>`).join('');
+  }
+  function renderTasks() {
+    $('[data-testid="tasks"]').innerHTML = `<thead><tr><th>Id</th><th>Subtask</th><th>Min</th><th>Depends on</th><th class="hide-s">Slack</th><th><span class="sr">Remove</span></th></tr></thead><tbody>` +
+      tasks.map((t, i) => `<tr data-testid="task" data-id="${t.id}">
+        <td class="id">${t.id}</td>
+        <td><input data-i="${i}" data-f="title" data-testid="t-title" value="${esc(t.title)}" aria-label="${t.id} title"></td>
+        <td><input class="dur" data-i="${i}" data-f="dur" data-testid="t-dur" type="number" min="0" step="5" value="${Number.isFinite(t.dur) ? t.dur : ''}" aria-label="${t.id} duration in minutes"></td>
+        <td><input class="deps" data-i="${i}" data-f="deps" data-testid="t-deps" value="${esc(t.deps)}" aria-label="${t.id} depends on" placeholder="—"></td>
+        <td class="slack hide-s" data-testid="t-slack"></td>
+        <td><button class="x" type="button" data-del="${i}" data-testid="t-del" aria-label="Remove ${t.id}">✕</button></td></tr>`).join('') + '</tbody>';
+  }
+
+  let A = null, S = null;
+  function recompute() {
+    A = analyse();
+    const cyc = $('[data-testid="cycle"]');
+    const warn = $('[data-testid="warnings"]');
+    warn.innerHTML = A.warnings.map((w) => `<li>${esc(w.msg)}</li>`).join('');
+    document.querySelectorAll('[data-testid="t-deps"]').forEach((inp) => {
+      const id = tasks[Number(inp.dataset.i)].id;
+      inp.setAttribute('aria-invalid', String(A.warnings.some((w) => w.id === id && /depends/.test(w.msg)) || !!(A.cycle && A.cycle.includes(id))));
+    });
+    if (A.cycle) {
+      cyc.hidden = false;
+      cyc.innerHTML = `Cycle found: <code data-testid="cycle-path">${A.cycle.join(' → ')}</code>. A plan with a cycle can never start; remove one of those dependencies.`;
+      ['k-work', 'k-cp', 'k-par', 'k-finish'].forEach((k) => { $(`[data-testid="${k}"]`).textContent = '—'; });
+      $('[data-testid="dag"]').innerHTML = ''; $('[data-testid="dag"]').setAttribute('viewBox', '0 0 10 10'); $('[data-testid="dag"]').setAttribute('width', '10'); $('[data-testid="dag"]').setAttribute('height', '10');
+      $('[data-testid="lanes"]').innerHTML = ''; $('[data-testid="lanes"]').setAttribute('viewBox', '0 0 10 10'); $('[data-testid="lanes"]').setAttribute('width', '10'); $('[data-testid="lanes"]').setAttribute('height', '10');
+      $('[data-testid="levels"]').innerHTML = ''; $('[data-testid="lane-verdict"]').textContent = '';
+      $('[data-testid="markdown"]').textContent = '# Plan blocked\n\nThe dependency graph has a cycle: ' + A.cycle.join(' → ');
+      document.querySelectorAll('[data-testid="task"]').forEach((tr) => tr.classList.remove('crit'));
+      return;
+    }
+    cyc.hidden = true;
+    const n = Number($('[data-testid="agents"]').value) || 1;
+    S = schedule(A, n);
+    $('[data-testid="k-work"]').textContent = hm(A.work);
+    $('[data-testid="k-cp"]').textContent = hm(A.cp);
+    $('[data-testid="k-par"]').textContent = A.maxPar;
+    $('[data-testid="k-finish"]').textContent = hm(S.makespan);
+    document.querySelectorAll('[data-testid="task"]').forEach((tr) => {
+      const id = tr.dataset.id; tr.classList.toggle('crit', A.chain.includes(id));
+      const s = A.slack.get(id); tr.querySelector('[data-testid="t-slack"]').textContent = s === 0 ? 'critical' : '+' + s + ' min';
+      tr.dataset.slack = String(s);
+    });
+    $('[data-testid="levels"]').innerHTML = A.byLevel.map((ids, l) => `<span class="lv${ids.length === A.maxPar ? ' max' : ''}" data-testid="level" data-count="${ids.length}">L${l}: <b>${ids.join(' ')}</b></span>`).join('');
+    const bound = Math.max(A.cp, Math.ceil(A.work / n));
+    $('[data-testid="lane-verdict"]').innerHTML = S.makespan === A.cp
+      ? `<b>Finishes at ${hm(S.makespan)}</b>, the critical path — more agents won't help.`
+      : `<b>Finishes at ${hm(S.makespan)}</b>, ${hm(S.makespan - A.cp)} over the critical path (lower bound with ${n} agent${n > 1 ? 's' : ''}: ${hm(bound)}).`;
+    drawDag(); drawLanes(n); renderMd(n);
+  }
+
+  function drawDag() {
+    const svg = $('[data-testid="dag"]');
+    const colW = 150, nodeW = 124, nodeH = 40, gapY = 14, pad = 12;
+    const rows = Math.max(1, ...A.byLevel.map((l) => l.length));
+    const W = pad * 2 + A.byLevel.length * colW - (colW - nodeW), H = pad * 2 + rows * (nodeH + gapY) - gapY;
+    const pos = new Map();
+    A.byLevel.forEach((ids, l) => { const off = (rows - ids.length) * (nodeH + gapY) / 2; ids.forEach((id, i) => pos.set(id, { x: pad + l * colW, y: pad + off + i * (nodeH + gapY) })); });
+    const onChain = (a, b) => { const i = A.chain.indexOf(a); return i >= 0 && A.chain[i + 1] === b; };
+    let h = '<defs><marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="#8b8b8b"/></marker><marker id="arc" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="#e3342f"/></marker></defs>';
+    A.deps.forEach((ds, id) => ds.forEach((d) => {
+      const a = pos.get(d), b = pos.get(id); if (!a || !b) return;
+      const x1 = a.x + nodeW, y1 = a.y + nodeH / 2, x2 = b.x - 2, y2 = b.y + nodeH / 2, mx = (x1 + x2) / 2;
+      const c = onChain(d, id);
+      h += `<path d="M${x1} ${y1} C${mx} ${y1} ${mx} ${y2} ${x2} ${y2}" fill="none" stroke="${c ? '#e3342f' : '#b9b4aa'}" stroke-width="${c ? 2.5 : 1.3}" marker-end="url(#${c ? 'arc' : 'ar'})" data-testid="edge"${c ? ' data-crit="true"' : ''}/>`;
+    }));
+    pos.forEach((p, id) => {
+      const t = A.byId.get(id); const c = A.chain.includes(id);
+      const title = t.title.length > 19 ? t.title.slice(0, 18) + '…' : t.title;
+      h += `<g data-testid="node" data-id="${id}"${c ? ' data-crit="true"' : ''}><rect x="${p.x}" y="${p.y}" width="${nodeW}" height="${nodeH}" fill="${c ? '#fff1f0' : '#fff'}" stroke="${c ? '#e3342f' : '#111'}" stroke-width="${c ? 2.5 : 1.5}"/>
+        <text x="${p.x + 7}" y="${p.y + 15}" font-size="11" font-weight="800" fill="${c ? '#e3342f' : '#111'}">${id} · ${A.dur(id)}m</text><text x="${p.x + 7}" y="${p.y + 31}" font-size="11" fill="#4a4a4a">${esc(title)}</text><title>${esc(t.title)}</title></g>`;
+    });
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    // shrink to fit when the squeeze is mild; otherwise keep full size and let the box scroll
+    const box = svg.parentNode.getBoundingClientRect().width || W;
+    const w = box >= W * 0.62 ? Math.min(W, Math.floor(box)) : W;
+    svg.setAttribute('width', w); svg.setAttribute('height', Math.round(H * w / W));
+    svg.innerHTML = h;
+  }
+
+  function drawLanes(n) {
+    const svg = $('[data-testid="lanes"]');
+    const box = svg.parentNode.getBoundingClientRect().width || 900;
+    const labelW = 92, laneH = 42, top = 24, pad = 8;
+    const W = Math.max(520, Math.round(box) - 4);
+    const span = Math.max(1, S.makespan);
+    const X = (m) => { const v = labelW + (m / span) * (W - labelW - pad); return Number.isFinite(v) ? v : labelW; };
+    const H = top + n * laneH + 22;
+    let h = '';
+    for (let a = 0; a < n; a++) {
+      const y = top + a * laneH;
+      h += `<rect x="0" y="${y}" width="${W}" height="${laneH - 4}" fill="${a % 2 ? '#faf9f6' : '#f4f2ed'}"/><text x="6" y="${y + laneH / 2 + 2}" font-size="12" font-weight="800">${a === 0 ? 'Lead agent' : 'Sub-agent ' + (a + 1)}</text>`;
+    }
+    const tickEvery = span > 240 ? 60 : 30;
+    for (let m = 0; m <= span; m += tickEvery) { const x = X(m); h += `<line x1="${x}" y1="${top - 4}" x2="${x}" y2="${H - 20}" stroke="#d9d5cc"/><text x="${x}" y="${top - 8}" font-size="10" text-anchor="middle" fill="#8b8b8b">${hm(m)}</text>`; }
+    const cpx = X(A.cp); h += `<line x1="${cpx}" y1="${top - 4}" x2="${cpx}" y2="${H - 16}" stroke="#e3342f" stroke-dasharray="4 3" stroke-width="1.5"/><text x="${Math.min(W - 4, cpx)}" y="${H - 4}" font-size="10.5" text-anchor="${cpx > W - 60 ? 'end' : 'middle'}" fill="#e3342f" font-weight="800">critical path ${hm(A.cp)}</text>`;
+    A.order.forEach((id) => {
+      const a = S.agentOf.get(id), s = S.start.get(id), e = S.end.get(id);
+      const y = top + a * laneH + 4, x = X(s), w = Math.max(2, X(e) - X(s) - 2);
+      const c = A.chain.includes(id);
+      h += `<g data-testid="slot" data-id="${id}" data-agent="${a}" data-start="${s}" data-end="${e}"><rect x="${x}" y="${y}" width="${w}" height="${laneH - 12}" fill="${LANE_HEX[a % 6]}" stroke="${c ? '#e3342f' : '#111'}" stroke-width="${c ? 2.5 : 1}"/>${w > 26 ? `<text x="${x + 5}" y="${y + (laneH - 12) / 2 + 4}" font-size="11" font-weight="800">${id}</text>` : ''}<title>${id} ${esc(A.byId.get(id).title)}: ${hm(s)}–${hm(e)}</title></g>`;
+    });
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('width', W); svg.setAttribute('height', H);
+    svg.innerHTML = h;
+  }
+
+  function mdText(n) {
+    const L = [`# Plan: ${goal || 'Untitled goal'}`, '', `- Total work: ${A.work} min across ${tasks.length} subtasks`, `- Critical path: ${A.cp} min (${A.chain.join(' → ')})`, `- Widest level: ${A.maxPar} tasks in parallel`, `- Agents: ${n} · estimated finish: ${S.makespan} min`, ''];
+    for (let a = 0; a < n; a++) {
+      const mine = A.order.filter((id) => S.agentOf.get(id) === a).sort((x, y) => S.start.get(x) - S.start.get(y));
+      L.push(`## ${a === 0 ? 'Lead agent' : 'Sub-agent ' + (a + 1)}`);
+      if (!mine.length) L.push('_Idle — not needed for this plan._');
+      mine.forEach((id, i) => {
+        const t = A.byId.get(id); const ds = A.deps.get(id);
+        L.push(`${i + 1}. **${id} — ${t.title}** (${A.dur(id)} min, starts at ${hm(S.start.get(id))})${ds.length ? ' · waits for ' + ds.map((d) => `${d}${S.agentOf.get(d) !== a ? ' (' + (S.agentOf.get(d) === 0 ? 'lead' : 'sub-agent ' + (S.agentOf.get(d) + 1)) + ')' : ''}`).join(', ') : ''}${A.chain.includes(id) ? ' · **critical**' : ''}`);
+      });
+      L.push('');
+    }
+    L.push('## Hand-off rules', '- Start a task only when everything it waits for has reported done.', '- Report back with: what changed, how it was verified, anything left open.', '- Critical-path tasks get reviewed first; slack tasks can wait.');
+    return L.join('\n') + '\n';
+  }
+  function renderMd(n) { $('[data-testid="markdown"]').textContent = mdText(n); }
+
+  // ---------- events ----------
+  $('[data-testid="tasks"]').addEventListener('input', (e) => {
+    const t = e.target; if (!t.dataset.f) return;
+    const task = tasks[Number(t.dataset.i)];
+    task[t.dataset.f] = t.dataset.f === 'dur' ? (t.value === '' ? NaN : Number(t.value)) : t.value;
+    preset = null; renderPresets(); recompute();
+  });
+  $('[data-testid="goal"]').addEventListener('input', (e) => { goal = e.target.value; if (A && !A.cycle) renderMd(Number($('[data-testid="agents"]').value)); });
+  $('[data-testid="agents"]').addEventListener('input', (e) => { $('[data-testid="agents-out"]').textContent = e.target.value; recompute(); });
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.preset) loadPreset(b.dataset.preset);
+    else if (b.dataset.testid === 'add-task') {
+      if (tasks.length >= 16) return;
+      const last = tasks[tasks.length - 1];
+      tasks.push({ id: 'T' + nextId++, title: 'New subtask', dur: 30, deps: last ? last.id : '' });
+      preset = null; renderPresets(); renderTasks(); recompute();
+      const ins = document.querySelectorAll('[data-testid="t-title"]'); ins[ins.length - 1].focus(); ins[ins.length - 1].select();
+    } else if (b.dataset.del !== undefined) {
+      const gone = tasks[Number(b.dataset.del)].id; tasks.splice(Number(b.dataset.del), 1);
+      preset = null; renderPresets(); renderTasks(); recompute();
+      $('[data-testid="md-status"]').textContent = `Removed ${gone}. Tasks that depended on it now show a warning.`;
+    } else if (b.dataset.testid === 'copy-md') {
+      const st = $('[data-testid="md-status"]');
+      try { navigator.clipboard.writeText($('[data-testid="markdown"]').textContent).then(() => { st.textContent = 'Copied.'; }, () => { st.textContent = 'Clipboard blocked — select the text instead.'; }); } catch (err) { st.textContent = 'Clipboard blocked — select the text instead.'; }
+    } else if (b.dataset.testid === 'download-md') {
+      const url = URL.createObjectURL(new Blob([$('[data-testid="markdown"]').textContent], { type: 'text/markdown' }));
+      const a = document.createElement('a'); a.href = url; a.download = 'agent-plan.md'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+  });
+  let rt = 0; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (A && !A.cycle) { drawDag(); drawLanes(Number($('[data-testid="agents"]').value)); } }, 150); });
+
+  window.__plan = { get analysis() { return A && !A.cycle ? { cp: A.cp, chain: A.chain, work: A.work, maxPar: A.maxPar } : { cycle: A && A.cycle }; } };
+  const q = new URLSearchParams(location.search).get('preset');
+  loadPreset(PRESETS[q] ? q : 'feature');
+})();
+</script>
+</body>
+</html>

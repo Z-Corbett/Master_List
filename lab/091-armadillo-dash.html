@@ -1,0 +1,645 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Armadillo Dash — a Texas scrubland runner</title>
+<meta name="description" content="A side-scrolling runner through Texas scrubland. Jump the prickly pear and cedar posts, curl into a ball to roll under barbed wire and tumbleweeds, snap up grubs and lone stars, and keep going as the day turns to dusk and the pace picks up. Fixed-timestep and deterministic with ?seed=.">
+<style>
+  :root {
+    --caliche: #efe4cc;
+    --caliche-2: #e2d2af;
+    --juniper: #24473a;
+    --juniper-2: #193329;
+    --sign: #1d6a47;
+    --sign-edge: #f4f1e6;
+    --shell: #a8877a;
+    --shell-dk: #6d5148;
+    --rust: #b8532c;
+    --ink: #1f1a14;
+    --sky: #7ec3e0;
+    --slab: "Rockwell", "Rockwell Nova", "Roboto Slab", "Courier New", Georgia, serif;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --hwy: "Arial Narrow", "Roboto Condensed", "Segoe UI", Arial, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--caliche); color: var(--ink); font: 15px/1.55 var(--sans); overflow-x: hidden; min-height: 100vh;
+    background-image: radial-gradient(circle at 12% 8%, rgba(184,83,44,.10), transparent 40%), radial-gradient(circle at 90% 30%, rgba(36,71,58,.10), transparent 45%),
+      repeating-radial-gradient(circle at 30% 60%, rgba(120,90,50,.035) 0 1px, transparent 1px 7px); }
+  :focus-visible { outline: 3px solid var(--rust); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; text-decoration: none; font: 700 13px/1 var(--hwy); letter-spacing: .02em;
+    color: var(--sign-edge); background: var(--sign); border: 2px solid var(--sign-edge); box-shadow: 0 0 0 2px var(--sign); border-radius: 7px; padding: 7px 11px; }
+  a.back:hover { background: var(--juniper-2); }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 58px 16px 36px; }
+  header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 24px; align-items: end; margin-bottom: 16px; }
+  .kicker { margin: 0; font: 700 12px/1.3 var(--hwy); letter-spacing: .28em; text-transform: uppercase; color: var(--rust); }
+  h1 { margin: 2px 0 6px; font: 700 clamp(40px, 7vw, 74px)/.92 var(--slab); letter-spacing: -.01em; color: var(--juniper); }
+  h1 span { color: var(--rust); }
+  .lede { margin: 0; max-width: 58ch; color: #4a3f31; }
+  .hud { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .plate { background: var(--sign); color: #fff; border-radius: 8px; border: 2px solid var(--sign-edge); box-shadow: 0 0 0 2px var(--sign), 0 6px 14px rgba(0,0,0,.18);
+    padding: 5px 12px 6px; min-width: 94px; text-align: center; font-family: var(--hwy); }
+  .plate small { display: block; font-size: 10px; letter-spacing: .2em; text-transform: uppercase; opacity: .85; }
+  .plate b { display: block; font-size: 24px; line-height: 1.05; font-variant-numeric: tabular-nums; }
+  .plate.best { background: #7a4b20; box-shadow: 0 0 0 2px #7a4b20, 0 6px 14px rgba(0,0,0,.18); }
+  .stage { position: relative; border-radius: 14px; overflow: hidden; background: #2d4f63; box-shadow: 0 0 0 4px var(--ink), 0 18px 40px rgba(40,30,15,.35); }
+  canvas { display: block; width: 100%; height: auto; aspect-ratio: 960 / 360; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .overlay { position: absolute; inset: 0; display: grid; place-items: center; padding: 14px; background: rgba(31,26,20,.35); }
+  .card { background: var(--caliche); border-radius: 12px; padding: 16px 20px; max-width: 360px; width: 100%; text-align: center; border: 3px solid var(--ink); box-shadow: 6px 6px 0 var(--ink); }
+  .card h2 { margin: 0 0 4px; font: 700 28px/1.05 var(--slab); color: var(--juniper); }
+  .card p { margin: 4px 0 12px; font-size: 14px; }
+  .card .big { font: 700 36px/1 var(--hwy); color: var(--rust); font-variant-numeric: tabular-nums; }
+  .btn { font: 700 16px/1 var(--hwy); letter-spacing: .03em; min-height: 46px; padding: 10px 18px; border-radius: 10px; border: 3px solid var(--ink); cursor: pointer;
+    background: var(--rust); color: #fff; box-shadow: 0 4px 0 var(--ink); max-width: 100%; }
+  .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+  .btn.alt { background: var(--juniper); }
+  .btn.ghost { background: var(--caliche); color: var(--ink); }
+  .btn[aria-pressed="true"] { background: #6d5148; }
+  .pad { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.3fr); gap: 10px; margin-top: 14px; }
+  .pad .btn { min-height: 58px; font-size: 18px; touch-action: none; user-select: none; -webkit-user-select: none; min-width: 0; padding: 8px; }
+  .status { min-height: 1.5em; margin: 12px 2px 0; font-weight: 600; color: var(--juniper); }
+  .notes { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 18px; margin-top: 22px; }
+  .panel { background: #fbf5e6; border: 2px solid var(--ink); border-radius: 12px; padding: 14px 16px; min-width: 0; box-shadow: 4px 4px 0 rgba(31,26,20,.85); }
+  .panel h2 { margin: 0 0 10px; font: 700 22px/1.1 var(--slab); color: var(--juniper); }
+  .legend { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; }
+  .legend li { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 8px; align-items: center; min-width: 0; font-size: 14px; line-height: 1.3; }
+  .legend svg { width: 42px; height: 34px; }
+  .legend b { display: block; font-family: var(--hwy); }
+  .legend em { font-style: normal; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--rust); }
+  dl.keys { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 12px; margin: 0; font-size: 14px; }
+  dl.keys dt { font-weight: 700; white-space: nowrap; }
+  dl.keys dd { margin: 0; min-width: 0; }
+  kbd { font: 700 12px var(--hwy); background: #fff; border: 1px solid #9c8b6c; border-bottom-width: 3px; border-radius: 4px; padding: 0 5px; }
+  .fact { margin: 12px 0 0; font-size: 13px; color: #5a4c3a; border-top: 1px dashed #b9a57f; padding-top: 10px; }
+  footer { margin-top: 26px; text-align: center; font-size: 13px; color: #6b5c47; }
+  footer code { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 4px; }
+  @media (max-width: 760px) {
+    header { grid-template-columns: minmax(0, 1fr); }
+    .hud { justify-content: flex-start; }
+    .plate { min-width: 0; flex: 1 1 80px; }
+    .notes { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 600px) {
+    .overlay { position: static; background: var(--juniper-2); padding: 12px; }
+    .card { box-shadow: 4px 4px 0 #000; padding: 12px 14px; }
+    .card h2 { font-size: 22px; }
+    .card .big { font-size: 28px; }
+  }
+  @media (max-width: 420px) {
+    .legend { grid-template-columns: minmax(0, 1fr); }
+    .plate b { font-size: 20px; }
+    .pad .btn { font-size: 16px; }
+    dl.keys { grid-template-columns: minmax(0, 1fr); }
+    dl.keys dt { white-space: normal; }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <div>
+      <p class="kicker">FM road · Hill Country · somewhere west of Austin</p>
+      <h1>Armadillo <span>Dash</span></h1>
+      <p class="lede">A nine-banded armadillo, a long caliche road and not much sense of self-preservation. Hop the cactus, tuck and roll under the wire, and see how far you get before sundown.</p>
+    </div>
+    <div class="hud" aria-label="Scoreboard">
+      <div class="plate"><small>Score</small><b id="score" data-testid="score">0</b></div>
+      <div class="plate"><small>Speed</small><b id="speed" data-testid="speed">0</b></div>
+      <div class="plate best"><small>Best</small><b id="best" data-testid="best">0</b></div>
+    </div>
+  </header>
+
+  <div class="stage">
+    <canvas id="cv" width="960" height="360" data-testid="scene" role="img" aria-label="Armadillo Dash: an armadillo waiting at the side of a caliche road"></canvas>
+    <div class="overlay" id="readyOv" data-testid="ready">
+      <div class="card"><h2>Ready to roll?</h2><p>Jump what's low and pointy, curl under what's strung across the road.</p><button class="btn" id="startBtn" data-testid="start">Start running</button></div>
+    </div>
+    <div class="overlay" id="overOv" data-testid="gameover" hidden>
+      <div class="card" role="dialog" aria-labelledby="overT"><h2 id="overT">Flipped!</h2><p id="cause" data-testid="cause">You met a prickly pear.</p><div class="big" id="final" data-testid="final">0</div><p id="bestLine" data-testid="best-line">Best: 0</p><button class="btn" id="againBtn" data-testid="again">Run again</button></div>
+    </div>
+  </div>
+
+  <div class="pad">
+    <button class="btn alt" id="curlBtn" data-testid="curl" aria-label="Curl into a ball (hold)">⤵ Curl</button>
+    <button class="btn ghost" id="pauseBtn" data-testid="pause" aria-pressed="false">Pause</button>
+    <button class="btn" id="jumpBtn" data-testid="jump" aria-label="Jump">Jump ⤴</button>
+  </div>
+  <p class="status" id="status" data-testid="status" role="status" aria-live="polite">Press Start, Space or tap Jump to begin.</p>
+
+  <div class="notes">
+    <section class="panel" aria-labelledby="h-road">
+      <h2 id="h-road">What's on the road</h2>
+      <ul class="legend">
+        <li><svg viewBox="0 0 42 34" aria-hidden="true"><ellipse cx="21" cy="20" rx="8" ry="11" fill="#5f8f4a"/><ellipse cx="12" cy="11" rx="6" ry="7" fill="#6fa257"/><ellipse cx="29" cy="12" rx="5" ry="6.5" fill="#6fa257"/><circle cx="12" cy="4" r="2" fill="#d6456a"/><rect x="4" y="31" width="34" height="3" fill="#b9a57f"/></svg><span><b>Prickly pear</b><em>Jump</em></span></li>
+        <li><svg viewBox="0 0 42 34" aria-hidden="true"><rect x="17" y="6" width="9" height="26" rx="2" fill="#7a5a3c"/><rect x="15" y="4" width="13" height="4" rx="2" fill="#5b4029"/><rect x="4" y="31" width="34" height="3" fill="#b9a57f"/></svg><span><b>Cedar post</b><em>Jump</em></span></li>
+        <li><svg viewBox="0 0 42 34" aria-hidden="true"><rect x="5" y="2" width="5" height="30" fill="#9c8467"/><rect x="32" y="2" width="5" height="30" fill="#9c8467"/><path d="M8 14 Q21 17 34 14 M8 22 Q21 25 34 22" stroke="#444" stroke-width="1.6" fill="none"/><path d="M15 21l2 3M25 21l2 3M18 13l2 3" stroke="#444" stroke-width="1.2"/><rect x="4" y="31" width="34" height="3" fill="#b9a57f"/></svg><span><b>Barbed wire</b><em>Curl under</em></span></li>
+        <li><svg viewBox="0 0 42 34" aria-hidden="true"><circle cx="21" cy="14" r="10" fill="none" stroke="#b08a52" stroke-width="2"/><path d="M13 9q8 10 16 0M12 16q9-8 18 2M16 6q6 14 11 16" stroke="#8d6a3a" fill="none" stroke-width="1.4"/><rect x="4" y="31" width="34" height="3" fill="#b9a57f"/></svg><span><b>Tumbleweed</b><em>Curl under</em></span></li>
+        <li><svg viewBox="0 0 42 34" aria-hidden="true"><path d="M10 20q5-7 11 0t11 0" stroke="#f2e2b8" stroke-width="6" fill="none" stroke-linecap="round"/><path d="M10 20q5-7 11 0t11 0" stroke="#d9bf86" stroke-width="1" fill="none" stroke-dasharray="2 3"/></svg><span><b>Grub</b><em>+25</em></span></li>
+        <li><svg viewBox="0 0 42 34" aria-hidden="true"><path d="M21 3l4.3 9.6 10.4 1-7.9 6.9 2.4 10.2L21 25.3l-9.2 5.4 2.4-10.2-7.9-6.9 10.4-1z" fill="#f2c14e" stroke="#9a6a14" stroke-width="1.2"/></svg><span><b>Lone star</b><em>+250</em></span></li>
+      </ul>
+    </section>
+    <section class="panel" aria-labelledby="h-keys">
+      <h2 id="h-keys">Controls</h2>
+      <dl class="keys">
+        <dt><kbd>Space</kbd> <kbd>↑</kbd> <kbd>W</kbd></dt><dd>Jump. Tap the right side of the road on touch screens.</dd>
+        <dt><kbd>↓</kbd> <kbd>S</kbd></dt><dd>Curl into a ball while held (at least a beat). Curling in mid-air drops you fast. Left side of the road on touch.</dd>
+        <dt><kbd>P</kbd></dt><dd>Pause or resume.</dd>
+      </dl>
+      <p class="fact">The nine-banded armadillo is the official state small mammal of Texas. Real ones jump straight up when startled, which is why this one is so good at it.</p>
+    </section>
+  </div>
+  <footer>Built by Zac Corbett · 120 Hz fixed-timestep simulation · add <code>?seed=</code> for a repeatable road</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const W = 960, H = 360, GROUND = 300, DT = 1 / 120;
+  const PX = 118;                                   // armadillo's fixed x (left edge)
+  const G = 2100, JUMP_V = 690, BASE_SPEED = 300, MAX_SPEED = 700, ACCEL = 6.5;
+  const STAND = { w: 52, h: 34 }, BALL = { w: 28, h: 26 };
+  const CYCLE = 150;                                // seconds of run time per sky cycle
+  const params = new URLSearchParams(location.search);
+  const SEED = (parseInt(params.get('seed'), 10) >>> 0) || 1995;
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const BEST_KEY = 'lab091-armadillo-best';
+  const $ = (id) => document.getElementById(id);
+  const fin = (v, d = 0) => (Number.isFinite(v) ? v : d);
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const cv = $('cv'), ctx = cv.getContext('2d');
+
+  // ---------- scenery (seeded, generated once) ----------
+  const srng = mulberry32(SEED ^ 0x5eed);
+  const hillPh = [srng() * 6.28, srng() * 6.28, srng() * 6.28];
+  const trees = [];
+  for (let i = 0; i < 9; i++) {
+    const t = { x: i * 290 + srng() * 150, s: 0.7 + srng() * 0.55, lean: (srng() - 0.5) * 0.5, blobs: [] };
+    const n = 9 + Math.floor(srng() * 6);
+    for (let k = 0; k < n; k++) t.blobs.push({ dx: (srng() - 0.5) * 120, dy: -srng() * 34, rx: 16 + srng() * 22, ry: 7 + srng() * 7 });
+    trees.push(t);
+  }
+  const TREE_SPAN = 9 * 290;
+  const tufts = []; for (let i = 0; i < 40; i++) tufts.push({ x: srng() * 1200, h: 5 + srng() * 9, y: GROUND + 4 + srng() * 50 });
+  const stars = []; for (let i = 0; i < 70; i++) stars.push({ x: srng() * W, y: srng() * 170, r: 0.6 + srng() * 1.2, tw: srng() * 6.28 });
+
+  // sky keyframes: [phase, top, bottom, hill, light]
+  const SKY = [
+    [0.00, [104, 176, 222], [214, 232, 236], [128, 150, 150], 1.0],
+    [0.40, [96, 164, 214], [236, 226, 200], [130, 146, 136], 1.0],
+    [0.55, [214, 132, 88], [250, 206, 128], [140, 110, 96], 0.85],
+    [0.70, [70, 56, 110], [236, 124, 84], [86, 64, 80], 0.6],
+    [0.85, [16, 20, 48], [52, 44, 88], [34, 34, 56], 0.35],
+    [0.95, [40, 60, 110], [220, 150, 120], [80, 80, 100], 0.6],
+    [1.00, [104, 176, 222], [214, 232, 236], [128, 150, 150], 1.0],
+  ];
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const mix = (a, b, t) => a.map((v, i) => Math.round(lerp(v, b[i], t)));
+  const rgb = (c, a = 1) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+  function skyAt(p) {
+    p = ((fin(p) % 1) + 1) % 1;
+    for (let i = 0; i < SKY.length - 1; i++) {
+      const a = SKY[i], b = SKY[i + 1];
+      if (p >= a[0] && p <= b[0]) { const t = (p - a[0]) / (b[0] - a[0] || 1); return { top: mix(a[1], b[1], t), bot: mix(a[2], b[2], t), hill: mix(a[3], b[3], t), light: lerp(a[4], b[4], t) }; }
+    }
+    return { top: SKY[0][1], bot: SKY[0][2], hill: SKY[0][3], light: 1 };
+  }
+  function phaseName(p) { p = ((p % 1) + 1) % 1; return p < 0.45 ? 'day' : p < 0.62 ? 'golden hour' : p < 0.8 ? 'dusk' : p < 0.92 ? 'night' : 'dawn'; }
+
+  // ---------- state ----------
+  let rng, S;
+  const input = { jumpQ: 0, curlHeld: false, curlMin: 0 };
+  function loadBest() { try { return parseInt(localStorage.getItem(BEST_KEY) || '0', 10) || 0; } catch (e) { return 0; } }
+  function saveBest(v) { try { localStorage.setItem(BEST_KEY, String(v)); } catch (e) { /* storage blocked */ } }
+  function reset(mode) {
+    rng = mulberry32(SEED);
+    S = { mode, t: 0, frame: 0, dist: 0, scroll: 0, speed: BASE_SPEED, bonus: 0, grubs: 0, starsGot: 0, jumps: 0, curls: 0, cleared: 0,
+      y: 0, vy: 0, onGround: true, curled: false, roll: 0, legs: 0, obstacles: [], items: [], nextSpawn: 520, spawned: [], cause: '', best: loadBest(), flash: 0, shake: 0, dust: [] };
+    input.jumpQ = 0; input.curlHeld = false; input.curlMin = 0;
+  }
+  const score = () => Math.floor(S.dist / 40) + S.bonus;
+
+  // ---------- spawning ----------
+  const KINDS = ['pear', 'post', 'wire', 'tumble'];
+  function makeObstacle(kind, x) {
+    const o = { kind, x, w: 30, h: 46, lift: 0, vx: 0, spin: 0, bob: 0, passed: false };
+    if (kind === 'pear') { o.w = 34 + Math.floor(rng() * 10); o.h = 44 + Math.floor(rng() * 10); }
+    else if (kind === 'post') { o.w = 18; o.h = 42 + Math.floor(rng() * 8); }
+    else if (kind === 'wire') { o.w = 46; o.h = 34; o.lift = 30; }                 // lowest strand 30 px up, strands to 64 px
+    else if (kind === 'tumble') { o.w = 40; o.h = 40; o.lift = 30; o.vx = 70 + Math.floor(rng() * 40); o.bob = rng() * 6.28; }
+    return o;
+  }
+  function spawn() {
+    const r = rng();
+    const kind = r < 0.3 ? 'pear' : r < 0.5 ? 'post' : r < 0.75 ? 'wire' : 'tumble';
+    const o = makeObstacle(kind, W + 40);
+    S.obstacles.push(o);
+    S.spawned.push(kind);
+    // pickups in the gap after it
+    const gapTime = 1.05 + rng() * 0.9 - Math.min(0.35, S.t * 0.004);
+    const gap = Math.max(260, gapTime * S.speed);
+    const pr = rng();
+    if (pr < 0.55) {
+      const n = 2 + Math.floor(rng() * 3), arc = rng() < 0.4;
+      for (let i = 0; i < n; i++) S.items.push({ kind: 'grub', x: W + 40 + o.w + 90 + i * 34, h: arc ? 30 + Math.sin((i / Math.max(1, n - 1)) * Math.PI) * 70 : 6, taken: false });
+    } else if (pr < 0.62) {
+      S.items.push({ kind: 'star', x: W + 40 + gap * 0.55, h: 70 + rng() * 40, taken: false });
+    }
+    S.nextSpawn = gap;
+  }
+
+  // ---------- simulation ----------
+  function box() {
+    const d = S.curled ? BALL : STAND;
+    const x = S.curled ? PX + 14 : PX;
+    return { x, y0: S.y, w: d.w, h: d.h };      // y0 = height of the bottom above ground
+  }
+  function overlap(b, o) {
+    const m = 4;
+    const ox0 = o.x + m, ox1 = o.x + o.w - m, oy0 = o.lift + (o.kind === 'tumble' ? 3 + Math.sin(o.bob) * 1.5 : 0), oy1 = o.lift + o.h - m;
+    return b.x + m < ox1 && b.x + b.w - m > ox0 && b.y0 < oy1 && b.y0 + b.h - 2 > oy0;
+  }
+  function step() {
+    if (S.mode !== 'run') return;
+    const dt = DT;
+    S.t += dt; S.frame++;
+    S.speed = Math.min(MAX_SPEED, BASE_SPEED + ACCEL * S.t);
+    const dx = S.speed * dt;
+    S.dist += dx; S.scroll += dx;
+    // input
+    if (input.curlMin > 0) input.curlMin -= dt;
+    const wantCurl = input.curlHeld || input.curlMin > 0;
+    if (input.jumpQ > 0) input.jumpQ -= dt;
+    if (S.onGround && input.jumpQ > 0 && !wantCurl) { S.vy = JUMP_V; S.onGround = false; S.jumps++; input.jumpQ = 0; puff(6); }
+    if (wantCurl && !S.curled) S.curls++;
+    S.curled = wantCurl;
+    // vertical (y is height above ground, up positive)
+    if (!S.onGround) {
+      S.vy -= G * (S.curled && S.vy < 200 ? 2.6 : 1) * dt;
+      S.y += S.vy * dt;
+      if (S.y <= 0) { S.y = 0; S.vy = 0; S.onGround = true; puff(4); }
+    }
+    S.roll += (S.curled ? dx / 13 : 0);
+    S.legs += dx / 9;
+    // world
+    S.nextSpawn -= dx;
+    if (S.nextSpawn <= 0) spawn();
+    const b = box();
+    for (const o of S.obstacles) {
+      o.x -= dx + o.vx * dt;
+      if (o.kind === 'tumble') { o.spin += (dx + o.vx * dt) / 18; o.bob += dt * 7; }
+      if (!o.passed && overlap(b, o)) { crash(o.kind); return; }
+      if (!o.passed && o.x + o.w < b.x) { o.passed = true; S.cleared++; }
+    }
+    S.obstacles = S.obstacles.filter((o) => o.x + o.w > -60);
+    for (const it of S.items) {
+      it.x -= dx;
+      if (it.taken) continue;
+      const cx = it.x, cy = it.h + 8;
+      if (cx > b.x - 6 && cx < b.x + b.w + 6 && cy > b.y0 - 6 && cy < b.y0 + b.h + 10) {
+        it.taken = true;
+        if (it.kind === 'grub') { S.bonus += 25; S.grubs++; } else { S.bonus += 250; S.starsGot++; S.flash = 0.5; say('A lone star! +250'); }
+      }
+    }
+    S.items = S.items.filter((it) => it.x > -40 && !it.taken);
+    if (S.flash > 0) S.flash -= dt;
+    if (S.shake > 0) S.shake -= dt;
+    for (const d of S.dust) { d.x -= dx * 0.6 + d.vx * dt; d.y += d.vy * dt; d.life -= dt; }
+    S.dust = S.dust.filter((d) => d.life > 0);
+  }
+  function puff(n) {
+    if (reduced) return;
+    for (let i = 0; i < n; i++) S.dust.push({ x: PX + 10 + i * 5, y: 2, vx: 20 + i * 12, vy: 18 + (i % 3) * 14, life: 0.45 + (i % 2) * 0.2 });
+  }
+  const CAUSE = { pear: 'You met a prickly pear, nose first.', post: 'You ran headlong into a cedar post.', wire: 'The barbed wire caught your shell. Curl under it next time.', tumble: 'A tumbleweed bowled you over. Curl under it next time.' };
+  function crash(kind) {
+    S.mode = 'over'; S.cause = kind; S.shake = reduced ? 0 : 0.35;
+    const sc = score();
+    const newBest = sc > S.best;
+    if (newBest) { S.best = sc; saveBest(sc); }
+    $('cause').textContent = CAUSE[kind];
+    $('final').textContent = sc.toLocaleString('en-US');
+    $('overT').textContent = newBest ? 'New best!' : 'Flipped!';
+    $('bestLine').textContent = `Best: ${S.best.toLocaleString('en-US')} · ${Math.floor(S.dist / 40)} m run · ${S.grubs} grubs`;
+    $('overOv').hidden = false;
+    say(`Game over at ${sc} points. ${CAUSE[kind]}`);
+    hud(); draw();
+    setTimeout(() => { if (S.mode === 'over') $('againBtn').focus({ preventScroll: true }); }, 30);
+  }
+
+  // ---------- drawing ----------
+  function draw() {
+    const p = S.t / CYCLE;
+    const sky = skyAt(p);
+    ctx.save();
+    if (S.shake > 0) ctx.translate(fin(Math.sin(S.shake * 90) * 6), 0);
+    const g = ctx.createLinearGradient(0, 0, 0, GROUND);
+    g.addColorStop(0, rgb(sky.top)); g.addColorStop(1, rgb(sky.bot));
+    ctx.fillStyle = g; ctx.fillRect(-10, 0, W + 20, GROUND);
+    // stars
+    const night = Math.max(0, 1 - sky.light * 1.6);
+    if (night > 0.02) for (const s of stars) { ctx.fillStyle = `rgba(255,248,220,${fin(night * (0.6 + 0.4 * Math.sin(s.tw + S.t * 2)))})`; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 6.283); ctx.fill(); }
+    // sun / moon on an arc
+    const pp = ((p % 1) + 1) % 1;
+    const sunT = Math.min(1, pp / 0.78);
+    if (pp < 0.8) {
+      const sx = lerp(760, 170, sunT), sy = 56 + Math.pow(sunT, 2.2) * 230;
+      const sg = ctx.createRadialGradient(sx, sy, 6, sx, sy, 80);
+      sg.addColorStop(0, 'rgba(255,240,190,.9)'); sg.addColorStop(1, 'rgba(255,200,120,0)');
+      ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(sx, sy, 80, 0, 6.283); ctx.fill();
+      ctx.fillStyle = sunT > 0.6 ? '#ffb86b' : '#fff4cf'; ctx.beginPath(); ctx.arc(sx, sy, 24, 0, 6.283); ctx.fill();
+    } else {
+      const mT = (pp - 0.8) / 0.2, mx = lerp(820, 600, mT), my = lerp(150, 70, Math.min(1, mT * 2));
+      ctx.save(); ctx.beginPath(); ctx.arc(mx, my, 18, 0, 6.283); ctx.clip();
+      ctx.fillStyle = 'rgba(245,240,220,.95)'; ctx.beginPath(); ctx.rect(mx - 20, my - 20, 40, 40); ctx.arc(mx + 7, my - 4, 16, 0, 6.283); ctx.fill('evenodd');
+      ctx.restore();
+    }
+    // far hills (Hill Country), slow parallax
+    const par = reduced ? 0.4 : 1;
+    ctx.fillStyle = rgb(sky.hill);
+    ctx.beginPath(); ctx.moveTo(0, GROUND);
+    for (let x = 0; x <= W; x += 8) {
+      const wx = x + S.scroll * 0.08 * par;
+      ctx.lineTo(x, 198 - 26 * Math.sin(wx / 210 + hillPh[0]) - 14 * Math.sin(wx / 83 + hillPh[1]) - 8 * Math.sin(wx / 37 + hillPh[2]));
+    }
+    ctx.lineTo(W, GROUND); ctx.closePath(); ctx.fill();
+    const near = mix(sky.hill, [52, 74, 52], 0.55);
+    ctx.fillStyle = rgb(near);
+    ctx.beginPath(); ctx.moveTo(0, GROUND);
+    for (let x = 0; x <= W; x += 8) { const wx = x + S.scroll * 0.2 * par; ctx.lineTo(x, 244 - 12 * Math.sin(wx / 140 + hillPh[1]) - 6 * Math.sin(wx / 51)); }
+    ctx.lineTo(W, GROUND); ctx.closePath(); ctx.fill();
+    // mesquite trees
+    const treeCol = mix([58, 82, 44], [20, 22, 30], 1 - sky.light);
+    const trunkCol = mix([74, 56, 40], [22, 18, 22], 1 - sky.light);
+    for (const t of trees) {
+      let x = ((t.x - S.scroll * 0.45 * par) % TREE_SPAN + TREE_SPAN) % TREE_SPAN - 140;
+      if (x < -160 || x > W + 160) continue;
+      drawMesquite(x, GROUND - 4, t, treeCol, trunkCol);
+    }
+    // mile markers
+    const MM = 2000;
+    const mmx = (MM - (S.scroll * 0.7) % MM) - 200;
+    if (mmx > -60 && mmx < W + 40) drawMarker(mmx, Math.floor((S.scroll * 0.7 + 200) / MM) + 1, sky.light);
+    // ground
+    const gg = ctx.createLinearGradient(0, GROUND, 0, H);
+    gg.addColorStop(0, rgb(mix([214, 190, 146], [70, 58, 60], 1 - sky.light)));
+    gg.addColorStop(1, rgb(mix([176, 146, 102], [44, 36, 42], 1 - sky.light)));
+    ctx.fillStyle = gg; ctx.fillRect(-10, GROUND, W + 20, H - GROUND);
+    ctx.fillStyle = rgb(mix([120, 96, 64], [30, 26, 30], 1 - sky.light)); ctx.fillRect(-10, GROUND, W + 20, 3);
+    ctx.fillStyle = rgb(mix([196, 170, 124], [60, 50, 56], 1 - sky.light));
+    for (let i = 0; i < 18; i++) { const x = ((i * 97 - S.scroll) % 1746 + 1746) % 1746 - 60; ctx.fillRect(x, GROUND + 22 + (i % 3) * 13, 22 + (i % 4) * 8, 2); }
+    ctx.strokeStyle = rgb(mix([110, 120, 60], [30, 34, 30], 1 - sky.light)); ctx.lineWidth = 1.5;
+    for (const tf of tufts) {
+      const x = ((tf.x - S.scroll * 1.15) % 1200 + 1200) % 1200 - 60;
+      ctx.beginPath(); ctx.moveTo(x, tf.y); ctx.lineTo(x - 4, tf.y - tf.h); ctx.moveTo(x + 2, tf.y); ctx.lineTo(x + 3, tf.y - tf.h * 1.2); ctx.moveTo(x + 4, tf.y); ctx.lineTo(x + 9, tf.y - tf.h * 0.8); ctx.stroke();
+    }
+    // items, obstacles, dust, armadillo
+    for (const it of S.items) drawItem(it);
+    for (const o of S.obstacles) drawObstacle(o, sky.light);
+    ctx.fillStyle = 'rgba(214,190,146,.7)';
+    for (const d of S.dust) { ctx.globalAlpha = fin(Math.max(0, Math.min(1, d.life * 2))); ctx.beginPath(); ctx.arc(d.x, GROUND - d.y, 4 + (0.6 - d.life) * 8, 0, 6.283); ctx.fill(); }
+    ctx.globalAlpha = 1;
+    drawArmadillo();
+    // dusk tint
+    if (sky.light < 1) { ctx.fillStyle = `rgba(30,20,60,${fin((1 - sky.light) * 0.28)})`; ctx.fillRect(-10, 0, W + 20, H); }
+    if (S.flash > 0) { ctx.fillStyle = `rgba(255,230,140,${fin(S.flash * 0.5)})`; ctx.fillRect(-10, 0, W + 20, H); }
+    ctx.restore();
+  }
+  function drawMesquite(x, y, t, col, trunk) {
+    const s = t.s;
+    ctx.strokeStyle = rgb(trunk); ctx.lineCap = 'round';
+    ctx.lineWidth = 7 * s;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + 10 * s + t.lean * 30, y - 40 * s, x + t.lean * 50 * s, y - 70 * s); ctx.stroke();
+    ctx.lineWidth = 4 * s;
+    ctx.beginPath(); ctx.moveTo(x + 4 * s, y - 36 * s); ctx.quadraticCurveTo(x - 30 * s, y - 50 * s, x - 48 * s, y - 64 * s);
+    ctx.moveTo(x + 6 * s, y - 44 * s); ctx.quadraticCurveTo(x + 36 * s, y - 52 * s, x + 54 * s, y - 70 * s); ctx.stroke();
+    ctx.fillStyle = rgb(col);
+    for (const b of t.blobs) { ctx.beginPath(); ctx.ellipse(x + t.lean * 40 * s + b.dx * s, y - 78 * s + b.dy * s, b.rx * s, b.ry * s, 0, 0, 6.283); ctx.fill(); }
+    ctx.fillStyle = 'rgba(255,255,255,.08)';
+    for (const b of t.blobs) { ctx.beginPath(); ctx.ellipse(x + t.lean * 40 * s + b.dx * s - 4, y - 81 * s + b.dy * s, b.rx * s * 0.6, b.ry * s * 0.4, 0, 0, 6.283); ctx.fill(); }
+  }
+  function drawMarker(x, n, light) {
+    const y = GROUND - 6;
+    ctx.fillStyle = rgb(mix([150, 150, 150], [60, 60, 70], 1 - light)); ctx.fillRect(x + 12, y - 58, 4, 58);
+    ctx.fillStyle = rgb(mix([29, 106, 71], [16, 50, 40], 1 - light)); ctx.fillRect(x, y - 78, 28, 26);
+    ctx.strokeStyle = rgb(mix([240, 240, 230], [120, 120, 120], 1 - light)); ctx.lineWidth = 1.5; ctx.strokeRect(x + 2, y - 76, 24, 22);
+    ctx.fillStyle = ctx.strokeStyle; ctx.font = '700 12px "Arial Narrow", Arial, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(String(n), x + 14, y - 60);
+  }
+  function drawItem(it) {
+    const x = it.x, y = GROUND - it.h - 8;
+    if (it.kind === 'grub') {
+      ctx.strokeStyle = '#f3e3ba'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(x, y, 6, Math.PI * 0.1, Math.PI * 1.3); ctx.stroke();
+      ctx.fillStyle = '#b47a3c'; ctx.beginPath(); ctx.arc(x + 5, y + 2, 3.2, 0, 6.283); ctx.fill();
+    } else {
+      const bob = reduced ? 0 : Math.sin(S.t * 5 + x * 0.02) * 3;
+      ctx.save(); ctx.translate(x, y + bob);
+      ctx.fillStyle = '#f2c14e'; ctx.strokeStyle = '#9a6a14'; ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 0; i < 10; i++) { const r = i % 2 ? 6 : 14, a = -Math.PI / 2 + i * Math.PI / 5; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+      ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+    }
+  }
+  function drawObstacle(o, light) {
+    const x = o.x, gy = GROUND;
+    const dim = (c) => rgb(mix(c, [30, 30, 40], (1 - light) * 0.6));
+    if (o.kind === 'pear') {
+      ctx.fillStyle = dim([88, 138, 70]);
+      const cx = x + o.w / 2;
+      ctx.beginPath(); ctx.ellipse(cx, gy - o.h * 0.32, o.w * 0.34, o.h * 0.32, 0, 0, 6.283); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(cx - o.w * 0.22, gy - o.h * 0.72, o.w * 0.25, o.h * 0.24, -0.35, 0, 6.283); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(cx + o.w * 0.24, gy - o.h * 0.66, o.w * 0.22, o.h * 0.22, 0.4, 0, 6.283); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.55)';
+      for (let i = 0; i < 12; i++) { ctx.fillRect(cx - o.w * 0.35 + ((i * 7) % o.w) * 0.7, gy - 6 - ((i * 13) % (o.h - 8)), 1.5, 1.5); }
+      ctx.fillStyle = dim([214, 69, 106]);
+      ctx.beginPath(); ctx.arc(cx - o.w * 0.22, gy - o.h * 0.96, 3.5, 0, 6.283); ctx.arc(cx + o.w * 0.26, gy - o.h * 0.88, 3.5, 0, 6.283); ctx.fill();
+    } else if (o.kind === 'post') {
+      ctx.fillStyle = dim([122, 90, 60]); ctx.fillRect(x, gy - o.h, o.w, o.h);
+      ctx.fillStyle = dim([91, 64, 41]); ctx.fillRect(x - 2, gy - o.h - 3, o.w + 4, 5);
+      ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x + 5, gy - o.h + 6); ctx.lineTo(x + 6, gy - 4); ctx.moveTo(x + 12, gy - o.h + 12); ctx.lineTo(x + 11, gy - 8); ctx.stroke();
+    } else if (o.kind === 'wire') {
+      // posts stand just off the road (drawn behind), the strands cross it
+      ctx.fillStyle = dim([156, 132, 103]);
+      ctx.fillRect(x - 6, gy - 82, 6, 80); ctx.fillRect(x + o.w, gy - 82, 6, 80);
+      ctx.strokeStyle = dim([60, 60, 60]); ctx.lineWidth = 1.8;
+      for (const hgt of [o.lift + 2, o.lift + o.h / 2, o.lift + o.h - 2]) {
+        ctx.beginPath(); ctx.moveTo(x - 3, gy - hgt - 6); ctx.quadraticCurveTo(x + o.w / 2, gy - hgt + 2, x + o.w + 3, gy - hgt - 6); ctx.stroke();
+        for (let k = 1; k < 4; k++) { const bx = x + (o.w / 4) * k; ctx.beginPath(); ctx.moveTo(bx - 3, gy - hgt - 5); ctx.lineTo(bx + 3, gy - hgt + 1); ctx.moveTo(bx + 3, gy - hgt - 5); ctx.lineTo(bx - 3, gy - hgt + 1); ctx.stroke(); }
+      }
+    } else {
+      const r = o.w / 2, cx = x + r, cy = gy - o.lift - r - Math.sin(o.bob) * 1.5;
+      ctx.save(); ctx.translate(cx, cy); ctx.rotate(-fin(o.spin));
+      ctx.strokeStyle = dim([176, 138, 82]); ctx.lineWidth = 1.6;
+      for (let i = 0; i < 9; i++) { const a = i * 0.7; ctx.beginPath(); ctx.ellipse(0, 0, r * (0.55 + (i % 3) * 0.2), r * (0.35 + (i % 2) * 0.4), a, 0, 6.283); ctx.stroke(); }
+      ctx.strokeStyle = dim([130, 98, 56]);
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, 6.283); ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = 'rgba(0,0,0,.15)'; ctx.beginPath(); ctx.ellipse(cx, gy - 2, r * 0.8, 3, 0, 0, 6.283); ctx.fill();
+    }
+  }
+  function drawArmadillo() {
+    const baseY = GROUND - fin(S.y);
+    // shadow
+    ctx.fillStyle = 'rgba(0,0,0,.18)';
+    ctx.beginPath(); ctx.ellipse(PX + 26, GROUND - 1, fin(Math.max(8, 24 - S.y * 0.08)), 4, 0, 0, 6.283); ctx.fill();
+    if (S.curled) {
+      const r = 13, cx = PX + 14 + r, cy = baseY - r;
+      ctx.save(); ctx.translate(cx, cy); ctx.rotate(fin(S.roll));
+      ctx.fillStyle = '#a8877a'; ctx.beginPath(); ctx.arc(0, 0, r, 0, 6.283); ctx.fill();
+      ctx.strokeStyle = '#6d5148'; ctx.lineWidth = 1.6;
+      for (let i = -3; i <= 3; i++) { ctx.beginPath(); ctx.arc(0, 0, r, i * 0.42 - 0.08, i * 0.42 + 0.08); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(i * 0.42) * r, Math.sin(i * 0.42) * r); ctx.stroke(); }
+      ctx.fillStyle = '#c9a99a'; ctx.beginPath(); ctx.arc(-r * 0.35, -r * 0.35, r * 0.28, 0, 6.283); ctx.fill();
+      ctx.restore();
+      return;
+    }
+    const x = PX, y = baseY;
+    const run = S.mode === 'run' && S.onGround;
+    const ph = fin(S.legs);
+    // legs
+    ctx.strokeStyle = '#8e6e62'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+    const legs = [[12, 0], [18, Math.PI], [36, Math.PI * 0.5], [42, Math.PI * 1.5]];
+    for (const [lx, o] of legs) {
+      const sw = run ? Math.sin(ph + o) * 5 : S.onGround ? 0 : 3;
+      ctx.beginPath(); ctx.moveTo(x + lx, y - 10); ctx.lineTo(x + lx + sw, y - 1); ctx.stroke();
+    }
+    // tail
+    ctx.lineWidth = 5; ctx.strokeStyle = '#9b7b6e';
+    ctx.beginPath(); ctx.moveTo(x + 4, y - 14); ctx.quadraticCurveTo(x - 10, y - 12, x - 16, y - 4); ctx.stroke();
+    ctx.fillStyle = '#6d5148';
+    for (let i = 0; i < 4; i++) ctx.fillRect(x - 12 + i * 4, y - 12 + i * 1.7, 1.6, 3);
+    // shell with nine bands
+    ctx.fillStyle = '#a8877a';
+    ctx.beginPath(); ctx.ellipse(x + 26, y - 16, 26, 17, 0, Math.PI, 0); ctx.lineTo(x + 52, y - 10); ctx.lineTo(x, y - 10); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#bd9d8e'; ctx.beginPath(); ctx.ellipse(x + 26, y - 22, 18, 9, 0, Math.PI, 0); ctx.fill();
+    ctx.strokeStyle = '#6d5148'; ctx.lineWidth = 1.4;
+    for (let i = 0; i < 9; i++) {
+      const bx = x + 12 + i * 3.6;
+      ctx.beginPath(); ctx.moveTo(bx, y - 10); ctx.quadraticCurveTo(bx + 1, y - 26, bx + 2, y - 32 + Math.abs(i - 4) * 0.9); ctx.stroke();
+    }
+    ctx.fillStyle = '#6d5148'; ctx.fillRect(x, y - 12, 52, 2.5);
+    // head
+    const nod = run ? Math.sin(ph * 2) * 1.2 : 0;
+    ctx.fillStyle = '#c29c8c';
+    ctx.beginPath(); ctx.moveTo(x + 48, y - 22 + nod); ctx.lineTo(x + 66, y - 12 + nod); ctx.lineTo(x + 64, y - 9 + nod); ctx.lineTo(x + 47, y - 11); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#a8877a'; ctx.beginPath(); ctx.ellipse(x + 50, y - 26 + nod, 3.5, 6, -0.4, 0, 6.283); ctx.fill();
+    ctx.fillStyle = '#1f1a14'; ctx.beginPath(); ctx.arc(x + 55, y - 17 + nod, 1.6, 0, 6.283); ctx.fill();
+    ctx.fillStyle = '#5b3f36'; ctx.beginPath(); ctx.arc(x + 65.5, y - 10.5 + nod, 1.8, 0, 6.283); ctx.fill();
+  }
+
+  // ---------- HUD / status ----------
+  let lastSay = '';
+  function say(m) { if (m !== lastSay) { $('status').textContent = m; lastSay = m; } }
+  let lastHud = '';
+  function hud() {
+    const sc = score(), sp = Math.round(S.speed / 10);
+    const key = sc + '|' + sp + '|' + S.best;
+    if (key === lastHud) return; lastHud = key;
+    $('score').textContent = sc.toLocaleString('en-US');
+    $('speed').textContent = S.mode === 'ready' ? '0' : sp + ' mph';
+    $('best').textContent = S.best.toLocaleString('en-US');
+    cv.setAttribute('aria-label', `Armadillo Dash: ${S.mode === 'run' ? 'running' : S.mode}, ${phaseName(S.t / CYCLE)}, score ${sc}, ${S.obstacles.length} obstacles ahead`);
+  }
+
+  // ---------- loop ----------
+  let manual = false, acc = 0, last = null, lastPhase = '';
+  function frame(ts) {
+    requestAnimationFrame(frame);
+    if (last === null) last = ts;
+    let dt = (ts - last) / 1000; last = ts;
+    if (!Number.isFinite(dt) || dt < 0) dt = 0;
+    if (manual) return;
+    acc += Math.min(dt, 0.25);
+    while (acc >= DT) { step(); acc -= DT; }
+    afterSteps();
+  }
+  function afterSteps() {
+    if (S.mode === 'run') {
+      const ph = phaseName(S.t / CYCLE);
+      if (ph !== lastPhase) { if (lastPhase) say(`The light changes: ${ph}.`); lastPhase = ph; }
+    }
+    hud(); draw();
+  }
+  function start() {
+    reset('run');
+    lastPhase = ''; lastHud = '';
+    $('readyOv').hidden = true; $('overOv').hidden = true;
+    $('pauseBtn').setAttribute('aria-pressed', 'false'); $('pauseBtn').textContent = 'Pause';
+    say('Running. Jump the cactus and posts, curl under the wire and tumbleweeds.');
+    hud(); draw();
+  }
+  function togglePause() {
+    if (S.mode === 'run') { S.mode = 'paused'; $('pauseBtn').setAttribute('aria-pressed', 'true'); $('pauseBtn').textContent = 'Resume'; say('Paused.'); }
+    else if (S.mode === 'paused') { S.mode = 'run'; $('pauseBtn').setAttribute('aria-pressed', 'false'); $('pauseBtn').textContent = 'Pause'; say('Running again.'); }
+    hud();
+  }
+  function pressJump() { if (S.mode === 'ready' || S.mode === 'over') { start(); return; } if (S.mode === 'run') input.jumpQ = 0.12; }
+  function curlDown() { if (S.mode !== 'run') return; input.curlHeld = true; input.curlMin = 0.3; }
+  function curlUp() { input.curlHeld = false; }
+
+  // ---------- input wiring ----------
+  $('startBtn').addEventListener('click', start);
+  $('againBtn').addEventListener('click', start);
+  $('pauseBtn').addEventListener('click', togglePause);
+  $('jumpBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); pressJump(); });
+  $('jumpBtn').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); pressJump(); } });
+  $('curlBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); curlDown(); });
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) $('curlBtn').addEventListener(ev, curlUp);
+  $('curlBtn').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); curlDown(); } });
+  $('curlBtn').addEventListener('keyup', (e) => { if (e.key === 'Enter') curlUp(); });
+  const touches = new Map();
+  cv.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    const r = cv.getBoundingClientRect();
+    const side = (e.clientX - r.left) < r.width * 0.4 ? 'curl' : 'jump';
+    touches.set(e.pointerId, side);
+    if (side === 'curl') curlDown(); else pressJump();
+  });
+  for (const ev of ['pointerup', 'pointercancel']) cv.addEventListener(ev, (e) => { if (touches.get(e.pointerId) === 'curl') curlUp(); touches.delete(e.pointerId); });
+  const JUMP_KEYS = [' ', 'ArrowUp', 'w', 'W'], CURL_KEYS = ['ArrowDown', 's', 'S'];
+  addEventListener('keydown', (e) => {
+    const tag = (e.target && e.target.tagName) || '';
+    if (JUMP_KEYS.includes(e.key)) {
+      if (tag === 'BUTTON' && e.key === ' ' && e.target.id !== 'jumpBtn' && S.mode !== 'run') return;   // let Space activate focused buttons
+      e.preventDefault(); if (!e.repeat) pressJump();
+    } else if (CURL_KEYS.includes(e.key)) { e.preventDefault(); if (!e.repeat) curlDown(); }
+    else if (e.key === 'p' || e.key === 'P') togglePause();
+  });
+  addEventListener('keyup', (e) => { if (CURL_KEYS.includes(e.key)) curlUp(); });
+  addEventListener('blur', () => { curlUp(); if (S.mode === 'run' && !manual) togglePause(); });
+
+  // ---------- test hook ----------
+  const snap = () => ({
+    mode: S.mode, t: +S.t.toFixed(4), frame: S.frame, dist: S.dist, speed: S.speed, score: score(), bonus: S.bonus, grubs: S.grubs, stars: S.starsGot, best: S.best,
+    y: S.y, vy: S.vy, onGround: S.onGround, curled: S.curled, jumps: S.jumps, curls: S.curls, cleared: S.cleared, cause: S.cause, seed: SEED,
+    phase: phaseName(S.t / CYCLE), sky: skyAt(S.t / CYCLE), spawned: S.spawned.slice(),
+    obstacles: S.obstacles.map((o) => ({ kind: o.kind, x: +o.x.toFixed(3), w: o.w, h: o.h, lift: o.lift, passed: o.passed })),
+    items: S.items.map((i) => ({ kind: i.kind, x: +i.x.toFixed(3), h: i.h })),
+    player: { x: PX, ...box() },
+  });
+  window.__dash = {
+    get state() { return snap(); },
+    manual(on) { manual = !!on; acc = 0; },
+    frames(n) { for (let i = 0; i < n; i++) step(); afterSteps(); return snap(); },
+    /** run until the nearest unpassed obstacle's left edge is within `gap` px of the armadillo's nose */
+    until(gap, max = 2400) { for (let i = 0; i < max && S.mode === 'run'; i++) { const o = S.obstacles.find((q) => !q.passed); if (o && o.x - (PX + STAND.w) <= gap) break; step(); } afterSteps(); return snap(); },
+    /** clear the road and place one obstacle (or pickup) `ahead` px in front of the armadillo; pauses random spawns for a while */
+    place(kind, ahead = 300, h = 6) {
+      S.obstacles = []; S.items = []; S.nextSpawn = 1e5;
+      if (kind === 'grub' || kind === 'star') S.items.push({ kind, x: PX + STAND.w + ahead, h, taken: false });
+      else S.obstacles.push(makeObstacle(kind, PX + STAND.w + ahead));
+      afterSteps(); return snap();
+    },
+    skyAt, phaseName, CYCLE, DT,
+  };
+
+  reset('ready');
+  hud(); draw();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

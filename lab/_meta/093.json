@@ -1,0 +1,34 @@
+{
+  "id": "093",
+  "slug": "093-wind-chimes",
+  "file": "lab/093-wind-chimes.html",
+  "title": "Wind Chimes — a generative porch chime",
+  "category": "Audio",
+  "tags": ["web-audio", "canvas", "physics", "synthesis", "seeded-prng"],
+  "description": "A ring of tubular chimes on a porch. Seeded, gusty wind pushes a sail and pendulum striker into the tubes, each collision rings a synthesized stack of metallic partials scaled by how hard it hit, and a top-down inset traces the striker's path. Switch between pentatonic, Aeolian and church-bell tunings, set the wind and gustiness, or ring a tube by tapping it or pressing its number key.",
+  "prompt": "Build a generative audio-visual wind chime. A set of tubular chimes hangs from a ring, with tunings I can choose: pentatonic, Aeolian, or a church-bell-like set. A wind model with gusts from seeded noise and a strength slider swings a striker that collides with the tubes, using simple pendulum physics. Each hit should ring a synthesized metallic partial stack, but only after I've made a user gesture. Show the sway and the vibration visually, add a mute, and expose window.__chimes so the physics and the hits can be tested.",
+  "qa": {
+    "methodology": [
+      "Physics oracle: with the wind stilled, a small push must make the striker oscillate with period 2π√(L/g) (L = 0.30 m) to within 1%, measured from interpolated zero crossings, and must never touch a tube. In still air there are no strikes at all.",
+      "Musical correctness: every tuning's tube frequencies are checked against equal temperament (A4 = 440 Hz) from MIDI numbers, and tube length must fall as pitch rises.",
+      "Seeded determinism: with the real-time loop detached and the state reset, the same seed and wind produce an identical list of strikes (tube and time) over 30 simulated seconds, and a neighbouring seed produces a different one. Every strike maps to a tube in the current tuning with amplitude in (0, 1].",
+      "Interaction paths: ring by tube button, number key and a pointer tap on the drawn tube (the page reports each tube's screen position). The hit source is recorded, a note chip appears, the tube vibrates and swings.",
+      "Audio gating: no AudioContext exists before the gesture, it is running after, strikes report whether they sounded, and mute drives the master gain to zero and silences new strikes."
+    ],
+    "risks": [
+      "Collision tunnelling or the striker escaping between tubes in strong wind; the striker is confined to the ring and physics runs at 240 Hz.",
+      "Voice build-up: each strike creates several oscillators, so voices are capped and disconnected when they end.",
+      "Autoplay policy differences between browsers; sound only starts from the explicit button.",
+      "A few real-time frames can run before a test detaches the loop, which broke replay until the spec added reset()."
+    ],
+    "playwright": "Audio can't be listened to in CI, so the spec checks the decisions around it: AudioContext state, voice counts, a per-strike 'sounded' flag and the master gain value after mute. The physics is driven through __chimes.manual(true), reset() and frames(n), which makes the wind noise and every collision replayable. That is also what made a textbook oracle possible: the pendulum period is measured from 1,440 sampled positions. The first replay test failed because rAF had already advanced the simulation before manual mode, and that is how reset() came to exist. Canvas taps use page.mouse.click at coordinates the page computes for a tube, after scrollIntoViewIfNeeded so the tap also lands on the short mobile viewport.",
+    "coverage": [
+      "Pentatonic, Aeolian and bell tunings: notes, Hz, tube lengths, radiogroup arrows",
+      "Still air is silent; pendulum period within 1%",
+      "Seeded strike replay, different seed, hit validity, New weather seed in URL",
+      "Ring by button, key and canvas tap; vibration and swing",
+      "Gesture-gated audio, voices, mute"
+    ]
+  },
+  "a11y": "Tunings are a radiogroup with arrow keys, and every tube has a labelled button (note and frequency) plus a number-key shortcut, so the chime can be played without the canvas. Sliders have visible outputs, status changes are announced politely, and the canvas label summarises the tuning, wind and strike count. Individual strikes are not announced, to avoid flooding screen readers. Reduced motion starts with a lighter wind and removes the tube shimmer."
+}

@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Terrarium — a closed glass ecosystem</title>
+<meta name="description" content="A generative closed terrarium in a glass jar. Ferns and fittonia grow by L-system rules over a moss carpet, a day and night light cycle drives a water cycle (evaporation, condensation beads on the glass, drips back to the soil), the lid changes the humidity, and a small springtail population rises and falls. Time-lapse control, deterministic with ?seed=.">
+<style>
+  :root {
+    --moss: #3e5b3a;
+    --moss-2: #2b4229;
+    --fern: #6f9a4f;
+    --glass: #d8ece6;
+    --soil: #4a3326;
+    --clay: #c27b56;
+    --cream: #f3f1e8;
+    --ink: #1e2a22;
+    --muted: #5f6e63;
+    --card: #fbfaf5;
+    --serif: "Hoefler Text", "Baskerville", "Baskerville Old Face", "Libre Baskerville", Georgia, serif;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --mono: "Consolas", "SFMono-Regular", ui-monospace, monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--cream); color: var(--ink); font: 15px/1.55 var(--sans); overflow-x: hidden;
+    background-image: radial-gradient(ellipse at 20% 0%, rgba(111,154,79,.16), transparent 50%), radial-gradient(ellipse at 90% 90%, rgba(194,123,86,.10), transparent 45%); }
+  :focus-visible { outline: 3px solid var(--clay); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: var(--moss-2); background: rgba(251,250,245,.92); border: 1px solid #cfd8c6; text-decoration: none; font: 600 13px/1 var(--sans); padding: 8px 12px; border-radius: 8px; }
+  a.back:hover { background: var(--moss); color: #fff; }
+  .wrap { max-width: 1140px; margin: 0 auto; padding: 60px 18px 40px; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 26px; align-items: start; }
+  .intro h1 { font: 400 clamp(40px, 6.5vw, 70px)/1 var(--serif); margin: 0 0 8px; color: var(--moss-2); font-style: italic; }
+  .intro p { margin: 0 0 14px; color: var(--muted); max-width: 56ch; }
+  .jar { position: relative; border-radius: 22px; overflow: hidden; background: #cfd9d1; box-shadow: 0 30px 60px -30px rgba(30,42,34,.55); }
+  canvas { display: block; width: 100%; height: auto; aspect-ratio: 720 / 780; }
+  .clock { position: absolute; top: 12px; right: 14px; font: 600 14px/1 var(--mono); color: #fff; background: rgba(20,30,24,.55); padding: 7px 10px; border-radius: 8px; }
+  .panel { background: var(--card); border: 1px solid #dfe3d5; border-radius: 16px; padding: 18px; min-width: 0; }
+  .panel h2 { font: 400 22px/1.2 var(--serif); margin: 0 0 10px; color: var(--moss-2); }
+  .ctl { margin-bottom: 14px; }
+  .ctl label { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; font-size: 14px; }
+  .ctl output { font: 600 13px var(--mono); color: var(--clay); }
+  input[type=range] { width: 100%; max-width: 100%; accent-color: var(--moss); height: 28px; }
+  .btns { display: flex; flex-wrap: wrap; gap: 8px; }
+  .btn { min-height: 44px; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--moss); background: #fff; color: var(--moss-2); font: 600 14px/1.1 var(--sans); cursor: pointer; }
+  .btn.primary { background: var(--moss); color: #fff; }
+  .btn[aria-pressed="true"] { background: var(--clay); border-color: var(--clay); color: #fff; }
+  .stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+  .stat { background: #fff; border: 1px solid #e3e6da; border-radius: 10px; padding: 8px 10px; min-width: 0; }
+  .stat small { display: block; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .stat b { display: block; font: 600 18px/1.3 var(--mono); overflow-wrap: anywhere; }
+  .spark { margin-top: 14px; }
+  .spark svg { display: block; width: 100%; height: auto; }
+  .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+  .legend i { display: inline-block; width: 14px; height: 0; border-top: 2px solid; vertical-align: 3px; margin-right: 4px; }
+  .status { min-height: 1.5em; margin: 10px 0 0; font-size: 14px; color: var(--moss-2); }
+  .notes { margin-top: 18px; font-size: 14px; color: var(--muted); }
+  .notes dt { font-weight: 700; color: var(--ink); }
+  .notes dd { margin: 0 0 8px; }
+  footer { margin-top: 26px; text-align: center; font-size: 13px; color: var(--muted); }
+  footer code { background: rgba(0,0,0,.05); padding: 1px 5px; border-radius: 4px; }
+  @media (max-width: 920px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <div class="layout">
+    <div style="min-width:0">
+      <div class="intro">
+        <h1>Terrarium</h1>
+        <p>A sealed jar with its own weather. Light warms the soil and leaves, water rises as vapour, beads up on the cool glass at night and runs back down. Ferns unfurl, fittonia spreads its veined leaves, the moss thickens, and a colony of springtails (tiny soil animals that live on mould and decay) keeps the place clean.</p>
+      </div>
+      <div class="jar">
+        <canvas id="cv" width="720" height="780" data-testid="jar" role="img" aria-label="Terrarium"></canvas>
+        <div class="clock" id="clock" data-testid="clock" aria-hidden="true">Day 1 · 08:00</div>
+      </div>
+    </div>
+    <aside class="panel" aria-label="Terrarium controls">
+      <h2>Keeper's bench</h2>
+      <div class="ctl"><label for="speed">Time-lapse <output id="speedOut" for="speed" data-testid="speed-out">4 h/s</output></label><input id="speed" type="range" min="0" max="24" step="1" value="4" data-testid="speed"></div>
+      <div class="btns">
+        <button type="button" class="btn" id="lid" aria-pressed="false" data-testid="lid">Take the lid off</button>
+        <button type="button" class="btn" id="mist" data-testid="mist">Mist it</button>
+        <button type="button" class="btn" id="step" data-testid="step">+6 hours</button>
+        <button type="button" class="btn primary" id="reseed" data-testid="reseed">Plant a new jar</button>
+      </div>
+      <p class="status" id="status" role="status" aria-live="polite" data-testid="status"></p>
+      <div class="stats">
+        <div class="stat"><small>Light</small><b id="sLight" data-testid="s-light">–</b></div>
+        <div class="stat"><small>Humidity</small><b id="sHum" data-testid="s-hum">–</b></div>
+        <div class="stat"><small>Soil moisture</small><b id="sSoil" data-testid="s-soil">–</b></div>
+        <div class="stat"><small>Beads on glass</small><b id="sBeads" data-testid="s-beads">–</b></div>
+        <div class="stat"><small>Drips so far</small><b id="sDrips" data-testid="s-drips">–</b></div>
+        <div class="stat"><small>Springtails</small><b id="sSpring" data-testid="s-spring">–</b></div>
+      </div>
+      <div class="spark">
+        <div class="legend"><span><i style="border-color:#2f7fa0"></i>humidity</span><span><i style="border-color:#8a5a3b"></i>soil moisture</span><span><i style="border-color:#d6a63a"></i>light</span></div>
+        <svg id="spark" viewBox="0 0 320 90" role="img" aria-label="Last three days of humidity, soil moisture and light" data-testid="spark"></svg>
+      </div>
+      <dl class="notes">
+        <dt>Lid on</dt><dd>The jar is sealed: every drop of water only moves between soil, air and glass.</dd>
+        <dt>Lid off</dt><dd>Moist air escapes into the room, the glass clears, and in time the soil dries out. Put it back before the fern sulks.</dd>
+      </dl>
+    </aside>
+  </div>
+  <footer>Built by Zac Corbett · plants grown with small L-systems · water modelled as a conserved quantity while sealed · add <code>?seed=</code> for the same jar every time</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const fin = (v, d = 0) => (Number.isFinite(v) ? v : d);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const params = new URLSearchParams(location.search);
+  let SEED = (parseInt(params.get('seed'), 10) >>> 0) || 4242;
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+  // ---------- geometry of the jar ----------
+  const W = 720, H = 780;
+  const JAR = { x0: 150, x1: 570, top: 230, neckY: 150, neck0: 250, neck1: 470, bottom: 740, soilY: 590 };
+
+  // ---------- L-systems ----------
+  function lsys(axiom, rules, n) { let s = axiom; for (let i = 0; i < n; i++) { let o = ''; for (const c of s) o += rules[c] || c; s = o; } return s; }
+  // fern frond: each A lays down a rachis segment with a pair of pinnae and passes the tip on
+  const FERN = { A: 'F[+P][-P]A' };
+  // fittonia: a creeping stem that forks and sets pairs of leaves
+  const FITT = { S: 'F[+L]F[-L]S', T: 'F[+S][-S]L' };
+
+  // ---------- state ----------
+  const DT = 0.25;                   // hours per simulation step
+  const AIR_CAP = 10, ROOM_H = 0.45;
+  let S, rng;
+  function init() {
+    rng = mulberry32(SEED);
+    const plants = [];
+    const nFern = 1 + Math.floor(rng() * 2), nFitt = 2 + Math.floor(rng() * 2);
+    const slots = [];
+    for (let i = 0; i < nFern + nFitt; i++) slots.push(0.12 + (i + rng() * 0.6) / (nFern + nFitt) * 0.76);
+    slots.sort(() => rng() - 0.5);
+    for (let i = 0; i < nFern; i++) plants.push({ kind: 'fern', u: slots.pop(), g: 0.36 + rng() * 0.08, fronds: 5 + Math.floor(rng() * 3), lean: (rng() - 0.5) * 0.3, seed: Math.floor(rng() * 1e9) });
+    for (let i = 0; i < nFitt; i++) plants.push({ kind: 'fittonia', u: slots.pop(), g: 0.33 + rng() * 0.08, veins: rng() < 0.5 ? 'pink' : 'white', seed: Math.floor(rng() * 1e9) });
+    const pebbles = []; for (let i = 0; i < 70; i++) pebbles.push({ x: JAR.x0 + 10 + rng() * (JAR.x1 - JAR.x0 - 20), y: JAR.bottom - 8 - rng() * 44, r: 6 + rng() * 9, c: 150 + rng() * 60 });
+    const tufts = []; for (let i = 0; i < 160; i++) tufts.push({ u: rng(), s: 0.6 + rng() * 0.8, h: rng() });
+    const tails = []; for (let i = 0; i < 120; i++) tails.push({ u: rng(), ph: rng() * 6.28, sp: 0.5 + rng() });
+    S = { t: 8, soilW: 62, airW: 5, beadW: 0, beads: [], drips: 0, dripAnims: [], lid: true, moss: 0.35, spring: 8, plants, pebbles, tufts, tails, history: [], lostW: 0, addedW: 0,
+      beadRng: mulberry32(SEED ^ 0x9e3779b9) };
+  }
+  const hourOf = (t) => ((t % 24) + 24) % 24;
+  function lightAt(t) { const h = hourOf(t); return h > 6 && h < 20 ? Math.pow(Math.sin(Math.PI * (h - 6) / 14), 1.2) : 0; }
+  const humidity = () => S.airW / AIR_CAP;
+  const plantMass = () => S.plants.reduce((a, p) => a + p.g * (p.kind === 'fern' ? 1.2 : 0.8), 0);
+  const totalWater = () => S.soilW + S.airW + S.beadW;
+
+  function step() {
+    const dt = DT;
+    S.t += dt;
+    const L = lightAt(S.t), Hh = humidity();
+    // evaporation from the soil and transpiration from leaves, faster in light and in dry air
+    const evap = Math.min(S.soilW, 0.55 * (S.soilW / 100) * (0.25 + L) * Math.max(0, 1 - Hh) * dt);
+    const transp = Math.min(S.soilW - evap, 0.35 * plantMass() * L * (S.soilW > 12 ? 1 : 0.3) * Math.max(0, 1 - Hh) * dt);
+    S.soilW -= evap + transp; S.airW += evap + transp;
+    // the glass is cooler than the air, most of all at night: water condenses when the air is past what it can hold
+    const sat = 0.7 + 0.2 * L;
+    let H2 = humidity();
+    if (H2 > sat) {
+      const cond = Math.min(S.airW, 0.9 * (H2 - sat) * AIR_CAP * dt);
+      S.airW -= cond; S.beadW += cond; addToBeads(cond);
+    } else if (S.beadW > 0) {
+      const re = Math.min(S.beadW, 0.35 * (sat - H2) * AIR_CAP * dt);
+      S.airW += re; S.beadW -= re; takeFromBeads(re);
+    }
+    // an open jar trades air with the room
+    if (!S.lid) {
+      const ex = 0.9 * (humidity() - ROOM_H) * AIR_CAP * dt;
+      const moved = Math.max(-2, Math.min(S.airW, ex));
+      S.airW -= moved; if (moved > 0) S.lostW += moved; else S.addedW -= moved;
+    }
+    // life
+    const moist = clamp((S.soilW - 14) / 34, 0, 1);
+    for (const p of S.plants) {
+      const rate = p.kind === 'fern' ? 0.011 : 0.009;
+      const humBoost = p.kind === 'fern' ? (0.5 + humidity()) : 1;
+      p.g = clamp(p.g + rate * L * moist * humBoost * p.g * (1 - p.g) * dt * 1.6 - (S.soilW < 10 ? 0.002 * dt : 0), 0.05, 1);
+      p.wilt = S.soilW < 16 ? clamp((16 - S.soilW) / 10, 0, 1) : 0;
+    }
+    S.moss = clamp(S.moss + 0.004 * (humidity() > 0.6 ? 1 : -0.6) * moist * S.moss * (1 - S.moss) * dt, 0.05, 1);
+    const K = 30 + 110 * S.moss;
+    S.spring = Math.max(0, S.spring + (0.012 * S.spring * (1 - S.spring / K) * (0.3 + moist) - (S.soilW < 12 ? 0.02 * S.spring : 0)) * dt);
+    // bead drips (visual), history for the sparkline
+    for (const d of S.dripAnims) d.y += dt * 260;
+    S.dripAnims = S.dripAnims.filter((d) => d.y < JAR.soilY);
+    if (Math.abs((S.t * 4) % 4) < 1e-9) { S.history.push([S.t, humidity(), S.soilW / 100, L]); if (S.history.length > 72) S.history.shift(); }
+    for (const k of ['soilW', 'airW', 'beadW', 'moss', 'spring']) if (!Number.isFinite(S[k])) S[k] = 0;
+  }
+  // condensation lands as beads; a bead that grows too heavy runs down as a drip
+  const BEAD_MAX = 0.1, MAX_BEADS = 420;
+  function addToBeads(w) {
+    const r = S.beadRng;
+    while (w > 1e-12) {
+      const chunk = Math.min(w, 0.012);
+      w -= chunk;
+      if (S.beads.length < MAX_BEADS && (S.beads.length < 30 || r() < 0.35)) {
+        const u = r(), yv = Math.pow(r(), 1.6);             // more beads high on the glass, where it is coolest
+        S.beads.push({ u, y: JAR.top + 10 + yv * (JAR.soilY - JAR.top - 30), v: chunk });
+      } else if (S.beads.length) {
+        const b = S.beads[Math.floor(r() * S.beads.length)];
+        b.v += chunk;
+        if (b.v > BEAD_MAX) {
+          S.beads.splice(S.beads.indexOf(b), 1);
+          S.beadW -= b.v; S.soilW += b.v; S.drips++;
+          S.dripAnims.push({ u: b.u, y: b.y, len: 20 + b.v * 300 });
+        }
+      } else { S.beads.push({ u: r(), y: JAR.top + 30, v: chunk }); }
+    }
+  }
+  function takeFromBeads(w) {
+    // evaporate the smallest beads first so the glass clears from the edges of each patch
+    S.beads.sort((a, b) => a.v - b.v);
+    while (w > 1e-12 && S.beads.length) {
+      const b = S.beads[0], take = Math.min(b.v, w);
+      b.v -= take; w -= take;
+      if (b.v <= 1e-9) S.beads.shift();
+    }
+  }
+
+  // ---------- drawing ----------
+  const cv = $('cv'), ctx = cv.getContext('2d');
+  function lerpC(a, b, t) { return a.map((v, i) => Math.round(v + (b[i] - v) * t)); }
+  const rgb = (c, a = 1) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+  function jarPath() {
+    const { x0, x1, top, neckY, neck0, neck1, bottom } = JAR;
+    ctx.beginPath();
+    ctx.moveTo(neck0, neckY);
+    ctx.lineTo(neck0, top - 40);
+    ctx.bezierCurveTo(neck0 - 10, top - 10, x0, top - 20, x0, top + 40);
+    ctx.lineTo(x0, bottom - 30);
+    ctx.quadraticCurveTo(x0, bottom, x0 + 30, bottom);
+    ctx.lineTo(x1 - 30, bottom);
+    ctx.quadraticCurveTo(x1, bottom, x1, bottom - 30);
+    ctx.lineTo(x1, top + 40);
+    ctx.bezierCurveTo(x1, top - 20, neck1 + 10, top - 10, neck1, top - 40);
+    ctx.lineTo(neck1, neckY);
+    ctx.closePath();
+  }
+  function uToX(u, y) { const { x0, x1 } = JAR; return x0 + 12 + u * (x1 - x0 - 24); }
+  function draw() {
+    const L = lightAt(S.t), h = hourOf(S.t);
+    // the room behind: warm day, blue night with a lamp glow
+    const dayC = [226, 232, 214], nightC = [30, 38, 56];
+    const bg = lerpC(nightC, dayC, Math.min(1, L * 1.4 + (h > 5 && h < 21 ? 0.15 : 0)));
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, rgb(bg)); g.addColorStop(1, rgb(lerpC(bg, [20, 20, 20], 0.35)));
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    // window light (day) or lamp (night)
+    if (L > 0) { const wg = ctx.createRadialGradient(80, 60, 10, 80, 60, 520); wg.addColorStop(0, `rgba(255,244,210,${fin(0.55 * L)})`); wg.addColorStop(1, 'rgba(255,244,210,0)'); ctx.fillStyle = wg; ctx.fillRect(0, 0, W, H); }
+    else { const lg = ctx.createRadialGradient(650, 120, 5, 650, 120, 380); lg.addColorStop(0, 'rgba(255,190,120,.35)'); lg.addColorStop(1, 'rgba(255,190,120,0)'); ctx.fillStyle = lg; ctx.fillRect(0, 0, W, H); }
+    // table
+    ctx.fillStyle = rgb(lerpC([70, 52, 38], [140, 108, 80], L)); ctx.fillRect(0, JAR.bottom - 4, W, H);
+    ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(360, JAR.bottom + 6, 240, 14, 0, 0, 6.283); ctx.fill();
+    // inside the jar
+    ctx.save(); jarPath(); ctx.clip();
+    ctx.fillStyle = `rgba(210,232,224,${0.18 + humidity() * 0.12})`; ctx.fillRect(0, 0, W, H);
+    // layers: pebbles, charcoal, soil
+    ctx.fillStyle = '#8b8f86'; ctx.fillRect(0, JAR.bottom - 60, W, 60);
+    for (const p of S.pebbles) { ctx.fillStyle = `rgb(${p.c},${p.c - 8},${p.c - 20})`; ctx.beginPath(); ctx.ellipse(p.x, p.y, p.r, p.r * 0.7, 0, 0, 6.283); ctx.fill(); }
+    ctx.fillStyle = '#1f1d1c'; ctx.fillRect(0, JAR.bottom - 76, W, 18);
+    const wet = clamp(S.soilW / 80, 0, 1);
+    ctx.fillStyle = rgb(lerpC([124, 94, 68], [58, 38, 28], wet));
+    ctx.beginPath(); ctx.moveTo(0, JAR.soilY);
+    for (let x = 0; x <= W; x += 20) ctx.lineTo(x, JAR.soilY - 6 * Math.sin(x / 70 + SEED % 7) - 4 * Math.sin(x / 23));
+    ctx.lineTo(W, JAR.bottom - 76); ctx.lineTo(0, JAR.bottom - 76); ctx.fill();
+    // water table in the drainage layer when it's very wet
+    if (S.soilW > 70) { ctx.fillStyle = `rgba(90,140,170,${fin(clamp((S.soilW - 70) / 60, 0, 0.5))})`; ctx.fillRect(0, JAR.bottom - 40, W, 40); }
+    // moss carpet
+    for (const tf of S.tufts) {
+      if (tf.h > S.moss + 0.1) continue;
+      const x = uToX(tf.u), y = JAR.soilY - 6 * Math.sin(x / 70 + SEED % 7) - 4 * Math.sin(x / 23) + 2;
+      const r = 13 * tf.s * (0.6 + S.moss);
+      ctx.fillStyle = rgb(lerpC([52, 84, 44], [104, 140, 70], tf.h * 0.8), 0.95);
+      ctx.beginPath(); ctx.ellipse(x, y, r * 1.3, r * 0.75, 0, Math.PI, 0); ctx.fill();
+      ctx.fillStyle = 'rgba(170,210,120,.35)'; ctx.beginPath(); ctx.arc(x - r * 0.3, y - r * 0.35, r * 0.25, 0, 6.283); ctx.fill();
+    }
+    // plants
+    for (const p of S.plants) { if (p.kind === 'fern') drawFern(p); else drawFittonia(p); }
+    // springtails
+    const n = Math.round(S.spring);
+    ctx.fillStyle = 'rgba(245,245,235,.9)';
+    for (let i = 0; i < Math.min(n, S.tails.length); i++) {
+      const tl = S.tails[i];
+      const x = uToX((tl.u + (reduced ? 0 : Math.sin(S.t * tl.sp + tl.ph) * 0.01)) % 1), y = JAR.soilY + 4 + Math.sin(tl.ph * 3) * 5;
+      ctx.beginPath(); ctx.ellipse(x, y, 2.2, 1.1, tl.ph, 0, 6.283); ctx.fill();
+    }
+    // condensation beads and drips on the glass
+    for (const b of S.beads) {
+      const r = 1.2 + Math.sqrt(b.v) * 14, x = uToX(b.u);
+      ctx.fillStyle = 'rgba(235,245,250,.35)'; ctx.beginPath(); ctx.arc(x, b.y, r, 0, 6.283); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.beginPath(); ctx.arc(x - r * 0.35, b.y - r * 0.35, Math.max(0.6, r * 0.28), 0, 6.283); ctx.fill();
+    }
+    for (const d of S.dripAnims) {
+      const x = uToX(d.u);
+      const gr = ctx.createLinearGradient(0, d.y - d.len, 0, d.y); gr.addColorStop(0, 'rgba(235,245,250,0)'); gr.addColorStop(1, 'rgba(235,245,250,.6)');
+      ctx.strokeStyle = gr; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(x, d.y - d.len); ctx.lineTo(x, d.y); ctx.stroke();
+    }
+    // a haze of fog when very humid
+    if (humidity() > 0.8) { ctx.fillStyle = `rgba(240,245,245,${fin((humidity() - 0.8) * 0.8)})`; ctx.fillRect(0, 0, W, H); }
+    ctx.restore();
+    // glass outline and highlights
+    jarPath(); ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.strokeStyle = 'rgba(40,70,60,.35)'; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.fillRect(JAR.x0 + 18, JAR.top + 50, 14, 380);
+    ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(JAR.x1 - 40, JAR.top + 80, 8, 300);
+    // lid: a cork stopper, on the jar or resting beside it
+    drawLid(S.lid);
+    // night dimming over everything
+    if (L < 0.2) { ctx.fillStyle = `rgba(10,14,30,${fin((0.2 - L) * 1.2)})`; ctx.fillRect(0, 0, W, H); }
+  }
+  function drawLid(on) {
+    const cx = on ? 360 : 640, cy = on ? JAR.neckY - 18 : JAR.bottom - 26, w = JAR.neck1 - JAR.neck0 + 10;
+    ctx.save(); ctx.translate(cx, cy); if (!on) ctx.rotate(-0.08);
+    ctx.fillStyle = '#b98a57'; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(-w / 2 + 8, 0, w - 16, 34, 6) : ctx.rect(-w / 2 + 8, 0, w - 16, 34); ctx.fill();
+    ctx.fillStyle = '#c99a66'; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(-w / 2, -14, w, 18, 8) : ctx.rect(-w / 2, -14, w, 18); ctx.fill();
+    ctx.fillStyle = 'rgba(90,60,30,.35)'; for (let i = 0; i < 26; i++) { ctx.fillRect(-w / 2 + 10 + ((i * 37) % (w - 20)), -8 + ((i * 13) % 36), 2, 2); }
+    ctx.restore();
+  }
+  function drawFern(p) {
+    const baseX = uToX(p.u), baseY = JAR.soilY - 4;
+    const r = mulberry32(p.seed);
+    const n = Math.max(2, Math.round(p.fronds * (0.5 + p.g * 0.5)));
+    for (let f = 0; f < n; f++) {
+      const spread = (f / Math.max(1, n - 1) - 0.5) * 2.2 + p.lean;
+      const gi = clamp(p.g * (0.75 + r() * 0.35) - f * 0.02, 0.05, 1);
+      const iters = Math.max(1, Math.round(3 + gi * 11));
+      const str = lsys('A', FERN, iters);
+      const seg = 13 + gi * 15;
+      const droop = (p.wilt || 0) * 0.9;
+      // turtle
+      let x = baseX, y = baseY, a = -Math.PI / 2 + spread * 0.55;
+      const bend = 0.05 * Math.sign(spread || 1) * (1 + droop * 3);
+      const stack = [];
+      let depth = 0;
+      ctx.strokeStyle = '#4e7a37'; ctx.lineCap = 'round';
+      const total = (str.match(/A/g) || []).length ? iters : 1;
+      let k = 0;
+      for (const c of str) {
+        if (c === 'F') {
+          const t = k / iters, w = 2.4 * (1 - t) + 0.6;
+          const nx = x + Math.cos(a) * seg * (1 - t * 0.5), ny = y + Math.sin(a) * seg * (1 - t * 0.5);
+          if (depth === 0) { ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(fin(x), fin(y)); ctx.lineTo(fin(nx), fin(ny)); ctx.stroke(); x = nx; y = ny; a += bend; k++; }
+        } else if (c === '[') { stack.push([x, y, a]); depth++; }
+        else if (c === ']') { [x, y, a] = stack.pop(); depth--; }
+        else if (c === 'P' && depth === 1) {
+          const t = k / iters, side = stack.length && str ? 1 : 1;
+          const len = seg * 1.9 * (1 - t * 0.85) * (0.6 + gi * 0.5);
+          const pa = a + (str[0] === 'A' ? 0 : 0) + (lastSign = -lastSign) * (1.15 - droop * 0.4);
+          drawPinna(x, y, pa + droop * 0.5 * Math.sign(Math.cos(pa)), len);
+        } else if (c === 'A' && depth === 0 && gi < 0.97) {
+          // the unfurling tip: a fiddlehead coil that opens as the frond matures
+          const cr = 4 + (1 - gi) * 6;
+          ctx.lineWidth = 1.4; ctx.beginPath();
+          for (let q = 0; q <= 20; q++) { const th = a + q * 0.35, rr = cr * (1 - q / 24); ctx.lineTo(fin(x + Math.cos(th) * rr), fin(y + Math.sin(th) * rr)); }
+          ctx.stroke();
+        }
+      }
+      void total;
+    }
+  }
+  let lastSign = 1;
+  function drawPinna(x, y, a, len) {
+    ctx.save(); ctx.translate(fin(x), fin(y)); ctx.rotate(fin(a));
+    ctx.fillStyle = '#6f9a4f';
+    const lobes = Math.max(2, Math.round(len / 4));
+    ctx.beginPath(); ctx.moveTo(0, 0);
+    for (let i = 0; i <= lobes; i++) { const t = i / lobes; ctx.lineTo(t * len, -(1 - t) * len * 0.22 - 1.5 * Math.sin(t * Math.PI * lobes)); }
+    for (let i = lobes; i >= 0; i--) { const t = i / lobes; ctx.lineTo(t * len, (1 - t) * len * 0.18); }
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(40,70,30,.5)'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(len, 0); ctx.stroke();
+    ctx.restore();
+  }
+  function drawFittonia(p) {
+    const baseX = uToX(p.u), baseY = JAR.soilY - 2;
+    const iters = Math.max(2, Math.round(2 + p.g * 4));
+    const str = lsys('T', FITT, iters);
+    const seg = 11 + p.g * 10, droop = p.wilt || 0;
+    let x = baseX, y = baseY, a = -Math.PI / 2, depth = 0;
+    const stack = [];
+    const r = mulberry32(p.seed);
+    ctx.strokeStyle = '#6b4f3a'; ctx.lineCap = 'round'; ctx.lineWidth = 1.6;
+    for (const c of str) {
+      if (c === 'F') { const nx = x + Math.cos(a) * seg, ny = y + Math.sin(a) * seg; ctx.beginPath(); ctx.moveTo(fin(x), fin(y)); ctx.lineTo(fin(nx), fin(ny)); ctx.stroke(); x = nx; y = ny; a += (r() - 0.5) * 0.3; }
+      else if (c === '+') a += 0.6 + r() * 0.3;
+      else if (c === '-') a -= 0.6 + r() * 0.3;
+      else if (c === '[') { stack.push([x, y, a]); depth++; }
+      else if (c === ']') { [x, y, a] = stack.pop(); depth--; }
+      else if (c === 'L') leaf(x, y, a + droop * 0.8, (18 + p.g * 20) * (0.8 + r() * 0.4), p.veins, droop);
+    }
+  }
+  function leaf(x, y, a, len, veins, droop) {
+    ctx.save(); ctx.translate(fin(x), fin(y)); ctx.rotate(fin(a));
+    ctx.fillStyle = droop > 0.4 ? '#5f7a44' : '#3f6b3a';
+    ctx.beginPath(); ctx.ellipse(len * 0.5, 0, len * 0.5, len * 0.32 * (1 - droop * 0.3), 0, 0, 6.283); ctx.fill();
+    ctx.strokeStyle = veins === 'pink' ? 'rgba(236,150,175,.95)' : 'rgba(240,245,235,.95)'; ctx.lineWidth = 0.9;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(len, 0);
+    for (let i = 1; i <= 3; i++) { const t = i / 4; ctx.moveTo(len * t, 0); ctx.lineTo(len * (t + 0.12), -len * 0.25); ctx.moveTo(len * t, 0); ctx.lineTo(len * (t + 0.12), len * 0.25); }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // ---------- HUD ----------
+  const pad = (n) => String(n).padStart(2, '0');
+  function hud() {
+    const L = lightAt(S.t), day = Math.floor(S.t / 24) + 1, h = hourOf(S.t);
+    $('clock').textContent = `Day ${day} · ${pad(Math.floor(h))}:${pad(Math.floor((h % 1) * 60))}`;
+    $('sLight').textContent = L > 0 ? Math.round(L * 100) + '%' : 'night';
+    $('sHum').textContent = Math.round(humidity() * 100) + '%';
+    $('sSoil').textContent = Math.round(S.soilW) + '%';
+    $('sBeads').textContent = S.beads.length;
+    $('sDrips').textContent = S.drips;
+    $('sSpring').textContent = Math.round(S.spring);
+    const fern = S.plants.find((p) => p.kind === 'fern');
+    cv.setAttribute('aria-label', `Terrarium on day ${day} at ${pad(Math.floor(h))}:00, ${L > 0 ? 'lit' : 'dark'}, lid ${S.lid ? 'on' : 'off'}. Humidity ${Math.round(humidity() * 100)}%, soil ${Math.round(S.soilW)}% moist, ${S.beads.length} beads of condensation, ${Math.round(S.spring)} springtails. ${S.plants.length} plants${fern ? `, fern ${Math.round(fern.g * 100)}% grown` : ''}${S.plants.some((p) => p.wilt > 0.2) ? ', some wilting' : ''}.`);
+    drawSpark();
+  }
+  function drawSpark() {
+    const svg = $('spark'); const hs = S.history;
+    if (hs.length < 2) { svg.innerHTML = ''; return; }
+    const W2 = 320, H2 = 90, t0 = hs[0][0], t1 = hs[hs.length - 1][0];
+    const x = (t) => 4 + (t - t0) / Math.max(1, t1 - t0) * (W2 - 8), y = (v) => H2 - 6 - v * (H2 - 12);
+    const line = (i) => hs.map((p, k) => (k ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y(clamp(p[i], 0, 1)).toFixed(1)).join('');
+    svg.innerHTML = `<rect x="0" y="0" width="${W2}" height="${H2}" fill="#fff" rx="8"/>` +
+      `<path d="${line(3)}" fill="none" stroke="#d6a63a" stroke-width="1.5" opacity=".8"/><path d="${line(2)}" fill="none" stroke="#8a5a3b" stroke-width="2"/><path d="${line(1)}" fill="none" stroke="#2f7fa0" stroke-width="2"/>`;
+  }
+  function say(m) { $('status').textContent = m; }
+
+  // ---------- controls ----------
+  let speed = reduced ? 0 : 4, manual = false, acc = 0, last = null;
+  $('speed').value = speed;
+  function setSpeed(v) { speed = v; $('speedOut').textContent = v === 0 ? 'paused' : `${v} h/s`; }
+  setSpeed(speed);
+  $('speed').addEventListener('input', () => setSpeed(+$('speed').value));
+  $('lid').addEventListener('click', () => {
+    S.lid = !S.lid;
+    $('lid').setAttribute('aria-pressed', String(!S.lid));
+    $('lid').textContent = S.lid ? 'Take the lid off' : 'Put the lid back';
+    say(S.lid ? 'Sealed again. The water cycle is closed.' : 'Lid off: the damp air drifts out into the room.');
+    hud(); draw();
+  });
+  $('mist').addEventListener('click', () => { S.soilW = Math.min(100, S.soilW + 6); S.addedW += 6; say('A few sprays of water on the moss.'); hud(); draw(); });
+  $('step').addEventListener('click', () => { advance(6); say('Six hours later…'); });
+  $('reseed').addEventListener('click', () => {
+    SEED = (Math.floor(Math.random() * 1e9) >>> 0) || 1; init();
+    try { const u = new URL(location.href); u.searchParams.set('seed', SEED); history.replaceState(null, '', u); } catch (e) { /* ignore */ }
+    $('lid').setAttribute('aria-pressed', 'false'); $('lid').textContent = 'Take the lid off';
+    say(`A new jar, planted with seed ${SEED}.`); hud(); draw();
+  });
+  function advance(hours) { const n = Math.round(hours / DT); for (let i = 0; i < n; i++) step(); hud(); draw(); }
+  function frame(ts) {
+    requestAnimationFrame(frame);
+    if (last === null) last = ts;
+    let dt = (ts - last) / 1000; last = ts; if (!Number.isFinite(dt) || dt < 0) dt = 0; dt = Math.min(dt, 0.25);
+    if (manual || speed === 0) return;
+    acc += dt * speed;
+    let any = false;
+    while (acc >= DT) { step(); acc -= DT; any = true; }
+    if (any) { hud(); draw(); }
+  }
+
+  window.__terrarium = {
+    get state() {
+      return { seed: SEED, t: S.t, day: Math.floor(S.t / 24) + 1, hour: hourOf(S.t), light: lightAt(S.t), humidity: humidity(), soil: S.soilW, air: S.airW, beadW: S.beadW, water: totalWater(),
+        lost: S.lostW, added: S.addedW, beads: S.beads.length, drips: S.drips, lid: S.lid, moss: S.moss, springtails: S.spring,
+        plants: S.plants.map((p) => ({ kind: p.kind, u: p.u, g: p.g, wilt: p.wilt || 0 })) };
+    },
+    manual(on) { manual = !!on; acc = 0; },
+    reset() { init(); hud(); draw(); },
+    advance(h) { advance(h); return this.state; },
+    lightAt, lsys, FERN, FITT,
+  };
+
+  init(); hud(); draw();
+  say(reduced ? 'Time-lapse is paused because you prefer reduced motion. Use +6 hours or the slider.' : 'Watching the jar at four hours a second.');
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

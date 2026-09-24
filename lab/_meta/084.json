@@ -1,0 +1,34 @@
+{
+  "id": "084",
+  "slug": "084-pairwise-lab",
+  "file": "lab/084-pairwise-lab.html",
+  "title": "Pairwise Lab — All-Pairs Combinatorial Test Design",
+  "category": "QA & Testing",
+  "tags": ["pairwise", "combinatorial-testing", "test-design", "heatmap", "csv"],
+  "description": "Define parameters and values (browser, OS, locale, payment method…), forbid combinations that can't happen, and generate an all-pairs covering set with a seeded greedy algorithm that respects the constraints. The page compares exhaustive and pairwise counts, draws a pair-coverage heatmap you can click to find the covering rows, re-verifies every allowed pair independently, and exports the rows as CSV.",
+  "prompt": "Build 'Pairwise Lab' for combinatorial test design. Let me define parameters and their values (browser, OS, locale, payment method as the default), add optional constraints for invalid combinations, and generate an all-pairs covering set with a greedy algorithm. Show the exhaustive count next to the pairwise count, a heatmap of pair coverage, and an in-page verification that every allowed pair is covered and no row breaks a constraint. Export CSV. Make it look like engineering graph paper, and keep the generator deterministic under a seed.",
+  "qa": {
+    "methodology": [
+      "Property-based oracle written in the spec itself: it reads parameters from the form, active constraints from the chips and rows from the table, then checks that every allowed pair appears and no row contains a forbidden pair — independent of the page's own verifier.",
+      "Arithmetic oracles for the counts: 4 × 4 × 3 × 4 = 192 exhaustive, 154 valid by inclusion–exclusion over the three constraints, 189 pairs for the 3⁷ preset, and a lower bound equal to the product of the two largest value counts.",
+      "Input partitioning on the parameter editor: duplicates and blank values are dropped, same-parameter constraints are refused with a message.",
+      "Cross-view consistency: a heatmap cell's count equals the number of highlighted table rows, and the CSV equals the table line for line.",
+      "Determinism: the same seed regenerates identical rows after a different seed has been used."
+    ],
+    "risks": [
+      "The greedy step painting itself into a corner under constraints; each value choice is checked for completability with a small backtracking search, and pairs no valid row can contain are reported as unreachable instead of looping.",
+      "Stale constraints after a value is renamed; they stay visible but are marked inactive and ignored.",
+      "Heatmap size exploding with many values; cells shrink and the chart scrolls inside its own box.",
+      "Off-by-one in the triangular heatmap layout hiding or duplicating pairs."
+    ],
+    "playwright": "The central assertion is a real property check, not a snapshot: the spec recomputes all-pairs coverage from what the user can see, so it would catch a bug in the generator and in the page's verifier alike. selectOption by label drives the constraint pickers, and the CSV download is checked through page.waitForEvent('download'). Heatmap cells are SVG rects with data-kind and data-count, which Playwright clicks directly. Row counts are asserted as a range (≥ 16, ≤ 24) rather than an exact number so a better heuristic wouldn't break the test.",
+    "coverage": [
+      "Checkout preset: counts, bound, verified property, valid-combination count",
+      "Adding and removing constraints, forbidden heatmap cells, same-parameter rejection",
+      "Adding a parameter with messy values, the 3⁷ service preset and the settings preset",
+      "Heatmap cell to highlighted rows, forbidden cell message",
+      "CSV equals table, download filename, seed reproducibility"
+    ]
+  },
+  "a11y": "Parameters, values and constraint pickers are labelled form controls, and the results are a real table with column headers, so the heatmap is a visual summary rather than the only way to read coverage. The exhaustive/pairwise counts, verification result and heatmap selection are announced through live regions."
+}

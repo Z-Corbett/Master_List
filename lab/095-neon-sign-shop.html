@@ -1,0 +1,608 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Neon Sign Shop — design a glass neon sign</title>
+<meta name="description" content="Design a neon sign: type up to two lines, bend them in a single-stroke tube font (A–Z, 0–9) with painted blockouts and electrodes, choose realistic neon and argon phosphor colours, a backboard, mounting standoffs and a brick, wood or concrete wall, then flip the switch, add flicker and transformer buzz, and export a PNG.">
+<style>
+  :root {
+    --night: #121016;
+    --night-2: #1c1822;
+    --order: #f5ecc9;
+    --order-2: #ebdfae;
+    --carbon: #2c2a52;
+    --red: #d8372b;
+    --ink: #221f1a;
+    --muted: #6e6552;
+    --type: "Courier New", Courier, "Nimbus Mono PS", monospace;
+    --hand: "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--night); color: #ece6f3; font: 15px/1.5 var(--sans); overflow-x: hidden; min-height: 100vh;
+    background-image: radial-gradient(ellipse at 30% -10%, #2a2233 0%, transparent 60%); }
+  :focus-visible { outline: 3px solid #ff5fbf; outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: #ffd6ef; text-decoration: none; font: 700 13px/1 var(--type); padding: 8px 12px; border-radius: 6px; border: 1.5px solid #ff5fbf;
+    background: rgba(18,16,22,.85); box-shadow: 0 0 10px rgba(255,95,191,.45), inset 0 0 6px rgba(255,95,191,.3); text-shadow: 0 0 6px #ff5fbf; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 60px 18px 40px; }
+  header { display: flex; justify-content: space-between; align-items: end; gap: 12px 24px; flex-wrap: wrap; margin-bottom: 16px; }
+  h1 { margin: 0; font: 700 clamp(34px, 5.6vw, 58px)/1 var(--type); letter-spacing: .02em; color: #fff4f9; text-shadow: 0 0 4px #fff, 0 0 12px #ff5fbf, 0 0 28px #ff2a8a; }
+  .tag { margin: 6px 0 0; color: #b9aec8; max-width: 60ch; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 22px; align-items: start; }
+  .window { min-width: 0; }
+  .frame { position: relative; border-radius: 6px; overflow: hidden; background: #000; box-shadow: 0 0 0 1px #3a3342, 0 30px 60px rgba(0,0,0,.6); }
+  canvas { display: block; width: 100%; height: auto; aspect-ratio: 1200 / 720; }
+  .bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+  .switch { display: inline-flex; align-items: center; gap: 10px; min-height: 48px; padding: 6px 16px 6px 8px; border-radius: 999px; border: 1.5px solid #4a4052; background: #1f1a25; color: #fff; font: 700 15px/1 var(--sans); cursor: pointer; }
+  .switch .knob { width: 44px; height: 26px; border-radius: 999px; background: #3b3342; position: relative; transition: background .2s; flex: none; }
+  .switch .knob::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #d7d0de; transition: transform .2s; }
+  .switch[aria-pressed="true"] .knob { background: #ff5fbf; box-shadow: 0 0 12px #ff5fbf; }
+  .switch[aria-pressed="true"] .knob::after { transform: translateX(18px); background: #fff; }
+  @media (prefers-reduced-motion: reduce) { .switch .knob, .switch .knob::after { transition: none; } }
+  .pill { min-height: 44px; padding: 8px 14px; border-radius: 999px; border: 1.5px solid #4a4052; background: transparent; color: #e6def0; font: 600 14px/1 var(--sans); cursor: pointer; }
+  .pill[aria-pressed="true"] { border-color: #ffc53a; color: #ffe39a; box-shadow: inset 0 0 0 1px #ffc53a; }
+  .pill.export { border-color: #20e3d8; color: #a9fff9; }
+  .readout { font: 13px/1.5 var(--type); color: #b9aec8; margin-top: 10px; min-height: 1.5em; }
+
+  /* the work order */
+  .order { background: var(--order); color: var(--ink); border-radius: 3px; padding: 18px 18px 14px; min-width: 0; position: relative; font-family: var(--type);
+    box-shadow: 0 16px 40px rgba(0,0,0,.5); background-image: repeating-linear-gradient(transparent 0 27px, rgba(44,42,82,.13) 27px 28px); }
+  .order::before { content: ""; position: absolute; left: 0; right: 0; top: -8px; height: 10px; background: radial-gradient(circle at 6px 10px, transparent 5px, var(--order) 5.5px) -1px 0 / 16px 10px repeat-x; }
+  .order h2 { margin: 0; font: 700 20px/1.2 var(--type); letter-spacing: .08em; color: var(--carbon); text-transform: uppercase; }
+  .order .no { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--muted); border-bottom: 2px solid var(--carbon); padding-bottom: 6px; margin-bottom: 12px; }
+  .order .no b { color: var(--red); }
+  .fld { margin-bottom: 12px; min-width: 0; }
+  .fld > label, .fld > .lbl { display: block; font: 700 12px/1.3 var(--type); letter-spacing: .1em; text-transform: uppercase; color: var(--carbon); margin-bottom: 4px; }
+  input[type=text] { width: 100%; max-width: 100%; min-width: 0; font: 700 20px/1.2 var(--hand); color: var(--carbon); background: transparent; border: 0; border-bottom: 2px dashed var(--carbon); padding: 4px 2px; }
+  input[type=text]:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 3px; min-height: 1.2em; }
+  .hint.warn { color: var(--red); }
+  .swatches { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+  .sw { min-height: 44px; border-radius: 4px; border: 1.5px solid rgba(34,31,26,.35); background: #1a1720; cursor: pointer; padding: 3px; display: grid; place-items: center; min-width: 0; }
+  .sw i { display: block; width: 100%; height: 12px; border-radius: 6px; }
+  .sw[aria-checked="true"] { border: 2px solid var(--red); outline: 2px solid var(--order); outline-offset: -4px; }
+  .cinfo { font-size: 12px; color: var(--carbon); margin-top: 5px; min-height: 2.4em; }
+  .seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .seg.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .seg button { min-height: 40px; padding: 4px; border-radius: 3px; border: 1.5px solid var(--carbon); background: transparent; color: var(--carbon); font: 700 12px/1.1 var(--type); cursor: pointer; min-width: 0; overflow-wrap: anywhere; }
+  .seg button[aria-checked="true"] { background: var(--carbon); color: var(--order); }
+  .linetabs { display: flex; gap: 6px; margin-bottom: 6px; }
+  .linetabs button { min-height: 32px; padding: 2px 10px; border-radius: 3px; border: 1.5px solid var(--carbon); background: transparent; color: var(--carbon); font: 700 12px var(--type); cursor: pointer; }
+  .linetabs button[aria-pressed="true"] { background: var(--red); border-color: var(--red); color: #fff; }
+  .stamp { position: absolute; right: 14px; bottom: 12px; transform: rotate(-8deg); border: 2px solid var(--red); color: var(--red); font: 700 12px/1 var(--type); padding: 5px 7px; letter-spacing: .12em; opacity: .75; }
+  .spec { font-size: 12px; color: var(--carbon); border-top: 1px dashed var(--carbon); padding-top: 8px; margin-top: 4px; padding-right: 90px; min-height: 3em; }
+  footer { text-align: center; margin-top: 26px; color: #8d8299; font-size: 13px; }
+  footer code { background: rgba(255,255,255,.07); padding: 1px 5px; border-radius: 4px; }
+  @media (max-width: 960px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 420px) { .swatches { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; } .seg.four { grid-template-columns: repeat(2, minmax(0, 1fr)); } .spec { padding-right: 0; padding-bottom: 34px; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Neon Sign Shop</h1>
+      <p class="tag">Bend your words in glass. Every letter is one continuous tube, with painted-out blockouts where the glass has to double back and an electrode at each end, just as a sign bender would make it.</p>
+    </div>
+  </header>
+  <div class="layout">
+    <div class="window">
+      <div class="frame"><canvas id="cv" width="1200" height="720" data-testid="sign" role="img" aria-label="Neon sign preview"></canvas></div>
+      <div class="bar">
+        <button type="button" class="switch" id="power" aria-pressed="false" data-testid="power"><span class="knob" aria-hidden="true"></span><span id="powerTxt">Switch on</span></button>
+        <button type="button" class="pill" id="flicker" aria-pressed="false" data-testid="flicker">Flicker</button>
+        <button type="button" class="pill" id="buzz" aria-pressed="false" data-testid="buzz">Transformer buzz</button>
+        <button type="button" class="pill export" id="export" data-testid="export">Export PNG</button>
+      </div>
+      <p class="readout" id="readout" role="status" aria-live="polite" data-testid="readout"></p>
+    </div>
+
+    <form class="order" id="order" onsubmit="return false" aria-label="Sign work order">
+      <h2>Work order</h2>
+      <div class="no"><span>Shop ticket <b id="ticket">No. 0421</b></span><span>Austin, TX</span></div>
+      <div class="fld"><label for="l1">Line 1</label><input type="text" id="l1" maxlength="14" value="OPEN LATE" autocomplete="off" spellcheck="false" data-testid="line1"></div>
+      <div class="fld"><label for="l2">Line 2 (optional)</label><input type="text" id="l2" maxlength="14" value="TACOS 24" autocomplete="off" spellcheck="false" data-testid="line2"><div class="hint" id="hint" data-testid="hint">Letters A–Z, digits 0–9, space, and - . ! ' only. 14 per line.</div></div>
+      <div class="fld">
+        <span class="lbl" id="colLbl">Tube colour</span>
+        <div class="linetabs" role="group" aria-label="Which line to colour"><button type="button" data-line="0" aria-pressed="true" data-testid="colour-line1">Line 1</button><button type="button" data-line="1" aria-pressed="false" data-testid="colour-line2">Line 2</button></div>
+        <div class="swatches" role="radiogroup" aria-labelledby="colLbl" id="swatches"></div>
+        <div class="cinfo" id="cinfo" data-testid="colour-info"></div>
+      </div>
+      <div class="fld"><span class="lbl" id="styLbl">Tube style</span><div class="seg" role="radiogroup" aria-labelledby="styLbl" id="styles"></div></div>
+      <div class="fld"><span class="lbl" id="bdLbl">Backboard</span><div class="seg four" role="radiogroup" aria-labelledby="bdLbl" id="boards"></div></div>
+      <div class="fld"><span class="lbl" id="soLbl">Standoffs</span><div class="seg" role="radiogroup" aria-labelledby="soLbl" id="standoffs"></div></div>
+      <div class="fld"><span class="lbl" id="wlLbl">Wall</span><div class="seg" role="radiogroup" aria-labelledby="wlLbl" id="walls"></div></div>
+      <div class="spec" id="spec" data-testid="spec"></div>
+      <div class="stamp" aria-hidden="true">HAND BENT</div>
+    </form>
+  </div>
+  <footer>Built by Zac Corbett · single-stroke tube font drawn from scratch · canvas + Web Audio · <code>?seed=</code> fixes the wall and the flicker</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const fin = (v, d = 0) => (Number.isFinite(v) ? v : d);
+  const params = new URLSearchParams(location.search);
+  const SEED = (parseInt(params.get('seed'), 10) >>> 0) || 1937;
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+  // ---------- the single-stroke tube font ----------
+  // Each glyph is ONE continuous path on a grid 6 units tall (y down, baseline at 6).
+  // "x,y" = lit tube to that point; "~x,y" = blockout (glass painted black where the tube doubles back or jumps).
+  const FONT = {
+    A: [4, '0,6 2,0 4,6 ~3,3 1,3'],
+    B: [4, '0,3 3,3 4,4 4,5 3,6 0,6 0,0 3,0 4,1 4,2 3,3'],
+    C: [4, '4,1 3,0 1,0 0,1 0,5 1,6 3,6 4,5'],
+    D: [4, '0,0 0,6 2.5,6 4,4.5 4,1.5 2.5,0 0,0'],
+    E: [4, '4,0 0,0 0,3 3,3 ~0,3 0,6 4,6'],
+    F: [4, '4,0 0,0 0,3 3,3 ~0,3 0,6'],
+    G: [4, '4,1 3,0 1,0 0,1 0,5 1,6 3,6 4,5 4,3.5 2.5,3.5'],
+    H: [4, '0,6 0,0 ~0,3 4,3 ~4,0 4,6'],
+    I: [2, '1,0 1,6'],
+    J: [4, '4,0 4,5 3,6 1,6 0,5'],
+    K: [4, '0,0 0,6 ~0,4 4,0 ~1.4,2.6 4,6'],
+    L: [4, '0,0 0,6 4,6'],
+    M: [5, '0,6 0,0 2.5,3.6 5,0 5,6'],
+    N: [4, '0,6 0,0 4,6 4,0'],
+    O: [4, '1,0 3,0 4,1 4,5 3,6 1,6 0,5 0,1 1,0'],
+    P: [4, '0,6 0,0 3,0 4,1 4,2 3,3 0,3'],
+    Q: [4, '2.5,4.5 3.6,5.6 3,6 1,6 0,5 0,1 1,0 3,0 4,1 4,5 3.6,5.6 4.4,6.4'],
+    R: [4, '0,6 0,0 3,0 4,1 4,2 3,3 0,3 ~1.6,3 4,6'],
+    S: [4, '4,1 3,0 1,0 0,1 0,2 1,3 3,3 4,4 4,5 3,6 1,6 0,5'],
+    T: [4, '0,0 4,0 ~2,0 2,6'],
+    U: [4, '0,0 0,5 1,6 3,6 4,5 4,0'],
+    V: [4, '0,0 2,6 4,0'],
+    W: [5, '0,0 1.2,6 2.5,2.4 3.8,6 5,0'],
+    X: [4, '0,0 4,6 ~0,6 4,0'],
+    Y: [4, '0,0 2,3 4,0 ~2,3 2,6'],
+    Z: [4, '0,0 4,0 0,6 4,6'],
+    0: [4, '1,0 3,0 4,1 4,5 3,6 1,6 0,5 0,1 1,0'],
+    1: [3, '0.6,1.2 2,0 2,6'],
+    2: [4, '0,1 1,0 3,0 4,1 4,2 0,6 4,6'],
+    3: [4, '0,1 1,0 3,0 4,1 4,2 3,3 1.5,3 ~3,3 4,4 4,5 3,6 1,6 0,5'],
+    4: [4, '3,6 3,0 0,4 4,4'],
+    5: [4, '4,0 0,0 0,2.6 3,2.6 4,3.6 4,5 3,6 1,6 0,5'],
+    6: [4, '3.6,0.6 3,0 1,0 0,1 0,5 1,6 3,6 4,5 4,4 3,3 1,3 0,4'],
+    7: [4, '0,0 4,0 1.5,6'],
+    8: [4, '2,3 0.3,1.6 1,0 3,0 3.7,1.6 2,3 0.3,4.4 1,6 3,6 3.7,4.4 2,3'],
+    9: [4, '0.4,5.4 1,6 3,6 4,5 4,1 3,0 1,0 0,1 0,2 1,3 3,3 4,2'],
+    '-': [3, '0.3,3.4 2.7,3.4'],
+    '.': [1, '0.5,5.4 0.5,6'],
+    '!': [1, '0.5,0 0.5,4 ~0.5,5.2 0.5,6'],
+    "'": [1, '0.5,0 0.5,1.6'],
+  };
+  const SPACE_W = 2.6, GAP = 1.6, LINE_GAP = 3.2;
+  function parseGlyph(ch) {
+    const g = FONT[ch]; if (!g) return null;
+    const toks = g[1].trim().split(/\s+/);
+    const pts = [], flags = [];               // flags[i] describes segment pts[i] -> pts[i+1]
+    toks.forEach((t, i) => {
+      const off = t[0] === '~'; const [x, y] = (off ? t.slice(1) : t).split(',').map(Number);
+      if (i > 0) flags.push(off ? 'blockout' : 'lit');
+      pts.push([x, y]);
+    });
+    return { ch, w: g[0], pts, flags };
+  }
+
+  // ---------- colours: gas + glass, as a bender would list them ----------
+  const COLOURS = [
+    { id: 'red', name: 'Neon red', hex: '#ff2d1c', core: '#ffd2c4', gas: 'Neon', glass: 'clear glass', off: 'rgba(235,230,225,.35)' },
+    { id: 'orange', name: 'Orange', hex: '#ff7417', core: '#ffe0bf', gas: 'Neon', glass: 'orange phosphor', off: '#f3d9c2' },
+    { id: 'gold', name: 'Gold', hex: '#ffbe2e', core: '#fff1c2', gas: 'Neon', glass: 'yellow glass', off: '#e9d98f' },
+    { id: 'pink', name: 'Hot pink', hex: '#ff4fb4', core: '#ffe0f1', gas: 'Neon', glass: 'pink phosphor', off: '#f2d5e4' },
+    { id: 'purple', name: 'Purple', hex: '#b15cff', core: '#efe0ff', gas: 'Argon-mercury', glass: 'purple phosphor', off: '#e5dcef' },
+    { id: 'blue', name: 'Argon blue', hex: '#2e6bff', core: '#d6e4ff', gas: 'Argon-mercury', glass: 'clear glass', off: 'rgba(225,230,240,.35)' },
+    { id: 'turquoise', name: 'Turquoise', hex: '#1fe0d4', core: '#d9fffb', gas: 'Argon-mercury', glass: 'turquoise phosphor', off: '#d9ece9' },
+    { id: 'green', name: 'Green', hex: '#45f25e', core: '#e0ffe3', gas: 'Argon-mercury', glass: 'green phosphor', off: '#dcecd8' },
+    { id: 'warm', name: 'Warm white', hex: '#ffd9a0', core: '#fffaf0', gas: 'Argon-mercury', glass: '3000K phosphor', off: '#efe9df' },
+    { id: 'snow', name: 'Snow white', hex: '#e8f0ff', core: '#ffffff', gas: 'Argon-mercury', glass: '6500K phosphor', off: '#eceff3' },
+  ];
+  const STYLES = [{ id: 'block', name: 'Block' }, { id: 'rounded', name: 'Rounded' }, { id: 'script', name: 'Italic script' }];
+  const BOARDS = [{ id: 'none', name: 'None' }, { id: 'clear', name: 'Clear acrylic' }, { id: 'black', name: 'Black box' }, { id: 'contour', name: 'Cut to shape' }];
+  const STANDS = [{ id: 'steel', name: 'Brushed steel' }, { id: 'brass', name: 'Brass' }, { id: 'hidden', name: 'Hidden' }];
+  const WALLS = [{ id: 'brick', name: 'Brick' }, { id: 'wood', name: 'Wood' }, { id: 'concrete', name: 'Concrete' }];
+
+  const S = { lines: ['OPEN LATE', 'TACOS 24'], colours: ['pink', 'turquoise'], editLine: 0, style: 'rounded', board: 'clear', stand: 'steel', wall: 'brick',
+    power: 'off', onAt: 0, flicker: false, buzz: false, skipped: [] };
+
+  // ---------- geometry ----------
+  function chaikinRun(pts, rounds) {
+    for (let r = 0; r < rounds && pts.length > 2; r++) {
+      const np = [pts[0]];
+      for (let i = 0; i < pts.length - 1; i++) {
+        const a = pts[i], b = pts[i + 1];
+        if (i > 0) np.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25]);
+        if (i < pts.length - 2) np.push([a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]);
+      }
+      np.push(pts[pts.length - 1]);
+      pts = np;
+    }
+    return pts;
+  }
+  /** Round the corners of each lit or blockout run separately, so the points where the glass changes from lit to painted stay exactly where the font puts them. */
+  function chaikin(pts, flags, rounds) {
+    if (!rounds) return { pts, flags };
+    const out = [pts[0]], of = [];
+    let i = 0;
+    while (i < flags.length) {
+      let j = i; while (j < flags.length && flags[j] === flags[i]) j++;
+      const run = chaikinRun(pts.slice(i, j + 1), rounds);
+      for (let k = 1; k < run.length; k++) { out.push(run[k]); of.push(flags[i]); }
+      i = j;
+    }
+    return { pts: out, flags: of };
+  }
+  let layout = null;
+  function build() {
+    const skipped = new Set();
+    const lines = S.lines.map((raw, li) => {
+      const text = raw.toUpperCase();
+      const glyphs = []; let x = 0;
+      for (const ch of text) {
+        if (ch === ' ') { x += SPACE_W; continue; }
+        const g = parseGlyph(ch);
+        if (!g) { skipped.add(ch); continue; }
+        glyphs.push({ ...g, x, line: li });
+        x += g.w + GAP;
+      }
+      return { text, glyphs, width: Math.max(0, x - GAP) };
+    }).filter((l) => l.glyphs.length);
+    S.skipped = [...skipped];
+    const shear = S.style === 'script' ? 0.22 : 0;
+    const rounds = S.style === 'block' ? 0 : 2;
+    const totalH = lines.length ? lines.length * 6 + (lines.length - 1) * LINE_GAP : 6;
+    const maxW = Math.max(6, ...lines.map((l) => l.width + shear * 6));
+    // fit to the canvas, leaving room for the board and the wall
+    const unit = Math.min(64, 860 / maxW, 400 / totalH);
+    const ox = 600 - (maxW * unit) / 2, oy = 330 - (totalH * unit) / 2;
+    const tubes = [];
+    lines.forEach((l, li) => {
+      const lx = ox + ((maxW - l.width - shear * 6) * unit) / 2;
+      const ly = oy + li * (6 + LINE_GAP) * unit;
+      for (const g of l.glyphs) {
+        const sm = chaikin(g.pts, g.flags, rounds);
+        const P = sm.pts.map(([x, y]) => [lx + (g.x + x + shear * (6 - y)) * unit, ly + y * unit]);
+        tubes.push({ ch: g.ch, line: li, pts: P, flags: sm.flags, raw: g, colour: S.colours[li] || S.colours[0] });
+      }
+    });
+    const all = tubes.flatMap((t) => t.pts);
+    const bbox = all.length ? { x0: Math.min(...all.map((p) => p[0])), x1: Math.max(...all.map((p) => p[0])), y0: Math.min(...all.map((p) => p[1])), y1: Math.max(...all.map((p) => p[1])) } : { x0: 560, x1: 640, y0: 300, y1: 360 };
+    layout = { tubes, unit, bbox, lines };
+    return layout;
+  }
+
+  // ---------- walls (procedural, seeded) ----------
+  const W = 1200, H = 720;
+  const wallCache = {};
+  function wallCanvas(id) {
+    if (wallCache[id]) return wallCache[id];
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d'), r = mulberry32(SEED ^ id.length * 7919);
+    if (id === 'brick') {
+      g.fillStyle = '#6a625a'; g.fillRect(0, 0, W, H);
+      const bw = 92, bh = 38;
+      for (let row = 0, y = 0; y < H; row++, y += bh) {
+        for (let x = (row % 2 ? -bw / 2 : 0); x < W; x += bw) {
+          const t = r(); const base = [150 + t * 40, 64 + t * 22, 46 + t * 16];
+          g.fillStyle = `rgb(${base.map(Math.round).join(',')})`;
+          g.fillRect(x + 3, y + 3, bw - 6, bh - 6);
+          for (let k = 0; k < 14; k++) { g.fillStyle = `rgba(${r() < 0.5 ? '0,0,0' : '255,220,200'},${0.05 + r() * 0.08})`; g.fillRect(x + 3 + r() * (bw - 10), y + 3 + r() * (bh - 10), 2 + r() * 6, 2 + r() * 4); }
+          g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(x + 3, y + bh - 7, bw - 6, 4);
+        }
+      }
+    } else if (id === 'wood') {
+      const pw = 110;
+      for (let x = 0, i = 0; x < W; x += pw, i++) {
+        const t = r();
+        g.fillStyle = `rgb(${Math.round(120 + t * 30)},${Math.round(82 + t * 20)},${Math.round(52 + t * 14)})`; g.fillRect(x, 0, pw, H);
+        for (let k = 0; k < 16; k++) {
+          g.strokeStyle = `rgba(60,34,18,${0.12 + r() * 0.18})`; g.lineWidth = 1 + r() * 2;
+          const gx = x + 6 + r() * (pw - 12);
+          g.beginPath(); g.moveTo(gx, 0);
+          for (let y = 0; y <= H; y += 40) g.lineTo(gx + Math.sin(y / (60 + k * 5) + k) * (3 + r() * 3), y);
+          g.stroke();
+        }
+        if (r() < 0.7) { const kx = x + 20 + r() * (pw - 40), ky = r() * H; g.fillStyle = 'rgba(60,32,16,.45)'; g.beginPath(); g.ellipse(kx, ky, 6, 11, 0, 0, 6.283); g.fill(); }
+        g.fillStyle = 'rgba(20,10,5,.55)'; g.fillRect(x, 0, 3, H);
+      }
+    } else {
+      g.fillStyle = '#8f8c86'; g.fillRect(0, 0, W, H);
+      const img = g.getImageData(0, 0, W, H), d = img.data;
+      for (let i = 0; i < d.length; i += 4) { const n = (r() - 0.5) * 26; d[i] += n; d[i + 1] += n; d[i + 2] += n; }
+      g.putImageData(img, 0, 0);
+      for (let k = 0; k < 40; k++) { g.fillStyle = `rgba(60,58,54,${0.05 + r() * 0.08})`; g.beginPath(); g.ellipse(r() * W, r() * H, 20 + r() * 90, 10 + r() * 50, r() * 3, 0, 6.283); g.fill(); }
+      g.strokeStyle = 'rgba(40,40,40,.25)'; g.lineWidth = 2;
+      for (let x = 300; x < W; x += 300) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke(); }
+      for (let y = 240; y < H; y += 240) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
+      for (let x = 150; x < W; x += 300) for (let y = 120; y < H; y += 240) { g.fillStyle = 'rgba(30,30,30,.55)'; g.beginPath(); g.arc(x, y, 7, 0, 6.283); g.fill(); g.fillStyle = 'rgba(255,255,255,.12)'; g.beginPath(); g.arc(x - 1, y - 1, 3, 0, 6.283); g.fill(); }
+    }
+    wallCache[id] = c;
+    return c;
+  }
+
+  // ---------- rendering ----------
+  const cv = $('cv'), mainCtx = cv.getContext('2d');
+  let ctx = mainCtx;
+  const colourOf = (id) => COLOURS.find((c) => c.id === id) || COLOURS[0];
+  function tracePath(t, want) {
+    // stroke runs of segments whose flag === want
+    ctx.beginPath();
+    let open = false;
+    for (let i = 0; i < t.pts.length - 1; i++) {
+      if (t.flags[i] !== want) { open = false; continue; }
+      const a = t.pts[i], b = t.pts[i + 1];
+      if (!open) { ctx.moveTo(fin(a[0]), fin(a[1])); open = true; }
+      ctx.lineTo(fin(b[0]), fin(b[1]));
+    }
+  }
+  function levels(now) {
+    // brightness per tube: 0..1, from the switch-on sequence and optional flicker
+    const L = layout.tubes.map(() => 0);
+    if (S.power === 'off') return L;
+    const since = now - S.onAt;
+    layout.tubes.forEach((t, i) => {
+      let v;
+      if (reduced || S.power === 'on') v = 1;
+      else {
+        const start = i * 110, k = since - start;
+        if (k < 0) v = 0;
+        else if (k < 60) v = 0.9; else if (k < 120) v = 0.1; else if (k < 170) v = 0.75; else if (k < 230) v = 0.25; else v = Math.min(1, 0.6 + (k - 230) / 300);
+      }
+      if (S.flicker && !reduced && v > 0) {
+        const slot = Math.floor(now / 70), rr = mulberry32(SEED + slot * 131 + i * 977)();
+        if (rr < 0.035) v *= 0.25; else if (rr < 0.09) v *= 0.8;
+      }
+      L[i] = v;
+    });
+    return L;
+  }
+  function drawBase(lit) {
+    const room = lit ? 0.4 : 0.62;
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+    ctx.drawImage(wallCanvas(S.wall), 0, 0);
+    ctx.fillStyle = `rgba(8,6,12,${1 - room})`; ctx.fillRect(0, 0, W, H);
+    const vg = ctx.createRadialGradient(600, 340, 200, 600, 360, 760); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.55)');
+    ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+    const { tubes, bbox, unit } = layout;
+    const pad = unit * 1.3;
+    // backboard
+    const bx0 = bbox.x0 - pad, by0 = bbox.y0 - pad, bx1 = bbox.x1 + pad, by1 = bbox.y1 + pad;
+    const shadowOff = 10;
+    if (S.board === 'clear' || S.board === 'black') {
+      ctx.fillStyle = 'rgba(0,0,0,.35)'; roundRect(bx0 + shadowOff, by0 + shadowOff, bx1 - bx0, by1 - by0, 14); ctx.fill();
+      if (S.board === 'black') { ctx.fillStyle = '#121014'; roundRect(bx0, by0, bx1 - bx0, by1 - by0, 10); ctx.fill(); ctx.strokeStyle = '#2d2830'; ctx.lineWidth = 3; ctx.stroke(); }
+      else { ctx.fillStyle = 'rgba(210,225,235,.10)'; roundRect(bx0, by0, bx1 - bx0, by1 - by0, 14); ctx.fill(); ctx.strokeStyle = 'rgba(230,245,255,.45)'; ctx.lineWidth = 2; ctx.stroke(); ctx.strokeStyle = 'rgba(255,255,255,.15)'; ctx.lineWidth = 1; roundRect(bx0 + 6, by0 + 6, bx1 - bx0 - 12, by1 - by0 - 12, 10); ctx.stroke(); }
+    } else if (S.board === 'contour') {
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.save(); ctx.translate(shadowOff, shadowOff); ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = unit * 2.3;
+      for (const t of tubes) { ctx.beginPath(); t.pts.forEach((p, k) => (k ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); ctx.stroke(); }
+      ctx.restore();
+      ctx.strokeStyle = 'rgba(200,220,232,.2)'; ctx.lineWidth = unit * 2.3;
+      for (const t of tubes) { ctx.beginPath(); t.pts.forEach((p, k) => (k ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); ctx.stroke(); }
+    }
+    // standoffs
+    if (S.stand !== 'hidden' && S.board !== 'none') {
+      const spots = S.board === 'contour' ? contourSpots(tubes) : [[bx0 + 16, by0 + 16], [bx1 - 16, by0 + 16], [bx0 + 16, by1 - 16], [bx1 - 16, by1 - 16]];
+      for (const [x, y] of spots) standoff(x, y, S.stand);
+    }
+    // tube supports (small glass posts) and electrodes
+    for (const t of tubes) {
+      const u = unit;
+      for (const k of [0, t.pts.length - 1]) { const p = t.pts[k]; ctx.fillStyle = '#1b1a1d'; ctx.beginPath(); ctx.arc(p[0], p[1], u * 0.2, 0, 6.283); ctx.fill(); ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.beginPath(); ctx.arc(p[0] - u * 0.06, p[1] - u * 0.06, u * 0.07, 0, 6.283); ctx.fill(); }
+    }
+    // blockouts: glass painted black
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (const t of tubes) { ctx.strokeStyle = '#141216'; ctx.lineWidth = unit * 0.24; tracePath(t, 'blockout'); ctx.stroke(); ctx.strokeStyle = 'rgba(255,255,255,.12)'; ctx.lineWidth = unit * 0.06; ctx.stroke(); }
+    // unlit glass (the lit layer is drawn over it per frame)
+    tubes.forEach((t) => {
+      const c = colourOf(t.colour);
+      tracePath(t, 'lit');
+      ctx.strokeStyle = c.off; ctx.lineWidth = unit * 0.26; ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = unit * 0.07; ctx.stroke();
+    });
+    if (!tubes.length) { ctx.fillStyle = 'rgba(255,255,255,.5)'; ctx.font = '600 28px "Courier New", monospace'; ctx.textAlign = 'center'; ctx.fillText('Type something on the work order', 600, 360); }
+  }
+  /** One offscreen canvas per tube with its light fully on: wall spill, glow and the bright core. */
+  function drawTubeLight(t) {
+    const unit = layout.unit, m = unit * 4;
+    const xs = t.pts.map((p) => p[0]), ys = t.pts.map((p) => p[1]);
+    const x0 = Math.floor(Math.min(...xs) - m), y0 = Math.floor(Math.min(...ys) - m);
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.ceil(Math.max(...xs) + m - x0)); c.height = Math.max(1, Math.ceil(Math.max(...ys) + m - y0));
+    const saved = ctx; ctx = c.getContext('2d'); ctx.translate(-x0, -y0);
+    const col = colourOf(t.colour);
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    tracePath(t, 'lit');
+    ctx.strokeStyle = col.hex; ctx.globalAlpha = 0.2; ctx.lineWidth = unit * 0.9; ctx.shadowColor = col.hex; ctx.shadowBlur = unit * 3.2; ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = unit * 0.9; ctx.lineWidth = unit * 0.34; ctx.stroke();
+    ctx.shadowBlur = unit * 0.35; ctx.lineWidth = unit * 0.22; ctx.stroke();
+    ctx.shadowBlur = 0; ctx.strokeStyle = col.core; ctx.lineWidth = unit * 0.09; ctx.stroke();
+    ctx = saved;
+    return { canvas: c, x: x0, y: y0 };
+  }
+  let cache = null;
+  function ensureCache() {
+    if (cache) return cache;
+    const mk = (lit) => { const c = document.createElement('canvas'); c.width = W; c.height = H; const saved = ctx; ctx = c.getContext('2d'); drawBase(lit); ctx = saved; return c; };
+    cache = { off: mk(false), on: mk(true), tubes: layout.tubes.map(drawTubeLight) };
+    return cache;
+  }
+  function draw(now) {
+    const C = ensureCache(), L = levels(now), unit = layout.unit;
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+    ctx.drawImage(S.power === 'off' ? C.off : C.on, 0, 0);
+    C.tubes.forEach((tl, i) => { if (L[i] > 0) { ctx.globalAlpha = Math.min(1, L[i]); ctx.drawImage(tl.canvas, tl.x, tl.y); } });
+    ctx.globalAlpha = 1;
+    // glass supports: a little clip at every few original vertices
+    ctx.fillStyle = 'rgba(210,215,220,.55)';
+    for (const t of layout.tubes) { t.raw.pts.forEach((p, k) => { if (k % 3 !== 1) return; const q = t.pts[Math.min(t.pts.length - 1, Math.round(k * (t.pts.length - 1) / Math.max(1, t.raw.pts.length - 1)))]; ctx.fillRect(q[0] - unit * 0.05, q[1] - unit * 0.18, unit * 0.1, unit * 0.36); }); }
+    lastLevels = L;
+  }
+  let lastLevels = [];
+  function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+  function contourSpots(tubes) {
+    const all = tubes.flatMap((t) => t.pts);
+    const pick = (f) => all.reduce((a, p) => (f(p) < f(a) ? p : a), all[0]);
+    const pts = [pick((p) => p[0] + p[1]), pick((p) => -p[0] + p[1]), pick((p) => p[0] - p[1]), pick((p) => -p[0] - p[1])];
+    return pts.map(([x, y]) => [x + (x < 600 ? -layout.unit * 0.8 : layout.unit * 0.8), y + (y < 330 ? -layout.unit * 0.8 : layout.unit * 0.8)]);
+  }
+  function standoff(x, y, kind) {
+    const r = 11;
+    ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.beginPath(); ctx.arc(x + 6, y + 7, r, 0, 6.283); ctx.fill();
+    const g = ctx.createRadialGradient(x - 4, y - 4, 1, x, y, r);
+    if (kind === 'brass') { g.addColorStop(0, '#fff1bf'); g.addColorStop(0.5, '#c99b3c'); g.addColorStop(1, '#6d4f16'); }
+    else { g.addColorStop(0, '#ffffff'); g.addColorStop(0.5, '#a9adb2'); g.addColorStop(1, '#4b4f55'); }
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.283); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, r * 0.55, 0, 6.283); ctx.stroke();
+  }
+
+  // ---------- audio: transformer hum (120 Hz on 60 Hz mains) ----------
+  let AC = null, hum = null;
+  function setHum(on) {
+    if (on && !AC) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return; AC = new C(); }
+    if (!AC) return;
+    if (on && !hum) {
+      const g = AC.createGain(); g.gain.value = 0;
+      const o1 = AC.createOscillator(); o1.type = 'sawtooth'; o1.frequency.value = 120;
+      const o2 = AC.createOscillator(); o2.type = 'sine'; o2.frequency.value = 240;
+      const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900;
+      const g2 = AC.createGain(); g2.gain.value = 0.4;
+      o1.connect(lp); o2.connect(g2); g2.connect(lp); lp.connect(g); g.connect(AC.destination);
+      o1.start(); o2.start();
+      g.gain.setTargetAtTime(0.035, AC.currentTime, 0.2);
+      hum = { g, o1, o2 };
+      AC.resume();
+    } else if (!on && hum) {
+      const h = hum; hum = null;
+      h.g.gain.setTargetAtTime(0, AC.currentTime, 0.05);
+      setTimeout(() => { try { h.o1.stop(); h.o2.stop(); } catch (e) { /* stopped */ } }, 300);
+    }
+  }
+  function syncHum() { setHum(S.buzz && S.power !== 'off'); }
+
+  // ---------- UI ----------
+  function radios(host, list, get, set, testPrefix) {
+    host.innerHTML = '';
+    for (const it of list) {
+      const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'radio'); b.dataset.id = it.id; b.setAttribute('data-testid', testPrefix + it.id); b.textContent = it.name; host.appendChild(b);
+    }
+    const sync = () => host.querySelectorAll('button').forEach((b) => { const on = b.dataset.id === get(); b.setAttribute('aria-checked', on); b.tabIndex = on ? 0 : -1; });
+    host.addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; set(b.dataset.id); sync(); refresh(); });
+    host.addEventListener('keydown', (e) => {
+      const ids = list.map((x) => x.id); let i = ids.indexOf(get());
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') i = (i + 1) % ids.length; else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') i = (i + ids.length - 1) % ids.length; else return;
+      e.preventDefault(); set(ids[i]); sync(); refresh(); host.querySelector(`[data-id="${ids[i]}"]`).focus();
+    });
+    sync();
+    return sync;
+  }
+  // swatches
+  const sw = $('swatches');
+  for (const c of COLOURS) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'sw'; b.setAttribute('role', 'radio'); b.dataset.id = c.id; b.setAttribute('data-testid', 'colour-' + c.id);
+    b.setAttribute('aria-label', `${c.name}: ${c.gas}, ${c.glass}`); b.title = c.name;
+    const i = document.createElement('i'); i.style.background = c.hex; i.style.boxShadow = `0 0 8px ${c.hex}, 0 0 2px ${c.hex}`; b.appendChild(i); sw.appendChild(b);
+  }
+  function syncSw() {
+    const cur = S.colours[S.editLine];
+    sw.querySelectorAll('.sw').forEach((b) => { const on = b.dataset.id === cur; b.setAttribute('aria-checked', on); b.tabIndex = on ? 0 : -1; });
+    const c = colourOf(cur);
+    $('cinfo').textContent = `Line ${S.editLine + 1}: ${c.name}. ${c.gas} in ${c.glass}.`;
+    document.querySelectorAll('.linetabs button').forEach((b) => b.setAttribute('aria-pressed', +b.dataset.line === S.editLine));
+  }
+  sw.addEventListener('click', (e) => { const b = e.target.closest('.sw'); if (!b) return; S.colours[S.editLine] = b.dataset.id; syncSw(); refresh(); });
+  sw.addEventListener('keydown', (e) => {
+    const ids = COLOURS.map((c) => c.id); let i = ids.indexOf(S.colours[S.editLine]);
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') i = (i + 1) % ids.length; else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') i = (i + ids.length - 1) % ids.length; else return;
+    e.preventDefault(); S.colours[S.editLine] = ids[i]; syncSw(); refresh(); sw.querySelector(`[data-id="${ids[i]}"]`).focus();
+  });
+  document.querySelectorAll('.linetabs button').forEach((b) => b.addEventListener('click', () => { S.editLine = +b.dataset.line; syncSw(); }));
+  radios($('styles'), STYLES, () => S.style, (v) => (S.style = v), 'style-');
+  radios($('boards'), BOARDS, () => S.board, (v) => (S.board = v), 'board-');
+  radios($('standoffs'), STANDS, () => S.stand, (v) => (S.stand = v), 'standoff-');
+  radios($('walls'), WALLS, () => S.wall, (v) => (S.wall = v), 'wall-');
+  function onText() { S.lines = [$('l1').value, $('l2').value]; refresh(); }
+  $('l1').addEventListener('input', onText); $('l2').addEventListener('input', onText);
+
+  function setPower(on) {
+    if (on) { S.power = reduced ? 'on' : 'warming'; S.onAt = performance.now(); }
+    else S.power = 'off';
+    $('power').setAttribute('aria-pressed', on); $('powerTxt').textContent = on ? 'Switch off' : 'Switch on';
+    syncHum(); refresh();
+    say(on ? (reduced ? 'The sign is lit.' : 'Striking the tubes, one by one…') : 'The sign is off. Unlit glass shows its colour coating.');
+  }
+  $('power').addEventListener('click', () => setPower(S.power === 'off'));
+  $('flicker').addEventListener('click', () => { S.flicker = !S.flicker; $('flicker').setAttribute('aria-pressed', S.flicker); say(S.flicker ? (reduced ? 'Flicker is on, but held still because you prefer reduced motion.' : 'A tired transformer: the tubes flicker now and then.') : 'Steady light.'); });
+  $('buzz').addEventListener('click', () => { S.buzz = !S.buzz; $('buzz').setAttribute('aria-pressed', S.buzz); syncHum(); say(S.buzz ? (S.power === 'off' ? 'The buzz starts when the sign is on.' : 'A 120 Hz transformer hum.') : 'Quiet.'); });
+  $('export').addEventListener('click', () => {
+    draw(performance.now());
+    const name = 'neon-' + (S.lines.join('-').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'sign') + '.png';
+    cv.toBlob((blob) => {
+      if (!blob) { say('Export failed in this browser.'); return; }
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      say(`Saved ${name}.`);
+    }, 'image/png');
+  });
+  let lastSay = '';
+  function say(m) { lastSay = m; $('readout').textContent = m; }
+
+  function tubeLength(t, want) { let L = 0; for (let i = 0; i < t.pts.length - 1; i++) if (t.flags[i] === want) L += Math.hypot(t.pts[i + 1][0] - t.pts[i][0], t.pts[i + 1][1] - t.pts[i][1]); return L; }
+  function refresh() {
+    build();
+    cache = null;
+    const hint = $('hint');
+    if (S.skipped.length) { hint.textContent = `Can't bend ${S.skipped.map((c) => `"${c}"`).join(', ')} in this font, so it's left out.`; hint.classList.add('warn'); }
+    else { hint.textContent = "Letters A–Z, digits 0–9, space, and - . ! ' only. 14 per line."; hint.classList.remove('warn'); }
+    // spec line: total glass in feet at a 3-inch cap height
+    const inchesPerPx = 3 / (6 * layout.unit);
+    const lit = layout.tubes.reduce((a, t) => a + tubeLength(t, 'lit'), 0) * inchesPerPx;
+    const blk = layout.tubes.reduce((a, t) => a + tubeLength(t, 'blockout'), 0) * inchesPerPx;
+    $('spec').textContent = layout.tubes.length
+      ? `${layout.tubes.length} tube units · ${layout.tubes.length * 2} electrodes · about ${(lit / 12).toFixed(1)} ft of lit glass and ${(blk / 12).toFixed(1)} ft blocked out, at 3-inch letters.`
+      : 'Nothing to bend yet.';
+    const txt = S.lines.filter((l) => l.trim()).join(' / ') || 'nothing';
+    cv.setAttribute('aria-label', `Neon sign reading "${txt}" in ${STYLES.find((s) => s.id === S.style).name.toLowerCase()} tubes, ${S.colours.map((c) => colourOf(c).name).join(' and ')}, on a ${S.wall} wall with ${BOARDS.find((b) => b.id === S.board).name.toLowerCase()} backboard. The sign is ${S.power === 'off' ? 'off' : 'on'}.`);
+    draw(performance.now());
+  }
+  function frame(now) {
+    requestAnimationFrame(frame);
+    if (S.power === 'warming' && now - S.onAt > layout.tubes.length * 110 + 600) { S.power = 'on'; say('The sign is lit.'); }
+    if (S.power !== 'off' || dirty) { draw(now); dirty = false; }
+  }
+  let dirty = false;
+
+  window.__neon = {
+    get state() {
+      return { lines: S.lines.slice(), colours: S.colours.slice(), style: S.style, board: S.board, stand: S.stand, wall: S.wall, power: S.power, flicker: S.flicker, buzz: S.buzz, hum: !!hum,
+        skipped: S.skipped.slice(), levels: lastLevels.slice(), unit: layout.unit, bbox: { ...layout.bbox },
+        tubes: layout.tubes.map((t) => ({ ch: t.ch, line: t.line, colour: t.colour, points: t.pts.length, lit: t.flags.filter((f) => f === 'lit').length, blockout: t.flags.filter((f) => f === 'blockout').length })) };
+    },
+    glyph: (ch) => parseGlyph(ch),
+    chars: Object.keys(FONT),
+    /** canvas-pixel coordinates at the middle of a tube's longest lit segment */
+    litPoint(i) {
+      const t = layout.tubes[i]; let best = null, bl = -1;
+      for (let k = 0; k < t.pts.length - 1; k++) if (t.flags[k] === 'lit') { const l = Math.hypot(t.pts[k + 1][0] - t.pts[k][0], t.pts[k + 1][1] - t.pts[k][1]); if (l > bl) { bl = l; const dx = (t.pts[k + 1][0] - t.pts[k][0]) / l, dy = (t.pts[k + 1][1] - t.pts[k][1]) / l; best = [(t.pts[k][0] + t.pts[k + 1][0]) / 2, (t.pts[k][1] + t.pts[k + 1][1]) / 2, -dy, dx]; } }
+      return best;
+    },
+    /** pixel beside a tube's centre line, `off` tube-units along its normal (the core is near-white; the colour lives just outside it) */
+    litPixel(i, off = 0.12) { const [x, y, nx, ny] = this.litPoint(i); return this.pixel(x + nx * off * layout.unit, y + ny * off * layout.unit); },
+    pixel(x, y) { draw(performance.now()); return [...ctx.getImageData(Math.round(x), Math.round(y), 1, 1).data]; },
+    colours: COLOURS.map((c) => ({ ...c })),
+  };
+
+  syncSw(); refresh(); say('Sign is off. Hit the switch.');
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+{
+  "id": "081",
+  "slug": "081-test-report-explorer",
+  "file": "lab/081-test-report-explorer.html",
+  "title": "Test Report Explorer — An Interactive E2E Report for a Fictional Run",
+  "category": "QA & Testing",
+  "tags": ["playwright", "test-reports", "flaky-tests", "trace", "seeded"],
+  "description": "A seeded, made-up end-to-end run of a fictional box-office app (22 tests across three browser projects), shown the way a good HTML report should show it: summary tiles, status, project, tag and search filters, and a tree grouped by file and describe. Open any test to see its attempts with the flaky marker, a nested step tree with durations, the expected/received diff and a mini trace of actions with wireframe snapshot frames.",
+  "prompt": "Build 'Test Report Explorer', an interactive HTML test-report viewer for a fictional test run that you generate from a seed. I want summary tiles that double as filters, plus filters for status (passed, failed, flaky, skipped), project, tag and free-text search. Group tests by file and describe. Clicking a test should show its per-attempt step tree with durations, retries with a clear flaky marker, the error message with an expected/received diff, and a mini trace timeline with the actions and screenshots drawn as simple frames. Everything must be clearly fictional, deterministic under ?seed=, and readable on a phone.",
+  "qa": {
+    "methodology": [
+      "Invariant oracles over generated data: the four status tiles must sum to the total, and pressing any tile must show exactly that many rows, all with the matching data-status.",
+      "Filter composition: project, tag and search are applied together and checked against counts derived by hand from the fixed test catalogue (22 per project, 4 @payments tests, 2 matching 'card').",
+      "Structural oracles for retries: a failed result has three failing attempts (retries: 2); a flaky result ends in a pass after one or more failures and never shows an error on the passing attempt.",
+      "Arithmetic oracle: the top-level step durations of an attempt must add up to the attempt's duration exposed on the panel.",
+      "Determinism: the same ?seed= reproduces the whole run across reloads, and a different seed produces a different run.",
+      "Keyboard pass over the tree (Arrow keys, Enter) and the attempt tabs, plus manual screenshot review at 1280 and 390 px."
+    ],
+    "risks": [
+      "Generated data drifting so a status bucket is empty; the generator guarantees at least two failed and three flaky results per seed.",
+      "Step durations and start offsets disagreeing once a failing step cuts an attempt short.",
+      "Trace geometry computed from zero-length attempts producing NaN or negative SVG sizes (all coordinates are clamped and checked with Number.isFinite).",
+      "Long locator strings and test titles widening the page on narrow phones."
+    ],
+    "playwright": "Everything random comes from a mulberry32 PRNG behind ?seed=, so the spec can pin exact totals for seed 7 and still assert invariants rather than a golden snapshot. Rows, tiles, steps and attempts carry data-status, data-count and data-dur attributes, so the tests compare numbers directly instead of parsing formatted text like '19.4s'. The trace frames are inline SVG buttons, which made them clickable with ordinary locators; their drawing is checked only by eye because pixel assertions on generated wireframes would be brittle. The hardest part was choosing which failed or flaky row to open without hard-coding an id, which the status filter chips solve.",
+    "coverage": [
+      "Tiles sum to the total and filter to their own counts; pressing again clears",
+      "Project + tag + search composition and the empty state",
+      "Failed test: three failing attempts, assertion diff marks, failing step, trace frame selection",
+      "Flaky test: marker, failing attempts before a passing retry, durations add up, hook expansion",
+      "Seed reproducibility, regeneration and keyboard navigation of the tree"
+    ]
+  },
+  "a11y": "Tiles, chips, file headers, test rows, attempt tabs, step toggles and trace frames are all real buttons with pressed, expanded, selected or current state, and Arrow/Home/End keys move through the tree. The shown-count is a polite live region, and every trace frame has a text caption so the pictures are never the only source of information."
+}

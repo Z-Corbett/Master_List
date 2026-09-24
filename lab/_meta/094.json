@@ -1,0 +1,34 @@
+{
+  "id": "094",
+  "slug": "094-difficulty-retarget",
+  "file": "lab/094-difficulty-retarget.html",
+  "title": "Difficulty Retarget — Bitcoin's adjustment, simulated",
+  "category": "Data Viz",
+  "tags": ["bitcoin", "simulation", "svg-charts", "seeded-prng", "consensus-rules"],
+  "description": "A labelled simulation of Bitcoin's difficulty adjustment. Every 2016 blocks the target scales by actual over expected time (2016 × 600 s), clamped to 4× either way and measured across 2015 intervals, the historical off-by-one. Run steady, growth, sudden-drop, rapid-growth and crash scenarios, then read the rolling block interval, the indexed hashrate-vs-difficulty chart and an epoch-by-epoch table, or work out a single retarget by hand.",
+  "prompt": "Build an accurate visual model of Bitcoin's difficulty adjustment. Every 2016 blocks the target retargets by actual time over expected time, where expected is 2016 × 600 s, clamped to a factor of 4 either way. Include the historical off-by-one: the timespan is measured over 2015 intervals, and explain it accurately and briefly. Let me simulate hashrate scenarios (steady, growth, a sudden 50% drop, rapid growth) and watch block times and difficulty epochs change, and chart the estimated block interval over time. Make it clearly a simulation, not real data.",
+  "qa": {
+    "methodology": [
+      "Closed-form oracle: with luck turned off (every block takes exactly its expected time), steady hashrate must settle at 600 × 2016/2015 s after the first retarget. The first factor must be exactly 2016/2015, and the hypothetical 2016-interval fix must hold 600 s with factors of exactly 1.",
+      "Independent recomputation: for every scenario, the test re-derives each retarget from the raw block timestamps (last minus first block of the period, clamped, expected ÷ actual). It must match the simulated next-epoch difficulty to 1e-9, and epoch heights must be contiguous 2016-block windows.",
+      "Boundary cases on the hand calculator: 14 days gives no change, 28 days halves difficulty, and 2 and 70 days hit the clamp at +300% and −75% and are labelled CLAMPED.",
+      "Scenario behaviour: a 50% drop slows the affected epoch past 800 s and cuts difficulty. A 90% crash clamps to exactly 0.25 and is flagged in the table and status. Under rapid growth every retarget goes up with a short span. A seed replays exactly and a new seed changes the run.",
+      "Chart interaction: one tooltip lists every series at the crosshair and opens on hover or with arrow keys (Escape closes it). Reduced motion skips the reveal animation."
+    ],
+    "risks": [
+      "Off-by-one errors in the simulation itself (which blocks bound the window, and when the new difficulty applies); the recomputation test was written to catch exactly that.",
+      "Misstating the history: the page states only what the rule does, the 600.3 s equilibrium and the time-warp root cause, and labels everything else as simulation.",
+      "Log-scale tick generation across ranges from 0.25× to hundreds of ×; ticks are chosen from a nice-number list and thinned.",
+      "Small screens: the charts switch to a narrower drawing width so the axis text stays readable."
+    ],
+    "playwright": "The best oracles here are mathematical, not visual. page.evaluate pulls the raw timestamp array and re-implements the retarget in the test, so the page's own code is never trusted to check itself. Turning off randomness gives exact closed-form values (2016/2015) that toBeCloseTo can pin to 12 decimals. The SVG charts are covered through their accessible labels and the tooltip contents rather than pixels, with mouse.move for hover and keyboard focus for the non-pointer path. emulateMedia({ reducedMotion: 'reduce' }) removes the reveal animation, so nothing has to wait on it.",
+    "coverage": [
+      "Hand calculator: no change, ±, clamp both ways, custom difficulty, validation",
+      "2015-interval equilibrium at 600.3 s; 2016-interval fix at 600 s",
+      "Rule recomputed from timestamps for all five scenarios",
+      "Drop, crash (clamp) and rapid growth behaviour; seed replay; scenario radiogroup keys",
+      "Chart tooltip by hover and keyboard, 20-epoch runs, chart labels"
+    ]
+  },
+  "a11y": "Scenarios are a radiogroup with arrow keys and the options are labelled checkboxes and number fields. Each chart is a focusable SVG with a descriptive aria-label, and arrow keys step a crosshair tooltip through it. Every charted number is also in the epoch table, and the run summary and hand-calculator result are aria-live."
+}

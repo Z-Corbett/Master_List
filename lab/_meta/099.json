@@ -1,0 +1,34 @@
+{
+  "id": "099",
+  "slug": "099-terrarium",
+  "file": "lab/099-terrarium.html",
+  "title": "Terrarium — a closed glass ecosystem",
+  "category": "Generative",
+  "tags": ["canvas", "l-systems", "simulation", "seeded-prng", "time-lapse"],
+  "description": "A generative closed terrarium in a corked jar. Ferns unfurl their fiddleheads and fittonia spreads veined leaves by L-system rules over a moss carpet. A day and night light cycle drives a water cycle that conserves every drop while sealed: evaporation, beads condensing on the cool glass at night, and drips running back to the soil. Take the lid off and the jar dries out, the plants wilt and the springtail colony shrinks. A time-lapse slider and seeded layouts complete it.",
+  "prompt": "Make a generative closed-terrarium ecosystem in a glass jar. Moss carpets, ferns and fittonia should grow by L-system or branching rules, and a day/night light cycle should drive a water cycle: condensation beads on the glass that drip back to the soil. Add a lid on/off toggle that affects humidity, a tiny springtail population, and a time-lapse slider. Make it deterministic via ?seed=.",
+  "qa": {
+    "methodology": [
+      "Conservation law as the oracle: with the lid on, soil + air + bead water must stay constant to 1e-9 at every checkpoint over ten simulated days, while beads form at night, clear at midday and drip back to the soil. Misting is the only other input.",
+      "Open-system behaviour: with the lid off, humidity relaxes to room level, water is lost, beads disappear, soil moisture falls below the wilting threshold and the canvas description says so. Sealing and misting restores conservation and recovery.",
+      "Population and growth dynamics: over twelve sealed days every plant grows, the moss thickens and the springtails at least triple. The L-system engine is checked directly (n iterations of the frond rule give n rachis segments).",
+      "Determinism: same seed, same plant layout and an identical state object after a simulated week. A different seed changes the layout, and 'Plant a new jar' writes its seed to the URL.",
+      "Real-time path: under page.clock, 2 s at 12 h/s advances about 24 simulated hours, a speed of 0 pauses, and +6 hours steps by exactly six."
+    ],
+    "risks": [
+      "Floating-point drift in the water budget from bead bookkeeping (splitting, dripping, re-evaporating); all transfers go through paired add and subtract operations.",
+      "Frame-rate dependence if the real-time loop ever advanced by a variable dt instead of the fixed quarter-hour step.",
+      "Drawing cost of L-system strings at high iteration counts; the iteration count is tied to growth and capped.",
+      "Biology simplifications (humidity, saturation, logistic growth) are presented as a toy model, not as horticultural advice."
+    ],
+    "playwright": "Generative art is hard to assert on pixels, so the page exposes the model instead: __terrarium.manual(true), reset() and advance(hours) run the same fixed steps the animation uses. A physical invariant (water conservation) was the most valuable test, since it would catch almost any bookkeeping bug in the condensation and drip code. The time-lapse slider is the one place where real time matters, and it is covered with page.clock.install(), pauseAt() and runFor(2000), which drive requestAnimationFrame deterministically. Beyond that, the canvas is checked through its aria-label (lid state, wilting) and the stat readouts.",
+    "coverage": [
+      "Seeded layout and a replayed week; new-jar seed in URL",
+      "Ten sealed days: exact water conservation, night beads, day clearing, drips",
+      "Growth of plants, moss and springtails; L-system iteration count",
+      "Lid off: humidity, water loss, drying, wilting; reseal and mist",
+      "Time-lapse speed, pause, +6 hours"
+    ]
+  },
+  "a11y": "The lid is a toggle button with aria-pressed. The time-lapse slider and actions are labelled native controls, and the canvas carries a live description of time, lid, humidity, soil, condensation, springtails and wilting. Stats are plain text, and the sparkline is labelled. Under reduced motion the time-lapse starts paused and the springtails stop jittering."
+}

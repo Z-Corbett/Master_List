@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sundial — a horizontal dial designer</title>
+<meta name="description" content="Design an accurate horizontal sundial for any latitude and longitude (default Austin, Texas). Hour lines follow tan θ = sin φ · tan h, the gnomon is set at the latitude, the live shadow comes from a NOAA-style solar position algorithm, and equation-of-time and longitude corrections turn sundial time into clock time, with a year-long analemma chart.">
+<style>
+  :root {
+    --stone: #ece7dc;
+    --stone-2: #ddd5c4;
+    --slate: #22313a;
+    --slate-2: #3a4d58;
+    --bronze: #3f7f6f;
+    --bronze-2: #2c5f53;
+    --brass: #b8893a;
+    --brass-2: #d9b56b;
+    --shadow: #1a2429;
+    --muted: #66706f;
+    --card: #f7f4ec;
+    --serif: "Constantia", "Perpetua", "Cambria", "Palatino Linotype", Georgia, serif;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --num: "Cambria", "Constantia", Georgia, serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--stone); color: var(--slate); font: 15px/1.55 var(--sans); overflow-x: hidden;
+    background-image: radial-gradient(ellipse at 80% -20%, rgba(217,181,107,.35), transparent 55%), radial-gradient(ellipse at 0% 110%, rgba(63,127,111,.18), transparent 50%); }
+  :focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: var(--card); background: var(--bronze-2); text-decoration: none; font: 600 13px/1 var(--sans); padding: 8px 12px; border-radius: 999px; border: 1px solid var(--brass-2); }
+  a.back:hover { background: var(--slate); }
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 60px 18px 40px; }
+  .head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px 24px; align-items: end; margin-bottom: 18px; }
+  .eyebrow { margin: 0; font: 600 12px/1.3 var(--sans); letter-spacing: .26em; text-transform: uppercase; color: var(--bronze); }
+  h1 { font: 400 clamp(42px, 7vw, 76px)/1 var(--serif); margin: 4px 0 6px; letter-spacing: .02em; }
+  h1 em { color: var(--brass); }
+  .lede { margin: 0; color: var(--slate-2); max-width: 62ch; }
+  .motto { font: italic 15px/1.3 var(--serif); color: var(--muted); text-align: right; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+  .card { background: var(--card); border: 1px solid var(--stone-2); border-radius: 10px; padding: 16px 18px; min-width: 0; box-shadow: 0 10px 30px -18px rgba(34,49,58,.4); }
+  h2 { font: 400 26px/1.15 var(--serif); margin: 0 0 8px; }
+  .dialwrap { position: relative; }
+  #dial { display: block; width: 100%; height: auto; }
+  .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
+  .field { min-width: 0; }
+  .field label { display: block; font: 600 12px/1.3 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+  input[type=number], input[type=date], input[type=time], select { width: 100%; max-width: 100%; min-width: 0; font: 15px var(--sans); padding: 8px 10px; border: 1px solid #c2b9a5; border-radius: 6px; background: #fff; color: var(--slate); }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+  .chip { min-height: 38px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--bronze); background: transparent; color: var(--bronze-2); font: 600 13px/1 var(--sans); cursor: pointer; }
+  .chip[aria-pressed="true"] { background: var(--bronze); color: #fff; }
+  .warn { color: #9b2c1c; font-weight: 600; min-height: 1.4em; margin: 8px 0 0; }
+  .readout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+  .ro { background: #fff; border: 1px solid var(--stone-2); border-radius: 8px; padding: 8px 10px; min-width: 0; }
+  .ro small { display: block; font: 600 11px/1.3 var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .ro b { display: block; font: 400 21px/1.25 var(--num); font-variant-numeric: lining-nums tabular-nums; overflow-wrap: anywhere; }
+  .ro.big { grid-column: 1 / -1; background: var(--slate); color: var(--card); border-color: var(--slate); }
+  .ro.big small { color: var(--brass-2); }
+  .ro.big b { font-size: 28px; }
+  .math { font: 14px/1.6 var(--num); background: #fff; border-left: 3px solid var(--brass); padding: 8px 12px; border-radius: 0 6px 6px 0; margin: 8px 0; overflow-wrap: anywhere; }
+  .when { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px; align-items: end; margin-top: 10px; }
+  .btn { min-height: 40px; padding: 8px 14px; border-radius: 6px; border: 1px solid var(--bronze); background: var(--bronze); color: #fff; font: 600 14px/1 var(--sans); cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--bronze-2); }
+  table { width: 100%; border-collapse: collapse; font: 14px/1.35 var(--num); font-variant-numeric: lining-nums tabular-nums; }
+  th, td { padding: 5px 8px; border-bottom: 1px solid var(--stone-2); text-align: right; }
+  th { font: 600 11px/1.3 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  th:first-child, td:first-child { text-align: left; }
+  .tablewrap { max-height: 300px; overflow: auto; }
+  .charts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px; margin-top: 22px; }
+  .chart svg { display: block; width: 100%; height: auto; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--slate-2); margin-bottom: 4px; }
+  .legend i { display: inline-block; width: 16px; height: 0; border-top: 2px solid; vertical-align: 4px; margin-right: 5px; }
+  .legend i.dot { width: 9px; height: 9px; border: 0; border-radius: 50%; vertical-align: 0; }
+  .note { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+  footer { margin-top: 26px; text-align: center; font-size: 13px; color: var(--muted); }
+  @media (max-width: 900px) { .layout, .charts { grid-template-columns: minmax(0, 1fr); } .head { grid-template-columns: minmax(0, 1fr); } .motto { text-align: left; } }
+  @media (max-width: 420px) { .fields { grid-template-columns: minmax(0, 1fr); } .when { grid-template-columns: minmax(0, 1fr); } .readout { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <div class="head">
+    <div>
+      <p class="eyebrow">Gnomonics · horizontal dial</p>
+      <h1>Sun<em>dial</em></h1>
+      <p class="lede">Give it a place on Earth and it lays out a horizontal sundial for that latitude, sets the gnomon, and casts today's shadow from the sun's actual position. Then it corrects the dial's reading for the equation of time and your longitude, so you can tell how far the dial is from your watch.</p>
+    </div>
+    <p class="motto">Sine sole sileo<br><small>“Without the sun, I am silent.”</small></p>
+  </div>
+
+  <div class="layout">
+    <section class="card" aria-labelledby="h-dial">
+      <h2 id="h-dial">The dial</h2>
+      <div class="dialwrap"><svg id="dial" viewBox="0 70 560 410" role="img" aria-label="Horizontal sundial" data-testid="dial"></svg></div>
+      <p class="note" id="orient" data-testid="orientation"></p>
+    </section>
+
+    <div style="display:grid;gap:18px;min-width:0">
+      <section class="card" aria-labelledby="h-where">
+        <h2 id="h-where">Where</h2>
+        <div class="presets" role="group" aria-label="Places" id="presets"></div>
+        <div class="fields">
+          <div class="field"><label for="lat">Latitude (° north +)</label><input id="lat" type="number" step="0.0001" min="-65" max="65" data-testid="lat"></div>
+          <div class="field"><label for="lon">Longitude (° east +)</label><input id="lon" type="number" step="0.0001" min="-180" max="180" data-testid="lon"></div>
+          <div class="field"><label for="tz">Standard time (UTC offset, h)</label><input id="tz" type="number" step="0.5" min="-12" max="14" data-testid="tz"></div>
+          <div class="field"><label for="dst">Daylight saving</label><select id="dst" data-testid="dst"><option value="us">US / Canada rules</option><option value="eu">European rules</option><option value="au">Australian (NSW) rules</option><option value="none">None</option></select></div>
+        </div>
+        <p class="warn" id="warn" role="alert" data-testid="warn"></p>
+        <div class="when">
+          <div class="field"><label for="d">Date</label><input id="d" type="date" data-testid="date"></div>
+          <div class="field"><label for="t">Clock time</label><input id="t" type="time" step="60" data-testid="time"></div>
+          <button type="button" class="btn ghost" id="now" data-testid="now">Now</button>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="h-now" aria-live="polite">
+        <h2 id="h-now">Sun &amp; shadow</h2>
+        <div class="readout">
+          <div class="ro big"><small>The dial reads</small><b id="rDial" data-testid="dial-reading">–</b></div>
+          <div class="ro"><small>Clock time</small><b id="rClock" data-testid="clock-time">–</b></div>
+          <div class="ro"><small>Dial vs clock</small><b id="rDiff" data-testid="dial-diff">–</b></div>
+          <div class="ro"><small>Sun elevation</small><b id="rEl" data-testid="elevation">–</b></div>
+          <div class="ro"><small>Sun azimuth</small><b id="rAz" data-testid="azimuth">–</b></div>
+          <div class="ro"><small>Declination</small><b id="rDec" data-testid="declination">–</b></div>
+          <div class="ro"><small>Equation of time</small><b id="rEot" data-testid="eot">–</b></div>
+          <div class="ro"><small>Longitude correction</small><b id="rLon" data-testid="lon-corr">–</b></div>
+          <div class="ro"><small>Solar noon (clock)</small><b id="rNoon" data-testid="solar-noon">–</b></div>
+        </div>
+        <div class="math" id="conv" data-testid="conversion"></div>
+      </section>
+    </div>
+  </div>
+
+  <div class="charts">
+    <section class="card chart" aria-labelledby="h-ana">
+      <h2 id="h-ana">The year at clock noon</h2>
+      <div class="legend"><span><i style="border-color:var(--bronze)"></i>sun's position at 12:00 local mean time</span><span><i class="dot" style="background:var(--brass)"></i>selected date</span></div>
+      <svg id="ana" viewBox="0 0 460 360" role="img" aria-label="Analemma" data-testid="analemma"></svg>
+      <p class="note">The figure eight is the analemma: plotted against the equation of time (x) and the sun's declination (y), it's where the sun stands at the same clock time every day. The dial runs fast when the curve is right of centre and slow when it's left.</p>
+    </section>
+    <section class="card" aria-labelledby="h-lines">
+      <h2 id="h-lines">Hour lines</h2>
+      <div class="math">tan θ = sin φ · tan h &nbsp;·&nbsp; φ = <span id="phiTxt" data-testid="phi">–</span> &nbsp;·&nbsp; gnomon angle = <span id="gnoTxt" data-testid="gnomon">–</span></div>
+      <div class="tablewrap" tabindex="0" aria-label="Hour line angles, scrollable">
+        <table data-testid="hour-table"><thead><tr><th scope="col">Hour</th><th scope="col">h (from noon)</th><th scope="col">θ (from noon line)</th></tr></thead><tbody id="tbody"></tbody></table>
+      </div>
+      <p class="note">θ is measured on the dial plate from the noon line, toward the west in the morning. Hours beyond 6 are only drawn where the sun can actually be up at that latitude.</p>
+    </section>
+  </div>
+  <footer>Built by Zac Corbett · solar position after NOAA's spreadsheet equations (Meeus-based, good to about a minute of time for this purpose) · refraction and the gnomon's thickness are ignored</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const fin = (v, d = 0) => (Number.isFinite(v) ? v : d);
+  const rad = (d) => d * Math.PI / 180, deg = (r) => r * 180 / Math.PI;
+  const NS = 'http://www.w3.org/2000/svg';
+
+  // ---------- NOAA solar position (from the NOAA Solar Calculator spreadsheet) ----------
+  function solar(dateMs, lat, lon) {
+    const jd = dateMs / 86400000 + 2440587.5;
+    const T = (jd - 2451545) / 36525;
+    const L0 = ((280.46646 + T * (36000.76983 + T * 0.0003032)) % 360 + 360) % 360;
+    const M = 357.52911 + T * (35999.05029 - 0.0001537 * T);
+    const e = 0.016708634 - T * (0.000042037 + 0.0000001267 * T);
+    const C = Math.sin(rad(M)) * (1.914602 - T * (0.004817 + 0.000014 * T)) + Math.sin(rad(2 * M)) * (0.019993 - 0.000101 * T) + Math.sin(rad(3 * M)) * 0.000289;
+    const trueLong = L0 + C;
+    const omega = 125.04 - 1934.136 * T;
+    const appLong = trueLong - 0.00569 - 0.00478 * Math.sin(rad(omega));
+    const meanObliq = 23 + (26 + (21.448 - T * (46.815 + T * (0.00059 - T * 0.001813))) / 60) / 60;
+    const obliq = meanObliq + 0.00256 * Math.cos(rad(omega));
+    const decl = deg(Math.asin(Math.sin(rad(obliq)) * Math.sin(rad(appLong))));
+    const y = Math.tan(rad(obliq / 2)) ** 2;
+    const eot = 4 * deg(y * Math.sin(2 * rad(L0)) - 2 * e * Math.sin(rad(M)) + 4 * e * y * Math.sin(rad(M)) * Math.cos(2 * rad(L0)) - 0.5 * y * y * Math.sin(4 * rad(L0)) - 1.25 * e * e * Math.sin(2 * rad(M)));
+    const d = new Date(dateMs);
+    const utcMin = d.getUTCHours() * 60 + d.getUTCMinutes() + d.getUTCSeconds() / 60 + d.getUTCMilliseconds() / 60000;
+    const tst = ((utcMin + eot + 4 * lon) % 1440 + 1440) % 1440;        // apparent (true) solar time, minutes
+    let ha = tst / 4 - 180;                                            // hour angle, degrees (negative = morning)
+    const cosZ = Math.sin(rad(lat)) * Math.sin(rad(decl)) + Math.cos(rad(lat)) * Math.cos(rad(decl)) * Math.cos(rad(ha));
+    const zen = deg(Math.acos(Math.max(-1, Math.min(1, cosZ))));
+    const elev = 90 - zen;
+    let az;
+    const den = Math.cos(rad(lat)) * Math.sin(rad(zen));
+    if (Math.abs(den) < 1e-9) az = lat > 0 ? 180 : 0;
+    else {
+      const acosArg = Math.max(-1, Math.min(1, (Math.sin(rad(lat)) * Math.cos(rad(zen)) - Math.sin(rad(decl))) / den));
+      az = ha > 0 ? (deg(Math.acos(acosArg)) + 180) % 360 : (540 - deg(Math.acos(acosArg))) % 360;
+    }
+    return { jd, decl, eot, tst, ha, elev, az };
+  }
+
+  // ---------- time zones and daylight saving (so the page never depends on the browser's zone) ----------
+  function nthSunday(y, m, n) { const d = new Date(Date.UTC(y, m, 1)); const first = (7 - d.getUTCDay()) % 7 + 1; return first + (n - 1) * 7; }
+  function lastSunday(y, m) { const last = new Date(Date.UTC(y, m + 1, 0)); return last.getUTCDate() - last.getUTCDay(); }
+  function dstOn(ms, rule, tz) {
+    const y = new Date(ms + tz * 3600000).getUTCFullYear();
+    if (rule === 'us') { // 2:00 local standard time, 2nd Sunday of March → 2:00 local daylight time (1:00 standard), 1st Sunday of November
+      const start = Date.UTC(y, 2, nthSunday(y, 2, 2), 2) - tz * 3600000, end = Date.UTC(y, 10, nthSunday(y, 10, 1), 1) - tz * 3600000;
+      return ms >= start && ms < end;
+    }
+    if (rule === 'eu') { const start = Date.UTC(y, 2, lastSunday(y, 2), 1), end = Date.UTC(y, 9, lastSunday(y, 9), 1); return ms >= start && ms < end; }
+    if (rule === 'au') { // southern: on from 2:00 std, 1st Sunday of October, until 3:00 daylight (2:00 std), 1st Sunday of April
+      const end = Date.UTC(y, 3, nthSunday(y, 3, 1), 2) - tz * 3600000, start = Date.UTC(y, 9, nthSunday(y, 9, 1), 2) - tz * 3600000;
+      return ms < end || ms >= start;
+    }
+    return false;
+  }
+  const offsetH = (ms, loc) => loc.tz + (dstOn(ms, loc.dst, loc.tz) ? 1 : 0);
+  function localParts(ms, loc) { const d = new Date(ms + offsetH(ms, loc) * 3600000); return { y: d.getUTCFullYear(), mo: d.getUTCMonth(), d: d.getUTCDate(), h: d.getUTCHours(), mi: d.getUTCMinutes(), s: d.getUTCSeconds() }; }
+  function fromLocal(y, mo, d, h, mi, loc) {
+    let ms = Date.UTC(y, mo, d, h, mi) - loc.tz * 3600000;
+    if (dstOn(ms - 3600000, loc.dst, loc.tz)) ms -= 3600000;
+    return ms;
+  }
+  const pad = (n) => String(n).padStart(2, '0');
+  function fmtClock(minOfDay) { const m = ((Math.round(minOfDay) % 1440) + 1440) % 1440; let h = Math.floor(m / 60); const mi = m % 60; const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return `${h}:${pad(mi)} ${ap}`; }
+  function fmtSigned(min) { const s = min < 0 ? '−' : '+'; const a = Math.abs(min); const m = Math.floor(a); const sec = Math.round((a - m) * 60); return sec === 60 ? `${s}${m + 1}m 00s` : `${s}${m}m ${pad(sec)}s`; }
+
+  // ---------- state ----------
+  const PRESETS = [
+    { id: 'austin', name: 'Austin, TX', lat: 30.2672, lon: -97.7431, tz: -6, dst: 'us' },
+    { id: 'vatican', name: 'Vatican City', lat: 41.9029, lon: 12.4534, tz: 1, dst: 'eu' },
+    { id: 'greenwich', name: 'Greenwich', lat: 51.4769, lon: -0.0005, tz: 0, dst: 'eu' },
+    { id: 'sydney', name: 'Sydney', lat: -33.8688, lon: 151.2093, tz: 10, dst: 'au' },
+  ];
+  const loc = { ...PRESETS[0] };
+  let pinned = null;                    // ms, when the user picks a date/time; null = follow the clock
+
+  // ---------- dial geometry ----------
+  /** angle of the hour line on the plate, from the noon line, in degrees (negative = morning side) */
+  function hourLine(latDeg, hDeg) { return deg(Math.atan2(Math.sin(rad(latDeg)) * Math.sin(rad(hDeg)), Math.cos(rad(hDeg)))); }
+  function visibleHours(latDeg) {
+    // the longest day: sunset hour angle with declination 23.44° toward the pole
+    const H0 = deg(Math.acos(Math.max(-1, Math.min(1, -Math.tan(rad(Math.abs(latDeg))) * Math.tan(rad(23.44))))));
+    const out = [];
+    for (let hr = 3; hr <= 21; hr++) { const h = (hr - 12) * 15; if (Math.abs(h) <= H0 + 0.01) out.push(hr); }
+    return out;
+  }
+  const ROMAN = ['XII', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
+  function el(tag, a, p) { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; }
+
+  function drawDial(sun) {
+    const svg = $('dial'); svg.innerHTML = '';
+    const lat = loc.lat, south = lat < 0;
+    const O = { x: 280, y: 400 }, R = 240;
+    // Plate directions: noon line points to the elevated pole (up). Morning lines lie to the west:
+    // left in the northern hemisphere (north up), right in the southern (south up).
+    const dir = (thetaDeg) => { const a = rad(thetaDeg) * (south ? -1 : 1); return { x: Math.sin(a), y: -Math.cos(a) }; };
+    const defs = el('defs', {}, svg);
+    const g = el('radialGradient', { id: 'plate', cx: '50%', cy: '40%', r: '70%' }, defs);
+    el('stop', { offset: '0', 'stop-color': '#dfc07c' }, g); el('stop', { offset: '.7', 'stop-color': '#b8893a' }, g); el('stop', { offset: '1', 'stop-color': '#7d5a1f' }, g);
+    const vg = el('linearGradient', { id: 'verd', x1: '0', x2: '1' }, defs);
+    el('stop', { offset: '0', 'stop-color': '#4f9583' }, vg); el('stop', { offset: '1', 'stop-color': '#2c5f53' }, vg);
+    // plate: a half-disc with a skirt below the six o'clock line
+    el('path', { d: `M ${O.x - R - 14} ${O.y + 40} A ${R + 14} ${R + 14} 0 0 1 ${O.x + R + 14} ${O.y + 40} L ${O.x + R + 14} ${O.y + 70} L ${O.x - R - 14} ${O.y + 70} Z`, fill: 'url(#plate)', stroke: '#6b4c1a', 'stroke-width': 2 }, svg);
+    el('path', { d: `M ${O.x - R} ${O.y + 40} A ${R} ${R} 0 0 1 ${O.x + R} ${O.y + 40}`, fill: 'none', stroke: 'rgba(60,40,10,.45)', 'stroke-width': 1.5 }, svg);
+    el('path', { d: `M ${O.x - R + 34} ${O.y + 40} A ${R - 34} ${R - 34} 0 0 1 ${O.x + R - 34} ${O.y + 40}`, fill: 'none', stroke: 'rgba(60,40,10,.35)', 'stroke-width': 1 }, svg);
+    // motto on the skirt
+    const mt = el('text', { x: O.x, y: O.y + 62, 'text-anchor': 'middle', 'font-size': 15, 'letter-spacing': 5, fill: '#4a3410', 'font-family': 'Constantia, Cambria, Georgia, serif' }, svg); mt.textContent = 'SINE SOLE SILEO';
+    const hours = visibleHours(lat);
+    const rows = [];
+    // half-hour ticks
+    for (let hh = hours[0]; hh <= hours[hours.length - 1] - 0.5; hh += 0.5) {
+      if (Number.isInteger(hh)) continue;
+      const th = hourLine(lat, (hh - 12) * 15), v = dir(th), r0 = rayLen(v, R - 34, O), r1 = rayLen(v, R - 14, O);
+      el('line', { x1: O.x + v.x * r0, y1: O.y + v.y * r0, x2: O.x + v.x * r1, y2: O.y + v.y * r1, stroke: 'rgba(60,40,10,.55)', 'stroke-width': 1 }, svg);
+    }
+    for (const hr of hours) {
+      const h = (hr - 12) * 15, th = hourLine(lat, h), v = dir(th);
+      rows.push({ hr, h, th });
+      const r = rayLen(v, R - 34, O);
+      el('line', { x1: O.x + v.x * 18, y1: O.y + v.y * 18, x2: O.x + v.x * r, y2: O.y + v.y * r, stroke: hr === 12 ? '#3a2608' : 'rgba(58,38,8,.8)', 'stroke-width': hr === 12 ? 2.2 : 1.4, 'data-hour': hr, class: 'hline' }, svg);
+      const rl = rayLen(v, R - 17, O);
+      const t = el('text', { x: O.x + v.x * rl, y: O.y + v.y * rl + 5, 'text-anchor': 'middle', 'font-size': 14, fill: '#3a2608', 'font-family': 'Constantia, Cambria, Georgia, serif', 'font-weight': 700 }, svg);
+      t.textContent = ROMAN[((hr % 12) + 12) % 12 === 0 ? 12 : hr % 12];
+    }
+    // the shadow: the style casts along the hour line of the apparent solar time
+    let shadowTheta = null;
+    if (sun && sun.elev > 0) {
+      shadowTheta = hourLine(lat, sun.ha);
+      const v = dir(shadowTheta), r = rayLen(v, R - 34, O);
+      const spread = 3.2;
+      const va = dir(shadowTheta - spread), vb = dir(shadowTheta + spread);
+      el('path', { d: `M ${O.x} ${O.y} L ${O.x + va.x * r * 0.96} ${O.y + va.y * r * 0.96} L ${O.x + v.x * r} ${O.y + v.y * r} L ${O.x + vb.x * r * 0.96} ${O.y + vb.y * r * 0.96} Z`, fill: 'rgba(26,36,41,.55)', 'data-testid': 'shadow' }, svg);
+    }
+    // gnomon, seen from above: a triangular plate along the noon line
+    el('path', { d: `M ${O.x - 5} ${O.y + 6} L ${O.x - 3} ${O.y - R + 60} L ${O.x + 3} ${O.y - R + 60} L ${O.x + 5} ${O.y + 6} Z`, fill: 'url(#verd)', stroke: '#1f463d', 'stroke-width': 1 }, svg);
+    el('circle', { cx: O.x, cy: O.y, r: 7, fill: '#2c5f53' }, svg);
+    // side view of the gnomon, top corner: its angle equals the latitude
+    const phi = Math.abs(lat), sx = 30, sy = 150, L = 64;
+    el('line', { x1: sx, y1: sy, x2: sx + L, y2: sy, stroke: '#3a4d58', 'stroke-width': 1.5 }, svg);
+    el('path', { d: `M ${sx} ${sy} L ${sx + L} ${sy} L ${sx + L} ${sy - L * Math.tan(rad(phi))} Z`, fill: 'url(#verd)', opacity: 0.9 }, svg);
+    el('path', { d: `M ${sx + 26} ${sy} A 26 26 0 0 0 ${sx + 26 * Math.cos(rad(phi))} ${sy - 26 * Math.sin(rad(phi))}`, fill: 'none', stroke: '#b8893a', 'stroke-width': 2 }, svg);
+    const st = el('text', { x: sx, y: sy + 18, 'font-size': 12, fill: '#3a4d58', 'font-family': 'Segoe UI, Arial, sans-serif' }, svg); st.textContent = `gnomon ${phi.toFixed(1)}°`;
+    // compass
+    const cx = 510, cy = 118;
+    el('circle', { cx, cy, r: 22, fill: 'none', stroke: '#3a4d58', 'stroke-width': 1 }, svg);
+    el('path', { d: `M ${cx} ${cy - 20} L ${cx - 6} ${cy} L ${cx + 6} ${cy} Z`, fill: '#9b2c1c' }, svg);
+    const ct = el('text', { x: cx, y: cy - 26, 'text-anchor': 'middle', 'font-size': 12, 'font-weight': 700, fill: '#3a4d58', 'font-family': 'Segoe UI, Arial, sans-serif' }, svg); ct.textContent = south ? 'S' : 'N';
+    svg.setAttribute('aria-label', `Horizontal sundial for latitude ${lat.toFixed(2)}°, hour lines from ${hours[0]}:00 to ${hours[hours.length - 1]}:00, gnomon at ${phi.toFixed(2)}°. ${shadowTheta === null ? 'The sun is down, so there is no shadow.' : `The shadow lies ${Math.abs(shadowTheta).toFixed(1)}° ${shadowTheta < 0 ? 'west' : 'east'} of the noon line.`}`);
+    return { rows, shadowTheta };
+  }
+  function rayLen(v, r, O) {
+    // keep the rays on the plate: the plate is a half-disc above y = O.y + 40
+    const maxDown = 40 - 4;
+    if (v.y > 0) return Math.min(r, maxDown / v.y);
+    return r;
+  }
+
+  // ---------- analemma ----------
+  let yearCache = null;
+  function yearData() {
+    const key = [loc.lat, loc.lon, loc.tz, curYear].join();
+    if (yearCache && yearCache.key === key) return yearCache;
+    const pts = [];
+    for (let doy = 0; doy < 366; doy++) {
+      const dayUTC = Date.UTC(curYear, 0, 1 + doy);
+      if (new Date(dayUTC).getUTCFullYear() !== curYear) break;
+      const ms = dayUTC + (12 * 60 - 4 * loc.lon) * 60000;   // 12:00 local mean time
+      const s = solar(ms, loc.lat, loc.lon);
+      pts.push({ doy, ms, eot: s.eot, decl: s.decl });
+    }
+    yearCache = { key, pts };
+    return yearCache;
+  }
+  let curYear = 2026;
+  function drawAnalemma(selMs) {
+    const svg = $('ana'); svg.innerHTML = '';
+    const { pts } = yearData();
+    const W = 460, H = 360, m = { l: 44, r: 14, t: 14, b: 34 };
+    const x = (e) => m.l + (e + 18) / 36 * (W - m.l - m.r), y = (d) => m.t + (25 - d) / 50 * (H - m.t - m.b);
+    for (const e of [-15, -10, -5, 0, 5, 10, 15]) { el('line', { x1: x(e), x2: x(e), y1: m.t, y2: H - m.b, stroke: e === 0 ? '#c2b9a5' : '#e3dccd', 'stroke-width': 1 }, svg); const t = el('text', { x: x(e), y: H - m.b + 16, 'text-anchor': 'middle', 'font-size': 11, fill: '#66706f', 'font-family': 'Segoe UI, Arial, sans-serif' }, svg); t.textContent = (e > 0 ? '+' : '') + e + (e === 15 ? ' min' : ''); }
+    for (const d of [-20, -10, 0, 10, 20]) { el('line', { x1: m.l, x2: W - m.r, y1: y(d), y2: y(d), stroke: d === 0 ? '#c2b9a5' : '#e3dccd', 'stroke-width': 1 }, svg); const t = el('text', { x: m.l - 6, y: y(d) + 4, 'text-anchor': 'end', 'font-size': 11, fill: '#66706f', 'font-family': 'Segoe UI, Arial, sans-serif' }, svg); t.textContent = d + '°'; }
+    const lab = el('text', { x: W - m.r, y: H - 4, 'text-anchor': 'end', 'font-size': 11, fill: '#66706f', 'font-family': 'Segoe UI, Arial, sans-serif' }, svg); lab.textContent = 'equation of time (dial − mean time)';
+    const lab2 = el('text', { x: 4, y: 12, 'font-size': 11, fill: '#66706f', 'font-family': 'Segoe UI, Arial, sans-serif' }, svg); lab2.textContent = 'declination';
+    el('path', { d: pts.map((p, i) => (i ? 'L' : 'M') + x(p.eot).toFixed(1) + ' ' + y(p.decl).toFixed(1)).join('') + 'Z', fill: 'none', stroke: '#3f7f6f', 'stroke-width': 2 }, svg);
+    const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    for (let mo = 0; mo < 12; mo++) {
+      const p = pts.find((q) => new Date(q.ms).getUTCMonth() === mo);
+      if (!p) continue;
+      el('circle', { cx: x(p.eot), cy: y(p.decl), r: 2.5, fill: '#22313a' }, svg);
+      const t = el('text', { x: x(p.eot) + (p.eot > 0 ? 6 : -6), y: y(p.decl) + 4, 'text-anchor': p.eot > 0 ? 'start' : 'end', 'font-size': 10.5, fill: '#3a4d58', 'font-family': 'Segoe UI, Arial, sans-serif' }, svg); t.textContent = MON[mo];
+    }
+    const s = solar(selMs, loc.lat, loc.lon);
+    el('circle', { cx: x(s.eot), cy: y(s.decl), r: 6, fill: '#b8893a', stroke: '#fff', 'stroke-width': 2, 'data-testid': 'ana-today' }, svg);
+    const ext = pts.reduce((a, p) => ({ max: p.eot > a.max.eot ? p : a.max, min: p.eot < a.min.eot ? p : a.min }), { max: pts[0], min: pts[0] });
+    const dstr = (p) => new Date(p.ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    svg.setAttribute('aria-label', `Analemma for ${curYear}: the equation of time ranges from ${fmtSigned(ext.min.eot)} around ${dstr(ext.min)} to ${fmtSigned(ext.max.eot)} around ${dstr(ext.max)}; declination from ${Math.min(...pts.map((p) => p.decl)).toFixed(2)}° to ${Math.max(...pts.map((p) => p.decl)).toFixed(2)}°.`);
+    return ext;
+  }
+
+  // ---------- render ----------
+  let last = null;
+  function nowMs() { return pinned !== null ? pinned : Date.now(); }
+  function render() {
+    const bad = !(Math.abs(loc.lat) >= 10 && Math.abs(loc.lat) <= 65) || !(Math.abs(loc.lon) <= 180) || !Number.isFinite(loc.tz);
+    $('warn').textContent = !Number.isFinite(loc.lat) || !Number.isFinite(loc.lon) ? 'Enter a latitude and longitude.'
+      : Math.abs(loc.lat) < 10 ? 'Too close to the equator: a horizontal dial’s hour lines crowd onto the noon line there. Try a latitude of 10° or more (or build an equatorial dial).'
+      : Math.abs(loc.lat) > 65 ? 'Above 65° the midsummer sun never sets, and this layout stops at 24 hours of daylight. Try 65° or less.'
+      : Math.abs(loc.lon) > 180 ? 'Longitude must be between −180° and 180°.' : '';
+    if (bad) return;
+    const ms = nowMs();
+    const lp = localParts(ms, loc);
+    curYear = lp.y;
+    const sun = solar(ms, loc.lat, loc.lon);
+    const { rows, shadowTheta } = drawDial(sun);
+    // hour table
+    $('tbody').innerHTML = rows.map((r) => `<tr data-testid="row-${r.hr}"><td>${fmtClock(r.hr * 60).replace(':00', '')}</td><td>${r.h > 0 ? '+' : ''}${r.h}°</td><td data-testid="theta-${r.hr}">${r.th.toFixed(2)}°</td></tr>`).join('');
+    $('phiTxt').textContent = loc.lat.toFixed(4) + '°'; $('gnoTxt').textContent = Math.abs(loc.lat).toFixed(2) + '°';
+    // readouts
+    const clockMin = lp.h * 60 + lp.mi + lp.s / 60;
+    const std = loc.tz * 15;
+    const lonCorr = 4 * (loc.lon - std);                        // minutes local mean time is ahead of standard time
+    const dst = dstOn(ms, loc.dst, loc.tz) ? 60 : 0;
+    const dialMin = sun.tst;                                   // apparent solar time
+    const noonClock = 720 - sun.eot - lonCorr + dst;
+    const diff = ((dialMin - clockMin + 720) % 1440 + 1440) % 1440 - 720;
+    if (sun.elev > 0) { $('rDial').textContent = fmtClock(dialMin); }
+    else $('rDial').textContent = 'Night: the sun is down';
+    $('rClock').textContent = fmtClock(Math.floor(clockMin)) + (dst ? ' (daylight)' : '');
+    $('rDiff').textContent = sun.elev > 0 ? `${fmtSigned(diff).slice(1)} ${diff >= 0 ? 'ahead' : 'behind'}` : '—';
+    $('rEl').textContent = sun.elev.toFixed(2) + '°';
+    $('rAz').textContent = sun.az.toFixed(1) + '°';
+    $('rDec').textContent = (sun.decl >= 0 ? '+' : '−') + Math.abs(sun.decl).toFixed(2) + '°';
+    $('rEot').textContent = fmtSigned(sun.eot);
+    $('rLon').textContent = fmtSigned(lonCorr);
+    $('rNoon').textContent = fmtClock(noonClock);
+    $('conv').innerHTML = `clock = dial − EoT − 4 min × (λ − λ<sub>zone</sub>)${dst ? ' + 1 h daylight' : ''}<br>= dial ${fmtSigned(-sun.eot)} ${fmtSigned(-lonCorr)}${dst ? ' + 60m' : ''} (λ<sub>zone</sub> = ${std.toFixed(1)}°)`;
+    $('orient').textContent = loc.lat >= 0
+      ? `Set the plate level with the noon line and gnomon pointing to true north (not magnetic north); the gnomon's edge then parallels Earth's axis at ${Math.abs(loc.lat).toFixed(1)}°.`
+      : `Southern hemisphere: the noon line and gnomon point to true south, and the hours run the other way round the dial.`;
+    const ext = drawAnalemma(ms);
+    last = { ms, sun, rows, shadowTheta, clockMin, dialMin, lonCorr, dst, noonClock, diff, ext: { max: ext.max.eot, maxMs: ext.max.ms, min: ext.min.eot, minMs: ext.min.ms } };
+    // keep the date/time inputs in step when following the clock
+    if (pinned === null && document.activeElement !== $('d') && document.activeElement !== $('t')) { $('d').value = `${lp.y}-${pad(lp.mo + 1)}-${pad(lp.d)}`; $('t').value = `${pad(lp.h)}:${pad(lp.mi)}`; }
+  }
+
+  // ---------- inputs ----------
+  function syncInputs() { $('lat').value = loc.lat; $('lon').value = loc.lon; $('tz').value = loc.tz; $('dst').value = loc.dst; }
+  $('presets').innerHTML = PRESETS.map((p) => `<button type="button" class="chip" data-p="${p.id}" data-testid="preset-${p.id}" aria-pressed="${p.id === 'austin'}">${p.name}</button>`).join('');
+  $('presets').addEventListener('click', (e) => {
+    const b = e.target.closest('.chip'); if (!b) return;
+    Object.assign(loc, PRESETS.find((p) => p.id === b.dataset.p));
+    $('presets').querySelectorAll('.chip').forEach((c) => c.setAttribute('aria-pressed', c === b));
+    syncInputs(); yearCache = null; render();
+  });
+  for (const id of ['lat', 'lon', 'tz']) $(id).addEventListener('input', () => {
+    loc[id] = parseFloat($(id).value); yearCache = null;
+    $('presets').querySelectorAll('.chip').forEach((c) => c.setAttribute('aria-pressed', 'false'));
+    render();
+  });
+  $('dst').addEventListener('change', () => { loc.dst = $('dst').value; render(); });
+  function pinFromInputs() {
+    const dv = $('d').value, tv = $('t').value;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dv) || !/^\d{2}:\d{2}/.test(tv)) return;
+    const [y, mo, d] = dv.split('-').map(Number), [h, mi] = tv.split(':').map(Number);
+    pinned = fromLocal(y, mo - 1, d, h, mi, loc);
+    render();
+  }
+  $('d').addEventListener('change', pinFromInputs); $('t').addEventListener('change', pinFromInputs);
+  $('d').addEventListener('input', pinFromInputs); $('t').addEventListener('input', pinFromInputs);
+  $('now').addEventListener('click', () => { pinned = null; render(); });
+
+  window.__sundial = { solar, hourLine, get last() { return last ? JSON.parse(JSON.stringify(last)) : null; }, get loc() { return { ...loc }; }, dstOn };
+  syncInputs(); render();
+  setInterval(() => { if (pinned === null) render(); }, 20000);
+})();
+</script>
+</body>
+</html>

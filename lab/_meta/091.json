@@ -1,0 +1,35 @@
+{
+  "id": "091",
+  "slug": "091-armadillo-dash",
+  "file": "lab/091-armadillo-dash.html",
+  "title": "Armadillo Dash — a Texas scrubland runner",
+  "category": "Games",
+  "tags": ["canvas", "game", "fixed-timestep", "seeded-prng", "parallax", "localstorage"],
+  "description": "A side-scrolling runner down a Hill Country caliche road: a nine-banded armadillo jumps prickly pear and cedar posts, curls into a ball to roll under barbed wire and tumbleweeds, and snaps up grubs and lone stars. The pace climbs, the sky turns from day through golden hour to dusk and night over parallax hills and mesquite, and your best score is remembered.",
+  "prompt": "Build me a side-scrolling runner set in Texas scrubland. The hero is an armadillo that can jump and can curl into a ball to roll under things. Obstacles are prickly pear, fence posts, barbed wire and tumbleweeds, so some you jump and some you roll under. Add parallax hills and mesquite trees, a sky that cycles from day to dusk, pickups, speed that increases as you go, and a high score kept in localStorage. Use a fixed-timestep simulation, make the road deterministic with ?seed=, and expose window.__dash so tests can drive it frame by frame. It has to work with touch buttons as well as the keyboard.",
+  "qa": {
+    "methodology": [
+      "Deterministic replay: the simulation runs at a fixed 1/120 s step and the test detaches the real-time loop (manual mode), so the same seed and frame count must give identical obstacles and pickups. Several seeds must give different roads.",
+      "Rule oracles for each obstacle: with no input a prickly pear, cedar post, wire or tumbleweed ends the run with the right cause. Jumping clears pear and post, and curling (keyboard hold, touch on the left of the road) clears wire and tumbleweed. The spec also checks that the curled height is below the lowest strand.",
+      "Scoring arithmetic: a grub adds exactly 25 and a lone star 250, and the star is only reachable with a jump. The HUD score must match state.",
+      "Persistence: the best score is written to localStorage when the run ends, survives a reload, and a worse run does not lower it.",
+      "Time-driven visuals as data: the sky phase moves from day to golden hour to dusk at the documented times, the sky colour darkens, the speed caps at 700, and pause freezes simulated time."
+    ],
+    "risks": [
+      "Collision boxes that change size between standing and curled states: an off-by-a-few-pixels edit makes wire either impossible or trivial.",
+      "Frame-rate dependence creeping back in if anything is advanced by real dt instead of the fixed step.",
+      "The mobile layout: the canvas gets short at 360 px, so overlays move below it instead of covering it.",
+      "Non-finite values reaching canvas calls (gradients, ellipses) after a long run or a paused tab."
+    ],
+    "playwright": "Games are hard to test through pixels and easy to test through state. The page exposes __dash.manual(true), frames(n) and until(gap), so every physics step is driven by the test. There is no waiting on requestAnimationFrame and no timing flake. __dash.place() clears the road and puts one obstacle or pickup a known distance ahead, which makes each rule a small scenario. The input itself is real: Space and ArrowUp through page.keyboard, a held ArrowDown for the curl, and pointer events dispatched on the Jump button and on the left side of the canvas. toHaveScreenshot is not used, because the sky and parallax are procedural; sky colour and phase are asserted as numbers instead.",
+    "coverage": [
+      "Seeded road replay, different seeds, rising speed",
+      "Prickly pear and cedar post: crash without input, clear with Space and the Jump button",
+      "Wire and tumbleweed: crash standing, clear when curled with the keyboard and with touch; the curl releases after a beat",
+      "Grub +25, star +250 only when jumping, HUD score",
+      "Best score saved, reloaded, not lowered",
+      "Day to golden hour to dusk, top speed, pause and resume"
+    ]
+  },
+  "a11y": "Jump, Curl and Pause are real buttons (Pause uses aria-pressed) with keyboard equivalents for everything, and the canvas has a live aria-label with the mode, time of day and score. Pickups, light changes and game-over reasons are announced in an aria-live status. Under reduced motion the dust, screen shake and parallax drift are toned down."
+}

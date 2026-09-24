@@ -1,0 +1,34 @@
+{
+  "id": "082",
+  "slug": "082-example-mapping",
+  "file": "lab/082-example-mapping.html",
+  "title": "Example Mapping — A BDD Workshop Board",
+  "category": "QA & Testing",
+  "tags": ["bdd", "gherkin", "drag-and-drop", "workshop", "localstorage"],
+  "description": "A tabletop board for example mapping: a yellow story card, blue rule cards, green example cards under each rule and red question cards, all editable, with examples draggable between rules by pointer or keyboard. A 25-minute timebox, a readiness verdict (too many questions, too many rules, rules without examples) and a live Gherkin export with Rule and Example blocks round it off.",
+  "prompt": "Build 'Example Mapping', a BDD example-mapping workshop board. One yellow story card, blue rule cards, green example cards under the rules and red question cards. Let me add and edit every card, and drag examples between rules with a pointer and with the keyboard. Add a 25-minute timebox and a readiness verdict: too many questions means the story isn't ready, too many rules means split the story. Export the board as Gherkin scenarios, and persist everything locally. Make it feel like index cards on a workshop table, not a SaaS dashboard.",
+  "qa": {
+    "methodology": [
+      "Model-to-output oracle: every card edit is checked in the Gherkin export (Feature title derived from the story, one Rule per blue card, one Example per green card, open questions as comments, Given/When/Then lines preserved).",
+      "Decision-table testing of the readiness verdict across its branches (ready, needs examples, too many questions, split), including the adjustable thresholds and their exact edges.",
+      "Two input modalities for the same move operation: keyboard (Arrow keys on the grip, with focus kept on the moved card and a live announcement) and a real pointer drag with mouse down/move/up.",
+      "Persistence check by reloading after edits, with autosave written immediately on every change.",
+      "Time-based behaviour driven by page.clock: count down, pause holds, resume, and the time's-up announcement carrying the current verdict."
+    ],
+    "risks": [
+      "Drop position when columns stack vertically on phones: the drop target is found with elementFromPoint, so a drag must stay on screen.",
+      "Focus loss after a re-render moves a card; the grip is refocused by id.",
+      "A timer that keeps counting while paused, or drifts because it counts intervals instead of comparing against an end time.",
+      "Stored boards from an older version colliding with new card ids."
+    ],
+    "playwright": "Locators are all data-testid, and each rule column is addressed by index so the tests read like the board. The drag test uses page.mouse; the hard part was that on Pixel 7 the rules stack vertically, so the test scrolls the midpoint between the grip and the drop zone into the centre of the viewport before dragging. The timebox uses page.clock.install, then pauseAt, then fastForward for the 5-, 10- and 20-minute jumps, so a 25-minute session runs in well under a second. Persistence is tested with a plain reload in the same context, which keeps localStorage. No screenshots are asserted: the card tilt and handwriting font vary by OS.",
+    "coverage": [
+      "Sample board, adding a rule and an example, the Gherkin export and persistence across reload",
+      "Keyboard moves between rules, reordering, and the edge announcement",
+      "Pointer drag into another rule and the export order that follows",
+      "Verdict branches: too many questions, adjustable limit, split, needs examples",
+      "Timebox start, pause, resume, time's up with verdict, reset"
+    ]
+  },
+  "a11y": "Every card is a labelled textarea, and moving an example needs no pointer: focus its grip button and use the Arrow keys, with each move announced in an assertive live region. The verdict and timer status are live regions too, and all controls are real buttons with visible focus."
+}

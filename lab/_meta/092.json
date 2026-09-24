@@ -1,0 +1,35 @@
+{
+  "id": "092",
+  "slug": "092-parish-festival",
+  "file": "lab/092-parish-festival.html",
+  "title": "St. Fiacre Fall Festival — a parish festival landing page",
+  "category": "Landing Pages",
+  "tags": ["landing-page", "svg", "calculator", "forms", "localstorage", "page-clock"],
+  "description": "A warm landing page for a fictional Texas parish's fall festival, with swaying papel picado bunting cut in SVG, a stage-by-stage schedule, an SVG map of the food booths with menus and filters, weekend Mass times and an FAQ. The raffle calculator finds the cheapest bundle mix (or the most tickets a budget buys), and the volunteer sign-up saves only to your own browser.",
+  "prompt": "Make a landing page for a fictional Catholic parish's fall festival. Invent the parish and town; it must not be a real parish. I want a hero with papel picado bunting that sways, a schedule by stage and day, an SVG map of the food booths where you can tap a booth to see its menu, and a raffle ticket calculator with bundle pricing that gets the math right, including when a bigger bundle is cheaper than the exact count. Add a volunteer sign-up form that only saves locally and says clearly that nothing is sent, fictional Mass times for the weekend, and an FAQ. Make it feel like a real small-town Texas parish festival: kolaches, brisket, tamales, bingo and a cakewalk.",
+  "qa": {
+    "methodology": [
+      "Math oracle: the raffle optimiser (an unbounded knapsack) is checked against an independent brute-force search for every ticket count from 1 to 90. The spec also checks the known cases where buying more costs less (13 tickets cost $55 exactly, but 15 cost $50) and budget mode's leftover change.",
+      "Time-dependent content: the countdown is exercised with page.clock at five instants: a week out, the day before (singular 'day'), festival morning, mid-festival and after it ends.",
+      "ARIA widget behaviour: stage tabs expose role=tab and aria-selected with roving tabindex. ArrowRight wraps round, day toggles use aria-pressed, and map booths are focusable role=button elements that respond to Enter.",
+      "Privacy claim as a test: the volunteer submission is recorded with page.on('request') and must produce zero requests. The stored JSON must match the form, survive a reload, update the remaining-spots counts and be removable.",
+      "Form validation: empty submit focuses the first invalid field and sets aria-invalid, a malformed email is rejected, full shifts are disabled."
+    ],
+    "risks": [
+      "Local-time assumptions in the countdown: day boundaries are computed from local midnight, so the test pins times without a zone suffix.",
+      "Bundle pricing edits (a new bundle size) silently breaking the 'bigger is cheaper' logic; the brute-force cross-check catches that.",
+      "Mask ids for the papel picado cut-outs must be unique or all flags share one pattern.",
+      "The claim that nothing is sent must stay true if anyone later adds analytics or a real endpoint."
+    ],
+    "playwright": "A landing page is mostly content, so the spec concentrates on the parts with logic. The raffle calculator has an in-page brute-force check run through page.evaluate, which works as an independent oracle instead of a list of hand-picked numbers. The countdown uses page.clock.install() followed by pauseAt(), so the dates are stable whatever day CI runs. The privacy promise is checked by attaching a request listener before submitting and asserting it stays empty. The swaying bunting is decorative CSS animation and is not asserted; toHaveScreenshot was avoided because of it.",
+    "coverage": [
+      "Countdown before, on the day, during and after",
+      "Stage tabs, day toggles, arrow-key roving focus",
+      "Booth selection by click and keyboard, menus, filters and dimming",
+      "Raffle cheapest mix, bigger-is-cheaper, validation, budget mode, brute-force cross-check",
+      "Volunteer validation, local save, no network, reload, remove, spot counts",
+      "Mass times and FAQ disclosure"
+    ]
+  },
+  "a11y": "Stages are an ARIA tablist with arrow-key navigation, days and filters are toggle buttons with aria-pressed, and each map booth is a focusable labelled button. Form fields have labels, inline errors tied with aria-describedby and aria-invalid. Raffle results, booth details and form messages are announced through aria-live regions, and the bunting stops swaying under prefers-reduced-motion."
+}

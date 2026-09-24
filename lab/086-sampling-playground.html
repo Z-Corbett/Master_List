@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sampling Playground — decoding a toy next-word model</title>
+<meta name="description" content="A clearly labelled toy next-word model (a hand-built table of scores for each word given the previous word) for exploring decoding: temperature, top-k, top-p, repetition penalty and greedy versus sampling. See the adjusted distribution and its entropy, and generate seeded sentences side by side with two settings.">
+<style>
+  :root {
+    --paper: #f6f0e3;
+    --paper-2: #efe6d2;
+    --ink: #262019;
+    --ink-2: #625849;
+    --ink-3: #978b76;
+    --rule: #d8cbb0;
+    --a: #d2452b;      /* column A: vermilion */
+    --b: #1f6f78;      /* column B: deep teal */
+    --ghost: rgba(38,32,25,.13);
+    --type: "Courier Prime", "Courier New", Courier, ui-monospace, monospace;
+    --serif: Georgia, "Times New Roman", serif;
+    --sans: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--paper); color: var(--ink); font: 15px/1.5 var(--serif); overflow-x: hidden;
+    background-image: radial-gradient(rgba(98,88,73,.07) 1px, transparent 1px); background-size: 5px 5px; }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  input, select, pre { max-width: 100%; }
+  :focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+  .back { position: fixed; top: 10px; left: 10px; z-index: 50; background: var(--paper); color: var(--ink); text-decoration: none; font: 700 13px/1 var(--type); padding: 8px 12px; border: 2px solid var(--ink); }
+
+  header { max-width: 1240px; margin: 0 auto; padding: 60px 20px 14px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; align-items: end; border-bottom: 3px double var(--ink); }
+  h1 { font: 700 clamp(30px, 6vw, 60px)/1 var(--type); margin: 0; letter-spacing: -.02em; }
+  .lede { margin: 10px 0 0; max-width: 66ch; color: var(--ink-2); }
+  .stamp { border: 3px solid var(--a); color: var(--a); font: 700 13px/1.25 var(--type); padding: 8px 12px; transform: rotate(-4deg); text-transform: uppercase; letter-spacing: .08em; text-align: center; max-width: 220px; }
+
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 16px 20px 50px; }
+  .pipeline { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font: 13px var(--type); color: var(--ink-2); margin-bottom: 14px; }
+  .pipeline span { border: 1px solid var(--rule); background: #fffaf0; padding: 3px 8px; }
+  .pipeline i { font-style: normal; color: var(--ink-3); }
+  .seedrow { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px; font-size: 14px; }
+  .seedrow input { width: 90px; border: 2px solid var(--ink); background: #fffaf0; padding: 4px 8px; font-family: var(--type); }
+  .btn { border: 2px solid var(--ink); background: #fffaf0; padding: 5px 12px; font: 700 13.5px var(--type); }
+  .btn:hover { background: var(--paper-2); }
+  .btn.ink { background: var(--ink); color: var(--paper); }
+
+  .cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+  .col { background: #fffaf0; border: 2px solid var(--ink); box-shadow: 5px 5px 0 var(--c); padding: 14px 16px 16px; min-width: 0; }
+  .col[data-col="A"] { --c: var(--a); } .col[data-col="B"] { --c: var(--b); }
+  .col h2 { margin: 0 0 10px; font: 700 20px var(--type); display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .col h2 b { color: var(--c); }
+  .presets { display: flex; flex-wrap: wrap; gap: 4px; }
+  .presets button { border: 1px solid var(--rule); background: var(--paper); padding: 2px 8px; font: 12px var(--type); }
+  .ctrls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; margin-bottom: 12px; }
+  .ctrl { display: grid; gap: 2px; font: 12.5px var(--type); color: var(--ink-2); min-width: 0; }
+  .ctrl .top { display: flex; justify-content: space-between; gap: 6px; }
+  .ctrl output { color: var(--ink); font-weight: 700; }
+  .ctrl input[type=range] { width: 100%; accent-color: var(--c); }
+  .mode { display: flex; gap: 0; border: 2px solid var(--ink); width: max-content; max-width: 100%; }
+  .mode button { border: 0; background: none; padding: 3px 10px; font: 700 12.5px var(--type); }
+  .mode button[aria-pressed="true"] { background: var(--c); color: #fff; }
+
+  .prefix { font: 16px/1.6 var(--type); background: var(--paper); border: 1px dashed var(--rule); padding: 8px 10px; min-height: 44px; overflow-wrap: anywhere; }
+  .prefix .tk { border-bottom: 2px solid var(--c); }
+  .prefix .cursor { display: inline-block; width: 9px; height: 17px; background: var(--c); vertical-align: -3px; animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .prow { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
+
+  .ent { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+  .ent div { border-top: 2px solid var(--ink); padding-top: 4px; min-width: 0; }
+  .ent b { display: block; font: 700 20px var(--type); overflow-wrap: anywhere; }
+  .ent span { font: 11.5px var(--type); color: var(--ink-2); }
+  .bars { display: grid; gap: 2px; }
+  .bar { display: grid; grid-template-columns: 86px minmax(0, 1fr) 56px; gap: 8px; align-items: center; border: 0; background: none; padding: 2px 0; text-align: left; font: 13.5px var(--type); }
+  .bar:hover .w { text-decoration: underline; }
+  .bar .w { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar .track { position: relative; height: 14px; }
+  .bar .g { position: absolute; left: 0; top: 0; bottom: 0; background: var(--ghost); }
+  .bar .f { position: absolute; left: 0; top: 3px; bottom: 3px; background: var(--c); transition: width .35s ease; }
+  .bar .pct { text-align: right; font-size: 12.5px; color: var(--ink-2); }
+  .bar.cut .w { text-decoration: line-through; color: var(--ink-3); }
+  .bar.cut .pct { color: var(--ink-3); }
+  .bar.pen .w::after { content: " ↺"; color: var(--c); }
+  .hint { font: 12px var(--type); color: var(--ink-3); margin: 6px 0 0; }
+
+  .runs { margin-top: 14px; border-top: 3px double var(--ink); padding-top: 10px; }
+  .runs h3 { margin: 0 0 6px; font: 700 14px var(--type); display: flex; justify-content: space-between; gap: 8px; align-items: center; flex-wrap: wrap; }
+  ol.sents { margin: 0; padding-left: 22px; font: 15px/1.55 var(--type); }
+  ol.sents li { overflow-wrap: anywhere; }
+  ol.sents .t { border-bottom: 1px dotted var(--ink-3); }
+  .rstats { font: 12.5px var(--type); color: var(--ink-2); margin-top: 6px; }
+
+  .notes { margin-top: 26px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; font-size: 14px; color: var(--ink-2); }
+  .notes h4 { font: 700 13px var(--type); color: var(--ink); margin: 0 0 4px; text-transform: uppercase; letter-spacing: .06em; }
+  .notes p { margin: 0; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  footer { max-width: 1240px; margin: 0 auto; padding: 0 20px 30px; font: 12.5px var(--type); color: var(--ink-3); }
+
+  @media (max-width: 900px) { .cols, .notes { grid-template-columns: minmax(0, 1fr); } header { grid-template-columns: minmax(0, 1fr); } .stamp { justify-self: start; } }
+  @media (max-width: 480px) {
+    header, .wrap, footer { padding-left: 12px; padding-right: 12px; }
+    .col { padding: 12px; box-shadow: 3px 3px 0 var(--c); }
+    .ctrls { grid-template-columns: minmax(0, 1fr); }
+    .bar { grid-template-columns: 72px minmax(0, 1fr) 50px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .bar .f { transition: none; } .prefix .cursor { animation: none; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+
+<header>
+  <div>
+    <h1>Sampling Playground</h1>
+    <p class="lede">A language model hands you scores for the next word; <em>decoding</em> decides which one you get. Twist the knobs on two copies of the same tiny model and watch the distribution — and the sentences — change.</p>
+  </div>
+  <div class="stamp" data-testid="toy-stamp">Toy model · 32 words · hand-written scores · not any real LLM</div>
+</header>
+
+<main class="wrap">
+  <div class="pipeline" aria-label="Order of operations in this toy">
+    <span>scores for next word</span><i>→</i><span>repetition penalty</span><i>→</i><span>÷ temperature</span><i>→</i><span>softmax</span><i>→</i><span>top-k</span><i>→</i><span>top-p</span><i>→</i><span>renormalise</span><i>→</i><span>sample or argmax</span>
+  </div>
+  <div class="seedrow">
+    <label for="seed">Seed</label><input id="seed" type="number" data-testid="seed" value="42">
+    <button class="btn" type="button" data-testid="copy-a-to-b">Copy A's settings to B</button>
+    <span style="color:var(--ink-3);font-size:13.5px">Both columns draw from their own generator seeded with the same number, so identical settings give identical sentences.</span>
+  </div>
+
+  <div class="cols" data-testid="cols"></div>
+
+  <section class="notes" aria-label="Notes">
+    <div><h4>Temperature</h4><p>Scores are divided by T before softmax. Below 1 the favourite gets more likely; above 1 the distribution flattens. At exactly 0 this page switches to greedy (always the top word).</p></div>
+    <div><h4>Top-k and top-p</h4><p>Top-k keeps the k most likely words. Top-p (nucleus) keeps the smallest set of top words whose probabilities add up to at least p. Whatever survives is renormalised to sum to 1.</p></div>
+    <div><h4>Repetition penalty</h4><p>Words already in the sentence get their score divided by the penalty if positive, multiplied if negative — a common form of the penalty introduced with the CTRL model (2019). Libraries differ in the order they apply these steps; this toy's order is shown above.</p></div>
+  </section>
+</main>
+<footer>The “model” is a lookup table of scores for each word given only the previous word (a bigram table) — written by hand for this page.</footer>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s, r = document) => r.querySelector(s);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+  // ---------- the toy model: scores (logits) for the next word given the previous word ----------
+  const END = '.';
+  const T = (s) => Object.fromEntries(s.split(',').map((p) => p.trim().split(' ')).map(([w, v]) => [w, Number(v)]));
+  const MODEL = {
+    '<s>': T('the 2.2, a 1.6, my 1.0, every 0.3, rain 0.2'),
+    the: T('cat 1.8, dog 1.5, old 1.2, rain 1.0, moon 0.9, garden 0.8, kettle 0.6'),
+    a: T('cat 1.4, dog 1.3, small 1.2, quiet 0.9, kettle 0.7, moon 0.2'),
+    my: T('cat 1.6, garden 1.4, dog 1.2, old 1.0, kettle 0.8'),
+    every: T('morning 2.0, night 1.8, cat 0.4'),
+    old: T('kettle 1.3, cat 1.2, dog 1.1, garden 1.0, moon 0.4'),
+    small: T('cat 1.5, garden 1.2, dog 1.1, kettle 0.5'),
+    quiet: T('garden 1.5, night 1.3, morning 1.1, cat 0.6'),
+    cat: T('sleeps 2.0, purrs 1.5, sat 1.4, watched 1.0, . 0.3, sings -0.5'),
+    dog: T('barks 2.0, sleeps 1.3, sat 1.1, watched 0.9, . 0.3, sings -0.8'),
+    rain: T('falls 2.1, stopped 1.2, sings 0.6, . 0.4'),
+    moon: T('rose 1.8, watched 0.8, . 0.5, sings -0.2'),
+    garden: T('grew 1.3, . 1.1, sleeps 0.2'),
+    kettle: T('sings 1.9, whistles 1.4, . 0.2'),
+    sleeps: T('. 1.6, in 1.0, softly 1.0, on 0.8, all 0.5'),
+    purrs: T('softly 1.7, . 1.4, all 0.6, on 0.3'),
+    barks: T('. 1.5, all 1.0, softly -0.4, at 0.9'),
+    sat: T('on 2.0, in 1.0, . 0.3'),
+    watched: T('the 1.9, a 1.0, my 0.8'),
+    sings: T('softly 1.6, . 1.0, all 0.5, in 0.4'),
+    whistles: T('. 1.8, softly 0.5, all 0.2'),
+    rose: T('over 1.5, . 1.0, softly 0.4'),
+    falls: T('softly 1.5, on 1.3, . 1.0, all 0.8'),
+    stopped: T('. 1.8, softly 0.2'),
+    grew: T('. 1.2, quiet 0.6, old 0.4, softly 0.3'),
+    softly: T('. 2.0, in 0.6, on 0.3, all 0.2'),
+    in: T('the 2.0, my 1.1, a 0.9'),
+    on: T('the 2.0, my 1.2, a 1.0'),
+    at: T('the 2.0, a 0.8, my 0.7'),
+    over: T('the 2.2, my 0.6, a 0.5'),
+    all: T('night 2.2, morning 1.2'),
+    morning: T('. 1.6, softly 0.1'),
+    night: T('. 1.6'),
+  };
+  const MAXLEN = 16;
+
+  // ---------- decoding ----------
+  function distribution(prev, history, s) {
+    const table = MODEL[prev] || MODEL['<s>'];
+    const words = Object.keys(table);
+    const used = new Set(history.filter((w) => w !== END));
+    const raw = words.map((w) => table[w]);
+    const pen = words.map((w, i) => {
+      const l = raw[i];
+      if (!used.has(w) || s.rep === 1) return l;
+      return l > 0 ? l / s.rep : l * s.rep;
+    });
+    const softmax = (arr) => { const m = Math.max(...arr); const e = arr.map((x) => Math.exp(x - m)); const z = e.reduce((a, b) => a + b, 0); return e.map((x) => x / z); };
+    const base = softmax(raw);
+    const greedy = s.mode === 'greedy' || s.temp === 0;
+    let p;
+    if (greedy) {
+      // temperature -> 0 limit: all mass on the highest (penalised) score; ties go to the earlier word
+      let best = 0; pen.forEach((x, i) => { if (x > pen[best]) best = i; });
+      p = pen.map((_, i) => (i === best ? 1 : 0));
+    } else {
+      p = softmax(pen.map((x) => x / s.temp));
+    }
+    const order = words.map((_, i) => i).sort((i, j) => p[j] - p[i] || i - j);
+    const keep = new Set();
+    order.forEach((i, rank) => { if (s.k === 0 || rank < s.k) keep.add(i); });
+    if (s.p < 1) {
+      let cum = 0; const nucleus = new Set();
+      for (const i of order) { if (!keep.has(i)) continue; nucleus.add(i); cum += p[i]; if (cum >= s.p - 1e-12) break; }
+      [...keep].forEach((i) => { if (!nucleus.has(i)) keep.delete(i); });
+    }
+    const z = [...keep].reduce((a, i) => a + p[i], 0) || 1;
+    const final = p.map((x, i) => (keep.has(i) ? x / z : 0));
+    const H = final.reduce((a, x) => (x > 0 ? a - x * Math.log2(x) : a), 0);
+    const H0 = base.reduce((a, x) => (x > 0 ? a - x * Math.log2(x) : a), 0);
+    return { words, raw, pen, base, final, order, keep, H, H0, greedy, used };
+  }
+  function pick(D, rand) {
+    if (D.greedy) { let b = 0; D.final.forEach((x, i) => { if (x > D.final[b]) b = i; }); return b; }
+    const r = rand(); let cum = 0; let last = -1;
+    for (const i of D.order) { if (D.final[i] <= 0) continue; last = i; cum += D.final[i]; if (r < cum) return i; }
+    return last;
+  }
+
+  // ---------- columns ----------
+  const PRESETS = {
+    greedy: { label: 'Greedy', mode: 'greedy', temp: 1, k: 0, p: 1, rep: 1 },
+    balanced: { label: 'Balanced', mode: 'sample', temp: 0.8, k: 0, p: 0.9, rep: 1.1 },
+    wild: { label: 'Wild', mode: 'sample', temp: 1.6, k: 0, p: 1, rep: 1 },
+    strict: { label: 'Top-2', mode: 'sample', temp: 1, k: 2, p: 1, rep: 1 },
+  };
+  const cols = {
+    A: { s: { ...PRESETS.balanced }, prefix: [], rng: null, runs: null },
+    B: { s: { ...PRESETS.wild }, prefix: [], rng: null, runs: null },
+  };
+  const qs = new URLSearchParams(location.search);
+  const seed0 = Number.parseInt(qs.get('seed') || '42', 10);
+  $('[data-testid="seed"]').value = Number.isFinite(seed0) ? seed0 : 42;
+  const seedVal = () => { const v = Number.parseInt($('[data-testid="seed"]').value, 10); return Number.isFinite(v) ? v : 42; };
+  Object.values(cols).forEach((c) => { c.rng = mulberry32(seedVal()); });
+
+  const fmtP = (x) => (x === 0 ? '0%' : x < 0.001 ? '<0.1%' : (x * 100).toFixed(1) + '%');
+  const slider = (id, key, label, min, max, step, val, show) => `<label class="ctrl"><span class="top"><span>${label}</span><output data-testid="${id}-${key}-out">${show}</output></span><input type="range" data-key="${key}" data-testid="${id}-${key}" min="${min}" max="${max}" step="${step}" value="${val}" aria-label="${label}"></label>`;
+
+  function colShell(id) {
+    const c = cols[id];
+    return `<section class="col" data-col="${id}" data-testid="col-${id}" aria-label="Settings ${id}">
+      <h2><span>Settings <b>${id}</b></span><span class="presets">${Object.entries(PRESETS).map(([k, p]) => `<button type="button" data-preset="${k}" data-testid="${id}-preset-${k}">${p.label}</button>`).join('')}</span></h2>
+      <div class="ctrls" data-role="ctrls"></div>
+      <div class="prefix" data-testid="${id}-prefix" aria-live="polite"></div>
+      <div class="prow">
+        <button class="btn ink" type="button" data-act="step" data-testid="${id}-step">Next word</button>
+        <button class="btn" type="button" data-act="finish" data-testid="${id}-finish">Finish sentence</button>
+        <button class="btn" type="button" data-act="reset" data-testid="${id}-reset">Clear</button>
+      </div>
+      <div class="ent">
+        <div><b data-testid="${id}-entropy">0</b><span>entropy (bits)</span></div>
+        <div><b data-testid="${id}-perp">1</b><span>≈ equally likely choices</span></div>
+        <div><b data-testid="${id}-h0">0</b><span>raw model entropy</span></div>
+      </div>
+      <div class="bars" data-testid="${id}-bars" role="group" aria-label="Next-word distribution, ${id}"></div>
+      <p class="hint">Grey = the model's raw probability · colour = after decoding. Click a word to force it. ↺ = penalised repeat.</p>
+      <div class="runs"><h3><span>Five sentences</span><button class="btn" type="button" data-act="run" data-testid="${id}-run">Run 5</button></h3>
+        <ol class="sents" data-testid="${id}-sents"></ol><div class="rstats" data-testid="${id}-rstats"></div></div>
+    </section>`;
+  }
+  function renderCtrls(id) {
+    const s = cols[id].s;
+    $(`[data-col="${id}"] [data-role="ctrls"]`).innerHTML =
+      `<div class="ctrl"><span class="top"><span>Decoding</span></span><div class="mode" role="group" aria-label="Decoding mode ${id}"><button type="button" data-mode="sample" data-testid="${id}-mode-sample" aria-pressed="${s.mode === 'sample'}">sample</button><button type="button" data-mode="greedy" data-testid="${id}-mode-greedy" aria-pressed="${s.mode === 'greedy'}">greedy</button></div></div>` +
+      slider(id, 'temp', 'Temperature', 0, 2, 0.05, s.temp, s.temp === 0 ? '0 (greedy)' : s.temp.toFixed(2)) +
+      slider(id, 'k', 'Top-k', 0, 8, 1, s.k, s.k === 0 ? 'off' : s.k) +
+      slider(id, 'p', 'Top-p', 0.05, 1, 0.05, s.p, s.p >= 1 ? 'off (1.00)' : s.p.toFixed(2)) +
+      slider(id, 'rep', 'Repetition penalty', 1, 2, 0.05, s.rep, s.rep === 1 ? 'off (1.00)' : s.rep.toFixed(2));
+  }
+  function renderCol(id) {
+    const c = cols[id];
+    const prev = c.prefix.length ? c.prefix[c.prefix.length - 1] : '<s>';
+    const done = prev === END || c.prefix.length >= MAXLEN;
+    const pre = $(`[data-testid="${id}-prefix"]`);
+    pre.innerHTML = c.prefix.length ? c.prefix.map((w) => `<span class="tk" data-testid="${id}-token">${esc(w)}</span>`).join(' ') + (done ? '' : ' <span class="cursor" aria-hidden="true"></span>') : '<span style="color:var(--ink-3)">(start of sentence)</span> <span class="cursor" aria-hidden="true"></span>';
+    pre.dataset.done = String(done);
+    $(`[data-testid="${id}-step"]`).disabled = done;
+    $(`[data-testid="${id}-finish"]`).disabled = done;
+    const bars = $(`[data-testid="${id}-bars"]`);
+    if (done) {
+      bars.innerHTML = `<p class="hint" data-testid="${id}-done">${prev === END ? 'Sentence finished.' : 'Stopped at the ' + MAXLEN + '-word limit.'} Clear to start again.</p>`;
+      ['entropy', 'perp', 'h0'].forEach((k) => { $(`[data-testid="${id}-${k}"]`).textContent = '—'; });
+      return;
+    }
+    const D = distribution(prev, c.prefix, c.s);
+    const order = D.words.map((_, i) => i).sort((i, j) => D.base[j] - D.base[i] || i - j);
+    bars.innerHTML = order.map((i) => {
+      const w = D.words[i]; const cut = !D.keep.has(i);
+      const pen = D.used.has(w) && c.s.rep !== 1;
+      const g = Math.max(0, Math.min(100, D.base[i] * 100)), f = Math.max(0, Math.min(100, D.final[i] * 100));
+      return `<button type="button" class="bar${cut ? ' cut' : ''}${pen ? ' pen' : ''}" data-word="${esc(w)}" data-testid="${id}-bar" data-p="${D.final[i]}" data-p0="${D.base[i]}" aria-label="${w === END ? 'end of sentence' : esc(w)}: ${fmtP(D.final[i])} after decoding, ${fmtP(D.base[i])} raw${cut ? ', filtered out' : ''}. Force this word.">
+        <span class="w">${w === END ? '. (end)' : esc(w)}</span><span class="track"><span class="g" style="width:${g.toFixed(2)}%"></span><span class="f" style="width:${f.toFixed(2)}%"></span></span><span class="pct">${fmtP(D.final[i])}</span></button>`;
+    }).join('');
+    $(`[data-testid="${id}-entropy"]`).textContent = D.H.toFixed(3);
+    $(`[data-testid="${id}-perp"]`).textContent = (2 ** D.H).toFixed(2);
+    $(`[data-testid="${id}-h0"]`).textContent = D.H0.toFixed(3);
+  }
+  function renderRuns(id) {
+    const c = cols[id]; const ol = $(`[data-testid="${id}-sents"]`); const st = $(`[data-testid="${id}-rstats"]`);
+    if (!c.runs) { ol.innerHTML = ''; st.textContent = 'Press Run 5 to sample five whole sentences from the start with seed ' + seedVal() + '.'; return; }
+    ol.innerHTML = c.runs.map((r) => `<li data-testid="${id}-sent">${r.tokens.map((t) => `<span class="t" title="p = ${fmtP(t.p)}">${esc(t.w)}</span>`).join(' ')}${r.capped ? ' …' : ''}</li>`).join('');
+    const distinct = new Set(c.runs.map((r) => r.tokens.map((t) => t.w).join(' '))).size;
+    const n = c.runs.reduce((a, r) => a + r.tokens.length, 0);
+    const bits = c.runs.reduce((a, r) => a + r.tokens.reduce((b, t) => b - Math.log2(Math.max(1e-12, t.p)), 0), 0);
+    st.innerHTML = `<span data-testid="${id}-distinct">${distinct}</span> distinct of 5 · ${(n / 5).toFixed(1)} words per sentence · ${(bits / Math.max(1, n)).toFixed(2)} bits of surprise per word`;
+  }
+
+  function step(id, rand) {
+    const c = cols[id];
+    const prev = c.prefix.length ? c.prefix[c.prefix.length - 1] : '<s>';
+    if (prev === END || c.prefix.length >= MAXLEN) return null;
+    const D = distribution(prev, c.prefix, c.s);
+    const i = pick(D, rand || c.rng);
+    c.prefix.push(D.words[i]);
+    return { w: D.words[i], p: D.final[i] };
+  }
+  function runFive(id) {
+    const c = cols[id];
+    const rand = mulberry32(seedVal());
+    const saved = c.prefix;
+    c.runs = [];
+    for (let n = 0; n < 5; n++) {
+      c.prefix = []; const tokens = [];
+      let t; while ((t = step(id, rand))) tokens.push(t);
+      c.runs.push({ tokens, capped: tokens.length >= MAXLEN && tokens[tokens.length - 1].w !== END });
+    }
+    c.prefix = saved;
+    renderRuns(id);
+  }
+
+  // ---------- wiring ----------
+  $('[data-testid="cols"]').innerHTML = colShell('A') + colShell('B');
+  ['A', 'B'].forEach((id) => { renderCtrls(id); renderCol(id); renderRuns(id); });
+
+  function settingsChanged(id) { renderCol(id); if (cols[id].runs) runFive(id); }
+  document.addEventListener('input', (e) => {
+    const col = e.target.closest('[data-col]'); const k = e.target.dataset.key; if (!col || !k) return;
+    const id = col.dataset.col; const v = Number(e.target.value);
+    if (!Number.isFinite(v)) return;
+    cols[id].s[k] = v;
+    const out = $(`[data-testid="${id}-${k}-out"]`);
+    out.textContent = k === 'temp' ? (v === 0 ? '0 (greedy)' : v.toFixed(2)) : k === 'k' ? (v === 0 ? 'off' : v) : k === 'p' ? (v >= 1 ? 'off (1.00)' : v.toFixed(2)) : (v === 1 ? 'off (1.00)' : v.toFixed(2));
+    settingsChanged(id);
+  });
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    const col = b.closest('[data-col]');
+    if (b.dataset.testid === 'copy-a-to-b') { cols.B.s = { ...cols.A.s }; renderCtrls('B'); settingsChanged('B'); return; }
+    if (!col) return;
+    const id = col.dataset.col; const c = cols[id];
+    if (b.dataset.preset) { c.s = { ...PRESETS[b.dataset.preset] }; delete c.s.label; renderCtrls(id); settingsChanged(id); }
+    else if (b.dataset.mode) { c.s.mode = b.dataset.mode; renderCtrls(id); settingsChanged(id); $(`[data-testid="${id}-mode-${b.dataset.mode}"]`).focus(); }
+    else if (b.dataset.act === 'step') { step(id); renderCol(id); }
+    else if (b.dataset.act === 'finish') { let g = 0; while (step(id) && g++ < MAXLEN) { /* keep going */ } renderCol(id); }
+    else if (b.dataset.act === 'reset') { c.prefix = []; c.rng = mulberry32(seedVal()); renderCol(id); }
+    else if (b.dataset.act === 'run') runFive(id);
+    else if (b.dataset.word) { c.prefix.push(b.dataset.word); renderCol(id); const nb = $(`[data-testid="${id}-bars"] .bar`); if (nb) nb.focus(); else $(`[data-testid="${id}-reset"]`).focus(); }
+  });
+  $('[data-testid="seed"]').addEventListener('change', () => {
+    ['A', 'B'].forEach((id) => { cols[id].prefix = []; cols[id].rng = mulberry32(seedVal()); renderCol(id); if (cols[id].runs) runFive(id); else renderRuns(id); });
+  });
+
+  window.__sampling = { distribution: (prev, hist, s) => { const D = distribution(prev, hist, s); return { words: D.words, final: D.final, H: D.H }; }, model: MODEL };
+})();
+</script>
+</body>
+</html>

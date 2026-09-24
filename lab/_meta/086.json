@@ -1,0 +1,34 @@
+{
+  "id": "086",
+  "slug": "086-sampling-playground",
+  "file": "lab/086-sampling-playground.html",
+  "title": "Sampling Playground — Decoding a Toy Next-Word Model",
+  "category": "AI & Agents",
+  "tags": ["llm", "decoding", "temperature", "top-p", "entropy", "seeded"],
+  "description": "A clearly labelled toy next-word model — a hand-written table of scores for each word given the previous word — for exploring how decoding works: temperature, top-k, top-p (nucleus), repetition penalty, and greedy versus sampling. Two columns of settings sit side by side, each with a bar chart of the raw and adjusted distributions, a correctly computed entropy readout, word-by-word stepping, and five seeded whole-sentence runs.",
+  "prompt": "Build 'Sampling Playground': a clearly labelled toy next-token model, meaning a small hand-built distribution over words given the previous word, so people can explore decoding. Include temperature, top-k, top-p (nucleus), repetition penalty, and greedy versus sampling. Show a bar chart of the adjusted distribution, an entropy readout (computed correctly), seeded sampling of whole sentences, and side-by-side runs with two settings. Make it obvious that this isn't any real model, and state the order the steps are applied in. Give it a typewriter-and-paper feel.",
+  "qa": {
+    "methodology": [
+      "Independent numeric oracle: the spec recomputes softmax at a given temperature from the documented start-of-sentence scores and compares every bar's exact probability (data-p) to 9 decimal places.",
+      "Entropy checked against the displayed probabilities with −Σ p log₂ p, plus the derived 2^H 'equally likely choices' and the raw-model entropy.",
+      "Metamorphic checks on temperature: entropy rises monotonically from 0.3 to 1 to 2, never exceeds log₂ of the vocabulary size for that context, and is exactly 0 at T = 0 (greedy).",
+      "Filter semantics: top-k leaves exactly k non-zero words, and top-p leaves exactly the smallest prefix of the sorted distribution whose mass reaches p, each renormalised to 1.",
+      "Determinism: two columns with copied settings produce identical five-sentence runs, a reload reproduces them, and greedy decoding yields one distinct sentence."
+    ],
+    "risks": [
+      "Floating-point cumulative sums making top-p drop a word it should keep (an epsilon is used at the cut-off).",
+      "Softmax overflow at low temperatures (scores are shifted by their max before exponentiating).",
+      "Repetition penalty applied to the wrong tokens or with the wrong sign for negative scores.",
+      "People mistaking the toy for a real model; the label is on the page header, footer and meta."
+    ],
+    "playwright": "Range sliders are driven with locator.fill(), which Playwright supports for input type=range and which fires the input event the page listens to. Every bar carries its exact probability in data-p, so the spec can do real arithmetic (softmax, entropy, nucleus) instead of parsing rounded percentages. Randomness is a mulberry32 PRNG seeded from ?seed=, and the most robust determinism check compares two columns against each other rather than against hard-coded sentences, except for greedy where the output is fully determined by the table.",
+    "coverage": [
+      "Exact probabilities at T = 0.7, sum to 1, entropy, perplexity and raw entropy readouts",
+      "Temperature monotonicity, the uniform upper bound, T = 0 greedy",
+      "Top-k = 2 renormalisation and cut words, top-p = 0.7 nucleus",
+      "Forcing words, repetition penalty effect, finishing and clearing a sentence",
+      "Copied settings match, reload reproducibility, greedy runs identical"
+    ]
+  },
+  "a11y": "All knobs are labelled range inputs with visible values, decoding mode is a pressed-state button group, and each bar is a button whose label reads the word, its raw and adjusted probability and whether it was filtered out. The growing sentence is a polite live region, so stepping is announced."
+}

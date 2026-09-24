@@ -1,0 +1,35 @@
+{
+  "id": "095",
+  "slug": "095-neon-sign-shop",
+  "file": "lab/095-neon-sign-shop.html",
+  "title": "Neon Sign Shop — design a glass neon sign",
+  "category": "Generative",
+  "tags": ["canvas", "single-stroke-font", "glow-rendering", "web-audio", "png-export"],
+  "description": "Type up to two lines and watch them bent into glass in a hand-built single-stroke tube font (A–Z, 0–9). Each letter is one continuous tube, with black-painted blockouts where the glass doubles back and an electrode at each end. Pick neon or argon-phosphor colours per line, block, rounded or italic-script tubes, a backboard, standoffs and a brick, wood or concrete wall, then strike the tubes, add flicker or a 120 Hz transformer buzz, and export a PNG.",
+  "prompt": "Make a neon sign designer. I type my text, choose a tube style, and it's drawn in a single-stroke path font you build yourself for A–Z and 0–9, so every tube is continuous the way real neon is bent. Give me realistic tube colours (neon and argon, clear glass and phosphor coatings), backboard options, wall textures like brick, wood and concrete, and mounting standoffs. Add a flicker/buzz toggle, an animated turn-on sequence, and PNG export. It should look like a real shop's sign, glowing on the wall at night.",
+  "qa": {
+    "methodology": [
+      "Font invariants for all 36 glyphs: one point list per glyph, with flags for every segment. Every point stays inside the glyph cell, there are no zero-length segments, and the tube starts and ends lit. Letters that must double back (E, T, H) carry the expected number of blockouts, and simple strokes (O, L, S) carry none.",
+      "Text handling: lowercase is bent as uppercase, unsupported characters are left out with a specific hint, tube and electrode counts follow the text, and the sign stays inside the canvas even for fourteen W's.",
+      "Pixel oracles for light: canvas pixels sampled at the middle of a lit tube must be red-dominant for neon red and blue-dominant for argon blue once switched on, and markedly brighter than the same pixel with the sign off.",
+      "Time-based behaviour under page.clock: the strike sequence lights the first letter while the last is still dark, finishes as 'on' with every level at 1, flicker dips brightness occasionally but never to zero, and reduced motion lights the sign instantly.",
+      "Controls and export: each radio group updates state and the canvas description and supports arrow keys. Per-line colours apply only to that line, and the PNG download has the right name and PNG magic bytes."
+    ],
+    "risks": [
+      "Smoothing across a lit-to-blockout boundary: the first version rounded those corners and pulled T's stem away from its bar, so each run is now smoothed separately.",
+      "Canvas shadowBlur glow is expensive; it only redraws continuously while the sign is on.",
+      "Fonts in the work-order UI vary by OS (Segoe Print may be missing), so inputs are width-capped and wrap-safe.",
+      "The transformer hum must stop when the sign is switched off, or it leaks audio nodes."
+    ],
+    "playwright": "This page renders light, so the spec reads pixels at geometry the page reports: __neon.litPoint(i) gives the midpoint of a tube's longest lit segment, and __neon.pixel() redraws and samples it. That makes 'the tube glows red' a channel comparison rather than a screenshot diff, and glow tuning doesn't break it. page.clock.install() with pauseAt() makes the letter-by-letter strike and the 70 ms flicker slots deterministic, and runFor() steps through them. The seed fixes the flicker pattern and the wall. The download is checked by filename and PNG signature. toHaveScreenshot was avoided because shadowBlur output differs between GPUs.",
+    "coverage": [
+      "All 36 glyphs valid; blockout counts",
+      "Uppercasing, unsupported characters, electrode count, fit to canvas",
+      "Strike sequence, lit colours by pixel, off state",
+      "Flicker statistics; buzz follows power",
+      "Radio groups and arrow keys, style point counts, per-line colour, PNG export",
+      "Reduced motion"
+    ]
+  },
+  "a11y": "The text fields are labelled, and every option (colour, style, backboard, standoffs, wall) is an ARIA radiogroup with arrow keys and descriptive names (colour swatches name their gas and glass). The power switch and toggles use aria-pressed. The canvas label describes the text, colours, wall and power state, and status messages are aria-live. Reduced motion skips the strike animation and holds flicker still."
+}

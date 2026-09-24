@@ -1,0 +1,34 @@
+{
+  "id": "087",
+  "slug": "087-agent-plan-board",
+  "file": "lab/087-agent-plan-board.html",
+  "title": "Agent Plan Board — Split a Goal Across Parallel Sub-Agents",
+  "category": "AI & Agents",
+  "tags": ["agents", "planning", "dag", "critical-path", "scheduling", "markdown"],
+  "description": "Break a goal into subtasks with durations and dependencies, and the board draws the dependency graph by level, detects cycles and names them, computes the critical path, slack and the widest level, then schedules the work onto 1–6 parallel sub-agents on a swimlane timeline. The plan exports as a Markdown brief with each agent's queue and hand-offs; presets cover shipping a feature, fixing a flaky suite and migrating a repo.",
+  "prompt": "Build 'Agent Plan Board'. I want to break a goal into subtasks with dependencies (a DAG), estimate durations, detect cycles, compute the critical path and the maximum parallelism by level, assign the work to parallel sub-agents on a swimlane timeline, and export the plan as a Markdown brief I can paste into a lead agent's prompt. Include presets: ship a feature, fix a flaky suite, migrate a repo. Keep it editable inline, and make the design bold and poster-like.",
+  "qa": {
+    "methodology": [
+      "Hand-computed oracles for each preset: total work, critical path length and members, per-task slack, and the task count at each level.",
+      "A schedule-validity oracle in the spec, independent of the page's scheduler: every task starts after all its dependencies end, no agent runs two tasks at once, and no task lands on an agent that doesn't exist.",
+      "Bounds on the makespan: exactly the total work with one agent, at least max(critical path, work ÷ n) with n agents, and exactly the critical path when agents are plentiful.",
+      "Negative paths: a cycle is detected and printed as a closed path, self-dependencies and unknown ids produce warnings and are ignored, and scheduling stays blocked until the cycle is broken.",
+      "Export completeness: each task appears exactly once in the Markdown brief, with idle agents called out."
+    ],
+    "risks": [
+      "Cycle detection reporting a path that isn't actually a cycle, or missing a self-loop.",
+      "The list scheduler stalling when a zero-duration task unlocks others in the same instant.",
+      "Critical-path highlighting picking edges between two critical tasks that aren't consecutive on the chain.",
+      "Wide graphs overflowing narrow screens; the graph shrinks to fit when it can and scrolls inside its card when it can't."
+    ],
+    "playwright": "Each swimlane slot is an SVG group carrying data-agent, data-start and data-end, so the spec can rebuild the schedule and check it against the dependencies it reads back from the task table — a property check, not a snapshot of one schedule. The agent slider is a range input set with fill(). Hand-computed critical paths are written next to each assertion as comments so a failing number explains itself. Nothing depends on time or randomness, so no clock control was needed.",
+    "coverage": [
+      "Feature preset: work, critical path, critical nodes and edges, levels, slack, brief header",
+      "Schedules for 1, 2 and 6 agents against the validity oracle and makespan bounds",
+      "Cycle detection, closed-path message, blocked state and recovery",
+      "Adding a subtask, unknown dependency warning, duration change, deleting a critical task",
+      "Migrate and flaky presets, brief lists each task once"
+    ]
+  },
+  "a11y": "Subtasks are edited in a real table of labelled inputs, and every number on the graph and timeline is also in the table (slack), the level chips, the KPI strip or the Markdown brief, so the SVGs are never the only source. Cycle errors use role=alert and invalid dependency fields get aria-invalid."
+}

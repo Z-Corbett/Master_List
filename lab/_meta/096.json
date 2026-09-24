@@ -1,0 +1,34 @@
+{
+  "id": "096",
+  "slug": "096-chili-cook-off",
+  "file": "lab/096-chili-cook-off.html",
+  "title": "Chili Cook-Off — a Texas red chili game",
+  "category": "Games",
+  "tags": ["game", "simulation", "canvas", "seeded-prng", "scoring-model"],
+  "description": "Cook a pot of Texas red for a fictional small-town cook-off. Choose one or two cuts of beef, dried chiles with rough Scoville ranges, a spice blend and a braising liquid (no beans, per Texas tradition), then run a live pot where the burner, stirring, reduction and scorching all matter and you pick when the two spice dumps go in. Three fictional judges with different palates score flavour, heat balance, texture and aroma, explain themselves, and place you in a field of 24.",
+  "prompt": "Make a Texas chili cooking game. No beans, per Texas tradition, and note that playfully. I pick cuts of beef, dried chiles (ancho, guajillo, pasilla, chile de árbol and others, with heat levels that are roughly accurate), spices and a simmer time. Then I manage a real-time pot: heat, stirring, and not burning it. Three fictional judges with different palates score flavour, heat balance, texture and aroma, and each leaves a comment. Make it deterministic via ?seed= and expose window.__chili so the cook can be driven in tests.",
+  "qa": {
+    "methodology": [
+      "Pantry rule checks: beans are refused with a message, the one-to-two-cut limit works both ways, and a pot with zero chiles can't be started. The heat preview is recomputed independently from each chile's mid-range Scoville value.",
+      "Physics as behaviour: with the loop detached, __chili.advance(minutes) steps the simulation. Medium settles near 200 °F, careful ten-minute stirring adds no scorch, and neglect on high scorches the pot and raises a warning. High heat reduces far faster than low.",
+      "Scorecard arithmetic: each judge's total must equal the weighted sum of their four half-point category scores, and the headline is the average of the three. Every category stays within 1–10, and the DOM shows the same numbers.",
+      "Seeded determinism: the same seed and the same sequence of actions give an identical result object (scores, comments, placing) across reloads.",
+      "Preference oracles: adding pequíns raises the heat-seeking judge's heat score while lowering the traditionalist's. Early spice dumps lose aroma against late ones, and the aroma judge says so."
+    ],
+    "risks": [
+      "Tuning drift: small changes to evaporation or scorch rates can make a sensible cook impossible; the careful-cook test pins a score above 75 and a neglected pot at least 25 points lower.",
+      "Symmetric scoring accidentally penalising the judge who wants heat (it did at first, and the heat-preference test caught it).",
+      "Real-time and manual stepping must not both advance the pot during tests.",
+      "Scoville ranges vary widely by source and pod, so they are shown as rough ranges and labelled as such."
+    ],
+    "playwright": "The pot runs in real time for players, but the spec calls __chili.manual(true) and then advances simulated minutes explicitly. A three-hour cook therefore takes milliseconds and never depends on frame timing. Actions go through the real UI (burner radios, the Stir button and S key, spice dumps, Turn in), so wiring bugs would still fail. Judging is checked for invariants (arithmetic, ranges, determinism) and for relative preferences between runs, not for exact tuned numbers that would break whenever the model is rebalanced. The canvas pot is decorative, so its state is asserted through the gauges and its aria-label.",
+    "coverage": [
+      "Beans refusal, cut limits, heat preview maths, no-chile guard",
+      "Temperature, reduction by heat level, scorch and warning, stir reset, keyboard",
+      "Hour minimum before turn-in, two-dump limit",
+      "Seeded identical judging, weighted totals, careful vs neglected pot",
+      "Judge heat preferences, late vs early spice aroma, cook again"
+    ]
+  },
+  "a11y": "Every ingredient uses labelled steppers and toggle buttons, the burner is an ARIA radiogroup with arrow keys, and the S key stirs. Gauges show their values as text, the canvas carries a live description of the pot, and messages and the scorecard are ordinary text in aria-live regions. Reduced motion stops the flame flicker and bubbles."
+}

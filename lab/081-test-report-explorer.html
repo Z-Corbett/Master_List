@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Test Report Explorer — Juniper Tickets nightly run</title>
+<meta name="description" content="An interactive HTML test report for a fictional, seeded end-to-end run of a made-up ticketing app: summary tiles, status/project/tag/search filters, a file and describe tree, per-test step trees with durations, retries with flaky markers, expected/received diffs and a mini trace timeline with snapshot frames.">
+<style>
+  :root {
+    --bg: #0c1720;
+    --panel: #11212d;
+    --panel-2: #162b3a;
+    --line: #22394b;
+    --ink: #dbe8ef;
+    --ink-2: #9db3c2;
+    --ink-3: #6b8497;
+    --pass: #46d19b;
+    --fail: #ff6f6a;
+    --flaky: #ffb547;
+    --skip: #8898ab;
+    --accent: #79c6ff;
+    --font: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    --head: Bahnschrift, "DIN Alternate", "Arial Narrow", "Segoe UI", sans-serif;
+    --mono: "Cascadia Mono", Consolas, "SF Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.45 var(--font); overflow-x: hidden;
+    background-image: linear-gradient(rgba(121,198,255,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(121,198,255,.035) 1px, transparent 1px);
+    background-size: 28px 28px; }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  input, select, pre { max-width: 100%; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .back { position: fixed; top: 10px; left: 10px; z-index: 50; color: var(--ink); background: rgba(17,33,45,.92); text-decoration: none;
+    font: 600 13px/1 var(--font); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line); }
+  .back:hover { border-color: var(--accent); }
+
+  header.top { padding: 56px 20px 18px; max-width: 1320px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; align-items: end; }
+  .kicker { font: 600 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+  h1 { font: 600 clamp(28px, 5vw, 48px)/1 var(--head); margin: 6px 0 8px; letter-spacing: .01em; }
+  h1 span { color: var(--ink-3); font-weight: 400; }
+  .runmeta { color: var(--ink-2); font-size: 13.5px; margin: 0; max-width: 70ch; }
+  .runmeta code { font: 12.5px var(--mono); color: var(--ink); background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
+  .seedbox { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--ink-2); flex-wrap: wrap; }
+  .seedbox input { width: 80px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-family: var(--mono); }
+  .btn { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; font-size: 13px; }
+  .btn:hover { border-color: var(--accent); }
+
+  .wrap { max-width: 1320px; margin: 0 auto; padding: 0 20px 48px; }
+  .tiles { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px 10px; text-align: left; position: relative; overflow: hidden; min-width: 0; }
+  .tile::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--c, var(--accent)); }
+  .tile b { display: block; font: 600 30px/1 var(--head); color: var(--c, var(--ink)); }
+  .tile span { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
+  .tile[aria-pressed="true"] { border-color: var(--c, var(--accent)); box-shadow: 0 0 0 1px var(--c, var(--accent)) inset; }
+  .tile.static { cursor: default; }
+  .t-pass { --c: var(--pass); } .t-fail { --c: var(--fail); } .t-flaky { --c: var(--flaky); } .t-skip { --c: var(--skip); }
+  .statusbar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin: 12px 0 16px; background: var(--panel-2); }
+  .statusbar i { display: block; height: 100%; }
+
+  .filters { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; }
+  .chips { display: flex; gap: 4px; flex-wrap: wrap; }
+  .chip { border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 4px 11px; font-size: 13px; color: var(--ink-2); display: inline-flex; gap: 6px; align-items: center; }
+  .chip[aria-pressed="true"] { background: var(--panel-2); color: var(--ink); border-color: var(--accent); }
+  .chip em { font-style: normal; font: 12px var(--mono); color: var(--ink-3); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
+  .filters label { font-size: 13px; color: var(--ink-2); display: inline-flex; gap: 6px; align-items: center; min-width: 0; }
+  .filters select, .filters input { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; min-width: 0; }
+  .filters input[type=search] { width: 220px; }
+  .shown { margin-left: auto; font: 12.5px var(--mono); color: var(--ink-3); }
+
+  .main { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 14px; align-items: start; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+  .tree { padding: 6px 0; max-height: calc(100vh - 24px); overflow: auto; position: sticky; top: 12px; }
+  .file { border-bottom: 1px solid var(--line); }
+  .file:last-child { border-bottom: 0; }
+  .fhead { width: 100%; display: flex; gap: 8px; align-items: center; background: none; border: 0; padding: 9px 12px; text-align: left; font: 600 13px var(--mono); color: var(--ink); min-width: 0; }
+  .fhead .caret { color: var(--ink-3); transition: transform .15s; flex: none; }
+  .fhead[aria-expanded="false"] .caret { transform: rotate(-90deg); }
+  .fhead .fname { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .fcounts { display: flex; gap: 6px; font: 11.5px var(--mono); flex: none; }
+  .desc { padding: 2px 12px 2px 30px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); overflow-wrap: anywhere; }
+  .row { width: 100%; display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 8px; align-items: center; background: none; border: 0; border-left: 3px solid transparent; padding: 6px 12px 6px 27px; text-align: left; font-size: 14px; }
+  .row:hover { background: rgba(121,198,255,.05); }
+  .row[aria-current="true"] { background: var(--panel-2); border-left-color: var(--accent); }
+  .row .ttl { min-width: 0; overflow-wrap: anywhere; }
+  .row .meta { display: flex; gap: 6px; align-items: center; font: 11.5px var(--mono); color: var(--ink-3); flex-wrap: wrap; justify-content: flex-end; }
+  .proj { border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; color: var(--ink-2); }
+  .tag { color: var(--accent); font: 11.5px var(--mono); }
+  .flakybadge { background: var(--flaky); color: #2a1a00; border-radius: 4px; padding: 0 5px; font: 700 11px var(--mono); }
+  .ico { width: 16px; height: 16px; display: block; }
+  .empty { padding: 30px 16px; text-align: center; color: var(--ink-3); }
+
+  .detail { padding: 16px; }
+  .detail .placeholder { color: var(--ink-3); padding: 40px 10px; text-align: center; }
+  .dh { display: flex; gap: 10px; align-items: flex-start; }
+  .dh h2 { margin: 0; font: 600 21px/1.2 var(--head); overflow-wrap: anywhere; min-width: 0; }
+  .loc { font: 12.5px var(--mono); color: var(--ink-3); margin: 4px 0 10px 26px; overflow-wrap: anywhere; }
+  .badges { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 12px 26px; align-items: center; font-size: 12.5px; }
+  .note { border-left: 3px solid var(--flaky); background: rgba(255,181,71,.08); padding: 8px 12px; border-radius: 0 6px 6px 0; font-size: 13.5px; margin-bottom: 12px; }
+  .note.skip { border-color: var(--skip); background: rgba(136,152,171,.08); }
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin-bottom: 10px; flex-wrap: wrap; }
+  .tab { background: none; border: 0; border-bottom: 2px solid transparent; padding: 7px 12px; font-size: 13.5px; color: var(--ink-2); display: inline-flex; gap: 6px; align-items: center; }
+  .tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+  h3 { font: 600 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); margin: 16px 0 6px; }
+  ul.steps, ul.steps ul { list-style: none; margin: 0; padding: 0; }
+  ul.steps ul { padding-left: 18px; border-left: 1px dashed var(--line); margin-left: 8px; }
+  .step { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 6px; align-items: center; padding: 3px 4px; font: 13px var(--mono); border-radius: 4px; }
+  .step.err { background: rgba(255,111,106,.1); }
+  .step .sname { min-width: 0; overflow-wrap: anywhere; }
+  .step .sdur { color: var(--ink-3); font-size: 12px; }
+  .tog { width: 16px; height: 16px; border: 0; background: none; padding: 0; color: var(--ink-3); font-size: 11px; line-height: 16px; }
+  .tog[aria-expanded="false"] + * { }
+  .durbar { height: 3px; background: var(--accent); opacity: .5; border-radius: 2px; grid-column: 2 / 4; }
+  pre.err { margin: 0; background: #1a1214; border: 1px solid #4a2427; border-radius: 8px; padding: 12px; font: 12.5px/1.6 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; color: #f5d6d4; }
+  pre.err .k { color: #c9a4a2; }
+  mark.m-exp { background: rgba(70,209,155,.25); color: #9ff0cd; border-radius: 2px; }
+  mark.m-rec { background: rgba(255,111,106,.3); color: #ffd0cd; border-radius: 2px; }
+  .difflines { margin-top: 8px; border-top: 1px dashed #4a2427; padding-top: 6px; }
+  .dl-e { color: #9ff0cd; } .dl-r { color: #ffb3ae; }
+
+  .timeline { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+  .timeline svg.tl { width: 100%; height: 46px; display: block; }
+  .strip { display: flex; gap: 8px; overflow-x: auto; padding: 8px 2px 4px; }
+  .frame { flex: none; width: 104px; border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 4px; text-align: left; font: 10.5px/1.25 var(--mono); color: var(--ink-2); }
+  .frame svg { width: 100%; height: auto; display: block; border-radius: 3px; margin-bottom: 3px; }
+  .frame[aria-pressed="true"] { border-color: var(--accent); color: var(--ink); }
+  .frame.bad { border-color: var(--fail); }
+  .frame span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .snap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-top: 8px; align-items: start; }
+  .snap svg { width: 100%; height: auto; display: block; border-radius: 6px; border: 1px solid var(--line); }
+  .snapinfo { font: 12.5px/1.6 var(--mono); color: var(--ink-2); min-width: 0; overflow-wrap: anywhere; }
+  .snapinfo b { color: var(--ink); font-weight: 600; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  footer { color: var(--ink-3); font-size: 12.5px; text-align: center; padding: 10px 20px 30px; }
+
+  @media (max-width: 1000px) {
+    .main { grid-template-columns: minmax(0, 1fr); }
+    .tree { max-height: 60vh; position: static; }
+    .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  @media (max-width: 560px) {
+    header.top { grid-template-columns: minmax(0, 1fr); padding: 54px 14px 14px; }
+    .wrap { padding: 0 12px 40px; }
+    .tile b { font-size: 24px; }
+    .filters input[type=search] { width: 100%; }
+    .filters label.search { flex: 1 1 100%; }
+    .shown { margin-left: 0; }
+    .snap { grid-template-columns: minmax(0, 1fr); }
+    .row { padding-left: 16px; }
+    .desc { padding-left: 18px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+
+<header class="top">
+  <div>
+    <div class="kicker">Fictional run · generated from a seed</div>
+    <h1>Test Report Explorer <span>/ Juniper Tickets</span></h1>
+    <p class="runmeta" data-testid="runmeta"></p>
+  </div>
+  <div class="seedbox">
+    <label for="seed">Seed</label>
+    <input id="seed" type="number" inputmode="numeric" data-testid="seed" value="7">
+    <button class="btn" type="button" data-testid="regen">Generate run</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="tiles" aria-label="Summary" data-testid="tiles"></section>
+  <div class="statusbar" data-testid="statusbar" aria-hidden="true"></div>
+
+  <section class="filters" aria-label="Filters">
+    <div class="chips" role="group" aria-label="Status" data-testid="status-chips"></div>
+    <label>Project <select data-testid="project"></select></label>
+    <label>Tag <select data-testid="tag"></select></label>
+    <label class="search">Search <input type="search" data-testid="search" placeholder="title, file or @tag"></label>
+    <span class="shown" data-testid="shown" aria-live="polite"></span>
+  </section>
+
+  <div class="main">
+    <section class="panel tree" aria-label="Tests by file" data-testid="tree"></section>
+    <section class="panel detail" aria-label="Test detail" data-testid="detail" tabindex="-1">
+      <p class="placeholder">Pick a test on the left to see its steps, retries, error and trace.</p>
+    </section>
+  </div>
+</main>
+<footer>Everything here — the app, the run, the failures — is generated in your browser. Retries: 2 · expect timeout 5000 ms · 4 workers.</footer>
+
+<script>
+(() => {
+  'use strict';
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const $ = (s) => document.querySelector(s);
+  const fmt = (ms) => { ms = Math.max(0, Math.round(ms)); if (ms < 1000) return ms + 'ms'; if (ms < 60000) return (ms / 1000).toFixed(1) + 's'; const m = Math.floor(ms / 60000); return m + 'm ' + Math.round((ms % 60000) / 1000) + 's'; };
+  const COLORS = { passed: 'var(--pass)', failed: 'var(--fail)', flaky: 'var(--flaky)', skipped: 'var(--skip)' };
+  const PROJECTS = ['chromium', 'firefox', 'webkit'];
+
+  // A fictional box-office app. Each test: route, actions, and one assertion (expected / what a regression would show).
+  const T = (t, tags, route, acts, loc, m, e, r) => ({ t, tags, route, acts, exp: { loc, m, e, r } });
+  const CATALOG = [
+    { file: 'auth/login.spec.ts', groups: [
+      { d: 'Login', tests: [
+        T('signs in with email and password', ['@smoke'], '/login', [['fill', 'Email'], ['fill', 'Password'], ['click', 'Sign in']], "getByRole('heading', { level: 1 })", 'toHaveText', 'Your tickets', 'Sign in to Juniper'),
+        T('shows an error for a wrong password', [], '/login', [['fill', 'Email'], ['fill', 'Password'], ['click', 'Sign in']], "getByRole('alert')", 'toHaveText', 'That password is not right.', 'That password is not right'),
+        T('locks the account after five attempts', ['@regression'], '/login', [['fill', 'Email'], ['click', 'Sign in'], ['click', 'Sign in']], "getByTestId('lock-banner')", 'toContainText', 'Try again in 15 minutes', 'Try again in 5 minutes')]},
+      { d: 'Magic link', tests: [
+        T('sends a one-time sign-in link', [], '/login/link', [['fill', 'Email'], ['click', 'Email me a link']], "getByTestId('toast')", 'toHaveText', 'Check your inbox', 'Check your email')]}]},
+    { file: 'search/events.spec.ts', groups: [
+      { d: 'Event search', tests: [
+        T('finds events by city', ['@smoke'], '/events', [['fill', 'City'], ['click', 'Search']], "getByTestId('result-count')", 'toHaveText', '12 events in Austin', '0 events in Austin'),
+        T('filters by date range', [], '/events', [['click', 'Dates'], ['click', 'This weekend'], ['click', 'Apply']], "getByTestId('result-count')", 'toHaveText', '4 events this weekend', '4 events next weekend'),
+        T('sorts by price, lowest first', ['@regression'], '/events', [['click', 'Sort'], ['click', 'Price: low to high']], "getByTestId('price').first()", 'toHaveText', '$18.00', '$81.00'),
+        T('shows an empty state for no results', [], '/events', [['fill', 'City'], ['click', 'Search']], "getByRole('status')", 'toHaveText', 'No events match those filters', 'No events match these filters')]}]},
+    { file: 'checkout/cart.spec.ts', groups: [
+      { d: 'Cart', tests: [
+        T('adds two seats to the cart', ['@smoke', '@payments'], '/event/412', [['click', 'Seat B12'], ['click', 'Seat B13'], ['click', 'Add to cart']], "getByTestId('cart-count')", 'toHaveText', '2', '1'),
+        T('applies a promo code', ['@payments'], '/cart', [['fill', 'Promo code'], ['click', 'Apply']], "getByTestId('cart-total')", 'toHaveText', '$84.00', '$96.00'),
+        T('releases an expired seat hold', [], '/cart', [['click', 'Refresh hold']], "getByTestId('hold-timer')", 'toHaveText', 'Hold expired', 'Hold expires in 0:00')]},
+      { d: 'Payment', tests: [
+        T('pays with a saved card', ['@smoke', '@payments'], '/checkout', [['click', 'Card ending 4242'], ['click', 'Pay $84.00']], "getByRole('heading', { level: 1 })", 'toHaveText', 'Order confirmed', 'Payment processing'),
+        T('declines an expired card', ['@payments'], '/checkout', [['fill', 'Card number'], ['fill', 'Expiry'], ['click', 'Pay $84.00']], "getByRole('alert')", 'toContainText', 'This card has expired', 'Something went wrong'),
+        T('shows the order summary', [], '/checkout', [['click', 'Show summary']], "getByTestId('summary-fees')", 'toHaveText', 'Fees $6.40', 'Fees $6.04')]}]},
+    { file: 'seats/seat-map.spec.ts', groups: [
+      { d: 'Seat map', tests: [
+        T('highlights accessible seats', ['@a11y'], '/event/412/seats', [['click', 'Accessible seating']], "locator('.seat.accessible')", 'toHaveCount', '8', '6'),
+        T('zooms with the keyboard', ['@a11y'], '/event/412/seats', [['press', 'Control+='], ['press', 'Control+=']], "getByTestId('zoom-level')", 'toHaveText', '150%', '125%'),
+        T('prevents double booking', ['@regression'], '/event/412/seats', [['click', 'Seat C4'], ['click', 'Hold seat']], "getByTestId('seat-C4')", 'toHaveAttribute', 'held-by-me', 'held-by-other')]}]},
+    { file: 'account/refunds.spec.ts', groups: [
+      { d: 'Refunds', tests: [
+        T('requests a refund within 14 days', [], '/account/orders', [['click', 'Order JT-2291'], ['click', 'Request refund'], ['click', 'Confirm']], "getByTestId('order-status')", 'toHaveText', 'Refund requested', 'Paid'),
+        T('blocks refunds after the event date', ['@regression'], '/account/orders', [['click', 'Order JT-1874']], "getByRole('button', { name: 'Request refund' })", 'toBeDisabled', 'disabled', 'enabled'),
+        T('emails a refund receipt', [], '/account/orders', [['click', 'Order JT-2291'], ['click', 'Email receipt']], "getByTestId('toast')", 'toHaveText', 'Receipt sent to ada@example.test', 'Receipt sent to ada@example.tset')]}]},
+    { file: 'a11y/landmarks.spec.ts', groups: [
+      { d: 'Landmarks', tests: [
+        T('home page has exactly one main landmark', ['@a11y', '@smoke'], '/', [], "getByRole('main')", 'toHaveCount', '1', '2'),
+        T('skip link moves focus to the content', ['@a11y'], '/', [['press', 'Tab'], ['press', 'Enter']], "locator('#content')", 'toBeFocused', 'focused', 'not focused')]}]},
+  ];
+
+  function stepTitle(a) {
+    const [k, v] = a;
+    if (k === 'fill') return `locator.fill(getByLabel('${v}'))`;
+    if (k === 'press') return `keyboard.press('${v}')`;
+    return `locator.click(getByRole('button', { name: '${v}' }))`;
+  }
+
+  function build(seed) {
+    const rand = mulberry32(seed >>> 0);
+    const ri = (a, b) => a + Math.floor(rand() * (b - a + 1));
+    const flat = [];
+    let line0 = 0;
+    CATALOG.forEach((f) => { line0 = 3; f.groups.forEach((g) => { line0 += 2; g.tests.forEach((t) => { line0 += 2 + t.acts.length + 2; t.line = line0; flat.push({ f, g, t }); }); }); });
+    const results = [];
+    flat.forEach(({ f, g, t }) => PROJECTS.forEach((p) => results.push({ id: 'r' + results.length, file: f.file, describe: g.d, title: t.title || t.t, def: t, project: p, tags: t.tags, line: t.line })));
+    // decide outcomes: guarantee a couple of each interesting kind, then sprinkle
+    const status = results.map(() => 'passed');
+    const pick = (n, st) => { let guard = 0; while (n > 0 && guard++ < 500) { const i = ri(0, results.length - 1); if (status[i] === 'passed') { status[i] = st; n--; } } };
+    pick(2, 'failed'); pick(3, 'flaky');
+    results.forEach((r, i) => {
+      if (r.def.t === 'zooms with the keyboard' && r.project === 'webkit') { status[i] = 'skipped'; r.skip = "test.skip(browserName === 'webkit', 'keyboard zoom shortcut differs on WebKit')"; return; }
+      if (status[i] !== 'passed') return;
+      const x = rand();
+      if (x < 0.04) status[i] = 'failed'; else if (x < 0.10) status[i] = 'flaky'; else if (x < 0.13) { status[i] = 'skipped'; r.skip = 'test.fixme() — tracked as JT-' + ri(300, 899); }
+    });
+    results.forEach((r, i) => {
+      r.status = status[i];
+      r.attempts = [];
+      if (r.status === 'skipped') { r.duration = 0; return; }
+      if (r.status === 'passed') r.attempts.push(attempt(r, 'pass', 0));
+      else if (r.status === 'failed') for (let k = 0; k < 3; k++) r.attempts.push(attempt(r, 'assert', k));
+      else { const fails = ri(1, 2); for (let k = 0; k < fails; k++) r.attempts.push(attempt(r, 'timeout', k)); r.attempts.push(attempt(r, 'pass', fails)); }
+      r.duration = r.attempts.reduce((s, a) => s + a.dur, 0);
+    });
+    function attempt(r, mode, k) {
+      const d = r.def;
+      const leaf = (title, kind, dur, extra) => Object.assign({ title, kind, dur: Math.max(1, Math.round(dur)), children: [] }, extra || {});
+      const before = leaf('Before Hooks', 'hook', 0, { children: [
+        leaf('fixture: browser', 'fixture', k === 0 ? ri(180, 620) : ri(2, 9)),
+        leaf('fixture: context', 'fixture', ri(12, 48)),
+        leaf('fixture: page', 'fixture', ri(60, 190))] });
+      const gotoS = leaf(`page.goto('${d.route}')`, 'action', ri(280, 1150), { act: 'goto', route: d.route, target: 'page' });
+      const group = leaf(`test.step('open ${d.route}')`, 'step', 0, { children: [gotoS] });
+      const body = [group];
+      let broke = false;
+      const clickIdx = d.acts.findIndex((a) => a[0] === 'click');
+      d.acts.forEach((a, ai) => {
+        if (broke) return;
+        const s = leaf(stepTitle(a), 'action', a[0] === 'fill' ? ri(24, 110) : a[0] === 'press' ? ri(8, 40) : ri(40, 260), { act: a[0], route: d.route, target: a[1] });
+        if (mode === 'timeout' && ai === clickIdx) {
+          s.dur = 5000 + ri(1, 30); s.error = true; broke = true;
+          s.errorInfo = { kind: 'timeout', text: `${stepTitle(a).split('(')[0]}: Timeout 5000ms exceeded.`, call: `waiting for getByRole('button', { name: '${a[1]}' })\n  - locator resolved to <button disabled>${a[1]}</button>\n  - element is not enabled - waiting...` };
+        }
+        if (a[0] === 'fill' && group.children.length < 3) group.children.push(s); else body.push(s);
+      });
+      if (mode === 'timeout' && clickIdx < 0) { // no click to time out on: time out on the assertion instead
+        mode = 'assert';
+      }
+      if (!broke) {
+        const e = leaf(`expect(${d.exp.loc}).${d.exp.m}()`, 'expect', mode === 'assert' ? 5000 + ri(1, 25) : ri(6, 180), { act: 'expect', route: d.route, target: d.exp.loc });
+        if (mode === 'assert') { e.error = true; e.errorInfo = { kind: 'assert', m: d.exp.m, loc: d.exp.loc, e: d.exp.e, r: d.exp.r }; }
+        body.push(e);
+      }
+      const failed = mode !== 'pass';
+      const after = leaf('After Hooks', 'hook', 0, { children: failed
+        ? [leaf('attach "screenshot"', 'fixture', ri(40, 120)), leaf('fixture: page', 'fixture', ri(4, 20)), leaf('fixture: context', 'fixture', ri(6, 30))]
+        : [leaf('fixture: page', 'fixture', ri(4, 20)), leaf('fixture: context', 'fixture', ri(6, 30))] });
+      const steps = [before, ...body, after];
+      // parent durations are the sum of their children; lay out start offsets
+      const layout = (list, t0) => { let t = t0; list.forEach((s) => { s.t0 = t; if (s.children.length) { layout(s.children, t); s.dur = s.children.reduce((a, c) => a + c.dur, 0); } t += s.dur; }); return t - t0; };
+      const dur = layout(steps, 0);
+      const errStep = findErr(steps);
+      return { status: failed ? 'failed' : 'passed', steps, dur, error: errStep ? errStep.errorInfo : null };
+    }
+    function findErr(list) { for (const s of list) { if (s.error) return s; const c = findErr(s.children); if (c) return c; } return null; }
+    const total = results.reduce((s, r) => s + r.duration, 0);
+    return { seed, results, wall: Math.round(total / 4 + 2400) };
+  }
+
+  // ---------- state ----------
+  const params = new URLSearchParams(location.search);
+  let seed = Number.parseInt(params.get('seed') || '7', 10); if (!Number.isFinite(seed)) seed = 7;
+  $('#seed').value = seed;
+  let RUN = build(seed);
+  const state = { status: 'all', project: 'all', tag: 'all', q: '', sel: null, attempt: 0, frame: 0, collapsed: new Set(), closedSteps: new Set() };
+  window.__report = { get run() { return RUN; }, state };
+
+  const counts = (list) => { const c = { total: list.length, passed: 0, failed: 0, flaky: 0, skipped: 0 }; list.forEach((r) => c[r.status]++); return c; };
+  const ICON = {
+    passed: '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="none" stroke="#46d19b" stroke-width="1.6"/><path d="M4.8 8.3l2.1 2.1 4.3-4.6" fill="none" stroke="#46d19b" stroke-width="1.8" stroke-linecap="round"/></svg>',
+    failed: '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="#ff6f6a"/><path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="#1a0b0b" stroke-width="1.8" stroke-linecap="round"/></svg>',
+    flaky: '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5l6.5 12h-13z" fill="#ffb547"/><path d="M8 6v3.6M8 11.4v.2" stroke="#2a1a00" stroke-width="1.8" stroke-linecap="round"/></svg>',
+    skipped: '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="none" stroke="#8898ab" stroke-width="1.6" stroke-dasharray="2.5 2"/><path d="M5 8h6" stroke="#8898ab" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  };
+
+  function matches(r) {
+    if (state.status !== 'all' && r.status !== state.status) return false;
+    if (state.project !== 'all' && r.project !== state.project) return false;
+    if (state.tag !== 'all' && !r.tags.includes(state.tag)) return false;
+    const q = state.q.trim().toLowerCase();
+    if (q && !(r.title + ' ' + r.file + ' ' + r.describe + ' ' + r.tags.join(' ')).toLowerCase().includes(q)) return false;
+    return true;
+  }
+
+  function renderSummary() {
+    const c = counts(RUN.results);
+    const rate = c.total - c.skipped ? Math.round(1000 * (c.passed + c.flaky) / (c.total - c.skipped)) / 10 : 0;
+    const tile = (key, cls, label, val) => `<button type="button" class="tile ${cls}" data-testid="tile-${key}" data-count="${val}" aria-pressed="${state.status === key}" aria-label="${label}: ${val}. Filter by ${label}"><b>${val}</b><span>${label}</span></button>`;
+    $('[data-testid="tiles"]').innerHTML =
+      tile('all', '', 'All tests', c.total) + tile('passed', 't-pass', 'Passed', c.passed) + tile('failed', 't-fail', 'Failed', c.failed) +
+      tile('flaky', 't-flaky', 'Flaky', c.flaky) + tile('skipped', 't-skip', 'Skipped', c.skipped) +
+      `<div class="tile static" data-testid="tile-duration"><b>${fmt(RUN.wall)}</b><span>Wall time · ${rate}% pass</span></div>`;
+    $('[data-testid="statusbar"]').innerHTML = ['passed', 'flaky', 'failed', 'skipped'].map((k) => `<i style="flex:${c[k]} 0 0;background:${COLORS[k]}"></i>`).join('');
+    $('[data-testid="status-chips"]').innerHTML = ['all', 'passed', 'failed', 'flaky', 'skipped'].map((k) =>
+      `<button type="button" class="chip" data-testid="chip-${k}" aria-pressed="${state.status === k}">${k === 'all' ? '' : `<span class="dot" style="background:${COLORS[k]}"></span>`}${k[0].toUpperCase() + k.slice(1)} <em>${k === 'all' ? c.total : c[k]}</em></button>`).join('');
+    const nFiles = new Set(RUN.results.map((r) => r.file)).size;
+    $('[data-testid="runmeta"]').innerHTML = `Run <code>#${1400 + (seed % 600)}</code> of a made-up box-office app · ${nFiles} spec files · ${c.total / PROJECTS.length} tests × ${PROJECTS.length} projects · seed <code>${seed}</code>. Summed test time ${fmt(RUN.results.reduce((s, r) => s + r.duration, 0))}.`;
+  }
+
+  function renderFilters() {
+    const ps = $('[data-testid="project"]');
+    ps.innerHTML = ['all', ...PROJECTS].map((p) => `<option value="${p}">${p === 'all' ? 'All projects' : p}</option>`).join('');
+    ps.value = state.project;
+    const tags = [...new Set(RUN.results.flatMap((r) => r.tags))].sort();
+    const ts = $('[data-testid="tag"]');
+    ts.innerHTML = ['all', ...tags].map((t) => `<option value="${t}">${t === 'all' ? 'Any tag' : t}</option>`).join('');
+    ts.value = state.tag;
+  }
+
+  function renderTree() {
+    const list = RUN.results.filter(matches);
+    const tree = $('[data-testid="tree"]');
+    $('[data-testid="shown"]').textContent = `${list.length} of ${RUN.results.length} shown`;
+    if (!list.length) { tree.innerHTML = '<p class="empty" data-testid="empty">No tests match these filters.</p>'; return; }
+    const files = new Map();
+    list.forEach((r) => { if (!files.has(r.file)) files.set(r.file, new Map()); const g = files.get(r.file); if (!g.has(r.describe)) g.set(r.describe, []); g.get(r.describe).push(r); });
+    let h = '';
+    files.forEach((groups, file) => {
+      const all = [...groups.values()].flat();
+      const c = counts(all);
+      const open = !state.collapsed.has(file);
+      h += `<div class="file" data-testid="file" data-file="${esc(file)}"><button type="button" class="fhead" aria-expanded="${open}" data-testid="file-toggle">
+        <span class="caret" aria-hidden="true">▾</span><span class="fname">${esc(file)}</span><span class="fcounts">${['passed', 'failed', 'flaky', 'skipped'].filter((k) => c[k]).map((k) => `<span style="color:${COLORS[k]}" title="${k}">${c[k]}</span>`).join('')}</span></button>`;
+      if (open) groups.forEach((rows, d) => {
+        h += `<div class="desc">${esc(d)}</div>`;
+        rows.forEach((r) => {
+          h += `<button type="button" class="row" data-testid="test-row" data-id="${r.id}" data-status="${r.status}" data-project="${r.project}" aria-current="${state.sel === r.id}" aria-label="${esc(r.title)}, ${r.project}, ${r.status}">
+            ${ICON[r.status]}<span class="ttl">${esc(r.title)} ${r.tags.map((t) => `<span class="tag">${t}</span>`).join(' ')}</span>
+            <span class="meta">${r.status === 'flaky' ? '<span class="flakybadge">flaky</span>' : ''}<span class="proj">${r.project}</span><span>${r.status === 'skipped' ? '—' : fmt(r.duration)}</span></span></button>`;
+        });
+      });
+      h += '</div>';
+    });
+    tree.innerHTML = h;
+  }
+
+  // ---------- detail ----------
+  function diffMarks(a, b) {
+    let p = 0; while (p < a.length && p < b.length && a[p] === b[p]) p++;
+    let s = 0; while (s < a.length - p && s < b.length - p && a[a.length - 1 - s] === b[b.length - 1 - s]) s++;
+    const wrap = (x, cls) => esc(x.slice(0, p)) + (x.length - s - p > 0 ? `<mark class="${cls}">${esc(x.slice(p, x.length - s))}</mark>` : '') + esc(x.slice(x.length - s));
+    return { e: wrap(a, 'm-exp'), r: wrap(b, 'm-rec') };
+  }
+  function errorHTML(err, r) {
+    if (!err) return '';
+    if (err.kind === 'timeout') return `<pre class="err" data-testid="error" data-kind="timeout">${esc(err.text)}\n\n<span class="k">Call log:</span>\n  - ${esc(err.call)}\n\n<span class="k">at</span> ${esc(r.file)}:${r.line + 2}</pre>`;
+    const quote = (x) => (err.m === 'toHaveCount' || err.m === 'toBeDisabled' || err.m === 'toBeFocused' || err.m === 'toHaveAttribute') ? x : `"${x}"`;
+    const d = diffMarks(quote(err.e), quote(err.r));
+    return `<pre class="err" data-testid="error" data-kind="assert">Error: expect(locator).${esc(err.m)}(expected) failed
+
+<span class="k">Locator: </span>${esc(err.loc)}
+<span class="k">Expected:</span> <span data-testid="diff-exp">${d.e}</span>
+<span class="k">Received:</span> <span data-testid="diff-rec">${d.r}</span>
+<span class="k">Timeout: </span>5000ms
+<div class="difflines"><span class="dl-e">- Expected  - 1</span>
+<span class="dl-r">+ Received  + 1</span>
+
+<span class="dl-e">- ${d.e}</span>
+<span class="dl-r">+ ${d.r}</span></div>
+<span class="k">at</span> ${esc(r.file)}:${r.line + 2 + r.def.acts.length}</pre>`;
+  }
+
+  function stepsHTML(list, depth, maxDur, path) {
+    return '<ul class="steps' + (depth ? '' : '') + '"' + (depth ? '' : ' role="tree" aria-label="Steps"') + '>' + list.map((s, i) => {
+      const key = path + '.' + i;
+      const has = s.children.length > 0;
+      const closed = has && (state.closedSteps.has(key) || (s.kind === 'hook' && !state.closedSteps.has('!' + key)));
+      const w = Math.max(1, Math.min(100, 100 * s.dur / Math.max(1, maxDur)));
+      return `<li role="treeitem" aria-level="${depth + 1}"${has ? ` aria-expanded="${!closed}"` : ''}><div class="step${s.error ? ' err' : ''}" data-testid="step" data-kind="${s.kind}" data-dur="${s.dur}" data-depth="${depth}"${s.error ? ' data-error="true"' : ''}>
+        ${has ? `<button type="button" class="tog" data-key="${key}" aria-expanded="${!closed}" aria-label="${closed ? 'Expand' : 'Collapse'} ${esc(s.title)}" data-testid="step-toggle">${closed ? '▸' : '▾'}</button>` : `<span aria-hidden="true" style="color:${s.error ? 'var(--fail)' : 'var(--ink-3)'};font-size:11px">${s.error ? '✕' : '·'}</span>`}
+        <span class="sname">${esc(s.title)}</span><span class="sdur">${fmt(s.dur)}</span>
+        <span class="durbar" style="width:${w.toFixed(1)}%;${s.error ? 'background:var(--fail)' : ''}" aria-hidden="true"></span></div>
+        ${has && !closed ? stepsHTML(s.children, depth + 1, maxDur, key) : ''}</li>`;
+    }).join('') + '</ul>';
+  }
+
+  // flatten the actions that land on the trace (leaves that are not fixtures/hooks)
+  function traceActions(steps) {
+    const out = [];
+    const walk = (l) => l.forEach((s) => { if (s.children.length) walk(s.children); else if (s.kind === 'action' || s.kind === 'expect') out.push(s); });
+    walk(steps); return out;
+  }
+  function hash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  // A "screenshot": a tiny wireframe of the page after the action.
+  function frameSVG(a, big) {
+    const W = 160, H = 100;
+    const hr = hash(a.route || '/');
+    const hue = hr % 360;
+    const ht = hash(String(a.target));
+    const bx = 14 + (ht % 90), by = 34 + ((ht >>> 8) % 44);
+    const bw = 44, bh = 12;
+    const blocks = [];
+    for (let i = 0; i < 4; i++) { const w = 30 + ((hr >>> (i * 3)) % 80); blocks.push(`<rect x="12" y="${30 + i * 16}" width="${w}" height="6" rx="2" fill="#2f4a5e"/>`); }
+    const isErr = !!a.error;
+    const hl = a.act === 'goto' ? '' : `<rect x="${bx - 2}" y="${by - 2}" width="${bw + 4}" height="${bh + 4}" rx="3" fill="none" stroke="${isErr ? '#ff6f6a' : '#79c6ff'}" stroke-width="1.5"${isErr ? ' stroke-dasharray="3 2"' : ''}/>`;
+    const cursor = (a.act === 'click' || a.act === 'fill') ? `<circle cx="${bx + bw - 8}" cy="${by + bh - 3}" r="${big ? 3.5 : 4}" fill="#ff6f6a" stroke="#fff" stroke-width="1"/>` : '';
+    return `<svg viewBox="0 0 ${W} ${H}" ${big ? 'data-testid="snapshot" role="img" aria-label="Snapshot after ' + esc(a.title) + '"' : 'aria-hidden="true"'}>
+      <rect width="${W}" height="${H}" fill="#0f1c26"/><rect width="${W}" height="16" fill="hsl(${hue} 45% 38%)"/>
+      <circle cx="7" cy="8" r="2.4" fill="#fff" opacity=".7"/><text x="14" y="11" font-size="7" font-family="monospace" fill="#fff">juniper.example.test${esc((a.route || '/').slice(0, 16))}</text>
+      ${blocks.join('')}<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="2" fill="${a.act === 'expect' ? '#28533f' : '#3a5670'}"/>
+      <rect x="112" y="30" width="36" height="50" rx="3" fill="#1b2f3d"/>${hl}${cursor}</svg>`;
+  }
+
+  function renderDetail() {
+    const box = $('[data-testid="detail"]');
+    const r = RUN.results.find((x) => x.id === state.sel);
+    if (!r) { box.innerHTML = '<p class="placeholder">Pick a test on the left to see its steps, retries, error and trace.</p>'; return; }
+    let h = `<div class="dh">${ICON[r.status]}<h2 data-testid="detail-title">${esc(r.title)}</h2></div>
+      <div class="loc">${esc(r.file)}:${r.line} › ${esc(r.describe)}</div>
+      <div class="badges"><span class="proj">${r.project}</span><span data-testid="detail-status" style="color:${COLORS[r.status]};font-weight:600">${r.status}</span>
+      ${r.status === 'flaky' ? '<span class="flakybadge" data-testid="flaky-marker">flaky</span>' : ''}${r.tags.map((t) => `<span class="tag">${t}</span>`).join('')}
+      <span style="color:var(--ink-3);font-family:var(--mono)">${r.status === 'skipped' ? 'not run' : fmt(r.duration) + ' total'}</span></div>`;
+    if (r.status === 'skipped') {
+      h += `<div class="note skip" data-testid="skip-note">Skipped by <code>${esc(r.skip || 'test.skip()')}</code>. No attempts, no trace.</div>`;
+      box.innerHTML = h; return;
+    }
+    if (r.status === 'flaky') {
+      const nf = r.attempts.length - 1;
+      h += `<div class="note" data-testid="flaky-note">Failed ${nf === 1 ? 'on the first attempt' : 'on the first ' + nf + ' attempts'}, then passed on retry #${nf}. A pass after a retry is still a signal: ${r.attempts[0].error && r.attempts[0].error.kind === 'timeout' ? 'the click timed out waiting for an enabled button.' : 'the assertion saw a stale value before the page settled.'}</div>`;
+    }
+    const ai = Math.min(state.attempt, r.attempts.length - 1);
+    const A = r.attempts[ai];
+    h += `<div class="tabs" role="tablist" aria-label="Attempts">${r.attempts.map((a, i) => `<button type="button" role="tab" class="tab" data-testid="attempt-tab" data-status="${a.status}" aria-selected="${i === ai}">${a.status === 'passed' ? ICON.passed : ICON.failed}${i === 0 ? 'Run' : 'Retry #' + i}</button>`).join('')}</div>`;
+    h += `<div role="tabpanel" data-testid="attempt" data-status="${A.status}" data-dur="${A.dur}">`;
+    if (A.error) h += `<h3>Error</h3>${errorHTML(A.error, r)}`;
+    h += `<h3>Steps <span style="letter-spacing:0;text-transform:none">· ${fmt(A.dur)}</span></h3>${stepsHTML(A.steps, 0, A.dur, 'a' + ai)}`;
+    const acts = traceActions(A.steps);
+    const fi = Math.min(state.frame, acts.length - 1);
+    const X = (t) => { const v = 4 + 592 * t / Math.max(1, A.dur); return Number.isFinite(v) ? v.toFixed(1) : '4'; };
+    h += `<h3>Trace</h3><div class="timeline" data-testid="trace"><svg class="tl" viewBox="0 0 600 46" preserveAspectRatio="none" aria-hidden="true">
+      <rect x="4" y="30" width="592" height="2" fill="#22394b"/>
+      ${[0, .25, .5, .75, 1].map((f) => `<rect x="${X(A.dur * f)}" y="26" width="1" height="10" fill="#3d586c"/>`).join('')}
+      ${acts.map((a, i) => `<rect x="${X(a.t0)}" y="${8 + (i % 2) * 8}" width="${Math.max(2, Number(X(a.t0 + a.dur)) - Number(X(a.t0))).toFixed(1)}" height="7" rx="2" fill="${a.error ? '#ff6f6a' : a.kind === 'expect' ? '#46d19b' : '#79c6ff'}" opacity="${i === fi ? 1 : .55}"/>`).join('')}
+    </svg><div class="strip" role="group" aria-label="Actions">${acts.map((a, i) => `<button type="button" class="frame${a.error ? ' bad' : ''}" data-testid="trace-action" aria-pressed="${i === fi}">${frameSVG(a, false)}<span>${esc(a.title.split('(')[0])}</span><span>@ ${fmt(a.t0)}</span></button>`).join('')}</div>`;
+    if (acts[fi]) {
+      const a = acts[fi];
+      h += `<div class="snap">${frameSVG(a, true)}<div class="snapinfo" data-testid="snapshot-caption"><b>${esc(a.title)}</b><br>starts ${fmt(a.t0)} · took ${fmt(a.dur)}<br>${a.error ? '<span style="color:var(--fail)">failed here</span>' : a.act === 'goto' ? 'navigated to ' + esc(a.route) : 'target: ' + esc(a.target)}<br>action ${fi + 1} of ${acts.length}</div></div>`;
+    }
+    h += '</div></div>';
+    box.innerHTML = h;
+  }
+
+  function renderAll() { renderSummary(); renderTree(); renderDetail(); }
+
+  // ---------- events ----------
+  function setStatus(k) { state.status = (state.status === k && k !== 'all') ? 'all' : k; renderAll(); }
+  $('[data-testid="tiles"]').addEventListener('click', (e) => { const b = e.target.closest('button.tile'); if (b) setStatus(b.dataset.testid.slice(5)); });
+  $('[data-testid="status-chips"]').addEventListener('click', (e) => { const b = e.target.closest('button.chip'); if (b) setStatus(b.dataset.testid.slice(5)); });
+  $('[data-testid="project"]').addEventListener('change', (e) => { state.project = e.target.value; renderTree(); });
+  $('[data-testid="tag"]').addEventListener('change', (e) => { state.tag = e.target.value; renderTree(); });
+  $('[data-testid="search"]').addEventListener('input', (e) => { state.q = e.target.value; renderTree(); });
+  const tree = $('[data-testid="tree"]');
+  tree.addEventListener('click', (e) => {
+    const f = e.target.closest('.fhead');
+    if (f) { const file = f.closest('.file').dataset.file; state.collapsed.has(file) ? state.collapsed.delete(file) : state.collapsed.add(file); renderTree(); tree.querySelector(`.file[data-file="${CSS.escape(file)}"] .fhead`).focus(); return; }
+    const row = e.target.closest('.row');
+    if (row) {
+      state.sel = row.dataset.id; state.attempt = 0; state.frame = 0; state.closedSteps.clear();
+      const r = RUN.results.find((x) => x.id === state.sel);
+      if (r && r.attempts.length) { const a = r.attempts[0]; const acts = traceActions(a.steps); const bad = acts.findIndex((x) => x.error); state.frame = bad >= 0 ? bad : 0; }
+      renderTree(); renderDetail();
+      const again = tree.querySelector(`.row[data-id="${state.sel}"]`); if (again) again.focus();
+      if (window.matchMedia('(max-width: 1000px)').matches) $('[data-testid="detail"]').scrollIntoView({ block: 'start', behavior: 'auto' });
+    }
+  });
+  tree.addEventListener('keydown', (e) => {
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return;
+    const items = [...tree.querySelectorAll('.fhead, .row')];
+    const i = items.indexOf(document.activeElement); if (i < 0) return;
+    e.preventDefault();
+    const n = e.key === 'ArrowDown' ? Math.min(items.length - 1, i + 1) : e.key === 'ArrowUp' ? Math.max(0, i - 1) : e.key === 'Home' ? 0 : items.length - 1;
+    items[n].focus();
+  });
+  $('[data-testid="detail"]').addEventListener('click', (e) => {
+    const tab = e.target.closest('[data-testid="attempt-tab"]');
+    const r = RUN.results.find((x) => x.id === state.sel);
+    if (tab && r) {
+      state.attempt = [...tab.parentNode.children].indexOf(tab);
+      const acts = traceActions(r.attempts[state.attempt].steps); const bad = acts.findIndex((x) => x.error); state.frame = bad >= 0 ? bad : 0;
+      renderDetail(); $('[data-testid="detail"]').querySelectorAll('[data-testid="attempt-tab"]')[state.attempt].focus(); return;
+    }
+    const tog = e.target.closest('.tog');
+    if (tog) {
+      const k = tog.dataset.key; const open = tog.getAttribute('aria-expanded') === 'true';
+      if (open) { state.closedSteps.add(k); state.closedSteps.delete('!' + k); } else { state.closedSteps.delete(k); state.closedSteps.add('!' + k); }
+      renderDetail(); const again = $('[data-testid="detail"]').querySelector(`.tog[data-key="${k}"]`); if (again) again.focus(); return;
+    }
+    const fr = e.target.closest('[data-testid="trace-action"]');
+    if (fr) { state.frame = [...fr.parentNode.children].indexOf(fr); renderDetail(); const b = $('[data-testid="detail"]').querySelectorAll('[data-testid="trace-action"]')[state.frame]; if (b) b.focus(); }
+  });
+  $('[data-testid="detail"]').addEventListener('keydown', (e) => {
+    const tab = e.target.closest('[data-testid="attempt-tab"]');
+    if (!tab || !['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+    const tabs = [...tab.parentNode.children]; const i = tabs.indexOf(tab);
+    const n = (i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length; e.preventDefault(); tabs[n].click();
+  });
+  function regen() {
+    const v = Number.parseInt($('#seed').value, 10);
+    seed = Number.isFinite(v) ? Math.abs(v) : 7;
+    RUN = build(seed); state.sel = null; selectFirst('failed'); state.status = 'all'; state.project = 'all'; state.tag = 'all'; state.q = '';
+    $('[data-testid="search"]').value = '';
+    renderFilters(); renderAll();
+  }
+  $('[data-testid="regen"]').addEventListener('click', regen);
+  $('#seed').addEventListener('keydown', (e) => { if (e.key === 'Enter') regen(); });
+
+  function selectFirst(st) {
+    const r = RUN.results.find((x) => x.status === st); if (!r) return;
+    state.sel = r.id; state.attempt = 0; const acts = traceActions(r.attempts[0].steps); const bad = acts.findIndex((x) => x.error); state.frame = bad >= 0 ? bad : 0;
+  }
+  selectFirst('failed');
+  renderFilters(); renderAll();
+})();
+</script>
+</body>
+</html>

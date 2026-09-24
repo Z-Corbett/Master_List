@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unicode Inspector — graphemes, code points and bytes</title>
+<meta name="description" content="Paste text and see every grapheme cluster, its code points with names or general category and script, exact UTF-8 and UTF-16 encodings, an NFC/NFD/NFKC/NFKD comparison, invisible and bidirectional control characters, and common confusable look-alikes. Presets cover emoji ZWJ sequences, combining marks and right-to-left text.">
+<style>
+  :root {
+    --bg: #0d0c10;
+    --bg-2: #16141c;
+    --panel: #1b1922;
+    --line: #2d2a38;
+    --ink: #f3f0f7;
+    --ink-2: #aaa3b8;
+    --ink-3: #6f6880;
+    --mag: #ff2e88;
+    --cyan: #3ee0d0;
+    --amber: #ffc24b;
+    --red: #ff5a5a;
+    --font: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    --display: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+    --mono: "Cascadia Mono", Consolas, "SF Mono", ui-monospace, monospace;
+    --glyph: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Symbol", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font); overflow-x: hidden; }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  input, textarea, select, pre { max-width: 100%; }
+  :focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+  .back { position: fixed; top: 10px; left: 10px; z-index: 50; background: var(--bg-2); color: var(--ink); text-decoration: none; font: 600 13px/1 var(--font); padding: 8px 12px; border-radius: 4px; border: 1px solid var(--line); }
+
+  header { max-width: 1240px; margin: 0 auto; padding: 60px 20px 10px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; align-items: end; }
+  h1 { margin: 0; font: 300 clamp(34px, 7vw, 74px)/.95 var(--display); letter-spacing: -.03em; }
+  h1 b { font-weight: 700; color: var(--mag); }
+  .lede { margin: 12px 0 0; color: var(--ink-2); max-width: 66ch; }
+  .bigU { font: 200 clamp(60px, 11vw, 132px)/1 var(--display); color: transparent; -webkit-text-stroke: 1px var(--line); user-select: none; }
+
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 10px 20px 50px; }
+  .inputbox { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  .inputbox label { font: 600 12px var(--font); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-2); }
+  textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font: 22px/1.4 var(--glyph); margin-top: 6px; unicode-bidi: plaintext; }
+  textarea:focus { border-color: var(--mag); outline: none; }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .chip { border: 1px solid var(--line); background: var(--bg-2); border-radius: 999px; padding: 4px 12px; font-size: 13px; color: var(--ink-2); }
+  .chip:hover, .chip[aria-pressed="true"] { border-color: var(--mag); color: var(--ink); }
+
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin: 16px 0; }
+  .stat { background: var(--bg-2); padding: 12px 14px; min-width: 0; }
+  .stat b { display: block; font: 600 30px/1 var(--mono); }
+  .stat span { font-size: 12px; color: var(--ink-2); }
+  .stat:nth-child(1) b { color: var(--mag); } .stat:nth-child(2) b { color: var(--cyan); }
+
+  h2 { font: 600 12px var(--font); letter-spacing: .16em; text-transform: uppercase; color: var(--ink-2); margin: 0 0 10px; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: baseline; }
+  h2 small { letter-spacing: 0; text-transform: none; font-weight: 400; color: var(--ink-3); font-size: 12.5px; }
+  .strip { display: flex; flex-wrap: wrap; gap: 8px; }
+  .gc { width: 86px; border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 6px 6px; text-align: center; display: grid; gap: 4px; position: relative; }
+  .gc .g { font: 34px/1.15 var(--glyph); min-height: 40px; display: grid; place-items: center; overflow: hidden; }
+  .gc .g .inv { font: 700 10px/1.1 var(--mono); color: var(--amber); border: 1px dashed var(--amber); border-radius: 4px; padding: 3px 4px; }
+  .gc .n { font: 11px var(--mono); color: var(--ink-3); }
+  .gc[aria-pressed="true"] { border-color: var(--mag); box-shadow: 0 0 0 1px var(--mag); }
+  .gc.flag::after { content: ""; position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--amber); }
+  .gc.conf::after { content: ""; position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--red); }
+  .more { font-size: 13px; color: var(--ink-3); margin-top: 8px; }
+
+  .grid2 { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 18px; margin-top: 18px; align-items: start; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; min-width: 0; margin-bottom: 18px; }
+  .tablewrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th { text-align: left; font: 600 11px var(--font); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); padding: 5px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.mono, .mono { font-family: var(--mono); font-size: 12.5px; }
+  td.cp { color: var(--cyan); white-space: nowrap; }
+  td.nm { min-width: 180px; }
+  td.nm small { color: var(--ink-3); display: block; }
+  td.seq { min-width: 220px; }
+  .yes { color: var(--cyan); } .no { color: var(--mag); }
+  .bytes { color: var(--ink-2); overflow-wrap: anywhere; }
+  .flags { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .flags li { border-left: 3px solid var(--amber); background: rgba(255,194,75,.07); padding: 6px 10px; font-size: 13.5px; border-radius: 0 6px 6px 0; overflow-wrap: anywhere; }
+  .flags li.bidi { border-color: var(--red); background: rgba(255,90,90,.08); }
+  .flags li.ok { border-color: var(--ink-3); background: rgba(255,255,255,.03); color: var(--ink-2); }
+  .warn { border: 1px solid var(--red); color: #ffb3b3; background: rgba(255,90,90,.08); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; font-size: 13.5px; }
+  .reveal { font: 20px/1.9 var(--glyph); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; overflow-wrap: anywhere; unicode-bidi: isolate; direction: ltr; }
+  .reveal .inv { font: 700 10px var(--mono); color: var(--amber); border: 1px dashed var(--amber); border-radius: 3px; padding: 1px 3px; margin: 0 1px; vertical-align: middle; }
+  .reveal .inv.bidi { color: var(--red); border-color: var(--red); }
+  .reveal mark { background: rgba(255,90,90,.25); color: inherit; border-bottom: 2px solid var(--red); border-radius: 2px; }
+  .skeleton { margin-top: 8px; font-size: 14px; color: var(--ink-2); }
+  .skeleton code { font: 15px var(--mono); color: var(--ink); background: var(--bg); padding: 1px 6px; border-radius: 4px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  footer { max-width: 1240px; margin: 0 auto; padding: 0 20px 30px; font-size: 12.5px; color: var(--ink-3); }
+
+  @media (max-width: 900px) { .grid2 { grid-template-columns: minmax(0, 1fr); } header { grid-template-columns: minmax(0, 1fr); } .bigU { display: none; } }
+  @media (max-width: 520px) {
+    header, .wrap, footer { padding-left: 12px; padding-right: 12px; }
+    .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .stat b { font-size: 24px; }
+    .gc { width: calc(25% - 6px); min-width: 70px; }
+    .panel { padding: 10px; }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+
+<header>
+  <div>
+    <h1>Unicode <b>Inspector</b></h1>
+    <p class="lede">What looks like one character can be seven code points, eleven UTF-16 units and twenty-five bytes. Paste anything to see how it is really built — and what's hiding in it.</p>
+  </div>
+  <div class="bigU" aria-hidden="true">U+</div>
+</header>
+
+<main class="wrap">
+  <section class="inputbox">
+    <label for="txt">Text to inspect</label>
+    <textarea id="txt" data-testid="input" spellcheck="false" autocomplete="off"></textarea>
+    <div class="presets" role="group" aria-label="Presets" data-testid="presets"></div>
+  </section>
+
+  <div class="stats" aria-live="polite">
+    <div class="stat"><b data-testid="n-graphemes">0</b><span>grapheme clusters (what people call characters)</span></div>
+    <div class="stat"><b data-testid="n-codepoints">0</b><span>code points</span></div>
+    <div class="stat"><b data-testid="n-utf16">0</b><span>UTF-16 code units (JavaScript <code>.length</code>)</span></div>
+    <div class="stat"><b data-testid="n-utf8">0</b><span>UTF-8 bytes</span></div>
+  </div>
+
+  <section aria-labelledby="h-gc">
+    <h2 id="h-gc">Grapheme clusters <small data-testid="seg-note"></small></h2>
+    <div class="strip" data-testid="clusters" role="group" aria-label="Grapheme clusters"></div>
+    <p class="more" data-testid="more" hidden></p>
+  </section>
+
+  <div class="grid2">
+    <div>
+      <section class="panel" aria-labelledby="h-cp">
+        <h2 id="h-cp">Code points <small data-testid="cp-scope">of the selected cluster</small></h2>
+        <div class="tablewrap"><table data-testid="cptable"><thead><tr><th>Code point</th><th>Name / category</th><th>UTF-8</th><th>UTF-16</th></tr></thead><tbody></tbody></table></div>
+      </section>
+      <section class="panel" aria-labelledby="h-norm">
+        <h2 id="h-norm">Normalization <small>same text, four canonical forms</small></h2>
+        <div class="tablewrap"><table data-testid="norm"><thead><tr><th>Form</th><th>Code points</th><th>UTF-8</th><th>Same as input?</th><th>Sequence</th></tr></thead><tbody></tbody></table></div>
+      </section>
+    </div>
+    <div>
+      <section class="panel" aria-labelledby="h-inv">
+        <h2 id="h-inv">Invisible &amp; bidi controls</h2>
+        <div class="warn" data-testid="trojan" hidden></div>
+        <ul class="flags" data-testid="invisibles"></ul>
+      </section>
+      <section class="panel" aria-labelledby="h-conf">
+        <h2 id="h-conf">Confusables <small>a small built-in subset of look-alikes</small></h2>
+        <div class="reveal" data-testid="reveal" aria-label="Text with hidden characters revealed"></div>
+        <div class="skeleton" data-testid="skeleton"></div>
+        <ul class="flags" data-testid="confusables" style="margin-top:10px"></ul>
+      </section>
+    </div>
+  </div>
+</main>
+<footer>Names come from a built-in table (ASCII letters and digits, fullwidth Latin, regional indicators and about a hundred hand-picked others); everything else shows its General Category and Script, read with JavaScript regular-expression property escapes. Confusable detection covers common Cyrillic and Greek look-alikes only — the full list is Unicode's UTS #39 confusables data.</footer>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const hex = (n, w = 4) => n.toString(16).toUpperCase().padStart(w, '0');
+  const U = (cp) => 'U+' + hex(cp);
+
+  // ---------- presets (escaped so the source is unambiguous) ----------
+  const PRESETS = [
+    ['Family (ZWJ)', '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}\u200D\u{1F466}'],
+    ['Wave + skin tone', 'Hi \u{1F44B}\u{1F3FD}!'],
+    ['Flags', '\u{1F1EF}\u{1F1F5}\u{1F1F3}\u{1F1FF}\u{1F3F3}\uFE0F\u200D\u{1F308}'],
+    ['Combining marks', 'Caf\u00E9 vs Cafe\u0301 \u00B7 n\u0303 \u00B7 A\u030A \u212B'],
+    ['Compatibility', '\uFB01le \u2460 x\u00B2 \uFF28\uFF49'],
+    ['Right-to-left', 'Hello \u05E9\u05DC\u05D5\u05DD and \u0645\u0631\u062D\u0628\u0627!'],
+    ['Invisible', 'pass\u200Bword \u00B7 soft\u00ADhyphen \u00B7 non\u00A0breaking \u00B7 \uFEFFBOM'],
+    ['Trojan Source', 'if (isAdmin) { \u202E } \u2066// check later\u2069 \u2067begin'],
+    ['Look-alikes', '\u0430dmin \u00B7 \u0397ello w\u043Erld \u00B7 \u0440\u0430\u0443'],
+  ];
+
+  // ---------- a small, exact name table ----------
+  const NAMES = {
+    0x20: 'SPACE', 0x21: 'EXCLAMATION MARK', 0x22: 'QUOTATION MARK', 0x27: 'APOSTROPHE', 0x28: 'LEFT PARENTHESIS', 0x29: 'RIGHT PARENTHESIS', 0x2C: 'COMMA', 0x2D: 'HYPHEN-MINUS', 0x2E: 'FULL STOP', 0x2F: 'SOLIDUS',
+    0x3A: 'COLON', 0x3B: 'SEMICOLON', 0x3F: 'QUESTION MARK', 0x40: 'COMMERCIAL AT', 0x7B: 'LEFT CURLY BRACKET', 0x7D: 'RIGHT CURLY BRACKET',
+    0xA0: 'NO-BREAK SPACE', 0xAD: 'SOFT HYPHEN', 0xB2: 'SUPERSCRIPT TWO', 0xB7: 'MIDDLE DOT', 0xC5: 'LATIN CAPITAL LETTER A WITH RING ABOVE', 0xE9: 'LATIN SMALL LETTER E WITH ACUTE', 0xF1: 'LATIN SMALL LETTER N WITH TILDE',
+    0x300: 'COMBINING GRAVE ACCENT', 0x301: 'COMBINING ACUTE ACCENT', 0x303: 'COMBINING TILDE', 0x308: 'COMBINING DIAERESIS', 0x30A: 'COMBINING RING ABOVE',
+    0x391: 'GREEK CAPITAL LETTER ALPHA', 0x397: 'GREEK CAPITAL LETTER ETA', 0x39F: 'GREEK CAPITAL LETTER OMICRON', 0x3BF: 'GREEK SMALL LETTER OMICRON',
+    0x430: 'CYRILLIC SMALL LETTER A', 0x435: 'CYRILLIC SMALL LETTER IE', 0x43E: 'CYRILLIC SMALL LETTER O', 0x440: 'CYRILLIC SMALL LETTER ER', 0x441: 'CYRILLIC SMALL LETTER ES', 0x443: 'CYRILLIC SMALL LETTER U', 0x445: 'CYRILLIC SMALL LETTER HA',
+    0x455: 'CYRILLIC SMALL LETTER DZE', 0x456: 'CYRILLIC SMALL LETTER BYELORUSSIAN-UKRAINIAN I',
+    0x5D5: 'HEBREW LETTER VAV', 0x5DC: 'HEBREW LETTER LAMED', 0x5DD: 'HEBREW LETTER FINAL MEM', 0x5E9: 'HEBREW LETTER SHIN',
+    0x61C: 'ARABIC LETTER MARK', 0x627: 'ARABIC LETTER ALEF', 0x628: 'ARABIC LETTER BEH', 0x62D: 'ARABIC LETTER HAH', 0x631: 'ARABIC LETTER REH', 0x645: 'ARABIC LETTER MEEM',
+    0x200B: 'ZERO WIDTH SPACE', 0x200C: 'ZERO WIDTH NON-JOINER', 0x200D: 'ZERO WIDTH JOINER', 0x200E: 'LEFT-TO-RIGHT MARK', 0x200F: 'RIGHT-TO-LEFT MARK',
+    0x2028: 'LINE SEPARATOR', 0x2029: 'PARAGRAPH SEPARATOR', 0x202A: 'LEFT-TO-RIGHT EMBEDDING', 0x202B: 'RIGHT-TO-LEFT EMBEDDING', 0x202C: 'POP DIRECTIONAL FORMATTING',
+    0x202D: 'LEFT-TO-RIGHT OVERRIDE', 0x202E: 'RIGHT-TO-LEFT OVERRIDE', 0x202F: 'NARROW NO-BREAK SPACE', 0x2060: 'WORD JOINER',
+    0x2066: 'LEFT-TO-RIGHT ISOLATE', 0x2067: 'RIGHT-TO-LEFT ISOLATE', 0x2068: 'FIRST STRONG ISOLATE', 0x2069: 'POP DIRECTIONAL ISOLATE',
+    0x20AC: 'EURO SIGN', 0x212B: 'ANGSTROM SIGN', 0x2460: 'CIRCLED DIGIT ONE', 0x2764: 'HEAVY BLACK HEART',
+    0xFB01: 'LATIN SMALL LIGATURE FI', 0xFE0E: 'VARIATION SELECTOR-15', 0xFE0F: 'VARIATION SELECTOR-16', 0xFEFF: 'ZERO WIDTH NO-BREAK SPACE',
+    0x1D11E: 'MUSICAL SYMBOL G CLEF', 0x1F308: 'RAINBOW', 0x1F3F3: 'WAVING WHITE FLAG', 0x1F44B: 'WAVING HAND SIGN', 0x1F44D: 'THUMBS UP SIGN',
+    0x1F466: 'BOY', 0x1F467: 'GIRL', 0x1F468: 'MAN', 0x1F469: 'WOMAN', 0x1F525: 'FIRE', 0x1F600: 'GRINNING FACE',
+    0x1F3FB: 'EMOJI MODIFIER FITZPATRICK TYPE-1-2', 0x1F3FC: 'EMOJI MODIFIER FITZPATRICK TYPE-3', 0x1F3FD: 'EMOJI MODIFIER FITZPATRICK TYPE-4', 0x1F3FE: 'EMOJI MODIFIER FITZPATRICK TYPE-5', 0x1F3FF: 'EMOJI MODIFIER FITZPATRICK TYPE-6',
+  };
+  const DIGITS = ['ZERO', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE'];
+  const ALIAS = { 0x09: 'CHARACTER TABULATION', 0x0A: 'LINE FEED', 0x0D: 'CARRIAGE RETURN' };
+  function nameOf(cp) {
+    if (NAMES[cp]) return NAMES[cp];
+    if (cp >= 0x41 && cp <= 0x5A) return 'LATIN CAPITAL LETTER ' + String.fromCodePoint(cp);
+    if (cp >= 0x61 && cp <= 0x7A) return 'LATIN SMALL LETTER ' + String.fromCodePoint(cp - 32);
+    if (cp >= 0x30 && cp <= 0x39) return 'DIGIT ' + DIGITS[cp - 0x30];
+    if (cp >= 0xFF21 && cp <= 0xFF3A) return 'FULLWIDTH LATIN CAPITAL LETTER ' + String.fromCodePoint(cp - 0xFF21 + 65);
+    if (cp >= 0xFF41 && cp <= 0xFF5A) return 'FULLWIDTH LATIN SMALL LETTER ' + String.fromCodePoint(cp - 0xFF41 + 65);
+    if (cp >= 0x1F1E6 && cp <= 0x1F1FF) return 'REGIONAL INDICATOR SYMBOL LETTER ' + String.fromCodePoint(cp - 0x1F1E6 + 65);
+    if (ALIAS[cp]) return '<control> ' + ALIAS[cp] + ' (alias)';
+    return null;
+  }
+  const GC = { Lu: 'Uppercase letter', Ll: 'Lowercase letter', Lt: 'Titlecase letter', Lm: 'Modifier letter', Lo: 'Other letter', Mn: 'Nonspacing mark', Mc: 'Spacing mark', Me: 'Enclosing mark',
+    Nd: 'Decimal number', Nl: 'Letter number', No: 'Other number', Pc: 'Connector punctuation', Pd: 'Dash punctuation', Ps: 'Open punctuation', Pe: 'Close punctuation', Pi: 'Initial punctuation', Pf: 'Final punctuation', Po: 'Other punctuation',
+    Sm: 'Math symbol', Sc: 'Currency symbol', Sk: 'Modifier symbol', So: 'Other symbol', Zs: 'Space separator', Zl: 'Line separator', Zp: 'Paragraph separator', Cc: 'Control', Cf: 'Format', Cs: 'Surrogate', Co: 'Private use', Cn: 'Unassigned' };
+  const GC_RE = Object.keys(GC).map((k) => [k, new RegExp(`^\\p{gc=${k}}$`, 'u')]);
+  const SCRIPTS = ['Latin', 'Greek', 'Cyrillic', 'Hebrew', 'Arabic', 'Han', 'Hiragana', 'Katakana', 'Hangul', 'Devanagari', 'Thai', 'Common', 'Inherited'].map((s) => [s, new RegExp(`^\\p{Script=${s}}$`, 'u')]);
+  const gcOf = (ch) => { for (const [k, re] of GC_RE) if (re.test(ch)) return k; return 'Cn'; };
+  const scriptOf = (ch) => { for (const [s, re] of SCRIPTS) if (re.test(ch)) return s; return 'other'; };
+
+  const enc = new TextEncoder();
+  const utf8 = (s) => [...enc.encode(s)].map((b) => hex(b, 2));
+  const utf16 = (s) => { const out = []; for (let i = 0; i < s.length; i++) out.push(hex(s.charCodeAt(i))); return out; };
+
+  // ---------- invisibles, bidi, confusables ----------
+  const INVIS = { 0x200B: 'ZWSP', 0x200C: 'ZWNJ', 0x200D: 'ZWJ', 0x2060: 'WJ', 0xFEFF: 'BOM', 0xAD: 'SHY', 0xA0: 'NBSP', 0x202F: 'NNBSP', 0x2028: 'LSEP', 0x2029: 'PSEP', 0xFE0E: 'VS15', 0xFE0F: 'VS16', 0x180E: 'MVS' };
+  const BIDI = { 0x202A: 'LRE', 0x202B: 'RLE', 0x202C: 'PDF', 0x202D: 'LRO', 0x202E: 'RLO', 0x2066: 'LRI', 0x2067: 'RLI', 0x2068: 'FSI', 0x2069: 'PDI', 0x200E: 'LRM', 0x200F: 'RLM', 0x61C: 'ALM' };
+  const CONF = { 0x430: 'a', 0x435: 'e', 0x43E: 'o', 0x440: 'p', 0x441: 'c', 0x443: 'y', 0x445: 'x', 0x456: 'i', 0x458: 'j', 0x455: 's', 0x501: 'd', 0x4BB: 'h',
+    0x410: 'A', 0x412: 'B', 0x415: 'E', 0x41A: 'K', 0x41C: 'M', 0x41D: 'H', 0x41E: 'O', 0x420: 'P', 0x421: 'C', 0x422: 'T', 0x425: 'X',
+    0x391: 'A', 0x392: 'B', 0x395: 'E', 0x396: 'Z', 0x397: 'H', 0x399: 'I', 0x39A: 'K', 0x39C: 'M', 0x39D: 'N', 0x39F: 'O', 0x3A1: 'P', 0x3A4: 'T', 0x3A5: 'Y', 0x3A7: 'X', 0x3BF: 'o', 0x3BD: 'v', 0x3B9: 'i' };
+
+  let segmenter = null;
+  try { segmenter = new Intl.Segmenter('en', { granularity: 'grapheme' }); } catch (e) { segmenter = null; }
+  const graphemes = (s) => (segmenter ? [...segmenter.segment(s)].map((x) => x.segment) : [...s]);
+
+  let sel = 0, lastText = null;
+  function analyse(s) {
+    const cps = [...s].map((ch) => ch.codePointAt(0));
+    const inv = [], bidi = [], conf = [];
+    let idx = 0;
+    const gs = graphemes(s);
+    gs.forEach((g, gi) => {
+      const inEmoji = /\p{Extended_Pictographic}/u.test(g);
+      [...g].forEach((ch) => {
+        const cp = ch.codePointAt(0);
+        if (BIDI[cp]) bidi.push({ cp, at: idx, gi, abbr: BIDI[cp] });
+        else if (INVIS[cp] || (gcOf(ch) === 'Cf' && cp !== 0x200D)) inv.push({ cp, at: idx, gi, abbr: INVIS[cp] || 'Cf', expected: (cp === 0x200D || cp === 0xFE0F || cp === 0xFE0E) && inEmoji });
+        else if (cp === 0x200D) inv.push({ cp, at: idx, gi, abbr: 'ZWJ', expected: inEmoji });
+        if (CONF[cp]) conf.push({ cp, at: idx, gi, as: CONF[cp] });
+        idx++;
+      });
+    });
+    // mixed-script words: Latin together with Greek or Cyrillic letters in one run of letters
+    const mixed = [];
+    for (const m of s.matchAll(/[\p{L}\p{M}]+/gu)) {
+      const scripts = new Set([...m[0]].filter((c) => /\p{L}/u.test(c)).map(scriptOf));
+      if (scripts.has('Latin') && (scripts.has('Cyrillic') || scripts.has('Greek'))) mixed.push({ word: m[0], scripts: [...scripts].sort() });
+    }
+    const skeleton = [...s].map((ch) => CONF[ch.codePointAt(0)] || ch).join('');
+    return { cps, gs, inv, bidi, conf, mixed, skeleton };
+  }
+
+  function render() {
+    const s = $('[data-testid="input"]').value;
+    if (s !== lastText) { sel = 0; lastText = s; }
+    const A = analyse(s);
+    $('[data-testid="n-graphemes"]').textContent = A.gs.length;
+    $('[data-testid="n-codepoints"]').textContent = A.cps.length;
+    $('[data-testid="n-utf16"]').textContent = s.length;
+    $('[data-testid="n-utf8"]').textContent = enc.encode(s).length;
+    $('[data-testid="seg-note"]').textContent = segmenter ? 'split with Intl.Segmenter (extended grapheme clusters)' : 'Intl.Segmenter is not available here — showing code points instead';
+
+    const flaggedG = new Set([...A.inv.filter((x) => !x.expected), ...A.bidi].map((x) => x.gi));
+    const confG = new Set(A.conf.map((x) => x.gi));
+    const LIMIT = 160;
+    $('[data-testid="clusters"]').innerHTML = A.gs.slice(0, LIMIT).map((g, i) => {
+      const cps = [...g].map((c) => c.codePointAt(0));
+      const visible = /[^\p{Cf}\p{Zs}\p{Zl}\p{Zp}\p{Cc}\p{Mn}]/u.test(g);
+      const label = visible ? esc(g) : `<span class="inv">${cps.map((c) => BIDI[c] || INVIS[c] || (c === 0x20 ? 'SP' : U(c))).join(' ')}</span>`;
+      return `<button type="button" class="gc${flaggedG.has(i) ? ' flag' : ''}${confG.has(i) ? ' conf' : ''}" data-testid="cluster" data-i="${i}" data-cps="${cps.length}" aria-pressed="${i === sel}" aria-label="Cluster ${i + 1}: ${cps.map(U).join(' ')}"><span class="g" dir="auto">${label}</span><span class="n">${cps.length} cp · ${enc.encode(g).length} B</span></button>`;
+    }).join('');
+    const more = $('[data-testid="more"]'); more.hidden = A.gs.length <= LIMIT; more.textContent = `Showing the first ${LIMIT} of ${A.gs.length} clusters.`;
+
+    // code point table for the selected cluster
+    const g = A.gs[sel] || '';
+    $('[data-testid="cp-scope"]').textContent = g ? `of cluster ${sel + 1}` : 'nothing selected';
+    $('[data-testid="cptable"] tbody').innerHTML = [...g].map((ch) => {
+      const cp = ch.codePointAt(0); const nm = nameOf(cp); const gc = gcOf(ch);
+      return `<tr data-testid="cp-row" data-cp="${U(cp)}"><td class="mono cp">${U(cp)}</td><td class="nm"><span data-testid="cp-name">${nm ? esc(nm) : '<i style="color:var(--ink-3)">not in this page’s name table</i>'}</span><small>${gc} · ${GC[gc]} · ${scriptOf(ch)}</small></td><td class="mono bytes" data-testid="cp-utf8">${utf8(ch).join(' ')}</td><td class="mono bytes" data-testid="cp-utf16">${utf16(ch).join(' ')}</td></tr>`;
+    }).join('') || '<tr><td colspan="4" style="color:var(--ink-3)">Type or paste some text.</td></tr>';
+
+    // normalization
+    $('[data-testid="norm"] tbody').innerHTML = ['NFC', 'NFD', 'NFKC', 'NFKD'].map((f) => {
+      const n = s.normalize(f); const cps = [...n].map((c) => c.codePointAt(0));
+      const shown = cps.slice(0, 24).map((c) => U(c).slice(2)).join(' ') + (cps.length > 24 ? ' …' : '');
+      return `<tr data-testid="norm-${f}" data-cps="${cps.length}" data-same="${n === s}"><td class="mono">${f}</td><td class="mono">${cps.length}</td><td class="mono">${enc.encode(n).length}</td><td class="${n === s ? 'yes' : 'no'}">${n === s ? 'yes' : 'no — changed'}</td><td class="mono bytes seq" data-testid="norm-${f}-seq">${esc(shown)}</td></tr>`;
+    }).join('');
+
+    // invisibles + bidi
+    const list = [];
+    A.bidi.forEach((x) => list.push(`<li class="bidi" data-testid="flag" data-kind="bidi" data-cp="${U(x.cp)}"><b>${U(x.cp)} ${x.abbr}</b> — ${esc(nameOf(x.cp) || '')}, at code point ${x.at + 1}. Changes the display order of the text around it.</li>`));
+    A.inv.forEach((x) => list.push(`<li class="${x.expected ? 'ok' : ''}" data-testid="flag" data-kind="${x.expected ? 'expected' : 'invisible'}" data-cp="${U(x.cp)}"><b>${U(x.cp)} ${x.abbr}</b> — ${esc(nameOf(x.cp) || GC[gcOf(String.fromCodePoint(x.cp))])}, at code point ${x.at + 1}.${x.expected ? ' Expected here: part of an emoji sequence.' : ' Invisible or easy to miss when reading.'}</li>`));
+    $('[data-testid="invisibles"]').innerHTML = list.join('') || '<li class="ok" data-testid="no-flags">No invisible or bidirectional control characters.</li>';
+    const overrides = A.bidi.filter((x) => [0x202A, 0x202B, 0x202D, 0x202E, 0x2066, 0x2067, 0x2068].includes(x.cp));
+    const tro = $('[data-testid="trojan"]');
+    tro.hidden = !overrides.length;
+    tro.textContent = overrides.length ? `${overrides.length} bidirectional embedding, override or isolate character${overrides.length > 1 ? 's' : ''} found. In source code this is the “Trojan Source” pattern (2021): text can display in a different order from how a compiler reads it.` : '';
+
+    // reveal + confusables
+    const confAt = new Set(A.conf.map((x) => x.at));
+    let i = 0;
+    $('[data-testid="reveal"]').innerHTML = [...s].map((ch) => {
+      const cp = ch.codePointAt(0); const at = i++;
+      if (BIDI[cp]) return `<span class="inv bidi" title="${U(cp)}">${BIDI[cp]}</span>`;
+      if (INVIS[cp] && cp !== 0xA0 && cp !== 0x202F) return `<span class="inv" title="${U(cp)}">${INVIS[cp]}</span>`;
+      if (cp === 0xA0 || cp === 0x202F) return `<span class="inv" title="${U(cp)}">${INVIS[cp]}</span>`;
+      if (cp === 0x0A) return '<br>';
+      if (confAt.has(at)) return `<mark title="${U(cp)} looks like '${CONF[cp]}'" data-testid="conf-mark">${esc(ch)}</mark>`;
+      return esc(ch);
+    }).join('') || '<span style="color:var(--ink-3)">—</span>';
+    $('[data-testid="skeleton"]').innerHTML = A.conf.length ? `Reads as <code data-testid="skeleton-text">${esc(A.skeleton)}</code> once look-alikes are mapped to Latin.` : '';
+    const cl = [];
+    A.mixed.forEach((m) => cl.push(`<li class="bidi" data-testid="mixed">Mixed scripts in “${esc(m.word)}”: ${m.scripts.join(' + ')}.</li>`));
+    A.conf.forEach((x) => cl.push(`<li data-testid="conf" data-cp="${U(x.cp)}"><b>${U(x.cp)}</b> ${esc(nameOf(x.cp) || scriptOf(String.fromCodePoint(x.cp)) + ' letter')} looks like Latin “${x.as}”.</li>`));
+    $('[data-testid="confusables"]').innerHTML = cl.join('') || '<li class="ok">No look-alikes from this page’s list.</li>';
+  }
+
+  // ---------- events ----------
+  $('[data-testid="presets"]').innerHTML = PRESETS.map(([l], i) => `<button type="button" class="chip" data-p="${i}" data-testid="preset-${i}" aria-pressed="false">${esc(l)}</button>`).join('');
+  $('[data-testid="presets"]').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-p]'); if (!b) return;
+    $('[data-testid="input"]').value = PRESETS[Number(b.dataset.p)][1];
+    document.querySelectorAll('[data-p]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    render();
+  });
+  $('[data-testid="input"]').addEventListener('input', () => { document.querySelectorAll('[data-p]').forEach((x) => x.setAttribute('aria-pressed', 'false')); render(); });
+  $('[data-testid="clusters"]').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-testid="cluster"]'); if (!b) return;
+    sel = Number(b.dataset.i); render();
+    const again = $(`[data-testid="cluster"][data-i="${sel}"]`); if (again) again.focus();
+  });
+  $('[data-testid="clusters"]').addEventListener('keydown', (e) => {
+    const b = e.target.closest('[data-testid="cluster"]'); if (!b || !['ArrowRight', 'ArrowLeft'].includes(e.key)) return;
+    const all = document.querySelectorAll('[data-testid="cluster"]');
+    const n = Math.max(0, Math.min(all.length - 1, Number(b.dataset.i) + (e.key === 'ArrowRight' ? 1 : -1)));
+    e.preventDefault(); all[n].click();
+  });
+
+  const q = new URLSearchParams(location.search).get('text');
+  $('[data-testid="input"]').value = q !== null ? q : PRESETS[0][1];
+  if (q === null) $('[data-testid="preset-0"]').setAttribute('aria-pressed', 'true');
+  window.__uni = { analyse: (s) => { const A = analyse(s); return { graphemes: A.gs.length, codepoints: A.cps.length }; } };
+  render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,34 @@
+{
+  "id": "089",
+  "slug": "089-unicode-inspector",
+  "file": "lab/089-unicode-inspector.html",
+  "title": "Unicode Inspector — Graphemes, Code Points and Bytes",
+  "category": "Tools",
+  "tags": ["unicode", "utf-8", "normalization", "i18n", "security"],
+  "description": "Paste any text to see its grapheme clusters (via Intl.Segmenter), each cluster's code points with names or General Category and Script, and exact UTF-8 and UTF-16 encodings, alongside counts that show why .length lies. It compares NFC, NFD, NFKC and NFKD, calls out invisible, zero-width and bidirectional control characters (including the Trojan Source pattern), and highlights common Cyrillic and Greek look-alikes with a Latin skeleton; presets cover emoji ZWJ sequences, flags, combining marks and right-to-left text.",
+  "prompt": "Build 'Unicode Inspector'. Paste text and see each grapheme cluster (use Intl.Segmenter), its code points as U+XXXX with names for a built-in subset or the general category via regex property escapes, correct UTF-8 and UTF-16 encodings, an NFC/NFD/NFKC/NFKD comparison, detection of invisible, zero-width and bidi control characters, and highlighting of common confusables. Add presets with emoji ZWJ sequences, combining marks and right-to-left text. Every byte and name must be correct, so keep the name table small and exact rather than big and approximate. Make it look like a type specimen on a dark background.",
+  "qa": {
+    "methodology": [
+      "Independent encoding oracle: UTF-8 is recomputed in the spec with Node's Buffer and UTF-16 with charCodeAt, and compared per cluster for ASCII, a BMP symbol (€), an astral character (U+1D11E) and a precomposed letter.",
+      "Known-answer tests for counting: the family emoji must be 1 grapheme, 7 code points, 11 UTF-16 units and 25 bytes, with each code point named exactly.",
+      "Normalization known answers: e + U+0301 composes under NFC to U+00E9, the Angstrom sign maps to U+00C5 under NFC, and the fi ligature only splits under the compatibility forms; plain ASCII is unchanged by all four.",
+      "Detection oracles with exact code point lists for the invisible and Trojan Source presets, plus a negative case with nothing hidden and the ZWJs in emoji treated as expected rather than suspicious.",
+      "Confusables: a single Cyrillic a in 'admin' is marked, reported as mixed script, and mapped back to a Latin skeleton."
+    ],
+    "risks": [
+      "Engines without Intl.Segmenter splitting emoji into pieces (the page falls back to code points and says so).",
+      "Names drifting from the Unicode Character Database; the table is intentionally small, and everything else shows category and script instead of a guess.",
+      "Bidi controls in the input reordering the page itself; the revealed view uses isolation and shows each control as a labelled badge.",
+      "Emoji rendering differing across operating systems, which affects looks but not the counts."
+    ],
+    "playwright": "The critical checks compare against encoders running in the Node test process, not the page, so a bug in the page's TextEncoder use or surrogate handling would show up as a mismatch. Unicode test strings are written with \\u escapes in the spec so the source file itself can't be silently normalized by an editor. Cluster cards and code-point rows expose data-cp, data-cps and data-same attributes, which keeps the assertions about data rather than glyph rendering, since emoji fonts differ between Windows and the Pixel 7 emulation. No screenshots are asserted.",
+    "coverage": [
+      "ZWJ family emoji counts, names, bytes and expected joiners",
+      "UTF-8/UTF-16 per cluster against Node, astral names, arrow-key cluster navigation",
+      "NFC/NFD/NFKC/NFKD on combining marks, the Angstrom sign and ligatures",
+      "Invisible characters, Trojan Source bidi controls, clean text",
+      "Cyrillic look-alike marking, mixed-script flag, Latin skeleton"
+    ]
+  },
+  "a11y": "The text area is labelled, clusters are buttons with their code points in the accessible name and Arrow-key navigation, and every visual marker (dots, badges, highlights) is repeated as text in the lists and tables. Counts update in a polite live region."
+}

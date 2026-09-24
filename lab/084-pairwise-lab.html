@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pairwise Lab — all-pairs combinatorial test design</title>
+<meta name="description" content="Define test parameters and their values, forbid invalid combinations, and generate an all-pairs covering set with a seeded greedy algorithm. Compare exhaustive and pairwise counts, inspect a pair-coverage heatmap, verify every allowed pair in the page, and export the rows as CSV.">
+<style>
+  :root {
+    --paper: #f3f4ee;
+    --paper-2: #e9ebe2;
+    --grid: rgba(35,58,140,.07);
+    --ink: #1c2748;
+    --ink-2: #4f5a78;
+    --ink-3: #8a93ab;
+    --blue: #233a8c;
+    --blue-2: #3f5bc4;
+    --orange: #e0621b;
+    --ok: #1d7a4f;
+    --bad: #c0352b;
+    --line: #cfd3c6;
+    --font: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+    --mono: "Lucida Console", Consolas, "SF Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--paper); color: var(--ink); font: 15px/1.45 var(--font); overflow-x: hidden;
+    background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px), linear-gradient(rgba(35,58,140,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(35,58,140,.035) 1px, transparent 1px);
+    background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px; }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  input, select, pre, textarea { max-width: 100%; }
+  :focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
+  .back { position: fixed; top: 10px; left: 10px; z-index: 50; background: var(--blue); color: #fff; text-decoration: none; font: 700 13px/1 var(--font); padding: 8px 12px; border-radius: 2px; }
+
+  header { max-width: 1260px; margin: 0 auto; padding: 58px 20px 12px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; align-items: end; }
+  .tag { font: 12px var(--mono); color: var(--orange); letter-spacing: .08em; }
+  h1 { margin: 4px 0 8px; font: 700 clamp(30px, 5.5vw, 56px)/1 var(--font); letter-spacing: -.02em; color: var(--blue); }
+  .lede { margin: 0; max-width: 68ch; color: var(--ink-2); }
+  .bignums { display: flex; align-items: center; gap: 14px; border: 2px solid var(--blue); background: #fff; padding: 10px 16px; }
+  .bignums div { text-align: center; }
+  .bignums b { display: block; font: 700 38px/1 var(--mono); color: var(--blue); }
+  .bignums .pw b { color: var(--orange); }
+  .bignums span { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-2); }
+  .arrow { font: 28px var(--mono); color: var(--ink-3); }
+
+  .wrap { max-width: 1260px; margin: 0 auto; padding: 8px 20px 50px; }
+  .grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+  .sheet { background: #fff; border: 1px solid var(--line); box-shadow: 4px 4px 0 rgba(35,58,140,.12); padding: 16px; min-width: 0; margin-bottom: 18px; }
+  .sheet h2 { margin: 0 0 12px; font: 700 13px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--blue); display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .sheet h2 small { font: 12px var(--font); letter-spacing: 0; text-transform: none; color: var(--ink-3); }
+  .presets { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .btn { border: 1.5px solid var(--blue); background: #fff; color: var(--blue); padding: 5px 11px; font-size: 13.5px; border-radius: 2px; }
+  .btn:hover { background: #eef1fb; }
+  .btn.on, .btn.primary { background: var(--blue); color: #fff; }
+  .prow { display: grid; grid-template-columns: minmax(0, 150px) minmax(0, 1fr) auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .prow input { border: 1px solid var(--line); background: var(--paper); padding: 6px 8px; border-radius: 2px; min-width: 0; width: 100%; }
+  .prow input.pname { font-weight: 700; }
+  .prow .n { font: 11.5px var(--mono); color: var(--ink-3); }
+  .x { border: 0; background: none; color: var(--bad); font-size: 16px; padding: 2px 6px; }
+  .hint { font-size: 12.5px; color: var(--ink-3); margin: 4px 0 0; }
+  .warn { color: var(--bad); font-size: 13px; margin: 6px 0 0; min-height: 1em; }
+  .crow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13.5px; }
+  .crow select { border: 1px solid var(--line); background: var(--paper); padding: 5px 6px; border-radius: 2px; min-width: 0; max-width: 150px; }
+  .clist { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .chip { display: inline-flex; gap: 6px; align-items: center; border: 1.5px dashed var(--bad); color: var(--bad); padding: 3px 4px 3px 9px; font: 12.5px var(--mono); background: #fff5f3; overflow-wrap: anywhere; }
+  .chip.inactive { opacity: .5; text-decoration: line-through; }
+  .chip button { border: 0; background: none; color: inherit; padding: 0 4px; }
+  .genrow { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px; }
+  .genrow label { font-size: 13.5px; display: inline-flex; gap: 6px; align-items: center; }
+  .genrow input { width: 80px; border: 1px solid var(--line); background: var(--paper); padding: 5px 7px; font-family: var(--mono); }
+
+  .verify { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 2px solid var(--ok); background: #eef8f1; margin-bottom: 18px; }
+  .verify.fail { border-color: var(--bad); background: #fdf0ee; }
+  .verify .mark { font: 700 26px/1 var(--mono); color: var(--ok); }
+  .verify.fail .mark { color: var(--bad); }
+  .verify p { margin: 0; }
+  .verify small { color: var(--ink-2); }
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
+  .stat { background: #fff; border: 1px solid var(--line); padding: 10px 12px; min-width: 0; }
+  .stat b { display: block; font: 700 22px var(--mono); color: var(--blue); overflow-wrap: anywhere; }
+  .stat span { font-size: 12px; color: var(--ink-2); }
+
+  .hmwrap { overflow: auto; max-height: 620px; border: 1px solid var(--line); background: var(--paper); }
+  .hm { display: block; }
+  .hm .cell { cursor: pointer; }
+  .hm .cell:hover { stroke: var(--orange); stroke-width: 2; }
+  .hm .cell.sel { stroke: var(--orange); stroke-width: 3; }
+  .hm text { font-family: var(--font); fill: var(--ink); }
+  .hmlegend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12.5px; color: var(--ink-2); margin-top: 8px; align-items: center; }
+  .hmlegend i { display: inline-block; width: 13px; height: 13px; vertical-align: -2px; margin-right: 4px; border: 1px solid var(--line); }
+  .selinfo { font-size: 13.5px; margin-top: 8px; min-height: 1.4em; }
+
+  .tablewrap { overflow: auto; max-height: 620px; border: 1px solid var(--line); }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { padding: 6px 9px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+  th { position: sticky; top: 0; background: var(--blue); color: #fff; font-weight: 700; z-index: 1; }
+  td.num { font-family: var(--mono); color: var(--ink-3); }
+  tr.hl td { background: #fff1e6; }
+  tr.hl td.num { color: var(--orange); font-weight: 700; }
+  td .newp { font: 11px var(--mono); color: var(--ink-3); }
+  pre.csv { margin: 10px 0 0; background: var(--paper-2); padding: 10px; font: 12px/1.5 var(--mono); max-height: 200px; overflow: auto; white-space: pre; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  footer { max-width: 1260px; margin: 0 auto; padding: 0 20px 30px; font-size: 12.5px; color: var(--ink-3); }
+
+  @media (max-width: 900px) {
+    header { grid-template-columns: minmax(0, 1fr); }
+    .grid2 { grid-template-columns: minmax(0, 1fr); }
+    .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 480px) {
+    header, .wrap, footer { padding-left: 12px; padding-right: 12px; }
+    .prow { grid-template-columns: minmax(0, 1fr) auto; }
+    .prow .vals { grid-column: 1 / -1; grid-row: 2; }
+    .bignums b { font-size: 30px; }
+    .sheet { padding: 12px; }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+
+<header>
+  <div>
+    <div class="tag">// combinatorial test design</div>
+    <h1>Pairwise Lab</h1>
+    <p class="lede">Most defects triggered by configuration show up with a single value or an interaction between two. So instead of every combination, pick a small set of test rows in which <b>every allowed pair of values appears at least once</b>. Define your parameters, forbid what can't happen, and let the greedy generator cover the pairs.</p>
+  </div>
+  <div class="bignums" aria-live="polite">
+    <div><b data-testid="exhaustive">0</b><span>exhaustive</span></div><div class="arrow" aria-hidden="true">→</div><div class="pw"><b data-testid="pairwise">0</b><span>pairwise rows</span></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="grid2">
+    <section class="sheet" aria-labelledby="h-params">
+      <h2 id="h-params">Parameters <small>up to 8 parameters × 8 values</small></h2>
+      <div class="presets" role="group" aria-label="Presets" data-testid="presets"></div>
+      <div data-testid="params"></div>
+      <button class="btn" type="button" data-testid="add-param">+ Parameter</button>
+      <p class="hint">Values are comma-separated. Duplicates and blanks are ignored.</p>
+      <p class="warn" data-testid="param-warn" aria-live="polite"></p>
+    </section>
+    <section class="sheet" aria-labelledby="h-cons">
+      <h2 id="h-cons">Constraints <small>pairs that can never occur together</small></h2>
+      <div class="crow">
+        <span>Never combine</span>
+        <select data-testid="c-a" aria-label="First value"></select>
+        <span>with</span>
+        <select data-testid="c-b" aria-label="Second value"></select>
+        <button class="btn" type="button" data-testid="add-constraint">Add</button>
+      </div>
+      <p class="warn" data-testid="cons-warn" aria-live="polite"></p>
+      <div class="clist" data-testid="constraints"></div>
+      <div class="genrow">
+        <label>Seed <input type="number" data-testid="seed" value="1"></label>
+        <button class="btn primary" type="button" data-testid="generate">Regenerate</button>
+        <span class="hint" style="margin:0">The greedy step tries 30 seeded candidate rows and keeps the one covering the most new pairs.</span>
+      </div>
+    </section>
+  </div>
+
+  <div class="verify" data-testid="verify" aria-live="polite"><span class="mark" aria-hidden="true">✓</span><div><p data-testid="verify-text"></p><small data-testid="verify-detail"></small></div></div>
+
+  <div class="stats">
+    <div class="stat"><b data-testid="stat-allowed">0</b><span>allowed pairs</span></div>
+    <div class="stat"><b data-testid="stat-forbidden">0</b><span>forbidden pairs</span></div>
+    <div class="stat"><b data-testid="stat-valid">0</b><span>valid full combinations</span></div>
+    <div class="stat"><b data-testid="stat-bound">0</b><span>lower bound on rows</span></div>
+  </div>
+
+  <div class="grid2">
+    <section class="sheet" aria-labelledby="h-rows">
+      <h2 id="h-rows">Test rows <small>“new” = pairs this row covered first</small></h2>
+      <div class="tablewrap"><table data-testid="rows"></table></div>
+      <div class="genrow">
+        <button class="btn" type="button" data-testid="download">Download CSV</button>
+        <button class="btn" type="button" data-testid="show-csv" aria-expanded="false">Show CSV</button>
+      </div>
+      <pre class="csv" data-testid="csv" hidden tabindex="0"></pre>
+    </section>
+    <section class="sheet" aria-labelledby="h-heat">
+      <h2 id="h-heat">Pair coverage heatmap <small>click a cell to see the rows that cover it</small></h2>
+      <div class="hmwrap"><svg class="hm" data-testid="heatmap" role="img" aria-label="Pair coverage heatmap"></svg></div>
+      <div class="hmlegend" aria-hidden="true"><span><i style="background:#fbe3dc"></i>not covered</span><span><i style="background:#c5d0f3"></i>1 row</span><span><i style="background:#6f86d9"></i>2 rows</span><span><i style="background:#233a8c"></i>3+ rows</span><span><i style="background:repeating-linear-gradient(45deg,#c0352b 0 2px,#fff 2px 5px)"></i>forbidden</span><span><i style="background:#e4e6de"></i>unreachable</span></div>
+      <p class="selinfo" data-testid="sel-info" aria-live="polite">Pick a cell.</p>
+    </section>
+  </div>
+</main>
+<footer>Browser and platform names are used only as example parameter values. “Unreachable” pairs are allowed on their own but can't be completed into any valid row once all constraints apply.</footer>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const MAXP = 8, MAXV = 8;
+
+  const PRESETS = {
+    checkout: { label: 'Checkout matrix', params: [['Browser', 'Chrome, Firefox, Safari, Edge'], ['OS', 'Windows, macOS, iOS, Android'], ['Locale', 'en-US, de-DE, ja-JP'], ['Payment', 'Card, Wallet, Bank transfer, Gift card']],
+      cons: [[['Browser', 'Safari'], ['OS', 'Windows']], [['Browser', 'Safari'], ['OS', 'Android']], [['Locale', 'ja-JP'], ['Payment', 'Gift card']]] },
+    settings: { label: 'App settings', params: [['Theme', 'Light, Dark, System'], ['Text size', 'Small, Default, Large, Largest'], ['Network', 'Wi-Fi, Cellular, Offline'], ['Notifications', 'On, Off'], ['Orientation', 'Portrait, Landscape'], ['Account', 'Guest, Member, Admin']],
+      cons: [[['Network', 'Offline'], ['Account', 'Guest']]] },
+    service: { label: 'Service config (3⁷)', params: [['Cache', 'none, memory, redis'], ['Auth', 'none, token, mTLS'], ['Log level', 'warn, info, debug'], ['Region', 'eu, us, ap'], ['Queue', 'none, sqs-like, kafka-like'], ['DB pool', '5, 20, 100'], ['Compression', 'off, gzip, br']], cons: [] },
+  };
+
+  // state: params [{name, raw}], cons [{a:[p,v], b:[p,v]}]
+  let params = [], cons = [], preset = 'checkout';
+  const q = new URLSearchParams(location.search);
+  const sp = Number.parseInt(q.get('seed') || '1', 10);
+  $('[data-testid="seed"]').value = Number.isFinite(sp) ? sp : 1;
+
+  function loadPreset(k) {
+    preset = k;
+    params = PRESETS[k].params.map(([name, raw]) => ({ name, raw }));
+    cons = PRESETS[k].cons.map(([a, b]) => ({ a, b }));
+    renderParams(); update();
+  }
+
+  const parseVals = (raw) => { const out = []; String(raw).split(',').map((s) => s.trim()).filter(Boolean).forEach((v) => { if (!out.includes(v)) out.push(v); }); return out.slice(0, MAXV); };
+  function model() {
+    const P = [];
+    const seen = new Set();
+    params.forEach((p) => {
+      const name = p.name.trim(); const values = parseVals(p.raw);
+      if (!name || !values.length || seen.has(name)) return;
+      seen.add(name); P.push({ name, values });
+    });
+    const forb = new Set(); const active = [];
+    cons.forEach((c, i) => {
+      const pa = P.findIndex((p) => p.name === c.a[0]), pb = P.findIndex((p) => p.name === c.b[0]);
+      const va = pa >= 0 ? P[pa].values.indexOf(c.a[1]) : -1, vb = pb >= 0 ? P[pb].values.indexOf(c.b[1]) : -1;
+      const ok = pa >= 0 && pb >= 0 && va >= 0 && vb >= 0 && pa !== pb;
+      active[i] = ok;
+      if (ok) forb.add(key(pa, va, pb, vb));
+    });
+    return { P, forb, active };
+  }
+  function key(p1, v1, p2, v2) { return p1 < p2 ? `${p1}.${v1}|${p2}.${v2}` : `${p2}.${v2}|${p1}.${v1}`; }
+
+  // ---------- generator ----------
+  function generate(M, seed) {
+    const { P, forb } = M;
+    const rand = mulberry32(seed >>> 0);
+    const n = P.length;
+    const ok = (row, p, v) => { for (let j = 0; j < n; j++) if (j !== p && row[j] >= 0 && forb.has(key(p, v, j, row[j]))) return false; return true; };
+    // can this partial row be completed into a valid full row?
+    function completable(row) {
+      const i = row.indexOf(-1); if (i < 0) return true;
+      for (let v = 0; v < P[i].values.length; v++) { if (ok(row, i, v)) { row[i] = v; const r = completable(row); row[i] = -1; if (r) return true; } }
+      return false;
+    }
+    const allowed = [], forbidden = [], unreachable = [];
+    for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) for (let va = 0; va < P[a].values.length; va++) for (let vb = 0; vb < P[b].values.length; vb++) {
+      const k = key(a, va, b, vb);
+      if (forb.has(k)) { forbidden.push(k); continue; }
+      const row = new Array(n).fill(-1); row[a] = va; row[b] = vb;
+      if (completable(row)) allowed.push(k); else unreachable.push(k);
+    }
+    const uncovered = new Set(allowed);
+    const rows = [];
+    const gainOf = (row, p, v) => { let g = 0; for (let j = 0; j < n; j++) if (j !== p && row[j] >= 0 && uncovered.has(key(p, v, j, row[j]))) g++; return g; };
+    let guard = 0;
+    while (uncovered.size && guard++ < 2000) {
+      const pool = [...uncovered];
+      let best = null, bestScore = -1;
+      for (let c = 0; c < 30; c++) {
+        const start = pool[Math.floor(rand() * pool.length) % pool.length];
+        const [x, y] = start.split('|').map((s) => s.split('.').map(Number));
+        const row = new Array(n).fill(-1); row[x[0]] = x[1]; row[y[0]] = y[1];
+        const order = [...Array(n).keys()].filter((i) => row[i] < 0);
+        for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+        let failed = false;
+        for (const p of order) {
+          const cands = P[p].values.map((_, v) => ({ v, g: gainOf(row, p, v), r: rand() })).sort((s, t) => t.g - s.g || s.r - t.r);
+          let placed = false;
+          for (const cd of cands) { if (!ok(row, p, cd.v)) continue; row[p] = cd.v; if (completable(row)) { placed = true; break; } row[p] = -1; }
+          if (!placed) { failed = true; break; }
+        }
+        if (failed) continue;
+        let score = 0; for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) if (uncovered.has(key(a, row[a], b, row[b]))) score++;
+        if (score > bestScore) { bestScore = score; best = row; }
+      }
+      if (!best) break;
+      best.fresh = bestScore;
+      for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) uncovered.delete(key(a, best[a], b, best[b]));
+      rows.push(best);
+    }
+    return { rows, allowed, forbidden, unreachable };
+  }
+
+  // count valid full combinations (only when small enough to enumerate)
+  function countValid(M) {
+    const { P, forb } = M; const n = P.length;
+    const total = P.reduce((a, p) => a * p.values.length, 1);
+    if (total > 500000) return null;
+    let cnt = 0; const row = [];
+    (function rec(i) {
+      if (i === n) { cnt++; return; }
+      for (let v = 0; v < P[i].values.length; v++) {
+        let good = true; for (let j = 0; j < i; j++) if (forb.has(key(j, row[j], i, v))) { good = false; break; }
+        if (good) { row[i] = v; rec(i + 1); }
+      }
+    })(0);
+    return cnt;
+  }
+
+  function verify(M, G) {
+    const { P, forb } = M; const n = P.length;
+    const seen = new Map();
+    let bad = 0;
+    G.rows.forEach((row) => {
+      for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) { const k = key(a, row[a], b, row[b]); seen.set(k, (seen.get(k) || 0) + 1); if (forb.has(k)) bad++; }
+    });
+    const missing = G.allowed.filter((k) => !seen.has(k));
+    return { seen, missing, bad };
+  }
+
+  // ---------- rendering ----------
+  let M, G, V, sel = null;
+  function renderParams() {
+    $('[data-testid="presets"]').innerHTML = Object.entries(PRESETS).map(([k, p]) => `<button type="button" class="btn${preset === k ? ' on' : ''}" data-preset="${k}" data-testid="preset-${k}" aria-pressed="${preset === k}">${esc(p.label)}</button>`).join('');
+    $('[data-testid="params"]').innerHTML = params.map((p, i) => `<div class="prow" data-testid="param">
+      <input class="pname" value="${esc(p.name)}" data-i="${i}" data-f="name" data-testid="param-name" aria-label="Parameter ${i + 1} name">
+      <input class="vals" value="${esc(p.raw)}" data-i="${i}" data-f="raw" data-testid="param-values" aria-label="Parameter ${i + 1} values, comma-separated">
+      <button class="x" type="button" data-del="${i}" data-testid="del-param" aria-label="Remove parameter ${esc(p.name)}">✕</button></div>`).join('');
+  }
+  function renderConsSelects() {
+    const opts = M.P.map((p) => `<optgroup label="${esc(p.name)}">${p.values.map((v) => `<option value="${esc(JSON.stringify([p.name, v]))}">${esc(p.name)} = ${esc(v)}</option>`).join('')}</optgroup>`).join('');
+    ['c-a', 'c-b'].forEach((t, i) => {
+      const s = $(`[data-testid="${t}"]`); const prev = s.value; s.innerHTML = opts;
+      if ([...s.options].some((o) => o.value === prev)) s.value = prev; else if (s.options.length) s.selectedIndex = i === 0 ? 0 : Math.min(s.options.length - 1, M.P[0] ? M.P[0].values.length : 0);
+    });
+    $('[data-testid="constraints"]').innerHTML = cons.map((c, i) => `<span class="chip${M.active[i] ? '' : ' inactive'}" data-testid="constraint" data-active="${M.active[i]}">${esc(c.a[0])}=${esc(c.a[1])} ⊗ ${esc(c.b[0])}=${esc(c.b[1])}<button type="button" data-delc="${i}" data-testid="del-constraint" aria-label="Remove constraint ${esc(c.a[1])} with ${esc(c.b[1])}">✕</button></span>`).join('') || '<span class="hint">No constraints: every pair is allowed.</span>';
+  }
+
+  function update() {
+    M = model();
+    const warn = [];
+    if (params.length > MAXP) warn.push(`Only the first ${MAXP} parameters are used.`);
+    if (M.P.length < params.length) warn.push('Parameters with no name, no values or a duplicate name are skipped.');
+    if (params.some((p) => String(p.raw).split(',').map((s) => s.trim()).filter(Boolean).length > MAXV)) warn.push(`Values beyond ${MAXV} are ignored.`);
+    if (M.P.length > MAXP) M.P = M.P.slice(0, MAXP);
+    $('[data-testid="param-warn"]').textContent = warn.join(' ');
+    renderConsSelects();
+    const seed = Number.parseInt($('[data-testid="seed"]').value, 10);
+    G = M.P.length >= 2 ? generate(M, Number.isFinite(seed) ? seed : 1) : { rows: M.P.length === 1 ? M.P[0].values.map((_, v) => Object.assign([v], { fresh: 0 })) : [], allowed: [], forbidden: [], unreachable: [] };
+    V = verify(M, G);
+    sel = null;
+    renderNumbers(); renderTable(); renderHeat(); renderCSV();
+  }
+
+  function renderNumbers() {
+    const total = M.P.reduce((a, p) => a * p.values.length, M.P.length ? 1 : 0);
+    $('[data-testid="exhaustive"]').textContent = total.toLocaleString('en-US');
+    $('[data-testid="pairwise"]').textContent = G.rows.length;
+    const valid = countValid(M);
+    $('[data-testid="stat-valid"]').textContent = valid === null ? '> 500k' : valid.toLocaleString('en-US');
+    $('[data-testid="stat-allowed"]').textContent = G.allowed.length;
+    $('[data-testid="stat-forbidden"]').textContent = G.forbidden.length;
+    const sizes = M.P.map((p) => p.values.length).sort((a, b) => b - a);
+    $('[data-testid="stat-bound"]').textContent = sizes.length >= 2 ? sizes[0] * sizes[1] : sizes[0] || 0;
+    const box = $('[data-testid="verify"]');
+    const pass = V.missing.length === 0 && V.bad === 0;
+    box.classList.toggle('fail', !pass); box.dataset.pass = String(pass);
+    box.querySelector('.mark').textContent = pass ? '✓' : '✗';
+    $('[data-testid="verify-text"]').textContent = pass
+      ? `Verified: all ${G.allowed.length} allowed pairs are covered by ${G.rows.length} rows, and no row contains a forbidden pair.`
+      : `Verification failed: ${V.missing.length} allowed pairs uncovered, ${V.bad} forbidden pairs used.`;
+    $('[data-testid="verify-detail"]').textContent = `Checked independently of the generator by re-reading every row.${G.unreachable.length ? ` ${G.unreachable.length} pair${G.unreachable.length > 1 ? 's are' : ' is'} unreachable under the constraints and excluded.` : ''} Saving: ${total ? Math.round(100 * (1 - G.rows.length / total)) : 0}% fewer rows than exhaustive.`;
+  }
+
+  function renderTable() {
+    const t = $('[data-testid="rows"]');
+    if (!M.P.length) { t.innerHTML = '<tr><td>Add a parameter.</td></tr>'; return; }
+    t.innerHTML = `<thead><tr><th>#</th>${M.P.map((p) => `<th scope="col">${esc(p.name)}</th>`).join('')}<th>new</th></tr></thead><tbody>${G.rows.map((r, i) => {
+      const hl = sel && r[sel.a[0]] === sel.a[1] && r[sel.b[0]] === sel.b[1];
+      return `<tr data-testid="row"${hl ? ' class="hl" data-hl="true"' : ''}><td class="num">${i + 1}</td>${r.map((v, p) => `<td>${esc(M.P[p].values[v])}</td>`).join('')}<td><span class="newp">+${r.fresh || 0}</span></td></tr>`;
+    }).join('')}</tbody>`;
+  }
+
+  function renderHeat() {
+    const svg = $('[data-testid="heatmap"]');
+    const flat = []; M.P.forEach((p, pi) => p.values.forEach((v, vi) => flat.push({ pi, vi, label: v, pname: p.name })));
+    const N = flat.length;
+    if (N < 2 || M.P.length < 2) { svg.setAttribute('viewBox', '0 0 200 40'); svg.setAttribute('width', '200'); svg.innerHTML = '<text x="8" y="24" font-size="12">Needs two parameters.</text>'; return; }
+    const cs = N > 30 ? 14 : N > 20 ? 18 : 22, lab = 104;
+    const forb = new Set(G.forbidden), unr = new Set(G.unreachable);
+    let h = `<defs><pattern id="hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" fill="#fff"/><rect width="2" height="5" fill="#c0352b"/></pattern></defs>`;
+    // rows: values of parameters 2..n, columns: values of parameters 1..n-1; only cells where column param < row param
+    const nP = M.P.length;
+    const R = flat.filter((f) => f.pi > 0), C = flat.filter((f) => f.pi < nP - 1);
+    const H = lab + R.length * cs + 8, W = lab + C.length * cs + 8;
+    const fs = Math.min(11, cs * 0.6);
+    R.forEach((b, i) => {
+      const y = lab + i * cs;
+      h += `<text x="${lab - 6}" y="${(y + cs * 0.68).toFixed(1)}" font-size="${fs}" text-anchor="end">${esc(b.label.slice(0, 14))}</text>`;
+      C.forEach((a, j) => {
+        if (a.pi >= b.pi) return;
+        const x = lab + j * cs;
+        const k = key(a.pi, a.vi, b.pi, b.vi);
+        const c = V.seen.get(k) || 0;
+        let fill, kind;
+        if (forb.has(k)) { fill = 'url(#hatch)'; kind = 'forbidden'; }
+        else if (unr.has(k)) { fill = '#e4e6de'; kind = 'unreachable'; }
+        else { fill = c === 0 ? '#fbe3dc' : c === 1 ? '#c5d0f3' : c === 2 ? '#6f86d9' : '#233a8c'; kind = 'allowed'; }
+        const isSel = sel && sel.k === k;
+        h += `<rect class="cell${isSel ? ' sel' : ''}" data-testid="cell" data-k="${k}" data-kind="${kind}" data-count="${c}" x="${x}" y="${y}" width="${cs - 1}" height="${cs - 1}" fill="${fill}"><title>${esc(a.pname)}=${esc(a.label)} × ${esc(b.pname)}=${esc(b.label)}: ${kind === 'allowed' ? c + ' row' + (c === 1 ? '' : 's') : kind}</title></rect>`;
+      });
+    });
+    C.forEach((a, j) => {
+      const x = lab + j * cs + cs * 0.68;
+      h += `<text transform="translate(${x.toFixed(1)} ${lab - 6}) rotate(-60)" font-size="${fs}">${esc(a.label.slice(0, 14))}</text>`;
+    });
+    // parameter group separators
+    for (let j = 1; j < C.length; j++) if (C[j].pi !== C[j - 1].pi) { const x = lab + j * cs - 0.5; h += `<line x1="${x}" y1="${lab - 2}" x2="${x}" y2="${H - 8}" stroke="#8a93ab" stroke-dasharray="2 2"/>`; }
+    for (let i = 1; i < R.length; i++) if (R[i].pi !== R[i - 1].pi) { const y = lab + i * cs - 0.5; h += `<line x1="${lab - 2}" y1="${y}" x2="${W - 8}" y2="${y}" stroke="#8a93ab" stroke-dasharray="2 2"/>`; }
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.setAttribute('width', W); svg.setAttribute('height', H);
+    svg.innerHTML = h;
+  }
+
+  const csvCell = (s) => (/[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s);
+  function csvText() { return [M.P.map((p) => csvCell(p.name)).join(','), ...G.rows.map((r) => r.map((v, p) => csvCell(M.P[p].values[v])).join(','))].join('\n') + '\n'; }
+  function renderCSV() { const pre = $('[data-testid="csv"]'); if (!pre.hidden) pre.textContent = csvText(); }
+
+  // ---------- events ----------
+  document.addEventListener('input', (e) => {
+    const t = e.target;
+    if (t.dataset.f) { params[Number(t.dataset.i)][t.dataset.f] = t.value; preset = null; update(); $('[data-testid="presets"]').querySelectorAll('.btn').forEach((b) => { b.classList.remove('on'); b.setAttribute('aria-pressed', 'false'); }); }
+  });
+  $('[data-testid="seed"]').addEventListener('change', update);
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('button, .cell'); if (!b) return;
+    if (b.dataset.preset) loadPreset(b.dataset.preset);
+    else if (b.dataset.testid === 'add-param') {
+      if (params.length >= MAXP) { $('[data-testid="param-warn"]').textContent = `This lab stops at ${MAXP} parameters.`; return; }
+      params.push({ name: 'Param ' + (params.length + 1), raw: 'A, B' }); preset = null; renderParams(); update();
+      const ins = document.querySelectorAll('[data-testid="param-name"]'); ins[ins.length - 1].focus(); ins[ins.length - 1].select();
+    } else if (b.dataset.del !== undefined) { params.splice(Number(b.dataset.del), 1); preset = null; renderParams(); update(); }
+    else if (b.dataset.testid === 'add-constraint') {
+      const w = $('[data-testid="cons-warn"]');
+      let a, c; try { a = JSON.parse($('[data-testid="c-a"]').value); c = JSON.parse($('[data-testid="c-b"]').value); } catch (err) { return; }
+      if (a[0] === c[0]) { w.textContent = 'Pick values from two different parameters — one parameter only ever has one value per row.'; return; }
+      if (cons.some((x) => (x.a[0] === a[0] && x.a[1] === a[1] && x.b[0] === c[0] && x.b[1] === c[1]) || (x.a[0] === c[0] && x.a[1] === c[1] && x.b[0] === a[0] && x.b[1] === a[1]))) { w.textContent = 'That constraint is already there.'; return; }
+      w.textContent = ''; cons.push({ a, b: c }); update();
+    } else if (b.dataset.delc !== undefined) { cons.splice(Number(b.dataset.delc), 1); update(); }
+    else if (b.dataset.testid === 'generate') update();
+    else if (b.dataset.testid === 'show-csv') { const pre = $('[data-testid="csv"]'); pre.hidden = !pre.hidden; b.setAttribute('aria-expanded', String(!pre.hidden)); b.textContent = pre.hidden ? 'Show CSV' : 'Hide CSV'; renderCSV(); }
+    else if (b.dataset.testid === 'download') {
+      const url = URL.createObjectURL(new Blob([csvText()], { type: 'text/csv' }));
+      const a = document.createElement('a'); a.href = url; a.download = 'pairwise-rows.csv'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } else if (b.classList.contains('cell')) {
+      const k = b.dataset.k; const [x, y] = k.split('|').map((s) => s.split('.').map(Number));
+      sel = { k, a: x, b: y };
+      const c = Number(b.dataset.count);
+      const txt = `${M.P[x[0]].name} = ${M.P[x[0]].values[x[1]]} with ${M.P[y[0]].name} = ${M.P[y[0]].values[y[1]]}: `;
+      $('[data-testid="sel-info"]').textContent = txt + (b.dataset.kind === 'forbidden' ? 'forbidden by a constraint, never generated.' : b.dataset.kind === 'unreachable' ? 'unreachable under the constraints.' : `covered by ${c} row${c === 1 ? '' : 's'} (highlighted).`);
+      renderTable(); renderHeat();
+    }
+  });
+
+  window.__pairwise = { get model() { return { params: M.P, forbidden: G.forbidden, unreachable: G.unreachable }; }, get rows() { return G.rows.map((r) => r.map((v, p) => M.P[p].values[v])); }, csv: () => csvText() };
+  loadPreset('checkout');
+})();
+</script>
+</body>
+</html>
