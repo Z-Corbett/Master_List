@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mosaic Maker — images set in tesserae</title>
+<meta name="description" content="Turn a picture into a Byzantine-style mosaic: tesserae that follow the image's edges, grout colour and width, gold-leaf tiles, a smalti glass palette and a tile-count slider, with PNG export. Uploaded images are processed locally and never leave the browser.">
+<style>
+  :root {
+    --lime: #efe8dc;
+    --lime-2: #e4dacb;
+    --plaster: #f7f2ea;
+    --ink: #2b2521;
+    --ink-2: #6e635a;
+    --terra: #b5532e;
+    --terra-2: #8f3d1f;
+    --teal: #0f4c4a;
+    --teal-2: #1c6b66;
+    --gold: #c89b3c;
+    --line: #d2c6b3;
+    --classic: Optima, Candara, "Segoe UI", "Gill Sans", "Gill Sans MT", system-ui, sans-serif;
+    --body: "Gill Sans", "Gill Sans MT", Calibri, "Segoe UI", system-ui, sans-serif;
+    --mono: ui-monospace, Consolas, Menlo, monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--lime); color: var(--ink); font: 15.5px/1.5 var(--body); overflow-x: hidden;
+    background-image: radial-gradient(rgba(143, 61, 31, .05) 1px, transparent 1.2px), radial-gradient(rgba(15, 76, 74, .04) 1px, transparent 1.2px);
+    background-size: 7px 7px, 11px 11px; background-position: 0 0, 3px 5px; }
+  :focus-visible { outline: 3px solid var(--teal-2); outline-offset: 2px; }
+  button, input, select { font: inherit; color: inherit; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 30; font: 600 12.5px/1 var(--classic); letter-spacing: .08em; text-transform: uppercase; color: var(--plaster);
+    background: var(--teal); padding: 8px 11px; text-decoration: none; border-radius: 2px; }
+  a.back:hover { background: var(--terra); }
+
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 60px 20px 40px; }
+  header { text-align: center; margin-bottom: 22px; }
+  .border-band { height: 14px; margin: 0 auto 16px; max-width: 520px; background:
+      linear-gradient(90deg, var(--terra) 0 14px, transparent 14px) 0 0 / 28px 7px repeat-x,
+      linear-gradient(90deg, transparent 0 14px, var(--teal) 14px) 0 7px / 28px 7px repeat-x; opacity: .9; }
+  h1 { margin: 0; font: 500 clamp(34px, 7vw, 66px)/1.05 var(--classic); letter-spacing: .2em; text-transform: uppercase; color: var(--teal); padding-left: .2em; }
+  h1 span { color: var(--terra); }
+  header p { margin: 10px auto 0; max-width: 62ch; color: var(--ink-2); }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 22px; align-items: start; }
+  .apse { min-width: 0; background: var(--plaster); padding: 16px; border: 1px solid var(--line); box-shadow: 0 1px 0 #fff inset, 0 18px 40px -22px rgba(43, 37, 33, .45); }
+  .frame { position: relative; padding: 10px; background: linear-gradient(135deg, #d8b56a, #9c7427 40%, #e8c877 60%, #8a6522); }
+  .frame::after { content: ""; position: absolute; inset: 10px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.35), inset 0 6px 18px rgba(0,0,0,.25); pointer-events: none; }
+  #art { display: block; width: 100%; height: auto; background: #cfc6b4; }
+  .busy { position: absolute; inset: 10px; display: grid; place-items: center; background: rgba(247, 242, 234, .55); font: 600 14px/1 var(--classic); letter-spacing: .14em; text-transform: uppercase; color: var(--teal); }
+  .under { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; margin-top: 12px; align-items: center; }
+  .under > * { min-width: 0; }
+  .status { font: 13px/1.4 var(--mono); color: var(--ink-2); overflow-wrap: anywhere; }
+  .status b { color: var(--ink); }
+  .swatches { display: flex; gap: 3px; flex-wrap: wrap; }
+  .swatches i { width: 16px; height: 16px; display: block; border: 1px solid rgba(0,0,0,.2); }
+
+  .tray { min-width: 0; display: grid; gap: 16px; }
+  .panel { background: var(--plaster); border: 1px solid var(--line); padding: 14px 16px; min-width: 0; }
+  .panel h2 { margin: 0 0 12px; font: 600 12.5px/1 var(--classic); letter-spacing: .24em; text-transform: uppercase; color: var(--terra-2); display: flex; align-items: center; gap: 8px; }
+  .panel h2::before { content: ""; width: 10px; height: 10px; background: var(--teal); transform: rotate(45deg); flex: none; }
+  .sources { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .src { padding: 0; border: 2px solid transparent; background: none; cursor: pointer; min-width: 0; }
+  .src canvas { display: block; width: 100%; height: auto; }
+  .src span { display: block; font: 600 11px/1.3 var(--classic); letter-spacing: .06em; padding: 4px 0 2px; color: var(--ink-2); overflow-wrap: anywhere; }
+  .src[aria-pressed="true"] { border-color: var(--terra); }
+  .src[aria-pressed="true"] span { color: var(--terra-2); }
+  .upload { margin-top: 10px; display: grid; gap: 6px; }
+  .upload label.btn { text-align: center; }
+  .upload input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .upload input:focus-visible + label { outline: 3px solid var(--teal-2); outline-offset: 2px; }
+  .privacy { font-size: 12.5px; color: var(--ink-2); margin: 0; display: flex; gap: 6px; }
+  .privacy svg { flex: none; margin-top: 2px; }
+
+  .field { display: grid; gap: 3px; margin-bottom: 12px; min-width: 0; }
+  .field label, .field .lbl { display: flex; justify-content: space-between; gap: 8px; font-size: 13.5px; color: var(--ink-2); }
+  .field output { font-family: var(--mono); color: var(--ink); }
+  input[type=range] { width: 100%; max-width: 100%; accent-color: var(--terra); min-height: 28px; }
+  select { width: 100%; max-width: 100%; min-height: 40px; border: 1px solid var(--line); background: #fff; padding: 0 8px; border-radius: 2px; }
+  .inline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
+  input[type=color] { width: 44px; height: 34px; border: 1px solid var(--line); background: #fff; padding: 2px; cursor: pointer; }
+  .grouts { display: flex; gap: 6px; flex-wrap: wrap; }
+  .grouts button { width: 28px; height: 28px; border: 2px solid #fff; outline: 1px solid var(--line); cursor: pointer; padding: 0; }
+  .grouts button[aria-pressed="true"] { outline: 2px solid var(--terra); }
+  .check { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; margin: 8px 0; cursor: pointer; }
+  .check input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--teal); flex: none; }
+  .check small { display: block; color: var(--ink-2); font-size: 12.5px; }
+  .btn { min-height: 42px; padding: 8px 14px; border: 1px solid var(--teal); background: var(--plaster); color: var(--teal); font: 600 13px/1.2 var(--classic); letter-spacing: .12em; text-transform: uppercase; cursor: pointer; border-radius: 2px; max-width: 100%; }
+  .btn:hover { background: var(--teal); color: var(--plaster); }
+  .btn.primary { background: var(--terra); border-color: var(--terra); color: #fff; }
+  .btn.primary:hover { background: var(--terra-2); }
+  .btn[aria-pressed="true"] { background: var(--teal); color: var(--plaster); }
+  .row2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .note { margin-top: 22px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+  .note div { min-width: 0; border-top: 3px solid var(--teal); padding-top: 10px; font-size: 14px; color: var(--ink-2); }
+  .note b { display: block; font: 600 12.5px/1.3 var(--classic); letter-spacing: .16em; text-transform: uppercase; color: var(--ink); margin-bottom: 4px; }
+  @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } .note { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 480px) { .wrap { padding: 56px 12px 30px; } .apse { padding: 8px; } .frame { padding: 6px; } .frame::after, .busy { inset: 6px; } h1 { letter-spacing: .12em; } }
+</style>
+</head>
+<body>
+<a href="../index.html#lab" class="back" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <div class="border-band" aria-hidden="true"></div>
+    <h1>Mosaic <span>Maker</span></h1>
+    <p>Set any picture in glass and stone. Each tessera is sized by the tile slider, turned to follow the edges in the image, and bedded in grout, with gold-leaf tiles where the light falls.</p>
+  </header>
+
+  <div class="layout">
+    <section class="apse" aria-label="Mosaic">
+      <div class="frame">
+        <canvas id="art" data-testid="art" width="800" height="600" role="img" aria-label="Mosaic"></canvas>
+        <div class="busy" id="busy" hidden>Setting tesserae…</div>
+      </div>
+      <div class="under">
+        <div class="status" id="status" data-testid="status" aria-live="polite">Preparing…</div>
+        <div class="swatches" id="swatches" data-testid="swatches" aria-label="Most used tile colours"></div>
+      </div>
+    </section>
+
+    <div class="tray">
+      <section class="panel">
+        <h2>Cartoon</h2>
+        <div class="sources" id="sources"></div>
+        <div class="upload">
+          <input type="file" id="file" accept="image/*" data-testid="upload">
+          <label for="file" class="btn">Use your own image…</label>
+          <p class="privacy"><svg width="14" height="16" viewBox="0 0 14 16" aria-hidden="true"><rect x="1" y="7" width="12" height="8" rx="1.5" fill="#0f4c4a"/><path d="M4 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="#0f4c4a" stroke-width="2"/></svg><span>Your image is read and set in tiles right here in the browser. It is never uploaded anywhere.</span></p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Setting</h2>
+        <div class="field">
+          <label for="tiles">Tesserae <output id="tiles-out" data-testid="tiles-out">1,400</output></label>
+          <input type="range" id="tiles" data-testid="tiles" min="200" max="5000" step="100" value="1400">
+        </div>
+        <div class="field">
+          <label for="style">Laying style</label>
+          <select id="style" data-testid="style">
+            <option value="vermiculatum">Opus vermiculatum: follows edges</option>
+            <option value="tessellatum">Opus tessellatum: regular grid</option>
+            <option value="voronoi">Irregular (Voronoi)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="grout">Grout width <output id="grout-out" data-testid="grout-out">2 px</output></label>
+          <input type="range" id="grout" data-testid="grout" min="0" max="6" step="1" value="2">
+        </div>
+        <div class="field">
+          <span class="lbl" id="gc-lbl">Grout colour</span>
+          <div class="inline">
+            <div class="grouts" id="grouts" role="group" aria-labelledby="gc-lbl"></div>
+            <input type="color" id="grout-color" data-testid="grout-color" value="#cfc6b4" aria-label="Custom grout colour">
+          </div>
+        </div>
+        <label class="check"><input type="checkbox" id="gold" data-testid="gold" checked><span>Gold-leaf tesserae<small>Bright and golden tiles become gilded glass, each set at a slightly different tilt.</small></span></label>
+        <label class="check"><input type="checkbox" id="smalti" data-testid="smalti"><span>Smalti palette<small>Snap tile colours to 28 glass colours, as a workshop would.</small></span></label>
+      </section>
+
+      <section class="panel">
+        <h2>Finish</h2>
+        <div class="row2">
+          <button class="btn" id="compare" data-testid="compare" aria-pressed="false">Show cartoon</button>
+          <button class="btn" id="reseed" data-testid="reseed">Re-lay tiles</button>
+        </div>
+        <button class="btn primary" id="export" data-testid="export" style="width:100%;margin-top:8px">Export PNG</button>
+      </section>
+    </div>
+  </div>
+
+  <div class="note">
+    <div><b>Following the edges</b>Tiles are grown like superpixels: each pixel joins the nearby tile it is closest to in both position and colour, measured in a square rotated to the local edge direction (from a smoothed image gradient).</div>
+    <div><b>Grout and bevel</b>A distance transform from the tile boundaries lays the grout line and gives each tessera a slightly lifted, light-catching rim.</div>
+    <div><b>Gold leaf</b>Byzantine gold tesserae were gold leaf fused between layers of glass and set at uneven angles so they catch the light. Here each gilded tile gets its own tilt.</div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const qs = new URLSearchParams(location.search);
+  let seed = parseInt(qs.get('seed'), 10); if (!Number.isFinite(seed)) seed = 1 + Math.floor(Math.random() * 99999);
+  const $ = (id) => document.getElementById(id);
+
+  // ---------- built-in cartoons (drawn procedurally) ----------
+  function drawIchthys(c, W, H) {
+    const g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#0d3b5c'); g.addColorStop(1, '#0a5a60');
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+    for (let k = 0; k < 7; k++) {
+      c.strokeStyle = k % 2 ? 'rgba(120,200,210,.55)' : 'rgba(40,130,160,.7)'; c.lineWidth = H * 0.022;
+      c.beginPath(); for (let x = 0; x <= W; x += 8) { const y = H * (0.62 + k * 0.06) + Math.sin(x / W * 12 + k) * H * 0.018; x ? c.lineTo(x, y) : c.moveTo(x, y); } c.stroke();
+    }
+    c.fillStyle = '#f2e3be';
+    c.beginPath(); c.arc(W * 0.86, H * 0.16, H * 0.07, 0, 7); c.fill();
+    const cx = W * 0.47, cy = H * 0.4, L = W * 0.3, h = H * 0.2;
+    c.lineWidth = H * 0.03; c.strokeStyle = '#b5532e'; c.fillStyle = '#f1e2c4';
+    c.beginPath(); c.moveTo(cx - L, cy - h * 0.9); c.quadraticCurveTo(cx, cy - h * 2.1, cx + L, cy); c.quadraticCurveTo(cx, cy + h * 2.1, cx - L, cy + h * 0.9); c.closePath(); c.fill(); c.stroke();
+    c.fillStyle = '#0d3b5c'; c.beginPath(); c.arc(cx + L * 0.55, cy - h * 0.18, H * 0.028, 0, 7); c.fill();
+    c.strokeStyle = '#c89b3c'; c.lineWidth = H * 0.014;
+    for (let i = 0; i < 4; i++) { c.beginPath(); c.arc(cx - L * 0.25 + i * L * 0.18, cy, h * 0.55, -0.9, 0.9); c.stroke(); }
+    c.fillStyle = 'rgba(240,230,200,.8)'; for (let i = 0; i < 6; i++) { c.beginPath(); c.arc(cx + L * 1.1 + i * 9, cy - h * 0.6 - i * H * 0.05, 5 + i, 0, 7); c.fill(); }
+  }
+  function drawPeacock(c, W, H) {
+    const g = c.createRadialGradient(W / 2, H / 2, 10, W / 2, H / 2, W * 0.7); g.addColorStop(0, '#1f5e4a'); g.addColorStop(1, '#0c261f');
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+    const cx = W * 0.5, cy = H * 0.5;
+    for (let i = 0; i < 90; i++) { const a = i / 90 * Math.PI * 2; c.strokeStyle = i % 2 ? '#8aa83a' : '#c3a53c'; c.lineWidth = 3; c.beginPath(); c.moveTo(cx + Math.cos(a) * W * 0.16, cy + Math.sin(a) * H * 0.2); c.lineTo(cx + Math.cos(a) * W * 0.7, cy + Math.sin(a) * H * 0.9); c.stroke(); }
+    const rings = [[0.3, 0.42, '#d7b04a'], [0.25, 0.35, '#a8702a'], [0.21, 0.3, '#2aa19a'], [0.15, 0.22, '#1d6fb0'], [0.09, 0.14, '#0c1d45']];
+    for (const [rx, ry, col] of rings) { c.fillStyle = col; c.beginPath(); c.ellipse(cx, cy + H * 0.02, W * rx * 0.62, H * ry * 0.9, 0, 0, 7); c.fill(); }
+    c.fillStyle = '#e9d9a3'; c.beginPath(); c.ellipse(cx - W * 0.02, cy - H * 0.04, W * 0.02, H * 0.035, -0.4, 0, 7); c.fill();
+  }
+  function drawSunset(c, W, H) {
+    const g = c.createLinearGradient(0, 0, 0, H * 0.7); g.addColorStop(0, '#3a2a6b'); g.addColorStop(0.45, '#d8586a'); g.addColorStop(1, '#f7b35b');
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+    c.fillStyle = '#ffe08a'; c.beginPath(); c.arc(W * 0.62, H * 0.5, H * 0.12, 0, 7); c.fill();
+    const hills = [[0.55, '#8a4a6a', 3], [0.63, '#5d3a5e', 5], [0.72, '#3a4a3a', 7]];
+    for (const [y0, col, f] of hills) { c.fillStyle = col; c.beginPath(); c.moveTo(0, H); for (let x = 0; x <= W; x += 6) c.lineTo(x, H * y0 + Math.sin(x / W * f + y0 * 9) * H * 0.04 + Math.sin(x / W * f * 2.7) * H * 0.015); c.lineTo(W, H); c.fill(); }
+    c.fillStyle = '#2f5a2c'; c.fillRect(0, H * 0.82, W, H * 0.18);
+    const r = mulberry32(77);
+    for (let i = 0; i < 260; i++) { const x = r() * W, y = H * (0.8 + r() * 0.2); c.fillStyle = r() < 0.85 ? '#3656c8' : '#f3eee0'; c.beginPath(); c.ellipse(x, y, 4 + r() * 3, 6 + r() * 4, 0, 0, 7); c.fill(); }
+    c.fillStyle = '#1e1a16'; c.fillRect(W * 0.18, H * 0.55, W * 0.02, H * 0.3);
+    for (const [dx, dy, rr] of [[0, 0, 0.09], [-0.07, 0.03, 0.07], [0.07, 0.03, 0.075], [-0.12, 0.07, 0.05], [0.12, 0.07, 0.05]]) { c.beginPath(); c.ellipse(W * (0.19 + dx), H * (0.52 + dy), W * rr, H * rr * 0.8, 0, 0, 7); c.fill(); }
+  }
+  const SOURCES = [
+    { id: 'ichthys', name: 'Ichthys', draw: drawIchthys },
+    { id: 'peacock', name: 'Peacock eye', draw: drawPeacock },
+    { id: 'sunset', name: 'Hill Country dusk', draw: drawSunset },
+  ];
+
+  // ---------- smalti palette ----------
+  const SMALTI = ['#f4eee0', '#e2d3b0', '#c9b27a', '#a8702a', '#7a4a22', '#4a2c18', '#1d1612', '#b5532e', '#8f2a1d', '#d8586a', '#e89a3c', '#f2c94c', '#ffe08a', '#c3d06a',
+    '#6f9a3a', '#2f5a2c', '#1f5e4a', '#2aa19a', '#9fd3cf', '#1d6fb0', '#0d3b5c', '#0c1d45', '#3656c8', '#6a5aa8', '#3a2a6b', '#8a4a6a', '#9a9a92', '#56524c']
+    .map((h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]);
+  const GROUTS = [['#cfc6b4', 'Lime mortar'], ['#f4f0e8', 'White'], ['#6b645c', 'Slate'], ['#2a2420', 'Charcoal'], ['#b98b64', 'Terracotta']];
+
+  // ---------- state ----------
+  const opts = { source: 'ichthys', tiles: 1400, style: 'vermiculatum', grout: 2, groutColor: '#cfc6b4', gold: true, smalti: false, compare: false };
+  let W = 800, H = 600;
+  let src = null; // {R,G,B}
+  let last = null; // result of the last layout
+  const art = $('art'), actx = art.getContext('2d', { willReadFrequently: true });
+  const work = document.createElement('canvas'), wctx = work.getContext('2d', { willReadFrequently: true });
+  let uploadName = null, uploadImg = null;
+
+  function loadSource() {
+    if (opts.source === 'upload' && uploadImg) {
+      const s = Math.min(800 / uploadImg.naturalWidth, 800 / uploadImg.naturalHeight);
+      W = Math.max(40, Math.round(uploadImg.naturalWidth * s)); H = Math.max(40, Math.round(uploadImg.naturalHeight * s));
+      work.width = W; work.height = H; wctx.drawImage(uploadImg, 0, 0, W, H);
+    } else {
+      W = 800; H = 600; work.width = W; work.height = H;
+      (SOURCES.find((s) => s.id === opts.source) || SOURCES[0]).draw(wctx, W, H);
+    }
+    const d = wctx.getImageData(0, 0, W, H).data, N = W * H;
+    const R = new Float32Array(N), G = new Float32Array(N), B = new Float32Array(N);
+    for (let i = 0; i < N; i++) { R[i] = d[i * 4]; G[i] = d[i * 4 + 1]; B[i] = d[i * 4 + 2]; }
+    src = { R, G, B, W, H };
+    art.width = W; art.height = H;
+  }
+
+  // box blur via summed-area table
+  function boxBlur(a, W, H, r) {
+    const S = new Float64Array((W + 1) * (H + 1));
+    for (let y = 0; y < H; y++) { let row = 0; for (let x = 0; x < W; x++) { row += a[y * W + x]; S[(y + 1) * (W + 1) + x + 1] = S[y * (W + 1) + x + 1] + row; } }
+    const out = new Float32Array(W * H);
+    for (let y = 0; y < H; y++) { const y0 = Math.max(0, y - r), y1 = Math.min(H, y + r + 1); for (let x = 0; x < W; x++) { const x0 = Math.max(0, x - r), x1 = Math.min(W, x + r + 1);
+      out[y * W + x] = (S[y1 * (W + 1) + x1] - S[y0 * (W + 1) + x1] - S[y1 * (W + 1) + x0] + S[y0 * (W + 1) + x0]) / ((x1 - x0) * (y1 - y0)); } }
+    return out;
+  }
+
+  // ---------- layout: sites -> labels ----------
+  function layTiles() {
+    const t0 = performance.now();
+    const { R, G, B } = src, N = W * H;
+    const rng = mulberry32(seed * 7919 + opts.tiles);
+    const s = Math.sqrt(N / opts.tiles);
+    // orientation field from a smoothed structure tensor
+    const Lum = new Float32Array(N); for (let i = 0; i < N; i++) Lum[i] = 0.299 * R[i] + 0.587 * G[i] + 0.114 * B[i];
+    const Ls = boxBlur(Lum, W, H, 1);
+    const Jxx = new Float32Array(N), Jyy = new Float32Array(N), Jxy = new Float32Array(N);
+    for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
+      const i = y * W + x;
+      const gx = (Ls[i - W + 1] + 2 * Ls[i + 1] + Ls[i + W + 1]) - (Ls[i - W - 1] + 2 * Ls[i - 1] + Ls[i + W - 1]);
+      const gy = (Ls[i + W - 1] + 2 * Ls[i + W] + Ls[i + W + 1]) - (Ls[i - W - 1] + 2 * Ls[i - W] + Ls[i - W + 1]);
+      Jxx[i] = gx * gx; Jyy[i] = gy * gy; Jxy[i] = gx * gy;
+    }
+    const rr = Math.max(2, Math.round(s * 0.9));
+    const Sxx = boxBlur(Jxx, W, H, rr), Syy = boxBlur(Jyy, W, H, rr), Sxy = boxBlur(Jxy, W, H, rr);
+    const theta = (x, y) => { const i = Math.min(H - 1, Math.max(0, Math.round(y))) * W + Math.min(W - 1, Math.max(0, Math.round(x))); return 0.5 * Math.atan2(2 * Sxy[i], Sxx[i] - Syy[i]); };
+
+    const style = opts.style;
+    const cols = Math.max(1, Math.round(W / s)), rows = Math.max(1, Math.round(H / s));
+    const sx = W / cols, sy = H / rows;
+    const sites = [];
+    const jit = style === 'tessellatum' ? 0.06 : style === 'voronoi' ? 0.45 : 0.25;
+    for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+      const off = style === 'tessellatum' && j % 2 ? 0.5 : 0; // stagger courses like laid stone
+      let x = (i + 0.5 + off) * sx, y = (j + 0.5) * sy;
+      if (x > W) continue;
+      x += (rng() - 0.5) * 2 * jit * sx; y += (rng() - 0.5) * 2 * jit * sy;
+      x = Math.min(W - 1, Math.max(0, x)); y = Math.min(H - 1, Math.max(0, y));
+      sites.push({ x, y, r: 0, g: 0, b: 0, th: 0 });
+    }
+    const colourOf = (st) => { const i = Math.round(st.y) * W + Math.round(st.x); st.r = R[i]; st.g = G[i]; st.b = B[i]; };
+    sites.forEach((st) => { colourOf(st); st.th = style === 'vermiculatum' ? theta(st.x, st.y) : 0; });
+
+    const labels = new Int32Array(N), dist = new Float32Array(N);
+    const useColour = style === "vermiculatum", m = 46; // colour compactness
+    const iters = style === 'tessellatum' ? 1 : style === 'voronoi' ? 3 : 4;
+    const Rw = Math.ceil(s * (style === 'vermiculatum' ? 1.6 : 1.3));
+    for (let it = 0; it < iters; it++) {
+      labels.fill(-1); dist.fill(Infinity);
+      for (let k = 0; k < sites.length; k++) {
+        const st = sites[k], c = Math.cos(st.th), sn = Math.sin(st.th);
+        const x0 = Math.max(0, Math.floor(st.x - Rw)), x1 = Math.min(W - 1, Math.ceil(st.x + Rw));
+        const y0 = Math.max(0, Math.floor(st.y - Rw)), y1 = Math.min(H - 1, Math.ceil(st.y + Rw));
+        for (let y = y0; y <= y1; y++) {
+          const dy = y - st.y;
+          for (let x = x0; x <= x1; x++) {
+            const dx = x - st.x, i = y * W + x;
+            let d;
+            if (style === 'voronoi') d = (dx * dx + dy * dy) / (s * s);
+            else { const u = Math.abs(dx * c + dy * sn), v = Math.abs(-dx * sn + dy * c), q = (u > v ? u : v) / s; d = q * q; }
+            if (useColour) { const dr = R[i] - st.r, dg = G[i] - st.g, db = B[i] - st.b; d += (dr * dr + dg * dg + db * db) / (m * m); }
+            if (d < dist[i]) { dist[i] = d; labels[i] = k; }
+          }
+        }
+      }
+      fillOrphans(labels);
+      if (it < iters - 1) {
+        const ax = new Float64Array(sites.length), ay = new Float64Array(sites.length), ar = new Float64Array(sites.length), ag = new Float64Array(sites.length), ab = new Float64Array(sites.length), n = new Float64Array(sites.length);
+        for (let i = 0; i < N; i++) { const k = labels[i]; ax[k] += i % W; ay[k] += (i / W) | 0; ar[k] += R[i]; ag[k] += G[i]; ab[k] += B[i]; n[k]++; }
+        sites.forEach((st, k) => { if (!n[k]) return; st.x = ax[k] / n[k]; st.y = ay[k] / n[k]; st.r = ar[k] / n[k]; st.g = ag[k] / n[k]; st.b = ab[k] / n[k]; if (style === 'vermiculatum') st.th = theta(st.x, st.y); });
+      }
+    }
+    // connected components become the actual tesserae; slivers merge into a neighbour
+    const comp = components(labels, Math.max(4, Math.round(s * s / 6)));
+    return { ...comp, s, ms: performance.now() - t0 };
+  }
+  function fillOrphans(labels) {
+    for (let pass = 0; pass < 4; pass++) {
+      let left = 0;
+      for (let i = 0; i < labels.length; i++) if (labels[i] < 0) {
+        const x = i % W; const n = (x > 0 && labels[i - 1] >= 0) ? labels[i - 1] : (i >= W && labels[i - W] >= 0) ? labels[i - W] : (x < W - 1 && labels[i + 1] >= 0) ? labels[i + 1] : (i + W < labels.length && labels[i + W] >= 0) ? labels[i + W] : -1;
+        if (n >= 0) labels[i] = n; else left++;
+      }
+      if (!left) return;
+    }
+    for (let i = 0; i < labels.length; i++) if (labels[i] < 0) labels[i] = 0;
+  }
+  function components(labels, minSize) {
+    const N = labels.length, comp = new Int32Array(N).fill(-1), stack = new Int32Array(N);
+    const sizes = [];
+    let nc = 0;
+    for (let i = 0; i < N; i++) {
+      if (comp[i] >= 0) continue;
+      const lab = labels[i]; let sp = 0, size = 0; stack[sp++] = i; comp[i] = nc;
+      while (sp) { const p = stack[--sp]; size++; const x = p % W;
+        if (x > 0 && comp[p - 1] < 0 && labels[p - 1] === lab) { comp[p - 1] = nc; stack[sp++] = p - 1; }
+        if (x < W - 1 && comp[p + 1] < 0 && labels[p + 1] === lab) { comp[p + 1] = nc; stack[sp++] = p + 1; }
+        if (p >= W && comp[p - W] < 0 && labels[p - W] === lab) { comp[p - W] = nc; stack[sp++] = p - W; }
+        if (p + W < N && comp[p + W] < 0 && labels[p + W] === lab) { comp[p + W] = nc; stack[sp++] = p + W; } }
+      sizes.push(size); nc++;
+    }
+    // merge small components into the neighbouring component they touch
+    const remap = new Int32Array(nc).map((_, k) => k);
+    for (let i = 0; i < N; i++) { const c = comp[i]; if (sizes[c] >= minSize || remap[c] !== c) continue;
+      const x = i % W; const cand = [x > 0 ? comp[i - 1] : -1, i >= W ? comp[i - W] : -1, x < W - 1 ? comp[i + 1] : -1, i + W < N ? comp[i + W] : -1];
+      for (const q of cand) if (q >= 0 && q !== c && sizes[q] >= minSize) { remap[c] = q; break; } }
+    const ids = new Int32Array(nc).fill(-1); let T = 0;
+    for (let i = 0; i < N; i++) { const c = remap[comp[i]]; if (ids[c] < 0) ids[c] = T++; comp[i] = ids[c]; }
+    return { tile: comp, count: T };
+  }
+
+  // ---------- render ----------
+  function hexRgb(h) { return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]; }
+  function nearestSmalti(r, g, b) { let best = SMALTI[0], bd = Infinity; for (const p of SMALTI) { const d = 2 * (p[0] - r) ** 2 + 4 * (p[1] - g) ** 2 + 3 * (p[2] - b) ** 2; if (d < bd) { bd = d; best = p; } } return best; }
+  function isGolden(r, g, b) {
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 510, sat = mx === mn ? 0 : (mx - mn) / (255 - Math.abs(mx + mn - 255) || 1);
+    let h = 0; if (mx !== mn) { if (mx === r) h = ((g - b) / (mx - mn)) % 6; else if (mx === g) h = (b - r) / (mx - mn) + 2; else h = (r - g) / (mx - mn) + 4; h *= 60; if (h < 0) h += 360; }
+    return (h >= 30 && h <= 62 && sat > 0.35 && l > 0.42) || l > 0.86;
+  }
+  function render() {
+    const { R, G, B } = src, N = W * H, lay = last;
+    const { tile, count, s } = lay;
+    const rng = mulberry32(seed * 131 + 17);
+    // tile statistics
+    const sr = new Float64Array(count), sg = new Float64Array(count), sb = new Float64Array(count), n = new Float64Array(count), cx = new Float64Array(count), cy = new Float64Array(count);
+    for (let i = 0; i < N; i++) { const t = tile[i]; sr[t] += R[i]; sg[t] += G[i]; sb[t] += B[i]; n[t]++; cx[t] += i % W; cy[t] += (i / W) | 0; }
+    const col = new Float32Array(count * 3), gold = new Uint8Array(count), tilt = new Float32Array(count * 3);
+    let err = 0, goldCount = 0;
+    const usage = new Map();
+    for (let t = 0; t < count; t++) {
+      let r = sr[t] / n[t], g = sg[t] / n[t], b = sb[t] / n[t];
+      cx[t] /= n[t]; cy[t] /= n[t];
+      if (opts.gold && isGolden(r, g, b)) { gold[t] = 1; goldCount++; }
+      if (opts.smalti && !gold[t]) [r, g, b] = nearestSmalti(r, g, b);
+      const j = 1 + (rng() - 0.5) * 0.09; // glass is never perfectly uniform
+      col[t * 3] = r * j; col[t * 3 + 1] = g * (1 + (rng() - 0.5) * 0.05) * j; col[t * 3 + 2] = b * j;
+      const a = rng() * Math.PI * 2; tilt[t * 3] = Math.cos(a); tilt[t * 3 + 1] = Math.sin(a); tilt[t * 3 + 2] = 0.72 + rng() * 0.6;
+    }
+    for (let i = 0; i < N; i++) { const t = tile[i]; err += (Math.abs(R[i] - sr[t] / n[t]) + Math.abs(G[i] - sg[t] / n[t]) + Math.abs(B[i] - sb[t] / n[t])) / 3; }
+    // distance to the nearest tile boundary (chamfer 3-4 on a boundary mask)
+    const D = new Float32Array(N).fill(1e6);
+    for (let i = 0; i < N; i++) { const x = i % W, t = tile[i];
+      if ((x < W - 1 && tile[i + 1] !== t) || (i + W < N && tile[i + W] !== t) || (x > 0 && tile[i - 1] !== t) || (i >= W && tile[i - W] !== t)) D[i] = 0.5; }
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = y * W + x; let d = D[i];
+      if (x > 0) d = Math.min(d, D[i - 1] + 1); if (y > 0) { d = Math.min(d, D[i - W] + 1); if (x > 0) d = Math.min(d, D[i - W - 1] + 1.414); if (x < W - 1) d = Math.min(d, D[i - W + 1] + 1.414); } D[i] = d; }
+    for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) { const i = y * W + x; let d = D[i];
+      if (x < W - 1) d = Math.min(d, D[i + 1] + 1); if (y < H - 1) { d = Math.min(d, D[i + W] + 1); if (x < W - 1) d = Math.min(d, D[i + W + 1] + 1.414); if (x > 0) d = Math.min(d, D[i + W - 1] + 1.414); } D[i] = d; }
+    const img = actx.createImageData(W, H), px = img.data;
+    const gw = opts.grout / 2, [gr, gg, gb] = hexRgb(opts.groutColor);
+    const grng = mulberry32(seed + 5);
+    let groutPx = 0;
+    const GOLD = [214, 168, 72];
+    for (let i = 0; i < N; i++) {
+      const o = i * 4, d = D[i];
+      if (opts.grout > 0 && d <= gw) {
+        const k = 0.88 + grng() * 0.2; px[o] = gr * k; px[o + 1] = gg * k; px[o + 2] = gb * k; px[o + 3] = 255; groutPx++; continue;
+      }
+      const t = tile[i], x = i % W, y = (i / W) | 0;
+      let r, g, b;
+      if (gold[t]) {
+        const along = ((x - cx[t]) * tilt[t * 3] + (y - cy[t]) * tilt[t * 3 + 1]) / s;
+        const k = tilt[t * 3 + 2] * (1 + 0.35 * along);
+        r = GOLD[0] * k + 30 * Math.max(0, k - 1.05); g = GOLD[1] * k + 20 * Math.max(0, k - 1.05); b = GOLD[2] * k;
+      } else { r = col[t * 3]; g = col[t * 3 + 1]; b = col[t * 3 + 2]; }
+      // bevel: light from the upper left catches the rim, the lower right falls in shadow
+      if (opts.grout > 0) {
+        const e = d - gw;
+        if (e < 2.5) {
+          const gx = (x < W - 1 ? D[i + 1] : d) - (x > 0 ? D[i - 1] : d), gy = (i + W < N ? D[i + W] : d) - (i >= W ? D[i - W] : d);
+          const lit = (-gx * -0.7 + -gy * -0.7) * 0.5; // normal points away from the edge
+          const amt = (1 - e / 2.5) * 0.22 * lit;
+          r += 255 * amt; g += 255 * amt; b += 255 * amt;
+        }
+      }
+      px[o] = r; px[o + 1] = g; px[o + 2] = b; px[o + 3] = 255;
+    }
+    actx.putImageData(img, 0, 0);
+    for (let t = 0; t < count; t++) { const key = gold[t] ? 'gold' : `${Math.round(col[t * 3] / 24) * 24},${Math.round(col[t * 3 + 1] / 24) * 24},${Math.round(col[t * 3 + 2] / 24) * 24}`; usage.set(key, (usage.get(key) || 0) + 1); }
+    const top = [...usage.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12);
+    $('swatches').innerHTML = top.map(([k]) => `<i style="background:${k === 'gold' ? 'linear-gradient(135deg,#f0cf7a,#a8792a)' : `rgb(${k})`}" title="${k === 'gold' ? 'gold leaf' : 'rgb(' + k + ')'}"></i>`).join('');
+    stats = { tiles: count, gold: goldCount, groutFrac: groutPx / N, meanError: err / N, W, H, style: opts.style, spacing: s, source: opts.source, ms: Math.round(lay.ms) };
+    const srcName = opts.source === 'upload' ? (uploadName || 'your image') : SOURCES.find((q) => q.id === opts.source).name;
+    $('status').innerHTML = `<b>${count.toLocaleString('en-US')}</b> tesserae · ${goldCount ? `<b>${goldCount}</b> gilded · ` : ''}${srcName}`;
+    art.setAttribute('aria-label', `Mosaic of ${srcName} in ${count} tesserae, ${opts.style} setting${goldCount ? `, ${goldCount} gold-leaf tiles` : ''}`);
+  }
+  let stats = null;
+
+  function drawCompare() { actx.drawImage(work, 0, 0); }
+
+  // full pipeline (sync) and a debounced version for the UI
+  let needLayout = true;
+  function run() {
+    if (!src) loadSource();
+    if (needLayout || !last) { last = layTiles(); needLayout = false; }
+    render();
+    if (opts.compare) drawCompare();
+    return stats;
+  }
+  let timer = 0;
+  function schedule(layout) {
+    if (layout) needLayout = true;
+    $('busy').hidden = false;
+    clearTimeout(timer);
+    timer = setTimeout(() => { run(); $('busy').hidden = true; }, 40);
+  }
+
+  // ---------- UI ----------
+  $('sources').innerHTML = SOURCES.map((s) => `<button class="src" type="button" data-src="${s.id}" data-testid="src-${s.id}" aria-pressed="${s.id === opts.source}"><canvas width="160" height="120" aria-hidden="true"></canvas><span>${s.name}</span></button>`).join('');
+  document.querySelectorAll('.src').forEach((b) => { const c = b.querySelector('canvas'); SOURCES.find((s) => s.id === b.dataset.src).draw(c.getContext('2d'), 160, 120); });
+  function pickSource(id) {
+    opts.source = id; opts.compare = false; $('compare').setAttribute('aria-pressed', 'false'); $('compare').textContent = 'Show cartoon';
+    document.querySelectorAll('.src').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.src === id)));
+    loadSource(); schedule(true);
+  }
+  $('sources').addEventListener('click', (e) => { const b = e.target.closest('.src'); if (b) pickSource(b.dataset.src); });
+  $('file').addEventListener('change', () => {
+    const f = $('file').files && $('file').files[0]; if (!f) return;
+    const url = URL.createObjectURL(f), img = new Image();
+    img.onload = () => { uploadImg = img; uploadName = f.name; URL.revokeObjectURL(url); pickSource('upload'); };
+    img.onerror = () => { URL.revokeObjectURL(url); $('status').textContent = 'That file could not be read as an image.'; };
+    img.src = url;
+  });
+  $('tiles').addEventListener('input', (e) => { opts.tiles = +e.target.value; $('tiles-out').textContent = opts.tiles.toLocaleString('en-US'); schedule(true); });
+  $('style').addEventListener('change', (e) => { opts.style = e.target.value; schedule(true); });
+  $('grout').addEventListener('input', (e) => { opts.grout = +e.target.value; $('grout-out').textContent = opts.grout + ' px'; schedule(false); });
+  $('grouts').innerHTML = GROUTS.map(([h, name]) => `<button type="button" data-g="${h}" data-testid="grout-${name.split(' ')[0].toLowerCase()}" style="background:${h}" aria-label="${name} grout" aria-pressed="${h === opts.groutColor}"></button>`).join('');
+  function setGrout(h) { opts.groutColor = h.toLowerCase(); $('grout-color').value = opts.groutColor; document.querySelectorAll('#grouts button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.g === opts.groutColor))); schedule(false); }
+  $('grouts').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setGrout(b.dataset.g); });
+  $('grout-color').addEventListener('input', (e) => setGrout(e.target.value));
+  $('gold').addEventListener('change', (e) => { opts.gold = e.target.checked; schedule(false); });
+  $('smalti').addEventListener('change', (e) => { opts.smalti = e.target.checked; schedule(false); });
+  $('compare').addEventListener('click', () => {
+    opts.compare = !opts.compare; $('compare').setAttribute('aria-pressed', String(opts.compare)); $('compare').textContent = opts.compare ? 'Show mosaic' : 'Show cartoon';
+    if (opts.compare) drawCompare(); else render();
+  });
+  $('reseed').addEventListener('click', () => { seed = (seed * 48271 + 11) % 2147483647; schedule(true); });
+  $('export').addEventListener('click', () => {
+    if (opts.compare) { opts.compare = false; $('compare').setAttribute('aria-pressed', 'false'); $('compare').textContent = 'Show cartoon'; render(); }
+    art.toBlob((blob) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `mosaic-${opts.source}-${stats.tiles}.png`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }, 'image/png');
+  });
+
+  loadSource();
+  schedule(true);
+
+  window.__mosaic = {
+    get opts() { return { ...opts }; },
+    get stats() { return stats; },
+    set(o) { const lay = ['tiles', 'style', 'source'].some((k) => k in o && o[k] !== opts[k]); Object.assign(opts, o); if ('source' in o) loadSource(); if (lay) needLayout = true; clearTimeout(timer); $('busy').hidden = true; return run(); },
+    run() { clearTimeout(timer); $('busy').hidden = true; return run(); },
+    tileAt(x, y) { return last ? last.tile[Math.round(y) * W + Math.round(x)] : -1; },
+    pixel(x, y) { const d = actx.getImageData(Math.round(x), Math.round(y), 1, 1).data; return [d[0], d[1], d[2]]; },
+    get size() { return { W, H }; },
+  };
+})();
+</script>
+</body>
+</html>

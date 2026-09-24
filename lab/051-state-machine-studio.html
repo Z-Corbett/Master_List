@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>State Machine Studio — FSM Designer &amp; Test Generator</title>
+<meta name="description" content="Draw a finite-state machine on a blueprint canvas, drag states into place, fire events to simulate it, spot unreachable states and dead ends, and auto-generate test cases for full transition or all-states coverage, exported as a readable Playwright-style outline.">
+<style>
+  :root {
+    --bp: #16487f;
+    --bp-2: #123c6b;
+    --bp-3: #0e3159;
+    --grid: rgba(255,255,255,.07);
+    --grid-2: rgba(255,255,255,.14);
+    --chalk: #f2f7ff;
+    --chalk-2: #b9cde6;
+    --chalk-3: #7f9dc3;
+    --cur: #ffd84d;
+    --warn: #ff9f43;
+    --bad: #ff6b6b;
+    --good: #6ee7a8;
+    --tech: "Century Gothic", "Futura", "Avenir Next", "Trebuchet MS", sans-serif;
+    --mono: "Consolas", "Lucida Console", ui-monospace, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--bp); color: var(--chalk); font-family: var(--tech); line-height: 1.45; overflow-x: hidden;
+    background-image: linear-gradient(var(--grid-2) 1px, transparent 1px), linear-gradient(90deg, var(--grid-2) 1px, transparent 1px),
+      linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px; }
+  :focus-visible { outline: 2px dashed var(--cur); outline-offset: 3px; }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  input, select, pre { max-width: 100%; }
+  .back { position: fixed; top: 10px; left: 10px; z-index: 40; color: var(--chalk); text-decoration: none; font: 700 12px/1 var(--tech);
+    border: 1.5px solid var(--chalk); padding: 7px 10px; background: var(--bp-3); letter-spacing: .06em; text-transform: uppercase; }
+  .back:hover { background: var(--chalk); color: var(--bp); }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 58px 18px 60px; }
+
+  header.tb { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 360px); border: 2px solid var(--chalk); margin-bottom: 18px; }
+  header.tb .t { padding: 14px 18px; border-right: 2px solid var(--chalk); min-width: 0; }
+  h1 { margin: 0; font: 700 clamp(30px, 5.4vw, 64px)/1 var(--tech); letter-spacing: .06em; text-transform: uppercase; }
+  .lede { margin: 8px 0 0; color: var(--chalk-2); font-size: 14.5px; max-width: 70ch; }
+  .tblock { display: grid; grid-template-columns: auto minmax(0, 1fr); font: 12px var(--mono); min-width: 0; }
+  .tblock div { padding: 6px 10px; border-bottom: 1px solid var(--chalk-3); min-width: 0; overflow-wrap: anywhere; }
+  .tblock div:nth-child(odd) { color: var(--chalk-3); text-transform: uppercase; letter-spacing: .1em; border-right: 1px solid var(--chalk-3); }
+  .tblock div:nth-last-child(-n+2) { border-bottom: 0; }
+
+  .main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 340px); gap: 18px; align-items: start; }
+  .board { border: 2px solid var(--chalk); background: rgba(10,40,75,.35); position: relative; min-width: 0; }
+  .board-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; border-bottom: 1px solid var(--chalk-3); }
+  .board-h .presets { display: flex; gap: 6px; flex-wrap: wrap; }
+  .cwrap { overflow-x: auto; max-width: 100%; }
+  svg#canvas { display: block; width: 100%; height: auto; touch-action: pan-x pan-y; user-select: none; -webkit-user-select: none; }
+  .node { cursor: grab; touch-action: none; }
+  .node:focus { outline: none; }
+  .node:focus-visible rect.box { stroke: var(--cur); stroke-dasharray: 5 3; }
+  .node rect.box { fill: var(--bp-2); stroke: var(--chalk); stroke-width: 2; }
+  .node rect.inner { fill: none; stroke: var(--chalk); stroke-width: 1.2; }
+  .node text { fill: var(--chalk); font: 700 14px var(--mono); text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+  .node.sel rect.box { stroke: var(--cur); stroke-width: 3; }
+  .node.cur rect.box { fill: var(--cur); }
+  .node.cur text { fill: #1a2233; }
+  .node.cur rect.inner { stroke: #1a2233; }
+  .node.unreach rect.box { stroke: var(--warn); stroke-dasharray: 7 4; }
+  .node.dead rect.box { stroke: var(--bad); }
+  .node .tag { font: 700 9.5px var(--tech); letter-spacing: .12em; }
+  .node .tag.w { fill: var(--warn); } .node .tag.b { fill: var(--bad); }
+  .edge path { fill: none; stroke: var(--chalk-2); stroke-width: 1.6; }
+  .edge.hot path { stroke: var(--cur); stroke-width: 2.6; }
+  .edge.dim path { stroke-dasharray: 4 4; opacity: .55; }
+  .edge .lbl rect { fill: var(--bp-3); stroke: var(--chalk-3); stroke-width: 1; }
+  .edge .lbl text { fill: var(--chalk); font: 12px var(--mono); text-anchor: middle; dominant-baseline: central; }
+  .edge.hot .lbl rect { stroke: var(--cur); }
+  .init-dot { fill: var(--chalk); }
+  .token { fill: var(--cur); stroke: #1a2233; stroke-width: 2; }
+  .hint { font: 12px var(--mono); color: var(--chalk-3); padding: 6px 10px; border-top: 1px solid var(--chalk-3); }
+
+  .side { display: grid; gap: 14px; min-width: 0; }
+  .card { border: 2px solid var(--chalk); background: rgba(10,40,75,.45); padding: 12px 14px; min-width: 0; }
+  .card h2 { margin: 0 0 10px; font: 700 14px var(--tech); letter-spacing: .16em; text-transform: uppercase; display: flex; justify-content: space-between; gap: 8px; }
+  .card h2 small { font: 11px var(--mono); letter-spacing: 0; color: var(--chalk-3); text-transform: none; }
+  .btn { border: 1.5px solid var(--chalk); background: transparent; padding: 5px 10px; font: 700 12px var(--tech); letter-spacing: .08em; text-transform: uppercase; border-radius: 0; }
+  .btn:hover:not(:disabled) { background: var(--chalk); color: var(--bp); }
+  .btn:disabled { opacity: .35; cursor: not-allowed; }
+  .btn.pri { background: var(--cur); color: #1a2233; border-color: var(--cur); }
+  .btn.pri:hover { background: #fff; }
+  .cur-state { font: 700 22px var(--mono); color: var(--cur); margin: 0 0 8px; overflow-wrap: anywhere; }
+  .cur-state small { font: 11px var(--tech); color: var(--chalk-3); letter-spacing: .12em; display: block; text-transform: uppercase; }
+  .events { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+  .events .btn { text-transform: none; font-family: var(--mono); letter-spacing: 0; font-weight: 400; font-size: 12.5px; }
+  .events .btn.on { border-color: var(--cur); color: var(--cur); }
+  .events .btn.on:hover { background: var(--cur); color: #1a2233; }
+  ol.log { margin: 6px 0 0; padding-left: 22px; font: 12px/1.6 var(--mono); color: var(--chalk-2); max-height: 130px; overflow: auto; }
+  ol.log li.rej { color: var(--bad); }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .facts { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13px; }
+  .facts li { display: grid; grid-template-columns: 108px minmax(0, 1fr); gap: 8px; align-items: baseline; }
+  .facts b { font: 700 10.5px var(--tech); letter-spacing: .12em; text-transform: uppercase; color: var(--chalk-3); }
+  .pill { display: inline-block; font: 12px var(--mono); border: 1px solid currentColor; padding: 0 6px; margin: 0 4px 3px 0; }
+  .pill.w { color: var(--warn); } .pill.b { color: var(--bad); } .pill.g { color: var(--good); }
+  .none { color: var(--good); font: 12px var(--mono); }
+
+  label.f { display: grid; gap: 3px; font: 700 10.5px var(--tech); letter-spacing: .12em; text-transform: uppercase; color: var(--chalk-3); min-width: 0; }
+  input[type=text], select { width: 100%; min-width: 0; border: 1.5px solid var(--chalk-3); background: var(--bp-3); color: var(--chalk); padding: 5px 7px; font: 13px var(--mono); letter-spacing: 0; text-transform: none; border-radius: 0; }
+  .g3 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); gap: 6px; }
+  .checks { display: flex; gap: 14px; font-size: 13px; margin: 8px 0; flex-wrap: wrap; }
+  .checks label { display: flex; gap: 6px; align-items: center; }
+  .checks input { accent-color: var(--cur); }
+  ul.tlist { list-style: none; margin: 8px 0 0; padding: 0; max-height: 160px; overflow: auto; font: 12px var(--mono); border-top: 1px solid var(--chalk-3); }
+  ul.tlist li { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 3px 0; border-bottom: 1px dotted var(--chalk-3); }
+  ul.tlist li span { min-width: 0; overflow-wrap: anywhere; }
+  .x { border: 0; background: none; color: var(--bad); font: 700 14px var(--mono); padding: 0 4px; }
+
+  .gen { margin-top: 18px; border: 2px solid var(--chalk); background: rgba(10,40,75,.45); }
+  .gen-h { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-bottom: 1px solid var(--chalk-3); }
+  .gen-h h2 { margin: 0; font: 700 16px var(--tech); letter-spacing: .16em; text-transform: uppercase; }
+  .seg { display: inline-flex; border: 1.5px solid var(--chalk); }
+  .seg button { border: 0; background: transparent; padding: 5px 10px; font: 700 12px var(--tech); letter-spacing: .06em; text-transform: uppercase; }
+  .seg button + button { border-left: 1.5px solid var(--chalk); }
+  .seg button[aria-pressed=true] { background: var(--chalk); color: var(--bp); }
+  .gen-b { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); }
+  .cases { padding: 10px 14px; border-right: 1px solid var(--chalk-3); min-width: 0; }
+  .stat { font: 12.5px var(--mono); color: var(--chalk-2); margin: 0 0 8px; }
+  .stat b { color: var(--cur); }
+  ol.cl { margin: 0; padding-left: 20px; font: 12px/1.5 var(--mono); max-height: 300px; overflow: auto; }
+  ol.cl li { margin-bottom: 6px; overflow-wrap: anywhere; }
+  ol.cl li span { color: var(--chalk-3); }
+  pre.outline { margin: 0; padding: 12px 14px; font: 12px/1.55 var(--mono); color: #dbe8fb; max-height: 360px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
+  pre.outline .k { color: #8fd3ff; } pre.outline .s { color: var(--cur); } pre.outline .c { color: var(--chalk-3); }
+  .status { font: 12px var(--mono); color: var(--chalk-3); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  @media (max-width: 980px) {
+    .main { grid-template-columns: minmax(0, 1fr); }
+    .gen-b { grid-template-columns: minmax(0, 1fr); }
+    .cases { border-right: 0; border-bottom: 1px solid var(--chalk-3); }
+  }
+  @media (max-width: 720px) {
+    header.tb { grid-template-columns: minmax(0, 1fr); }
+    header.tb .t { border-right: 0; border-bottom: 2px solid var(--chalk); }
+    .wrap { padding-left: 12px; padding-right: 12px; }
+    .g3 { grid-template-columns: minmax(0, 1fr); }
+    .facts li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+    svg#canvas { width: 680px; max-width: none; }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="tb">
+    <div class="t">
+      <h1>State Machine Studio</h1>
+      <p class="lede">Draft a flow as a finite-state machine, drag the states into place and fire events to walk it. The drafting table flags <b>unreachable</b> states and <b>dead ends</b> as you draw, then writes the test plan for you: the fewest-ish walks that cover <b>every transition</b> or <b>every state</b>, as a Playwright-style outline.</p>
+    </div>
+    <div class="tblock" aria-label="Drawing details">
+      <div>Drawing</div><div id="tb-name" data-testid="machine-name">—</div>
+      <div>States</div><div id="tb-states">—</div>
+      <div>Transitions</div><div id="tb-trans">—</div>
+      <div>Sheet</div><div>051 / Zac's Lab</div>
+    </div>
+  </header>
+
+  <div class="main">
+    <section class="board" aria-labelledby="board-h">
+      <div class="board-h">
+        <h2 id="board-h" class="sr">Canvas</h2>
+        <div class="presets" role="group" aria-label="Preset machines">
+          <button class="btn" type="button" data-preset="checkout" data-testid="preset-checkout">Checkout</button>
+          <button class="btn" type="button" data-preset="login" data-testid="preset-login">Login</button>
+        </div>
+        <button class="btn" type="button" id="add-state" data-testid="add-state">+ State</button>
+      </div>
+      <div class="cwrap" tabindex="-1"><svg id="canvas" viewBox="0 0 900 560" role="group" aria-label="State diagram. States are buttons; arrow keys move the focused state." data-testid="canvas">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#b9cde6"/></marker>
+          <marker id="arrow-hot" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ffd84d"/></marker>
+        </defs>
+        <g id="edges"></g>
+        <g id="nodes"></g>
+        <circle id="token" class="token" r="7" cx="-20" cy="-20"/>
+      </svg></div>
+      <div class="hint">Drag states to arrange · click to select · arrow keys nudge the focused state · yellow = current state · on small screens swipe the sheet sideways</div>
+    </section>
+
+    <div class="side">
+      <section class="card" aria-labelledby="sim-h">
+        <h2 id="sim-h">Simulate <button class="btn" type="button" id="reset" data-testid="reset">Reset</button></h2>
+        <p class="cur-state"><small>Current state</small><span id="cur" data-testid="current-state" aria-live="polite"></span></p>
+        <div class="events" id="events" role="group" aria-label="Events"></div>
+        <ol class="log" id="log" data-testid="log" aria-label="Event history"></ol>
+      </section>
+
+      <section class="card" aria-labelledby="an-h">
+        <h2 id="an-h">Analysis</h2>
+        <ul class="facts">
+          <li><b>Reachable</b><span id="an-reach" data-testid="reachable"></span></li>
+          <li><b>Unreachable</b><span id="an-unreach" data-testid="unreachable"></span></li>
+          <li><b>Dead ends</b><span id="an-dead" data-testid="deadends"></span></li>
+          <li><b>Ambiguous</b><span id="an-nd" data-testid="nondeterministic"></span></li>
+        </ul>
+      </section>
+
+      <section class="card" aria-labelledby="ed-h">
+        <h2 id="ed-h">Edit <small id="sel-lbl"></small></h2>
+        <div id="inspector" data-testid="inspector">
+          <label class="f">Selected state name<input type="text" id="st-name" data-testid="state-name" autocomplete="off"></label>
+          <div class="checks">
+            <label><input type="checkbox" id="st-init" data-testid="state-initial"> Initial</label>
+            <label><input type="checkbox" id="st-final" data-testid="state-final"> Final</label>
+            <button class="btn" type="button" id="st-del" data-testid="state-delete">Delete state</button>
+          </div>
+        </div>
+        <p class="status" id="noselect">Select a state on the canvas to edit it.</p>
+        <div class="g3" style="margin-top:6px">
+          <label class="f">From<select id="t-from" data-testid="t-from"></select></label>
+          <label class="f">Event<input type="text" id="t-event" data-testid="t-event" placeholder="submit" autocomplete="off"></label>
+          <label class="f">To<select id="t-to" data-testid="t-to"></select></label>
+        </div>
+        <div class="row" style="margin-top:8px"><button class="btn pri" type="button" id="t-add" data-testid="t-add">Add transition</button><span class="status" id="t-msg" aria-live="polite"></span></div>
+        <ul class="tlist" id="tlist" data-testid="transitions" aria-label="Transitions"></ul>
+      </section>
+    </div>
+  </div>
+
+  <section class="gen" aria-labelledby="gen-h">
+    <div class="gen-h">
+      <h2 id="gen-h">Generated tests</h2>
+      <div class="seg" role="group" aria-label="Coverage criterion">
+        <button type="button" data-cov="transitions" data-testid="cov-transitions" aria-pressed="true">All transitions</button>
+        <button type="button" data-cov="states" data-testid="cov-states" aria-pressed="false">All states</button>
+      </div>
+      <button class="btn" type="button" id="copy" data-testid="copy">Copy outline</button>
+    </div>
+    <div class="gen-b">
+      <div class="cases">
+        <p class="stat" id="gen-stat" data-testid="gen-stat" aria-live="polite"></p>
+        <ol class="cl" id="cases" data-testid="cases"></ol>
+      </div>
+      <pre class="outline" id="outline" data-testid="outline" tabindex="0" aria-label="Playwright-style test outline"></pre>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const PRESETS = {
+    checkout: {
+      name: 'Checkout flow',
+      states: [
+        { id: 'Cart', x: 110, y: 80, initial: true }, { id: 'Shipping', x: 330, y: 80 }, { id: 'Payment', x: 560, y: 80 },
+        { id: 'Review', x: 790, y: 80 }, { id: 'Processing', x: 790, y: 270 }, { id: 'Confirmed', x: 790, y: 470, final: true },
+        { id: 'PaymentFailed', x: 520, y: 270 }, { id: 'FraudHold', x: 520, y: 470 }, { id: 'Cancelled', x: 300, y: 290, final: true },
+        { id: 'PromoApplied', x: 110, y: 470 },
+      ],
+      transitions: [
+        ['Cart', 'checkout', 'Shipping'], ['Shipping', 'back', 'Cart'], ['Shipping', 'submitAddress', 'Payment'], ['Payment', 'back', 'Shipping'],
+        ['Payment', 'submitCard', 'Review'], ['Review', 'editPayment', 'Payment'], ['Review', 'placeOrder', 'Processing'],
+        ['Processing', 'approved', 'Confirmed'], ['Processing', 'declined', 'PaymentFailed'], ['Processing', 'flagged', 'FraudHold'],
+        ['PaymentFailed', 'retry', 'Payment'], ['PaymentFailed', 'cancel', 'Cancelled'], ['Cart', 'abandon', 'Cancelled'],
+        ['PromoApplied', 'continue', 'Cart'],
+      ],
+    },
+    login: {
+      name: 'Login flow',
+      states: [
+        { id: 'SignedOut', x: 110, y: 130, initial: true }, { id: 'Credentials', x: 340, y: 130 }, { id: 'Verifying', x: 580, y: 130 },
+        { id: 'SignedIn', x: 800, y: 300 }, { id: 'MfaChallenge', x: 580, y: 330 }, { id: 'Locked', x: 340, y: 330 },
+        { id: 'ResetPassword', x: 150, y: 470 },
+      ],
+      transitions: [
+        ['SignedOut', 'openLogin', 'Credentials'], ['Credentials', 'submit', 'Verifying'], ['Credentials', 'cancel', 'SignedOut'],
+        ['Verifying', 'badPassword', 'Credentials'], ['Verifying', 'needsMfa', 'MfaChallenge'], ['Verifying', 'ok', 'SignedIn'],
+        ['Verifying', 'tooManyAttempts', 'Locked'], ['MfaChallenge', 'validCode', 'SignedIn'], ['MfaChallenge', 'wrongCode', 'MfaChallenge'],
+        ['SignedIn', 'signOut', 'SignedOut', 150], ['ResetPassword', 'done', 'SignedOut'],
+      ],
+    },
+  };
+  const LS = 'lab051-fsm';
+  const NS = 'http://www.w3.org/2000/svg';
+  const VB = { w: 900, h: 560 };
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const $ = (id) => document.getElementById(id);
+
+  let m, cur, log = [], selected = null, cov = 'transitions', lastEdge = null;
+  const load = (key) => {
+    const p = PRESETS[key];
+    return { name: p.name, states: p.states.map((s) => ({ ...s })), transitions: p.transitions.map(([from, event, to, bend]) => ({ from, event, to, bend: bend || 0 })) };
+  };
+  try { const s = JSON.parse(localStorage.getItem(LS) || 'null'); if (s && Array.isArray(s.states) && Array.isArray(s.transitions)) m = s; } catch (e) { /* ignore */ }
+  if (!m) m = load('checkout');
+  const save = () => { try { localStorage.setItem(LS, JSON.stringify(m)); } catch (e) { /* ignore */ } };
+
+  const st = (id) => m.states.find((s) => s.id === id);
+  const initial = () => (m.states.find((s) => s.initial) || m.states[0] || {}).id;
+  const out = (id) => m.transitions.filter((t) => t.from === id);
+
+  // ---------- analysis ----------
+  function bfs(from) {
+    const prev = new Map([[from, null]]); const q = [from];
+    while (q.length) {
+      const s = q.shift();
+      for (const t of out(s)) if (!prev.has(t.to)) { prev.set(t.to, t); q.push(t.to); }
+    }
+    return prev;
+  }
+  function pathTo(prev, to) { const p = []; let t = prev.get(to); while (t) { p.unshift(t); t = prev.get(t.from); } return p; }
+  function analyse() {
+    const init = initial();
+    const prev = init ? bfs(init) : new Map();
+    const reach = m.states.filter((s) => prev.has(s.id)).map((s) => s.id);
+    const unreach = m.states.filter((s) => !prev.has(s.id)).map((s) => s.id);
+    const dead = m.states.filter((s) => !s.final && out(s.id).length === 0).map((s) => s.id);
+    const nd = [];
+    m.states.forEach((s) => {
+      const seen = {};
+      out(s.id).forEach((t) => { (seen[t.event] = seen[t.event] || new Set()).add(t.to); });
+      Object.entries(seen).forEach(([e, set]) => { if (set.size > 1) nd.push(`${s.id} --${e}--> ${[...set].join(' | ')}`); });
+    });
+    return { prev, reach, unreach, dead, nd, init };
+  }
+
+  // ---------- test generation ----------
+  function genTransitions(a) {
+    const reachable = m.transitions.filter((t) => a.prev.has(t.from));
+    const depth = (id) => pathTo(a.prev, id).length;
+    const unc = new Set(reachable);
+    const cases = [];
+    while (unc.size) {
+      const t = [...unc].sort((x, y) => depth(x.from) - depth(y.from) || m.transitions.indexOf(x) - m.transitions.indexOf(y))[0];
+      const path = [...pathTo(a.prev, t.from), t];
+      let at = t.to;
+      for (let guard = 0; guard < 40; guard++) {
+        const nxt = out(at).find((x) => unc.has(x) && !path.includes(x));
+        if (!nxt) break;
+        path.push(nxt); at = nxt.to;
+      }
+      path.forEach((x) => unc.delete(x));
+      cases.push(path);
+    }
+    return { cases, covered: reachable.length, total: m.transitions.length, uncoverable: m.transitions.filter((t) => !a.prev.has(t.from)) };
+  }
+  function genStates(a) {
+    const depth = (id) => pathTo(a.prev, id).length;
+    const targets = [...a.reach].sort((x, y) => depth(y) - depth(x) || m.states.findIndex((s) => s.id === x) - m.states.findIndex((s) => s.id === y));
+    const seen = new Set(); const cases = [];
+    for (const s of targets) {
+      if (seen.has(s)) continue;
+      const p = pathTo(a.prev, s);
+      seen.add(a.init); p.forEach((t) => { seen.add(t.from); seen.add(t.to); });
+      if (p.length || !cases.length) cases.push(p);
+    }
+    return { cases, covered: a.reach.length, total: m.states.length, uncoverable: a.unreach };
+  }
+
+  function outline(g, a) {
+    const q = (s) => `'${String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+    const crit = cov === 'transitions' ? 'transition coverage' : 'all-states coverage';
+    const steps = g.cases.reduce((s, c) => s + c.length, 0);
+    const L = [];
+    L.push(`// Generated by State Machine Studio: ${m.name}, ${crit}`);
+    L.push(`// ${g.cases.length} tests, ${steps} steps, covers ${g.covered}/${g.total} ${cov}${g.uncoverable.length ? ` (${g.uncoverable.length} unreachable, not coverable)` : ''}`);
+    L.push(`import { test, expect, type Page } from '@playwright/test';`);
+    L.push('');
+    L.push(`// TODO: map each event to the UI action that triggers it in the app under test.`);
+    L.push(`async function fire(page: Page, event: string) {`);
+    L.push(`  await page.getByTestId(\`event-\${event}\`).click();`);
+    L.push(`}`);
+    L.push(`const state = (page: Page) => page.getByTestId('state');`);
+    L.push('');
+    L.push(`test.describe(${q(`${m.name} · ${crit}`)}, () => {`);
+    L.push(`  test.beforeEach(async ({ page }) => {`);
+    L.push(`    await page.goto('/'); // TODO: start URL`);
+    L.push(`    await expect(state(page)).toHaveText(${q(a.init)});`);
+    L.push(`  });`);
+    g.cases.forEach((c, i) => {
+      const route = [a.init, ...c.map((t) => t.to)].join(' → ');
+      L.push('');
+      L.push(`  test(${q(`TC${i + 1} · ${route}`)}, async ({ page }) => {`);
+      if (!c.length) L.push(`    // the initial state is the only reachable state`);
+      c.forEach((t) => {
+        L.push(`    await fire(page, ${q(t.event)}); // ${t.from} → ${t.to}`);
+        L.push(`    await expect(state(page)).toHaveText(${q(t.to)});`);
+      });
+      L.push(`  });`);
+    });
+    L.push(`});`);
+    return L.join('\n');
+  }
+  function highlight(code) {
+    const esc = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return esc.split('\n').map((line) => {
+      const ci = line.indexOf('//');
+      let body = ci >= 0 ? line.slice(0, ci) : line; const com = ci >= 0 ? line.slice(ci) : '';
+      body = body.replace(/('(?:[^'\\]|\\.)*')/g, '<span class="s">$1</span>')
+        .replace(/\b(import|from|async|await|const|function|type)\b/g, '<span class="k">$1</span>');
+      return body + (com ? `<span class="c">${com}</span>` : '');
+    }).join('\n');
+  }
+
+  // ---------- geometry ----------
+  const size = (s) => ({ w: Math.max(96, s.id.length * 8.6 + 30), h: 44 });
+  function boundary(s, dx, dy) {
+    const { w, h } = size(s); const hw = w / 2 + 3, hh = h / 2 + 3;
+    const sx = Math.abs(dx) < 1e-6 ? Infinity : hw / Math.abs(dx), sy = Math.abs(dy) < 1e-6 ? Infinity : hh / Math.abs(dy);
+    const k = Math.min(sx, sy);
+    return [s.x + dx * k, s.y + dy * k];
+  }
+  function edgeGeom(a, b, bend, reverse) {
+    if (a === b) {
+      const { h } = size(a); const top = a.y - h / 2;
+      return { d: `M ${a.x - 16} ${top} C ${a.x - 46} ${top - 62}, ${a.x + 46} ${top - 62}, ${a.x + 16} ${top - 2}`, lx: a.x, ly: top - 48 };
+    }
+    const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len, ny = dx / len;
+    const off = bend || (reverse ? 34 : 0);
+    const cx = (a.x + b.x) / 2 + nx * off, cy = (a.y + b.y) / 2 + ny * off;
+    const [sx, sy] = boundary(a, cx - a.x, cy - a.y);
+    const [ex, ey] = boundary(b, cx - b.x, cy - b.y);
+    const lx = 0.25 * sx + 0.5 * cx + 0.25 * ex, ly = 0.25 * sy + 0.5 * cy + 0.25 * ey;
+    return { d: `M ${sx.toFixed(1)} ${sy.toFixed(1)} Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${ex.toFixed(1)} ${ey.toFixed(1)}`, lx, ly };
+  }
+  const el = (tag, attrs = {}, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+
+  // ---------- render ----------
+  let A = null;
+  function renderEdges() {
+    const g = $('edges'); g.innerHTML = '';
+    const groups = new Map();
+    m.transitions.forEach((t) => { const k = t.from + '\u0000' + t.to; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(t); });
+    // initial arrow
+    const init = st(initial());
+    if (init) {
+      const { w } = size(init);
+      el('circle', { cx: init.x - w / 2 - 34, cy: init.y, r: 5, class: 'init-dot' }, g);
+      el('path', { d: `M ${init.x - w / 2 - 29} ${init.y} L ${init.x - w / 2 - 3} ${init.y}`, stroke: '#f2f7ff', 'stroke-width': 1.6, 'marker-end': 'url(#arrow)' }, g);
+    }
+    for (const [k, ts] of groups) {
+      const a = st(ts[0].from), b = st(ts[0].to);
+      if (!a || !b) continue;
+      const rev = groups.has(ts[0].to + '\u0000' + ts[0].from) && a !== b;
+      const bend = ts.reduce((s, t) => s || t.bend || 0, 0);
+      const geo = edgeGeom(a, b, bend, rev);
+      const hot = lastEdge && lastEdge.from === a.id && lastEdge.to === b.id;
+      const unreachable = A && !A.prev.has(a.id);
+      const grp = el('g', { class: 'edge' + (hot ? ' hot' : '') + (unreachable ? ' dim' : ''), 'data-testid': `edge-${a.id}-${b.id}`, 'data-events': ts.map((t) => t.event).join(' ') }, g);
+      el('path', { d: geo.d, 'marker-end': hot ? 'url(#arrow-hot)' : 'url(#arrow)', id: `p-${a.id}-${b.id}` }, grp);
+      const label = ts.map((t) => t.event).join(', ');
+      const lw = label.length * 7.1 + 12;
+      const lg = el('g', { class: 'lbl' }, grp);
+      el('rect', { x: geo.lx - lw / 2, y: geo.ly - 10, width: lw, height: 20, rx: 2 }, lg);
+      const tx = el('text', { x: geo.lx, y: geo.ly }, lg); tx.textContent = label;
+    }
+  }
+  function renderNodes() {
+    const g = $('nodes'); g.innerHTML = '';
+    m.states.forEach((s) => {
+      const { w, h } = size(s);
+      const unreach = A.unreach.includes(s.id), dead = A.dead.includes(s.id);
+      const n = el('g', { class: 'node' + (s.id === cur ? ' cur' : '') + (s.id === selected ? ' sel' : '') + (unreach ? ' unreach' : '') + (dead ? ' dead' : ''),
+        transform: `translate(${s.x} ${s.y})`, tabindex: 0, role: 'button', 'data-testid': `node-${s.id}`, 'data-id': s.id,
+        'aria-label': `${s.id}${s.initial ? ', initial' : ''}${s.final ? ', final' : ''}${s.id === cur ? ', current' : ''}${unreach ? ', unreachable' : ''}${dead ? ', dead end' : ''}` }, g);
+      el('rect', { class: 'box', x: -w / 2, y: -h / 2, width: w, height: h, rx: 6 }, n);
+      if (s.final) el('rect', { class: 'inner', x: -w / 2 + 4, y: -h / 2 + 4, width: w - 8, height: h - 8, rx: 4 }, n);
+      const t = el('text', { x: 0, y: 1 }, n); t.textContent = s.id;
+      if (unreach || dead) { const tg = el('text', { x: 0, y: h / 2 + 12, class: 'tag ' + (unreach ? 'w' : 'b') }, n); tg.textContent = unreach ? 'UNREACHABLE' : 'DEAD END'; }
+      attachDrag(n, s);
+    });
+  }
+  function toSvg(evt) {
+    const svg = $('canvas'); const pt = svg.createSVGPoint(); pt.x = evt.clientX; pt.y = evt.clientY;
+    return pt.matrixTransform(svg.getScreenCTM().inverse());
+  }
+  function attachDrag(n, s) {
+    let start = null;
+    n.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      const p = toSvg(e); start = { px: p.x, py: p.y, x: s.x, y: s.y, moved: false };
+      n.setPointerCapture(e.pointerId);
+    });
+    n.addEventListener('pointermove', (e) => {
+      if (!start) return;
+      const p = toSvg(e); const dx = p.x - start.px, dy = p.y - start.py;
+      if (!start.moved && Math.hypot(dx, dy) < 4) return;
+      start.moved = true;
+      const { w, h } = size(s);
+      s.x = Math.round(Math.min(VB.w - w / 2 - 4, Math.max(w / 2 + 4, start.x + dx)));
+      s.y = Math.round(Math.min(VB.h - h / 2 - 16, Math.max(h / 2 + 50, start.y + dy)));
+      n.setAttribute('transform', `translate(${s.x} ${s.y})`);
+      renderEdges();
+    });
+    const end = () => {
+      if (!start) return;
+      const moved = start.moved; start = null;
+      if (moved) save(); else select(s.id);
+    };
+    n.addEventListener('pointerup', end);
+    n.addEventListener('pointercancel', () => { start = null; });
+    n.addEventListener('keydown', (e) => {
+      const d = { ArrowLeft: [-10, 0], ArrowRight: [10, 0], ArrowUp: [0, -10], ArrowDown: [0, 10] }[e.key];
+      if (d) { e.preventDefault(); const { w, h } = size(s); s.x = Math.min(VB.w - w / 2, Math.max(w / 2, s.x + d[0])); s.y = Math.min(VB.h - h / 2, Math.max(h / 2, s.y + d[1])); n.setAttribute('transform', `translate(${s.x} ${s.y})`); renderEdges(); save(); }
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(s.id); }
+    });
+  }
+  function select(id) {
+    selected = id; renderAll();
+    const n = document.querySelector(`[data-testid="node-${CSS.escape(id)}"]`); if (n) n.focus();
+  }
+
+  function renderSim() {
+    $('cur').textContent = cur || '—';
+    const evs = [...new Set(m.transitions.map((t) => t.event))];
+    const box = $('events'); box.innerHTML = '';
+    evs.forEach((e) => {
+      const b = document.createElement('button');
+      const enabled = out(cur).some((t) => t.event === e);
+      b.type = 'button'; b.className = 'btn' + (enabled ? ' on' : ''); b.textContent = e; b.dataset.testid = 'fire-' + e;
+      b.setAttribute('aria-disabled', !enabled);
+      b.title = enabled ? `Fire ${e}` : `${e} is not handled in ${cur}`;
+      b.addEventListener('click', () => fire(e));
+      box.appendChild(b);
+    });
+    $('log').innerHTML = log.map((l) => `<li class="${l.rej ? 'rej' : ''}">${l.text}</li>`).join('');
+    $('log').scrollTop = 1e6;
+  }
+  function fire(e) {
+    const ts = out(cur).filter((t) => t.event === e);
+    if (!ts.length) { log.push({ rej: true, text: `${e} ignored in ${cur}` }); renderSim(); return; }
+    const t = ts[0];
+    log.push({ text: `${t.from} --${e}--> ${t.to}` });
+    lastEdge = t; cur = t.to;
+    renderAll();
+    animateToken(t);
+  }
+  function animateToken(t) {
+    const tok = $('token');
+    const p = document.getElementById(`p-${t.from}-${t.to}`);
+    if (!p || reduce.matches) { tok.setAttribute('cx', -20); return; }
+    const L = p.getTotalLength(); const t0 = performance.now();
+    const step = (now) => {
+      const k = Math.min(1, (now - t0) / 450);
+      const pt = p.getPointAtLength(L * k);
+      tok.setAttribute('cx', pt.x); tok.setAttribute('cy', pt.y);
+      if (k < 1) requestAnimationFrame(step); else tok.setAttribute('cx', -20);
+    };
+    requestAnimationFrame(step);
+  }
+
+  function renderAnalysis() {
+    const pills = (arr, cls) => arr.length ? arr.map((x) => `<span class="pill ${cls}">${x}</span>`).join('') : '<span class="none">none ✓</span>';
+    $('an-reach').innerHTML = `<span class="pill g">${A.reach.length}/${m.states.length} states</span>`;
+    $('an-unreach').innerHTML = pills(A.unreach, 'w');
+    $('an-dead').innerHTML = pills(A.dead, 'b');
+    $('an-nd').innerHTML = pills(A.nd, 'w');
+    $('an-unreach').dataset.ids = A.unreach.join(' ');
+    $('an-dead').dataset.ids = A.dead.join(' ');
+    $('tb-name').textContent = m.name;
+    $('tb-states').textContent = m.states.length;
+    $('tb-trans').textContent = m.transitions.length;
+  }
+
+  function renderEditor() {
+    const s = selected && st(selected);
+    $('inspector').hidden = !s; $('noselect').hidden = !!s;
+    $('sel-lbl').textContent = s ? s.id : '';
+    if (s) {
+      if (document.activeElement !== $('st-name')) $('st-name').value = s.id;
+      $('st-init').checked = !!s.initial; $('st-final').checked = !!s.final;
+      $('st-del').disabled = m.states.length <= 1;
+    }
+    const opts = m.states.map((x) => `<option value="${x.id}">${x.id}</option>`).join('');
+    const fv = $('t-from').value, tv = $('t-to').value;
+    $('t-from').innerHTML = opts; $('t-to').innerHTML = opts;
+    if (st(fv)) $('t-from').value = fv; else if (s) $('t-from').value = s.id;
+    if (st(tv)) $('t-to').value = tv;
+    $('tlist').innerHTML = '';
+    m.transitions.forEach((t, i) => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span>${t.from} <b>--${t.event}--></b> ${t.to}</span>`;
+      const x = document.createElement('button'); x.className = 'x'; x.type = 'button'; x.textContent = '✕';
+      x.setAttribute('aria-label', `Delete transition ${t.from} ${t.event} ${t.to}`);
+      x.dataset.testid = `t-del-${i}`;
+      x.addEventListener('click', () => { m.transitions.splice(i, 1); save(); lastEdge = null; renderAll(); $('t-msg').textContent = 'Transition removed'; });
+      li.appendChild(x); $('tlist').appendChild(li);
+    });
+  }
+
+  function renderGen() {
+    const g = cov === 'transitions' ? genTransitions(A) : genStates(A);
+    const steps = g.cases.reduce((s, c) => s + c.length, 0);
+    $('gen-stat').innerHTML = `<b>${g.cases.length}</b> tests · <b>${steps}</b> steps · covers <b>${g.covered}/${g.total}</b> ${cov}` + (g.uncoverable.length ? ` · ${g.uncoverable.length} unreachable` : '');
+    $('gen-stat').dataset.tests = g.cases.length; $('gen-stat').dataset.covered = g.covered; $('gen-stat').dataset.total = g.total;
+    $('cases').innerHTML = g.cases.map((c, i) => `<li data-testid="case" data-events="${c.map((t) => t.event).join(' ')}">${[A.init, ...c.map((t) => t.to)].join(' → ')}<br><span>${c.map((t) => t.event).join(', ') || '(no events)'}</span></li>`).join('');
+    const code = outline(g, A);
+    $('outline').innerHTML = highlight(code);
+    $('outline').dataset.raw = code.length;
+    document.querySelectorAll('.seg button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.cov === cov));
+    window.__fsm.lastOutline = code;
+  }
+
+  function renderAll() {
+    if (!st(cur)) cur = initial();
+    A = analyse();
+    renderEdges(); renderNodes(); renderSim(); renderAnalysis(); renderEditor(); renderGen();
+  }
+
+  // ---------- editing events ----------
+  $('add-state').addEventListener('click', () => {
+    let n = m.states.length + 1, id = `State${n}`;
+    while (st(id)) id = `State${++n}`;
+    const spot = [[450, 300], [300, 200], [600, 420], [150, 420], [750, 200]].find(([x, y]) => !m.states.some((s) => Math.hypot(s.x - x, s.y - y) < 90)) || [450, 300];
+    m.states.push({ id, x: spot[0], y: spot[1] });
+    save(); select(id);
+    $('st-name').focus(); $('st-name').select();
+  });
+  $('st-name').addEventListener('change', () => {
+    const s = st(selected); if (!s) return;
+    const v = $('st-name').value.trim().replace(/[^\w-]/g, '');
+    if (!v || (v !== s.id && st(v))) { $('st-name').value = s.id; $('t-msg').textContent = v ? `A state called ${v} already exists` : 'Name cannot be empty'; return; }
+    m.transitions.forEach((t) => { if (t.from === s.id) t.from = v; if (t.to === s.id) t.to = v; });
+    if (cur === s.id) cur = v;
+    s.id = v; selected = v; save(); renderAll();
+  });
+  $('st-init').addEventListener('change', () => {
+    const s = st(selected); if (!s) return;
+    m.states.forEach((x) => { x.initial = false; }); s.initial = $('st-init').checked;
+    if (s.initial) { cur = s.id; log = []; lastEdge = null; }
+    save(); renderAll();
+  });
+  $('st-final').addEventListener('change', () => { const s = st(selected); if (!s) return; s.final = $('st-final').checked; save(); renderAll(); });
+  $('st-del').addEventListener('click', () => {
+    const s = st(selected); if (!s || m.states.length <= 1) return;
+    m.states = m.states.filter((x) => x !== s);
+    m.transitions = m.transitions.filter((t) => t.from !== s.id && t.to !== s.id);
+    if (s.initial && m.states[0]) m.states[0].initial = true;
+    selected = null; lastEdge = null; save(); renderAll();
+  });
+  $('t-add').addEventListener('click', () => {
+    const from = $('t-from').value, to = $('t-to').value, ev = $('t-event').value.trim().replace(/[^\w-]/g, '');
+    if (!ev) { $('t-msg').textContent = 'Give the transition an event name'; $('t-event').focus(); return; }
+    if (m.transitions.some((t) => t.from === from && t.event === ev && t.to === to)) { $('t-msg').textContent = 'That transition already exists'; return; }
+    m.transitions.push({ from, event: ev, to, bend: 0 });
+    $('t-event').value = ''; save(); renderAll();
+    $('t-msg').textContent = `Added ${from} --${ev}--> ${to}`;
+  });
+  $('t-event').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('t-add').click(); });
+  $('reset').addEventListener('click', () => { cur = initial(); log = []; lastEdge = null; renderAll(); });
+  document.querySelectorAll('[data-preset]').forEach((b) => b.addEventListener('click', () => {
+    m = load(b.dataset.preset); cur = initial(); log = []; selected = null; lastEdge = null; save(); renderAll();
+  }));
+  document.querySelectorAll('.seg button').forEach((b) => b.addEventListener('click', () => { cov = b.dataset.cov; renderGen(); }));
+  $('copy').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(window.__fsm.lastOutline); $('gen-stat').insertAdjacentText('beforeend', ' · copied'); }
+    catch (e) { $('gen-stat').insertAdjacentText('beforeend', ' · clipboard blocked'); }
+  });
+
+  window.__fsm = { get machine() { return m; }, get current() { return cur; }, lastOutline: '' };
+  cur = initial();
+  renderAll();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapel Candles — a quiet votive stand</title>
+<meta name="description" content="A quiet virtual votive stand. Light a candle, with a private intention if you like, and it burns down in real time over the hours you choose. Intentions are kept only in this browser's local storage and are never sent anywhere.">
+<style>
+  :root {
+    --stone: #140e0c;
+    --stone-2: #1f1613;
+    --wood: #3a2219;
+    --iron: #2a2522;
+    --wax: #f1e6cf;
+    --flame: #ffcf7d;
+    --ember: #e8903a;
+    --parch: #efe2c8;
+    --muted: #a8968a;
+    --line: rgba(239, 226, 200, .16);
+    --serif: Baskerville, "Baskerville Old Face", "Libre Baskerville", "Hoefler Text", Garamond, "Times New Roman", serif;
+    --sans: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--stone); color: var(--parch); font: 16px/1.6 var(--serif); overflow-x: hidden;
+    background-image: radial-gradient(ellipse at 50% 30%, rgba(232, 144, 58, var(--warm, .08)), transparent 60%), linear-gradient(180deg, #0d0908, var(--stone) 40%, #0b0807); min-height: 100vh; }
+  :focus-visible { outline: 2px solid var(--flame); outline-offset: 3px; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  a.back { position: fixed; top: 12px; left: 12px; z-index: 40; font: 400 13px/1 var(--serif); font-style: italic; color: var(--parch); text-decoration: none; padding: 8px 12px;
+    background: rgba(20, 14, 12, .8); border: 1px solid var(--line); border-radius: 3px; }
+  a.back:hover { border-color: var(--flame); color: var(--flame); }
+
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 64px 18px 40px; }
+  header { text-align: center; margin-bottom: 18px; }
+  header .cross { display: block; width: 22px; height: 30px; margin: 0 auto 10px; opacity: .8; }
+  h1 { margin: 0; font: 400 clamp(34px, 6vw, 56px)/1.1 var(--serif); letter-spacing: .04em; }
+  header p { margin: 10px auto 0; max-width: 54ch; color: var(--muted); font-style: italic; }
+
+  .chapel { position: relative; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); background: #0e0a09; box-shadow: 0 30px 80px -40px rgba(232, 144, 58, .35); }
+  #rack { display: block; width: 100%; height: auto; aspect-ratio: 960 / 600; }
+  .slots { position: absolute; inset: 0; }
+  .slot { position: absolute; background: transparent; border: 0; padding: 0; cursor: pointer; border-radius: 6px; }
+  .slot:hover { background: rgba(255, 207, 125, .06); }
+  .slot[aria-pressed="true"] { box-shadow: inset 0 0 0 1px rgba(255, 207, 125, .55); }
+
+  .row { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; margin-top: 18px; align-items: start; }
+  .panel { border: 1px solid var(--line); border-radius: 6px; padding: 18px 20px; background: rgba(31, 22, 19, .7); min-width: 0; }
+  .panel h2 { margin: 0 0 10px; font: 400 22px/1.2 var(--serif); }
+  .panel p { margin: 0 0 10px; color: #d9cab0; }
+  .meta { font: 13px/1.5 var(--sans); color: var(--muted); }
+  .intention { font-style: italic; color: var(--parch); border-left: 2px solid var(--ember); padding: 4px 0 4px 12px; margin: 10px 0 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn { min-height: 42px; padding: 0 16px; border-radius: 3px; border: 1px solid rgba(255, 207, 125, .5); background: transparent; color: var(--flame); cursor: pointer; font: 400 15px/1 var(--serif); max-width: 100%; }
+  .btn:hover { background: rgba(255, 207, 125, .1); }
+  .btn.solid { background: var(--flame); color: #2a1a10; border-color: var(--flame); }
+  .btn.solid:hover { background: #ffe0a6; }
+  .btn.quiet { border-color: var(--line); color: var(--muted); }
+  label.f { display: grid; gap: 6px; font: 13px/1.3 var(--sans); color: var(--muted); margin-bottom: 12px; min-width: 0; }
+  select, textarea { max-width: 100%; width: 100%; background: #120d0b; border: 1px solid var(--line); border-radius: 3px; padding: 8px 10px; color: var(--parch); }
+  textarea { min-height: 96px; resize: vertical; font-family: var(--serif); font-size: 16px; }
+  .privacy { display: flex; gap: 10px; align-items: flex-start; font: 13px/1.5 var(--sans); color: #cdbfa7; background: rgba(255, 207, 125, .06); border: 1px solid rgba(255, 207, 125, .2); padding: 10px 12px; border-radius: 4px; margin: 0 0 14px; }
+  .privacy svg { flex: none; margin-top: 2px; }
+  .count { font: 13px/1.4 var(--sans); color: var(--muted); }
+
+  dialog { border: 1px solid rgba(255, 207, 125, .35); border-radius: 8px; background: #1a120f; color: var(--parch); padding: 22px; width: min(460px, calc(100% - 28px)); box-shadow: 0 30px 80px rgba(0,0,0,.6); }
+  dialog::backdrop { background: rgba(5, 3, 2, .7); }
+  dialog h2 { margin: 0 0 6px; font: 400 24px/1.2 var(--serif); }
+  dialog .small { font: 12px/1.4 var(--sans); color: var(--muted); text-align: right; margin-top: -8px; margin-bottom: 10px; }
+
+  .prayer { text-align: center; margin: 40px auto 0; max-width: 60ch; color: var(--muted); font-style: italic; }
+  .prayer b { display: block; font-style: normal; font-weight: 400; color: var(--parch); font-size: 18px; margin-bottom: 6px; }
+  footer { text-align: center; padding: 26px 18px 40px; font: 12.5px/1.5 var(--sans); color: #7a6a60; }
+
+  @media (max-width: 860px) { .row { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 480px) { .wrap { padding: 58px 10px 30px; } .panel { padding: 14px; } }
+</style>
+</head>
+<body>
+<a href="../index.html#lab" class="back" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <svg class="cross" viewBox="0 0 22 30" aria-hidden="true"><path d="M9 0h4v8h9v4h-9v18H9V12H0V8h9z" fill="#ffcf7d"/></svg>
+    <h1>Chapel Candles</h1>
+    <p>A quiet corner to light a candle and leave a prayer with it. It keeps burning after you close the page.</p>
+  </header>
+
+  <div class="chapel">
+    <canvas id="rack" width="960" height="600" role="img" aria-label="A votive stand" data-testid="rack"></canvas>
+    <div class="slots" id="slots" role="group" aria-label="Votive candles"></div>
+  </div>
+
+  <div class="row">
+    <section class="panel" id="detail" data-testid="detail" aria-live="polite">
+      <h2 id="d-title" data-testid="d-title">Choose a candle</h2>
+      <p id="d-body" data-testid="d-body">Select any candle on the stand. An unlit one can be lit with a prayer; a lit one shows how long it has left.</p>
+      <div class="intention" id="d-intent" data-testid="d-intent" hidden></div>
+      <div class="meta" id="d-meta" data-testid="d-meta"></div>
+      <div class="btns" style="margin-top:12px">
+        <button class="btn solid" id="b-light" data-testid="b-light" hidden>Light this candle</button>
+        <button class="btn" id="b-out" data-testid="b-out" hidden>Extinguish gently</button>
+        <button class="btn solid" id="b-relight" data-testid="b-relight" hidden>Relight</button>
+        <button class="btn" id="b-new" data-testid="b-new" hidden>Set a fresh candle</button>
+        <button class="btn quiet" id="b-forget" data-testid="b-forget" hidden>Forget the intention</button>
+      </div>
+    </section>
+    <aside class="panel">
+      <h2>At the stand</h2>
+      <label class="f">New candles burn for
+        <select id="hours" data-testid="hours">
+          <option value="1">1 hour</option><option value="4">4 hours</option><option value="8" selected>8 hours</option><option value="24">24 hours</option><option value="72">3 days</option>
+        </select>
+      </label>
+      <p class="count" id="count" data-testid="count" aria-live="polite">No candles lit.</p>
+      <div class="privacy"><svg width="14" height="16" viewBox="0 0 14 16" aria-hidden="true"><rect x="1" y="7" width="12" height="8" rx="1.5" fill="#ffcf7d"/><path d="M4 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="#ffcf7d" stroke-width="2"/></svg>
+        <span data-testid="privacy">Intentions stay on this device. They are saved only in this browser's local storage, never sent anywhere, and nobody else can see them.</span></div>
+      <button class="btn quiet" id="b-clear" data-testid="b-clear">Clear everything from this device</button>
+    </aside>
+  </div>
+
+  <div class="prayer"><b>Lord, hear our prayer.</b>Lighting a votive candle is a long-standing Catholic custom: the small flame stands for a prayer that keeps going after you have left the church.</div>
+</div>
+<footer>Nothing here leaves your browser. The flames are drawn on a canvas; the wax burns by the clock.</footer>
+
+<dialog id="dlg" data-testid="dialog" aria-labelledby="dlg-h">
+  <form method="dialog" id="dlg-form">
+    <h2 id="dlg-h">Light a candle</h2>
+    <p class="meta" style="margin:0 0 12px" id="dlg-sub">It will burn for 8 hours.</p>
+    <label class="f">Your intention (optional)
+      <textarea id="intent" data-testid="intent" maxlength="280" placeholder="For my mother's health…"></textarea>
+    </label>
+    <div class="small"><span id="intent-n">0</span>/280</div>
+    <div class="privacy"><svg width="14" height="16" viewBox="0 0 14 16" aria-hidden="true"><rect x="1" y="7" width="12" height="8" rx="1.5" fill="#ffcf7d"/><path d="M4 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="#ffcf7d" stroke-width="2"/></svg>
+      <span>This stays on this device only. It is never uploaded.</span></div>
+    <div class="btns">
+      <button class="btn solid" value="light" id="dlg-ok" data-testid="dlg-ok">Light the candle</button>
+      <button class="btn quiet" value="cancel" id="dlg-cancel" data-testid="dlg-cancel" formnovalidate>Not now</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(() => {
+  'use strict';
+  const KEY = 'chapel-candles-v1';
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+  const $ = (id) => document.getElementById(id);
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function makeNoise(seed) { const r = mulberry32(seed), T = new Float32Array(256); for (let i = 0; i < 256; i++) T[i] = r() * 2 - 1; return (x) => { const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f); return T[i & 255] + (T[(i + 1) & 255] - T[i & 255]) * u; }; }
+
+  // ---------- layout: three tiers on a stepped iron stand ----------
+  const TIERS = [{ n: 6, y: 262, x0: 205, dx: 110 }, { n: 7, y: 372, x0: 150, dx: 110 }, { n: 8, y: 482, x0: 95, dx: 110 }];
+  const CW = 26, CH = 92; // candle size in canvas units
+  const slots = [];
+  TIERS.forEach((t, ti) => { for (let i = 0; i < t.n; i++) slots.push({ x: t.x0 + i * t.dx, y: t.y, tier: ti }); });
+
+  // ---------- storage (guarded) ----------
+  let data = { burnHours: 8, candles: {} };
+  function load() { try { const raw = localStorage.getItem(KEY); if (raw) { const d = JSON.parse(raw); if (d && typeof d === 'object' && d.candles) data = { burnHours: d.burnHours || 8, candles: d.candles }; } } catch (e) { /* storage unavailable: candles live for this visit only */ } }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { /* ignore */ } }
+
+  // candle: { lit, litAt, rem (fraction left when last lit/extinguished), burnMs, intention, firstLit }
+  function remaining(c, now = Date.now()) { if (!c) return 1; if (!c.lit) return c.rem; return Math.max(0, c.rem - (now - c.litAt) / c.burnMs); }
+  function status(c, now = Date.now()) { if (!c) return 'unlit'; const r = remaining(c, now); if (r <= 0) return 'spent'; return c.lit ? 'lit' : 'out'; }
+  function settle(now = Date.now()) {
+    // a candle that has burned down goes out by itself
+    let changed = false;
+    for (const [k, c] of Object.entries(data.candles)) if (c.lit && remaining(c, now) <= 0) { c.spentAt = c.litAt + c.rem * c.burnMs; c.lit = false; c.rem = 0; changed = true; }
+    if (changed) save();
+  }
+  function fmtLeft(ms) { const m = Math.max(0, Math.round(ms / 60000)); if (m < 1) return 'less than a minute'; if (m < 60) return `${m} min`; const h = Math.floor(m / 60), mm = m % 60; if (h < 48) return `${h} h ${String(mm).padStart(2, '0')} min`; return `${Math.floor(h / 24)} days ${h % 24} h`; }
+  function fmtAgo(ms) { const m = Math.round(ms / 60000); if (m < 1) return 'just now'; if (m < 60) return `${m} min ago`; const h = Math.floor(m / 60); if (h < 48) return `${h} h ago`; return `${Math.floor(h / 24)} days ago`; }
+
+  // ---------- slots (accessible buttons over the canvas) ----------
+  const slotBox = $('slots');
+  slotBox.innerHTML = slots.map((s, i) => `<button class="slot" type="button" data-i="${i}" data-testid="slot-${i}" aria-pressed="false" style="left:${(s.x - 44) / 9.6}%;top:${(s.y - CH - 52) / 6}%;width:${88 / 9.6}%;height:${(CH + 58) / 6}%"></button>`).join('');
+  let selected = null;
+  function label(i, now) {
+    const c = data.candles[i], st = status(c, now), tierName = ['back', 'middle', 'front'][slots[i].tier];
+    const pos = `Candle ${i + 1}, ${tierName} row`;
+    if (st === 'unlit') return `${pos}: unlit. Select to light it.`;
+    if (st === 'lit') return `${pos}: lit, about ${fmtLeft(remaining(c, now) * c.burnMs)} left.`;
+    if (st === 'out') return `${pos}: extinguished, ${Math.round(remaining(c, now) * 100)}% left.`;
+    return `${pos}: burned down.`;
+  }
+  function refresh() {
+    const now = Date.now(); settle(now);
+    document.querySelectorAll('.slot').forEach((b) => { const i = +b.dataset.i; b.setAttribute('aria-label', label(i, now)); b.dataset.state = status(data.candles[i], now); b.setAttribute('aria-pressed', String(selected === i)); });
+    const lit = Object.values(data.candles).filter((c) => status(c, now) === 'lit').length;
+    setText('count', lit ? `${lit} candle${lit > 1 ? 's' : ''} burning.` : 'No candles lit.');
+    document.body.style.setProperty('--warm', (0.06 + Math.min(1, lit / 12) * 0.16).toFixed(3));
+    renderDetail(now);
+  }
+  function renderDetail(now = Date.now()) {
+    const show = (id, on) => { $(id).hidden = !on; };
+    ['b-light', 'b-out', 'b-relight', 'b-new', 'b-forget'].forEach((id) => show(id, false));
+    $('d-intent').hidden = true;
+    if (selected == null) { setText('d-title', 'Choose a candle'); setText('d-meta', ''); return; }
+    const c = data.candles[selected], st = status(c, now);
+    setText('d-title', `Candle ${selected + 1}`);
+    if (c && c.intention && st !== 'unlit') { setText('d-intent', c.intention); $('d-intent').hidden = false; show('b-forget', true); }
+    if (st === 'unlit') { setText('d-body', 'A fresh candle, waiting.'); setText('d-meta', `It will burn for ${hoursLabel(data.burnHours)} once lit.`); show('b-light', true); }
+    else if (st === 'lit') { setText('d-body', 'Burning quietly.'); setText('d-meta', `Lit ${fmtAgo(now - c.litAt)} · about ${fmtLeft(remaining(c, now) * c.burnMs)} left · ${Math.round(remaining(c, now) * 100)}% of the wax remains`); show('b-out', true); }
+    else if (st === 'out') { setText('d-body', 'Extinguished. The wax is waiting.'); setText('d-meta', `${Math.round(remaining(c, now) * 100)}% left · about ${fmtLeft(remaining(c, now) * c.burnMs)} of burning`); show('b-relight', true); }
+    else { setText('d-body', 'This candle has burned all the way down.'); setText('d-meta', 'Its prayer has been offered.'); show('b-new', true); }
+  }
+  const setText = (id, s) => { const el = $(id); if (el.textContent !== s) el.textContent = s; };
+  const hoursLabel = (h) => h === 72 ? '3 days' : h === 1 ? '1 hour' : `${h} hours`;
+
+  function select(i) { selected = i; refresh(); }
+  slotBox.addEventListener('click', (e) => {
+    const b = e.target.closest('.slot'); if (!b) return;
+    const i = +b.dataset.i; select(i);
+    if (status(data.candles[i]) === 'unlit') openDialog(i);
+  });
+
+  // ---------- light dialog ----------
+  const dlg = $('dlg'); let pending = null;
+  function openDialog(i) {
+    pending = i; $('intent').value = ''; $('intent-n').textContent = '0';
+    $('dlg-sub').textContent = `Candle ${i + 1} will burn for ${hoursLabel(data.burnHours)}.`;
+    if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
+    $('intent').focus();
+  }
+  $('intent').addEventListener('input', () => { $('intent-n').textContent = String($('intent').value.length); });
+  dlg.addEventListener('close', () => {
+    if (dlg.returnValue === 'light' && pending != null) light(pending, $('intent').value.trim());
+    const back = document.querySelector(`.slot[data-i="${pending}"]`); pending = null; dlg.returnValue = '';
+    if (back) back.focus();
+  });
+  function light(i, intention) {
+    const now = Date.now();
+    data.candles[i] = { lit: true, litAt: now, rem: 1, burnMs: data.burnHours * 3600e3, intention: intention || '', firstLit: now };
+    save(); selected = i; refresh();
+  }
+  $('b-light').addEventListener('click', () => { if (selected != null) openDialog(selected); });
+  $('b-out').addEventListener('click', () => { const c = data.candles[selected]; if (!c || !c.lit) return; c.rem = remaining(c); c.lit = false; c.outAt = Date.now(); save(); smoke(selected); refresh(); });
+  $('b-relight').addEventListener('click', () => { const c = data.candles[selected]; if (!c || c.lit || c.rem <= 0) return; c.lit = true; c.litAt = Date.now(); save(); refresh(); });
+  $('b-new').addEventListener('click', () => { delete data.candles[selected]; save(); refresh(); openDialog(selected); });
+  $('b-forget').addEventListener('click', () => { const c = data.candles[selected]; if (c) { c.intention = ''; save(); refresh(); } });
+  $('b-clear').addEventListener('click', () => { data.candles = {}; selected = null; try { localStorage.removeItem(KEY); } catch (e) { /* ignore */ } save(); refresh(); });
+  $('hours').addEventListener('change', (e) => { data.burnHours = +e.target.value; save(); renderDetail(); });
+
+  // ---------- drawing ----------
+  const cv = $('rack'), ctx = cv.getContext('2d');
+  const noises = slots.map((_, i) => makeNoise(1000 + i * 17));
+  const drips = slots.map((_, i) => { const r = mulberry32(77 + i * 131); return Array.from({ length: 3 + Math.floor(r() * 3) }, () => ({ u: 0.1 + r() * 0.8, len: 0.25 + r() * 0.6, start: 0.05 + r() * 0.5, w: 2 + r() * 2.2 })); });
+  const smokes = [];
+  function smoke(i) { if (!reduced.matches) smokes.push({ i, t0: performance.now() }); }
+  function sizeCanvas() { const dpr = Math.min(2, devicePixelRatio || 1); cv.width = 960 * dpr; cv.height = 600 * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); }
+  function drawBackground(glow) {
+    const g = ctx.createLinearGradient(0, 0, 0, 600); g.addColorStop(0, '#120c0a'); g.addColorStop(1, '#070504'); ctx.fillStyle = g; ctx.fillRect(0, 0, 960, 600);
+    // stone courses
+    ctx.strokeStyle = 'rgba(239,226,200,.035)'; ctx.lineWidth = 1;
+    for (let y = 30; y < 600; y += 44) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(960, y); ctx.stroke(); for (let x = (y / 44 % 2) * 60; x < 960; x += 120) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 44); ctx.stroke(); } }
+    // warm wash from the lit candles
+    const w = ctx.createRadialGradient(480, 380, 40, 480, 380, 520); w.addColorStop(0, `rgba(232,144,58,${0.05 + glow * 0.22})`); w.addColorStop(1, 'rgba(232,144,58,0)');
+    ctx.fillStyle = w; ctx.fillRect(0, 0, 960, 600);
+    // a hanging red sanctuary lamp, always burning
+    ctx.strokeStyle = '#3a302a'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(860, 0); ctx.lineTo(860, 70); ctx.stroke();
+    const sl = ctx.createRadialGradient(860, 92, 2, 860, 92, 60); sl.addColorStop(0, 'rgba(255,90,60,.5)'); sl.addColorStop(1, 'rgba(255,90,60,0)'); ctx.fillStyle = sl; ctx.fillRect(800, 30, 120, 120);
+    ctx.fillStyle = '#7a1a14'; ctx.beginPath(); ctx.moveTo(846, 76); ctx.lineTo(874, 76); ctx.quadraticCurveTo(876, 106, 860, 110); ctx.quadraticCurveTo(844, 106, 846, 76); ctx.fill();
+    ctx.fillStyle = 'rgba(255,170,120,.9)'; ctx.beginPath(); ctx.arc(860, 90, 3, 0, 7); ctx.fill();
+    // the stepped stand
+    TIERS.forEach((t, ti) => {
+      const x0 = t.x0 - 50, x1 = t.x0 + (t.n - 1) * t.dx + 50;
+      ctx.fillStyle = ['#2a201b', '#30241e', '#382a22'][ti]; ctx.fillRect(x0, t.y, x1 - x0, 16);
+      ctx.fillStyle = 'rgba(255,207,125,.10)'; ctx.fillRect(x0, t.y, x1 - x0, 2);
+      ctx.fillStyle = '#16100d'; ctx.fillRect(x0, t.y + 16, x1 - x0, 6);
+      // iron cups
+      for (let i = 0; i < t.n; i++) { const x = t.x0 + i * t.dx; ctx.fillStyle = '#211b18'; ctx.beginPath(); ctx.ellipse(x, t.y + 1, 22, 6, 0, 0, 7); ctx.fill(); }
+    });
+    ctx.fillStyle = '#1b1411'; ctx.fillRect(60, 504, 840, 90);
+    ctx.fillStyle = 'rgba(239,226,200,.16)'; ctx.font = 'italic 17px Baskerville, Georgia, serif'; ctx.textAlign = 'center'; ctx.fillText('Pray for us', 480, 556);
+  }
+  function drawCandle(i, now, t) {
+    const s = slots[i], c = data.candles[i], st = status(c, now), rem = st === 'unlit' ? 1 : remaining(c, now);
+    const h = CH * (0.1 + 0.9 * rem), top = s.y - h, x = s.x;
+    // puddle at the base grows as it burns
+    const burned = 1 - rem;
+    if (burned > 0.02) { ctx.fillStyle = 'rgba(236,224,200,.55)'; ctx.beginPath(); ctx.ellipse(x + 3, s.y + 1, 16 + burned * 10, 4 + burned * 1.5, 0, 0, 7); ctx.fill(); }
+    // body
+    const g = ctx.createLinearGradient(x - CW / 2, 0, x + CW / 2, 0);
+    const lit = st === 'lit';
+    g.addColorStop(0, lit ? '#e8d6b3' : '#b9ab93'); g.addColorStop(0.45, lit ? '#fff4dd' : '#d9ccb2'); g.addColorStop(1, lit ? '#d4bd94' : '#9d9079');
+    ctx.fillStyle = g; ctx.fillRect(x - CW / 2, top, CW, h);
+    // warm translucency near the flame
+    if (lit) { const tg = ctx.createLinearGradient(0, top, 0, top + 30); tg.addColorStop(0, 'rgba(255,190,110,.55)'); tg.addColorStop(1, 'rgba(255,190,110,0)'); ctx.fillStyle = tg; ctx.fillRect(x - CW / 2, top, CW, 30); }
+    // melt pool / rim
+    ctx.fillStyle = lit ? '#fff0c8' : '#cfc2a8'; ctx.beginPath(); ctx.ellipse(x, top, CW / 2, 4, 0, 0, 7); ctx.fill();
+    if (lit) { ctx.fillStyle = 'rgba(255,214,140,.7)'; ctx.beginPath(); ctx.ellipse(x, top + 0.5, CW / 2 - 4, 2.4, 0, 0, 7); ctx.fill(); }
+    // drips: each appears after some burning and runs further as the candle burns
+    for (const d of drips[i]) {
+      if (burned < d.start * 0.4 || st === 'unlit') continue;
+      const grow = Math.min(1, (burned - d.start * 0.4) / 0.35);
+      const dx = x - CW / 2 + d.u * CW, dl = Math.min(h - 4, 6 + d.len * 40 * grow);
+      ctx.fillStyle = lit ? '#fbf0d6' : '#d8cbb0';
+      ctx.beginPath(); ctx.moveTo(dx - d.w, top - 1); ctx.lineTo(dx + d.w, top - 1); ctx.lineTo(dx + d.w * 0.55, top + dl); ctx.arc(dx, top + dl, d.w * 0.7, 0, Math.PI); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.fillRect(dx - d.w * 0.4, top, 1, dl * 0.8);
+    }
+    // wick
+    ctx.strokeStyle = st === 'spent' || st === 'out' ? '#1a1210' : '#2a1d15'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(x, top); ctx.quadraticCurveTo(x + 1, top - 5, x + (lit ? 0.5 : 2), top - 9); ctx.stroke();
+    if (st === 'out' || st === 'spent') { ctx.fillStyle = 'rgba(255,90,40,.5)'; ctx.beginPath(); ctx.arc(x + 2, top - 9, 1, 0, 7); ctx.fill(); }
+    if (lit) drawFlame(i, x, top - 7, t);
+  }
+  function drawFlame(i, x, base, t) {
+    const n = noises[i], still = reduced.matches;
+    const sway = still ? 0 : n(t * 1.7) * 2.2 + n(t * 7.3 + 40) * 0.8;
+    const hgt = 30 + (still ? 0 : n(t * 2.3 + 90) * 5 + n(t * 11 + 7) * 1.5);
+    const wdt = 7.5 + (still ? 0 : n(t * 3.1 + 20) * 0.8);
+    // bloom
+    const bloom = ctx.createRadialGradient(x, base - hgt * 0.45, 2, x, base - hgt * 0.45, 70);
+    bloom.addColorStop(0, `rgba(255,190,100,${0.28 + (still ? 0 : n(t * 5) * 0.04)})`); bloom.addColorStop(1, 'rgba(255,190,100,0)');
+    ctx.fillStyle = bloom; ctx.fillRect(x - 70, base - hgt * 0.45 - 70, 140, 140);
+    const tipX = x + sway, tipY = base - hgt;
+    const path = () => { ctx.beginPath(); ctx.moveTo(x, base + 2); ctx.bezierCurveTo(x - wdt * 1.1, base - 2, x - wdt * 0.9, base - hgt * 0.55, tipX, tipY); ctx.bezierCurveTo(x + wdt * 0.9, base - hgt * 0.55, x + wdt * 1.1, base - 2, x, base + 2); ctx.closePath(); };
+    const fg = ctx.createLinearGradient(0, tipY, 0, base + 2);
+    fg.addColorStop(0, 'rgba(255,140,40,0)'); fg.addColorStop(0.25, 'rgba(255,170,60,.85)'); fg.addColorStop(0.7, '#ffd98a'); fg.addColorStop(0.9, '#fff6de'); fg.addColorStop(1, 'rgba(90,120,255,.8)');
+    ctx.fillStyle = fg; path(); ctx.fill();
+    // bright inner core
+    ctx.fillStyle = 'rgba(255,252,236,.9)'; ctx.beginPath(); ctx.ellipse(x + sway * 0.3, base - hgt * 0.28, wdt * 0.38, hgt * 0.22, sway * 0.02, 0, 7); ctx.fill();
+    // blue root
+    ctx.fillStyle = 'rgba(80,110,255,.55)'; ctx.beginPath(); ctx.ellipse(x, base - 1, wdt * 0.55, 3, 0, 0, 7); ctx.fill();
+  }
+  function drawSmoke(now) {
+    for (let k = smokes.length - 1; k >= 0; k--) {
+      const sm = smokes[k], age = (now - sm.t0) / 1000; if (age > 3) { smokes.splice(k, 1); continue; }
+      const s = slots[sm.i], c = data.candles[sm.i]; if (!c) continue;
+      const top = s.y - CH * (0.1 + 0.9 * remaining(c)) - 10;
+      ctx.strokeStyle = `rgba(200,195,190,${0.35 * (1 - age / 3)})`; ctx.lineWidth = 2.5; ctx.beginPath();
+      for (let j = 0; j < 24; j++) { const yy = top - j * 3 - age * 14, xx = s.x + Math.sin(j * 0.35 + age * 3) * (j * 0.25 + age * 2); j ? ctx.lineTo(xx, yy) : ctx.moveTo(xx, yy); }
+      ctx.stroke();
+    }
+  }
+  function frame() {
+    const now = Date.now(), t = performance.now() / 1000;
+    const litCount = Object.values(data.candles).filter((c) => status(c, now) === 'lit').length;
+    drawBackground(Math.min(1, litCount / 10));
+    for (let i = 0; i < slots.length; i++) drawCandle(i, now, t + i * 3.7);
+    drawSmoke(performance.now());
+    cv.setAttribute('aria-label', `A votive stand with ${slots.length} candles, ${litCount} lit`);
+  }
+  function loop() { if (!document.hidden) frame(); requestAnimationFrame(loop); }
+  // the wax burns by the wall clock; refresh the words once a second
+  setInterval(refresh, 1000);
+
+  // ---------- boot ----------
+  load(); $('hours').value = String(data.burnHours); sizeCanvas(); refresh(); frame();
+  requestAnimationFrame(loop);
+
+  window.__chapel = {
+    get data() { return JSON.parse(JSON.stringify(data)); },
+    remaining: (i) => remaining(data.candles[i]),
+    status: (i) => status(data.candles[i]),
+    flamePoint: (i) => { const s = slots[i]; const rem = remaining(data.candles[i]); return { x: s.x / 960, y: (s.y - CH * (0.1 + 0.9 * rem) - 18) / 600 }; },
+    pixel: (fx, fy) => { const d = ctx.getImageData(Math.round(fx * cv.width), Math.round(fy * cv.height), 1, 1).data; return [d[0], d[1], d[2]]; },
+    frame, refresh,
+  };
+})();
+</script>
+</body>
+</html>

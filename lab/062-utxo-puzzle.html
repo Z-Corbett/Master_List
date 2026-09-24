@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UTXO Puzzle — a Bitcoin coin-selection game</title>
+<meta name="description" content="A Bitcoin coin-selection puzzle: pick which UTXOs to spend so inputs minus payment minus change equals the fee, avoid dust change and keep waste low, then compare your choice with largest-first, branch-and-bound and the true optimum. Uses a clearly labelled approximate P2WPKH size model.">
+<style>
+  :root {
+    --paper: #f3efe6;
+    --card: #fbf9f4;
+    --ink: #151515;
+    --ink-2: #5c5850;
+    --ink-3: #9a958a;
+    --line: #d9d3c5;
+    --orange: #f7931a;
+    --orange-2: #c96f00;
+    --good: #1e6b52;
+    --bad: #b8322a;
+    --blue: #2f5d9e;
+    --mono: "Cascadia Code", "SF Mono", ui-monospace, Consolas, Menlo, monospace;
+    --sans: "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--paper); color: var(--ink); font: 15px/1.5 var(--sans); overflow-x: hidden;
+    background-image: linear-gradient(var(--line) 1px, transparent 1px); background-size: 100% 28px; background-position: 0 14px; }
+  :focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
+  button { font: inherit; color: inherit; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 30; font: 600 12px/1 var(--mono); color: var(--ink); background: var(--card); border: 1.5px solid var(--ink); padding: 7px 10px; text-decoration: none; }
+  a.back:hover { background: var(--orange); }
+
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 58px 18px 40px; }
+  header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 30px; align-items: end; border-bottom: 3px solid var(--ink); padding-bottom: 12px; margin-bottom: 18px; }
+  header > * { min-width: 0; }
+  .kick { margin: 0 0 6px; font: 600 12px/1.2 var(--mono); letter-spacing: .1em; color: var(--orange-2); }
+  h1 { margin: 0; font: 800 clamp(34px, 7vw, 72px)/.95 var(--sans); letter-spacing: -.035em; }
+  h1 span { color: var(--orange); }
+  header p { margin: 8px 0 0; max-width: 62ch; color: var(--ink-2); }
+  .levels { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .lv { width: 38px; height: 38px; border: 1.5px solid var(--ink); background: var(--card); font: 700 13px/1 var(--mono); cursor: pointer; }
+  .lv[aria-current="true"] { background: var(--ink); color: var(--paper); }
+  .lv.done::after { content: "✓"; font-size: 9px; vertical-align: super; color: var(--good); }
+  .lv[aria-current="true"].done::after { color: var(--orange); }
+
+  .brief { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border: 1.5px solid var(--ink); background: var(--card); margin-bottom: 18px; }
+  .brief div { padding: 10px 14px; border-right: 1px solid var(--line); min-width: 0; }
+  .brief div:last-child { border-right: 0; }
+  .brief span { display: block; font: 600 10.5px/1.2 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+  .brief b { display: block; font: 700 20px/1.3 var(--mono); overflow-wrap: anywhere; }
+  .brief small { color: var(--ink-2); font-size: 12.5px; }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 430px; gap: 18px; align-items: start; }
+  .card { background: var(--card); border: 1.5px solid var(--ink); padding: 14px 16px; min-width: 0; }
+  .card h2 { margin: 0 0 10px; font: 800 13px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .card h2 small { font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--ink-2); }
+  .tray { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: center; padding: 8px 0; }
+  .coin { --d: 80px; width: var(--d); height: var(--d); border-radius: 50%; border: 2px solid var(--ink); cursor: pointer; display: grid; place-items: center; text-align: center; padding: 4px;
+    background: radial-gradient(circle at 35% 30%, #fff6e6, #f6e3c2 55%, #e8c998); box-shadow: 0 3px 0 var(--ink); transition: transform .12s, box-shadow .12s; position: relative; }
+  .coin b { display: block; font: 700 12.5px/1.1 var(--mono); }
+  .coin small { display: block; font: 600 9.5px/1.1 var(--mono); color: var(--ink-2); }
+  .coin::before { content: ""; position: absolute; inset: 5px; border-radius: 50%; border: 1px dashed rgba(21,21,21,.25); }
+  .coin:hover { transform: translateY(-2px); }
+  .coin[aria-pressed="true"] { background: radial-gradient(circle at 35% 30%, #ffc56e, var(--orange) 60%, var(--orange-2)); transform: translateY(3px); box-shadow: 0 0 0 var(--ink); }
+  .coin[aria-pressed="true"] small { color: #3a2200; }
+  .tray-foot { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font: 13px/1.4 var(--mono); color: var(--ink-2); border-top: 1px dashed var(--line); padding-top: 10px; margin-top: 6px; }
+  .tray-foot button { border: 1.5px solid var(--ink); background: var(--card); padding: 6px 10px; cursor: pointer; font: 600 12px/1 var(--mono); min-height: 34px; }
+
+  .tx { font: 13.5px/1.5 var(--mono); }
+  .tx table { width: 100%; border-collapse: collapse; }
+  .tx td { padding: 3px 0; vertical-align: top; }
+  .tx td:last-child { text-align: right; white-space: nowrap; }
+  .tx .sec td { padding-top: 10px; font-weight: 700; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+  .tx .tot td { border-top: 1.5px solid var(--ink); font-weight: 700; }
+  .equation { margin: 12px 0; padding: 10px 12px; background: #fff; border: 1.5px dashed var(--ink); font: 700 13.5px/1.6 var(--mono); overflow-wrap: anywhere; }
+  .equation.ok { border-color: var(--good); }
+  .equation.bad { border-color: var(--bad); color: var(--bad); }
+  .vbar { display: flex; height: 22px; border: 1.5px solid var(--ink); margin: 6px 0 4px; }
+  .vbar i { display: block; height: 100%; min-width: 2px; }
+  .vlegend { display: flex; flex-wrap: wrap; gap: 4px 12px; font: 11.5px/1.3 var(--mono); color: var(--ink-2); }
+  .vlegend i { display: inline-block; width: 10px; height: 10px; margin-right: 4px; vertical-align: -1px; border: 1px solid var(--ink); }
+  .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
+  .stats div { border: 1px solid var(--line); padding: 6px 8px; min-width: 0; }
+  .stats span { display: block; font: 600 10px/1.2 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+  .stats b { font: 700 16px/1.3 var(--mono); overflow-wrap: anywhere; }
+  .warn { font: 12.5px/1.45 var(--mono); padding: 8px 10px; background: #fff3dd; border-left: 3px solid var(--orange); margin: 8px 0; }
+  .warn.bad { background: #fbe6e3; border-color: var(--bad); }
+  .go { width: 100%; min-height: 50px; border: 1.5px solid var(--ink); background: var(--ink); color: var(--paper); font: 800 15px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; cursor: pointer; box-shadow: 4px 4px 0 var(--orange); }
+  .go:hover:not(:disabled) { background: #333; }
+  .go:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
+
+  .result { grid-area: result; } .wallet-col { grid-area: wallet; } .tx { grid-area: tx; }
+  .layout { grid-template-areas: "wallet tx" "result tx"; }
+  .stars { font-size: 28px; letter-spacing: 4px; color: var(--orange); }
+  .stars .off { color: var(--line); }
+  .cmp { width: 100%; border-collapse: collapse; font: 13px/1.4 var(--mono); margin: 10px 0; }
+  .cmp th, .cmp td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  .cmp th:first-child, .cmp td:first-child { text-align: left; white-space: normal; }
+  .cmp th { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+  .cmp tr.you td { font-weight: 700; background: #fff3dd; }
+  .cmp-wrap { overflow-x: auto; max-width: 100%; }
+  .explain { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 26px; }
+  .explain div { min-width: 0; font-size: 14px; color: var(--ink-2); border-top: 3px solid var(--ink); padding-top: 10px; }
+  .explain b { display: block; color: var(--ink); font: 800 12.5px/1.3 var(--mono); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 4px; }
+  .explain code { font-family: var(--mono); background: #fff; padding: 0 3px; border: 1px solid var(--line); }
+  .btnrow { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .btn2 { min-height: 42px; border: 1.5px solid var(--ink); background: var(--card); padding: 0 14px; font: 700 13px/1 var(--mono); cursor: pointer; }
+  .btn2.primary { background: var(--orange); }
+  footer { margin-top: 30px; font: 12px/1.5 var(--mono); color: var(--ink-3); text-align: center; }
+
+  @media (max-width: 980px) { .layout { grid-template-columns: minmax(0, 1fr); grid-template-areas: "wallet" "tx" "result"; } .explain { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 600px) {
+    header { grid-template-columns: minmax(0, 1fr); } .levels { justify-content: flex-start; }
+    .brief { grid-template-columns: repeat(2, minmax(0, 1fr)); } .brief div:nth-child(2) { border-right: 0; } .brief div:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+    .wrap { padding: 56px 12px 30px; } .tray { gap: 8px; } .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (prefers-reduced-motion: reduce) { .coin { transition: none; } }
+</style>
+</head>
+<body>
+<a href="../index.html#lab" class="back" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <div>
+      <p class="kick">₿ coin selection · a puzzle about fees</p>
+      <h1>UTXO <span>Puzzle</span></h1>
+      <p>Your wallet doesn't hold a balance. It holds coins: unspent transaction outputs. Pick which ones to spend so the payment goes out, the fee is paid, and as little as possible is wasted.</p>
+    </div>
+    <nav class="levels" id="levels" aria-label="Levels"></nav>
+  </header>
+
+  <section class="brief" aria-label="This level">
+    <div><span>Pay</span><b data-testid="target">0</b><small>sats to one P2WPKH address</small></div>
+    <div><span>Fee rate</span><b data-testid="rate">0</b><small>sat/vB right now</small></div>
+    <div><span>Long-term rate</span><b data-testid="lt-rate">10</b><small>sat/vB, typical later</small></div>
+    <div><span>Dust limit</span><b>294</b><small>sats for a P2WPKH output</small></div>
+  </section>
+
+  <div class="layout">
+    <div class="wallet-col" style="min-width:0">
+      <section class="card">
+        <h2>Your wallet <small id="wallet-sum" data-testid="wallet-sum"></small></h2>
+        <div class="tray" id="tray" role="group" aria-label="Unspent coins; select the ones to spend"></div>
+        <div class="tray-foot"><span id="sel-sum" data-testid="sel-sum">Selected: 0 coins · 0 sats</span><span><button type="button" id="clear" data-testid="clear">Clear</button></span></div>
+      </section>
+
+    </div><!--/wallet-col-->
+
+    <section class="card tx" aria-labelledby="tx-h">
+      <h2 id="tx-h">Transaction <small>approximate P2WPKH sizes</small></h2>
+      <table><tbody id="tx-body"></tbody></table>
+      <div class="equation" id="equation" data-testid="equation" aria-live="polite">Select coins to build a transaction.</div>
+      <div class="vbar" id="vbar" aria-hidden="true"></div>
+      <div class="vlegend" id="vlegend"></div>
+      <div class="stats">
+        <div><span>Size</span><b data-testid="vsize">0 vB</b></div>
+        <div><span>Fee</span><b data-testid="fee">0</b></div>
+        <div><span>Waste</span><b data-testid="waste">0</b></div>
+      </div>
+      <div id="notes"></div>
+      <button class="go" id="broadcast" data-testid="broadcast" disabled>Broadcast</button>
+    </section>
+    <section class="card result" id="result" data-testid="result" hidden aria-live="polite">
+      <h2>How you did <small id="res-level"></small></h2>
+      <div class="stars" id="stars" data-testid="stars" aria-label=""></div>
+      <p id="verdict" data-testid="verdict" style="margin:6px 0 0"></p>
+      <div class="cmp-wrap"><table class="cmp" data-testid="compare"><thead><tr><th>Strategy</th><th>Inputs</th><th>Change</th><th>Fee</th><th>Waste</th></tr></thead><tbody id="cmp-body"></tbody></table></div>
+      <div class="btnrow"><button class="btn2" id="retry" data-testid="retry">Try again</button><button class="btn2 primary" id="next" data-testid="next">Next level →</button></div>
+    </section>
+  </div>
+
+  <div class="explain">
+    <div><b>Virtual bytes (approximate)</b>Fees are paid per virtual byte. This page uses a simple size model for native SegWit (P2WPKH): about <code>10.5 vB</code> of overhead per transaction, <code>~68 vB</code> per input and <code>~31 vB</code> per output. Real sizes vary by a byte or so with signature length.</div>
+    <div><b>Change and dust</b>If your coins overshoot, the extra comes back as a change output, which costs an output now and an input later when you spend it. Change below 294 sats counts as dust under Bitcoin Core's default relay policy. Here the leftover also goes to the miner when it is worth less than the change output would cost to create and later spend.</div>
+    <div><b>Waste</b>A simplified version of Bitcoin Core's waste metric: each input costs <code>(rate − long-term rate) × 68</code> (spending now versus later), plus either the cost of the change (<code>rate×31 + long-term×68</code>) or, with no change, the excess you overpaid. Lower is better, and it can be negative when fees are cheap.</div>
+  </div>
+  <footer>An educational simulation: no keys, no network, no real bitcoin. Seed <span data-testid="seed" id="seed"></span>.</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const qs = new URLSearchParams(location.search);
+  let SEED = parseInt(qs.get('seed'), 10); if (!Number.isFinite(SEED)) SEED = 1 + Math.floor(Math.random() * 9999);
+  const $ = (id) => document.getElementById(id) || document.querySelector(`[data-testid="${id}"]`);
+  const fmt = (n) => Math.round(n).toLocaleString('en-US');
+
+  // ---------- the (approximate) size model ----------
+  const OVERHEAD = 10.5, IN = 68, OUT = 31, DUST = 294, LT = 10;
+  const vsize = (nIn, nOut) => OVERHEAD + IN * nIn + OUT * nOut;
+  const feeFor = (vb, rate) => Math.ceil(vb * rate);
+
+  /** Evaluate a set of coin values at a fee rate for a payment. */
+  function evaluate(values, target, rate) {
+    const n = values.length, total = values.reduce((a, b) => a + b, 0);
+    if (!n) return { ok: false, n, total, reason: 'none' };
+    const vbNo = vsize(n, 1), feeNo = feeFor(vbNo, rate), excess = total - target - feeNo;
+    if (excess < 0) return { ok: false, n, total, reason: 'short', short: -excess, vsize: vbNo, fee: feeNo };
+    const vbC = vsize(n, 2), feeC = feeFor(vbC, rate), change = total - target - feeC;
+    const costOfChange = rate * OUT + LT * IN;
+    const inputWaste = n * (rate - LT) * IN;
+    // make change only when it is above dust and worth more than it costs to create and later spend
+    if (change >= DUST && excess > costOfChange) {
+      return { ok: true, n, total, change, fee: feeC, vsize: vbC, outputs: 2, dustDropped: 0, waste: Math.round(inputWaste + costOfChange), excess: 0 };
+    }
+    return { ok: true, n, total, change: 0, fee: total - target, vsize: vbNo, outputs: 1, dustDropped: Math.max(0, change), excess, waste: Math.round(inputWaste + excess) };
+  }
+
+  // ---------- strategies ----------
+  function largestFirst(coins, target, rate) {
+    const s = coins.slice().sort((a, b) => b.v - a.v), pick = [];
+    for (const c of s) { pick.push(c); if (evaluate(pick.map((q) => q.v), target, rate).ok) return pick; }
+    return null;
+  }
+  function smallestFirst(coins, target, rate) {
+    const s = coins.slice().sort((a, b) => a.v - b.v), pick = [];
+    for (const c of s) { pick.push(c); if (evaluate(pick.map((q) => q.v), target, rate).ok) return pick; }
+    return null;
+  }
+  /** Branch and bound over effective values, looking for a changeless match (in the spirit of Bitcoin Core's BnB). */
+  function branchAndBound(coins, target, rate) {
+    const ev = coins.map((c) => ({ c, e: c.v - rate * IN })).filter((q) => q.e > 0).sort((a, b) => b.e - a.e);
+    const need = target + rate * (OVERHEAD + OUT), window = rate * OUT + LT * IN;
+    const suffix = []; let acc = 0; for (let i = ev.length - 1; i >= 0; i--) { acc += ev[i].e; suffix[i] = acc; }
+    let best = null, bestWaste = Infinity, tries = 0;
+    const cur = [];
+    (function dfs(i, sum) {
+      if (++tries > 200000) return;
+      if (sum > need + window) return;
+      if (sum >= need) {
+        const w = evaluate(cur.map((q) => q.c.v), target, rate);
+        if (w.ok && w.outputs === 1 && w.waste < bestWaste) { bestWaste = w.waste; best = cur.map((q) => q.c); }
+        return;
+      }
+      if (i >= ev.length || sum + suffix[i] < need) return;
+      cur.push(ev[i]); dfs(i + 1, sum + ev[i].e); cur.pop();
+      dfs(i + 1, sum);
+    })(0, 0);
+    return best;
+  }
+  function optimum(coins, target, rate) {
+    let best = null, bw = Infinity;
+    const n = coins.length;
+    for (let m = 1; m < (1 << n); m++) {
+      const pick = []; for (let i = 0; i < n; i++) if (m & (1 << i)) pick.push(coins[i]);
+      const r = evaluate(pick.map((c) => c.v), target, rate);
+      if (r.ok && (r.waste < bw || (r.waste === bw && pick.length < best.length))) { bw = r.waste; best = pick; }
+    }
+    return best;
+  }
+
+  // ---------- levels ----------
+  const RATES = [2, 6, 14, 28, 60, 125];
+  const LEVELS = RATES.length;
+  function makeLevel(k) {
+    const r = mulberry32(SEED * 101 + k * 7919);
+    const n = Math.min(12, 7 + k);
+    const coins = [];
+    for (let i = 0; i < n; i++) { const v = Math.round(Math.exp(Math.log(2500) + r() * (Math.log(2600000) - Math.log(2500))) / 10) * 10; coins.push({ id: `c${i}`, v, conf: 1 + Math.floor(r() * 900) }); }
+    const rate = RATES[k];
+    let target;
+    if (k === 1 || k === 4) {
+      // plant an exact changeless match: two coins whose effective values just cover the payment
+      const a = coins[Math.floor(r() * n)], b = coins.find((c) => c !== a && c.v > 20000) || coins[(coins.indexOf(a) + 1) % n];
+      const ev = a.v + b.v - rate * (OVERHEAD + 2 * IN + OUT);
+      target = Math.max(1000, Math.floor(ev - (r() * 0.4 * (rate * OUT + LT * IN))));
+    } else {
+      const total = coins.reduce((s, c) => s + c.v, 0);
+      target = Math.round(total * (0.18 + r() * 0.4) / 100) * 100;
+    }
+    return { k, coins, rate, target };
+  }
+
+  // ---------- state ----------
+  let L, sel = new Set(), done = {};
+  function loadLevel(k) {
+    L = makeLevel(k); sel = new Set();
+    $('result').hidden = true;
+    $('target').textContent = fmt(L.target);
+    $('rate').textContent = L.rate;
+    $('lt-rate').textContent = LT;
+    const tot = L.coins.reduce((a, c) => a + c.v, 0);
+    $('wallet-sum').textContent = `${L.coins.length} coins · ${fmt(tot)} sats`;
+    const lo = Math.log(Math.min(...L.coins.map((c) => c.v))), hi = Math.log(Math.max(...L.coins.map((c) => c.v)));
+    $('tray').innerHTML = L.coins.map((c) => {
+      const d = 64 + 44 * (hi > lo ? (Math.log(c.v) - lo) / (hi - lo) : 0.5);
+      return `<button type="button" class="coin" style="--d:${d.toFixed(0)}px" data-id="${c.id}" data-testid="coin-${c.id}" aria-pressed="false" aria-label="${fmt(c.v)} sats, ${c.conf} confirmations"><span><b>${fmt(c.v)}</b><small>sats</small></span></button>`;
+    }).join('');
+    renderLevels(); renderTx();
+  }
+  function renderLevels() {
+    $('levels').innerHTML = Array.from({ length: LEVELS }, (_, i) => `<button type="button" class="lv${done[i] ? ' done' : ''}" data-k="${i}" data-testid="level-${i + 1}" aria-current="${L && L.k === i}" aria-label="Level ${i + 1}${done[i] ? ', ' + done[i] + ' stars' : ''}">${i + 1}</button>`).join('');
+  }
+  const picked = () => L.coins.filter((c) => sel.has(c.id));
+  function renderTx() {
+    const pk = picked(), r = evaluate(pk.map((c) => c.v), L.target, L.rate);
+    const row = (a, b, cls = '') => `<tr class="${cls}"><td>${a}</td><td>${b}</td></tr>`;
+    let h = row('Inputs', '', 'sec');
+    h += pk.length ? pk.map((c) => row(`coin ${c.id.slice(1)}`, fmt(c.v))).join('') : row('<span style="color:var(--ink-3)">none selected</span>', '');
+    h += row('Σ inputs', fmt(r.total), 'tot');
+    h += row('Outputs', '', 'sec') + row('payment', fmt(L.target));
+    if (r.ok && r.outputs === 2) h += row('change (back to you)', fmt(r.change));
+    h += row('Fee', '', 'sec') + row(r.ok ? `${r.vsize} vB × ${L.rate} sat/vB` : '—', r.ok ? fmt(r.fee) : '—');
+    $('tx-body').innerHTML = h;
+    const eq = $('equation');
+    eq.classList.remove('ok', 'bad');
+    const notes = [];
+    if (!pk.length) { eq.textContent = 'Select coins to build a transaction.'; }
+    else if (!r.ok) { eq.classList.add('bad'); eq.textContent = `Not enough: ${fmt(r.total)} in, but the payment plus a ${fmt(r.fee)}-sat fee needs ${fmt(r.short)} more.`; }
+    else {
+      eq.classList.add('ok');
+      eq.textContent = `${fmt(r.total)} − ${fmt(L.target)} − ${fmt(r.change)} = ${fmt(r.fee)} sats fee`;
+      if (r.outputs === 1 && r.dustDropped > 0 && r.dustDropped < DUST) notes.push(`<div class="warn" data-testid="dust-note">Change would have been ${fmt(r.dustDropped)} sats, below the 294-sat dust limit, so it is dropped. The miner gets it.</div>`);
+      else if (r.outputs === 1 && r.excess === 0) notes.push('<div class="warn" data-testid="exact-note" style="border-color:var(--good);background:#e5f2ec">A perfect changeless match. Nothing extra.</div>');
+      else if (r.outputs === 1) notes.push(`<div class="warn" data-testid="dust-note">Change would cost more than it is worth; ${fmt(r.excess)} sats go to the fee.</div>`);
+      if (r.fee / r.vsize > L.rate * 1.5) notes.push(`<div class="warn bad" data-testid="overpay-note">Effective fee rate ${(r.fee / r.vsize).toFixed(1)} sat/vB is well above the ${L.rate} you needed.</div>`);
+    }
+    $('notes').innerHTML = notes.join('');
+    const vb = r.ok ? r.vsize : vsize(pk.length, 1);
+    $('vsize').textContent = pk.length ? `${vb} vB` : '0 vB';
+    $('fee').textContent = r.ok ? fmt(r.fee) : '—';
+    $('waste').textContent = r.ok ? fmt(r.waste) : '—';
+    const parts = [['overhead', OVERHEAD, '#9a958a'], [`${pk.length} input${pk.length === 1 ? '' : 's'}`, IN * pk.length, '#f7931a'], [`${r.ok ? r.outputs : 1} output${r.ok && r.outputs === 2 ? 's' : ''}`, OUT * (r.ok ? r.outputs : 1), '#2f5d9e']];
+    const T = parts.reduce((a, p) => a + p[1], 0);
+    $('vbar').innerHTML = parts.map((p) => `<i style="width:${(p[1] / T * 100).toFixed(2)}%;background:${p[2]}"></i>`).join('');
+    $('vlegend').innerHTML = parts.map((p) => `<span><i style="background:${p[2]}"></i>${p[0]} ${p[1]} vB</span>`).join('');
+    $('sel-sum').textContent = `Selected: ${pk.length} coin${pk.length === 1 ? '' : 's'} · ${fmt(r.total || 0)} sats`;
+    $('broadcast').disabled = !r.ok;
+    return r;
+  }
+  $('tray').addEventListener('click', (e) => {
+    const b = e.target.closest('.coin'); if (!b) return;
+    const id = b.dataset.id; if (sel.has(id)) sel.delete(id); else sel.add(id);
+    b.setAttribute('aria-pressed', String(sel.has(id)));
+    $('result').hidden = true; renderTx();
+  });
+  $('clear').addEventListener('click', () => { sel.clear(); document.querySelectorAll('.coin').forEach((b) => b.setAttribute('aria-pressed', 'false')); $('result').hidden = true; renderTx(); });
+  $('levels').addEventListener('click', (e) => { const b = e.target.closest('.lv'); if (b) loadLevel(+b.dataset.k); });
+
+  function starsFor(yours, best) {
+    const gap = yours - best, scale = Math.max(200, Math.abs(best) * 0.25, L.rate * IN);
+    if (gap <= 0) return 3;
+    if (gap <= scale) return 2;
+    return 1;
+  }
+  function broadcast() {
+    const pk = picked(), you = evaluate(pk.map((c) => c.v), L.target, L.rate);
+    if (!you.ok) return null;
+    const strat = [
+      ['Largest-first', largestFirst(L.coins, L.target, L.rate)],
+      ['Smallest-first', smallestFirst(L.coins, L.target, L.rate)],
+      ['Branch & bound (changeless)', branchAndBound(L.coins, L.target, L.rate)],
+      ['Best possible', optimum(L.coins, L.target, L.rate)],
+    ].map(([name, p]) => ({ name, pick: p, r: p ? evaluate(p.map((c) => c.v), L.target, L.rate) : null }));
+    const best = strat[3].r;
+    const stars = starsFor(you.waste, best.waste);
+    done[L.k] = Math.max(done[L.k] || 0, stars);
+    const row = (name, pick, r, cls = '') => `<tr class="${cls}"><td>${name}</td><td>${pick ? pick.length : '—'}</td><td>${r ? (r.outputs === 2 ? fmt(r.change) : 'none') : '—'}</td><td>${r ? fmt(r.fee) : '—'}</td><td>${r ? fmt(r.waste) : 'no match'}</td></tr>`;
+    $('cmp-body').innerHTML = row('You', pk, you, 'you') + strat.map((s) => row(s.name, s.pick, s.r)).join('');
+    $('stars').innerHTML = [0, 1, 2].map((i) => `<span class="${i < stars ? '' : 'off'}">★</span>`).join('');
+    $('stars').setAttribute('aria-label', `${stars} of 3 stars`);
+    $('res-level').textContent = `level ${L.k + 1} · ${L.rate} sat/vB`;
+    const gap = you.waste - best.waste;
+    $('verdict').textContent = gap <= 0 ? 'Optimal: no selection of these coins wastes less.' : `${fmt(gap)} sats more waste than the best possible selection.` + (strat[2].r && you.outputs === 2 ? ' A changeless match was available.' : '');
+    $('next').hidden = L.k >= LEVELS - 1;
+    $('result').hidden = false;
+    renderLevels();
+    return { you, stars, strat: strat.map((s) => ({ name: s.name, ids: s.pick ? s.pick.map((c) => c.id) : null, r: s.r })) };
+  }
+  $('broadcast').addEventListener('click', () => { broadcast(); $('result').scrollIntoView({ block: 'nearest' }); });
+  $('retry').addEventListener('click', () => { $('clear').click(); });
+  $('next').addEventListener('click', () => { if (L.k < LEVELS - 1) loadLevel(L.k + 1); });
+
+  $('seed').textContent = '#' + SEED;
+  loadLevel(0);
+
+  window.__utxo = {
+    get level() { return { k: L.k, rate: L.rate, target: L.target, coins: L.coins.map((c) => ({ ...c })) }; },
+    get selected() { return [...sel]; },
+    model: { OVERHEAD, IN, OUT, DUST, LT },
+    evaluate: (ids) => evaluate(L.coins.filter((c) => ids.includes(c.id)).map((c) => c.v), L.target, L.rate),
+    largestFirst: () => (largestFirst(L.coins, L.target, L.rate) || []).map((c) => c.id),
+    smallestFirst: () => (smallestFirst(L.coins, L.target, L.rate) || []).map((c) => c.id),
+    bnb: () => { const p = branchAndBound(L.coins, L.target, L.rate); return p && p.map((c) => c.id); },
+    optimum: () => (optimum(L.coins, L.target, L.rate) || []).map((c) => c.id),
+    load: loadLevel,
+  };
+})();
+</script>
+</body>
+</html>

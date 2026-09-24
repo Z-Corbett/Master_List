@@ -1,0 +1,35 @@
+{
+  "id": "063",
+  "slug": "063-sourdough-schedule",
+  "file": "lab/063-sourdough-schedule.html",
+  "title": "Sourdough Schedule — a backward bake planner",
+  "category": "Tools",
+  "tags": ["scheduling", "calculator", "date-time", "print-css", "svg"],
+  "description": "A sourdough planner that works backwards from the moment you want bread out of the oven. You set kitchen and dough temperatures, starter strength and your formula, and it builds a timeline: starter feed, levain, autolyse, mix, four stretch-and-folds, bulk, shaping, cold retard, preheat and bake. Fermentation times come from a clearly labelled rule-of-thumb temperature model. Steps between 11 PM and 6 AM are flagged and can be avoided with one tap, a baker's-percentage calculator handles the levain's own flour and water correctly, and the schedule prints cleanly.",
+  "prompt": "Build me a sourdough bake planner. I pick when I want bread out of the oven, the dough and kitchen temperatures, starter strength and hydration, and it backward-schedules the whole thing: feed, levain, autolyse, mix, stretch-and-folds, bulk, shape, cold retard, bake. Use a rule-of-thumb temperature model for fermentation time and label it as one. Include a baker's-percentage recipe calculator with correct math (count the levain's flour and water) and make the schedule printable. Bonus points if it warns me before scheduling a fold at 3 AM.",
+  "qa": {
+    "methodology": [
+      "Math oracle for the formula: for a 1,000 g dough at 75% hydration, 20% levain and 2% salt, the spec derives total flour (1000 / 1.77) and each ingredient independently. It checks the rendered grams, that flour and water inside the levain are counted toward the totals, and that the ingredients sum to the dough weight.",
+      "Model checks against the labelled rule: 5 h 00 min at 76°F, 2^(12/14) × 5 h at 64°F, 4 h 15 min with a vigorous starter, a 6 h 06 min levain at 72°F, and clamping at 2.5 h and 14 h.",
+      "Backward-scheduling oracle: with page.clock fixed, every step's data-time is compared to its exact minute offset from the bake (45, 105, 12 h + 45, …), including fold spacing, autolyse lead and the 12 h starter feed. A longer retard must shift every earlier step by the same amount.",
+      "Night logic: a 2 PM bake with a 12 h retard puts three or more steps between 11 PM and 6 AM, and 'Avoid night-time steps' must find a retard with zero, which the test verifies on every step's hour.",
+      "A bake time too soon to start is caught, and 'Soonest possible bake' starts the plan 10–26 minutes after the fake 'now'.",
+      "Units and print: °C readouts convert correctly and feed the same model; window.print is stubbed to count calls, and emulateMedia({ media: 'print' }) hides the controls, buttons and chart while keeping the steps, recipe and print header."
+    ],
+    "risks": [
+      "Time zones and DST: all maths is in epoch milliseconds and only formatted locally; the tests compare offsets rather than wall-clock strings, except where the fake clock pins the date.",
+      "Baker's percentages are easy to get subtly wrong (hydration including or excluding the levain); the page states its convention and the test checks both totals.",
+      "datetime-local support and parsing differ between browsers; values are parsed as local time and invalid input is ignored.",
+      "Emoji step icons render differently by platform; one that Windows 10 can't draw was replaced, and on narrow screens the icons are hidden."
+    ],
+    "playwright": "Time is the whole product here, so each scheduling test starts with page.clock.install() and pauseAt() on a known Thursday noon. That makes the default bake date, the 'too soon' check and the 'soonest bake' rounding fully deterministic. Step times are asserted from each step's machine-readable data-time attribute as minute offsets, which avoids locale formatting, and a few human-readable labels are spot-checked. The print path uses two techniques: window.print is replaced with a counter to prove the button calls it, and page.emulateMedia({ media: 'print' }) checks the @media print rules. The fermentation model is exposed on window.__dough so the spec can confirm the clamps without driving sliders to extreme values.",
+    "coverage": [
+      "Baker's-percentage grams, totals, whole-wheat split, multiple loaves",
+      "Temperature and starter-strength model with clamps",
+      "Exact backward offsets for every step; retard change; optional starter feed",
+      "Night-step flagging and avoidance; too-soon warning; soonest possible bake",
+      "Celsius conversion; print button and print stylesheet"
+    ]
+  },
+  "a11y": "All inputs are native and labelled: a datetime-local field, range sliders with visible outputs, number fields and a checkbox. Units and starter strength are toggle buttons with aria-pressed. The warning line is aria-live, the timeline chart has a descriptive aria-label, the steps are an ordered list with machine-readable <time> elements, and the recipe is a real table."
+}

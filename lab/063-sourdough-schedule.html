@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sourdough Schedule — a backward bake planner</title>
+<meta name="description" content="Plan a sourdough bake backwards from the moment you want bread out of the oven: a rule-of-thumb temperature model for levain and bulk fermentation, a timeline from starter feed to bake that flags steps in the middle of the night, a baker's-percentage recipe calculator, and a printable schedule.">
+<style>
+  :root {
+    --oat: #f5efe3;
+    --card: #fffaf1;
+    --crumb: #efe3cc;
+    --crust: #8a4f22;
+    --crust-2: #5e3314;
+    --rye: #2f241c;
+    --ink-2: #6a5a4b;
+    --line: #e1d3bb;
+    --sage: #5f7f52;
+    --night: #34405e;
+    --warn: #b0452b;
+    --head: Constantia, "Iowan Old Style", Cambria, Georgia, serif;
+    --body: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    --mono: ui-monospace, Consolas, Menlo, monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--oat); color: var(--rye); font: 15px/1.55 var(--body); overflow-x: hidden;
+    background-image: radial-gradient(rgba(138, 79, 34, .07) 1.1px, transparent 1.3px); background-size: 13px 13px; }
+  :focus-visible { outline: 3px solid var(--sage); outline-offset: 2px; }
+  button, input, select { font: inherit; color: inherit; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 30; font: 600 12.5px/1 var(--body); color: var(--card); background: var(--crust-2); padding: 8px 12px; border-radius: 999px; text-decoration: none; }
+  a.back:hover { background: var(--sage); }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 60px 18px 40px; }
+  header { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px; align-items: center; margin-bottom: 20px; }
+  header svg { width: 92px; height: 70px; }
+  header > * { min-width: 0; }
+  h1 { margin: 0; font: 700 clamp(32px, 6vw, 58px)/1 var(--head); letter-spacing: -.01em; color: var(--crust-2); }
+  header p { margin: 6px 0 0; color: var(--ink-2); max-width: 62ch; }
+
+  .layout { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 20px; align-items: start; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; box-shadow: 0 10px 30px -20px rgba(94, 51, 20, .45); min-width: 0; }
+  .card + .card { margin-top: 16px; }
+  .card h2 { margin: 0 0 12px; font: 700 20px/1.2 var(--head); color: var(--crust-2); display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .card h2 small { font: 500 12px/1 var(--body); color: var(--ink-2); }
+  .field { display: grid; gap: 4px; margin-bottom: 12px; min-width: 0; }
+  .field label, .field .lbl { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+  .field output { font-family: var(--mono); color: var(--rye); font-weight: 600; }
+  input[type=range] { width: 100%; max-width: 100%; accent-color: var(--crust); min-height: 28px; }
+  input[type=number], input[type=datetime-local], select { width: 100%; max-width: 100%; min-height: 40px; border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 0 10px; }
+  .pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+  .seg button { border: 0; background: #fff; padding: 6px 12px; cursor: pointer; font-weight: 600; font-size: 13px; min-height: 34px; }
+  .seg button[aria-pressed="true"] { background: var(--crust); color: #fff; }
+  .strength { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .strength button { border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 8px 4px; cursor: pointer; font-size: 12.5px; font-weight: 600; min-height: 44px; }
+  .strength button span { display: block; font-weight: 400; color: var(--ink-2); font-size: 11px; }
+  .strength button[aria-pressed="true"] { border-color: var(--crust); background: #f7e6d0; }
+  .btn { min-height: 42px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--crust); background: var(--card); color: var(--crust-2); font-weight: 700; cursor: pointer; max-width: 100%; }
+  .btn:hover { background: #f7e6d0; }
+  .btn.primary { background: var(--crust); color: #fff; }
+  .btn.primary:hover { background: var(--crust-2); }
+  .model-note { font-size: 12.5px; color: var(--ink-2); background: var(--crumb); border-radius: 10px; padding: 10px 12px; margin-top: 6px; }
+  .model-note b { color: var(--rye); }
+
+  .summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .summary div { background: var(--crumb); border-radius: 12px; padding: 10px 12px; min-width: 0; }
+  .summary span { display: block; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
+  .summary b { display: block; font: 700 19px/1.25 var(--head); overflow-wrap: anywhere; }
+  #gantt { display: block; width: 100%; height: 150px; margin: 4px 0 10px; }
+  .steps { list-style: none; margin: 0; padding: 0; }
+  .step { display: grid; grid-template-columns: 112px 34px minmax(0, 1fr); gap: 10px; align-items: start; padding: 10px 0; border-bottom: 1px dashed var(--line); }
+  .step time { font: 600 13.5px/1.35 var(--mono); color: var(--crust-2); }
+  .step time small { display: block; font: 500 11.5px/1.3 var(--body); color: var(--ink-2); }
+  .step .ico { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--crumb); font-size: 16px; }
+  .step b { display: block; font: 700 16px/1.3 var(--head); }
+  .step p { margin: 2px 0 0; font-size: 13.5px; color: var(--ink-2); }
+  .step.night .ico { background: var(--night); color: #fff; }
+  .step .moon { display: inline-block; font: 600 11px/1 var(--body); color: #fff; background: var(--night); border-radius: 999px; padding: 3px 7px; margin-left: 6px; vertical-align: 2px; }
+  .alert { border-radius: 10px; padding: 10px 12px; font-size: 13.5px; margin-bottom: 12px; background: #eef1f8; border-left: 4px solid var(--night); }
+  .alert.ok { background: #edf3ea; border-color: var(--sage); }
+  .alert.past { background: #fbe9e3; border-color: var(--warn); }
+
+  .recipe table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .recipe th, .recipe td { padding: 7px 6px; border-bottom: 1px solid var(--line); text-align: right; }
+  .recipe th:first-child, .recipe td:first-child { text-align: left; }
+  .recipe th { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
+  .recipe td { font-family: var(--mono); }
+  .recipe td:first-child { font-family: var(--body); }
+  .recipe tr.total td { font-weight: 700; border-top: 2px solid var(--rye); border-bottom: 0; }
+  .recipe .sub td { color: var(--ink-2); font-size: 12.5px; padding-top: 3px; }
+  .tools { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; margin-top: 12px; }
+  .print-head { display: none; }
+  footer { margin-top: 28px; font-size: 12.5px; color: var(--ink-2); text-align: center; }
+
+  @media (max-width: 920px) { .layout { grid-template-columns: minmax(0, 1fr); } .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 480px) { .wrap { padding: 56px 12px 30px; } header svg { width: 64px; height: 50px; } .step { grid-template-columns: 92px minmax(0, 1fr); } .step .ico { display: none; } .card { padding: 14px; } }
+  @media print {
+    body { background: #fff; }
+    a.back, .controls, .tools, #gantt, header svg, footer, .no-print { display: none !important; }
+    .layout { grid-template-columns: 1fr; }
+    .card { box-shadow: none; border: 0; padding: 0; }
+    .print-head { display: block; font: 600 13px/1.4 var(--body); margin-bottom: 8px; }
+    .step { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<a href="../index.html#lab" class="back" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <svg viewBox="0 0 92 70" aria-hidden="true"><ellipse cx="46" cy="42" rx="42" ry="24" fill="#b5733a"/><ellipse cx="46" cy="38" rx="40" ry="22" fill="#c98a4b"/><path d="M18 34c10-8 22-10 30-4M40 26c10-6 22-6 30 2M26 44c12-6 28-6 40 0" stroke="#f3dcb4" stroke-width="3" fill="none" stroke-linecap="round"/></svg>
+    <div>
+      <h1>Sourdough Schedule</h1>
+      <p>Tell it when you want warm bread, how warm your kitchen runs and how lively your starter is. It works backwards to the minute you feed the starter, and warns you before it asks you to fold dough at 3 AM.</p>
+    </div>
+  </header>
+
+  <div class="layout">
+    <div class="controls">
+      <section class="card">
+        <h2>Timing</h2>
+        <div class="field">
+          <label for="out">Bread out of the oven</label>
+          <input type="datetime-local" id="out" data-testid="out" step="300">
+        </div>
+        <div class="field">
+          <label for="retard">Cold retard in the fridge <output id="retard-out" data-testid="retard-out">12 h</output></label>
+          <input type="range" id="retard" data-testid="retard" min="6" max="18" step="0.5" value="12">
+        </div>
+        <label class="field" style="display:flex;gap:8px;align-items:center;font-size:13px;font-weight:600;color:var(--ink-2)"><input type="checkbox" id="feed" data-testid="feed" checked style="width:18px;height:18px;accent-color:var(--crust)"> Refresh the starter 12 h before the levain</label>
+        <button class="btn" id="avoid" data-testid="avoid" style="width:100%">Avoid night-time steps</button>
+      </section>
+      <section class="card">
+        <h2>Temperatures <span class="seg" role="group" aria-label="Units"><button type="button" id="u-f" data-testid="unit-f" aria-pressed="true">°F</button><button type="button" id="u-c" data-testid="unit-c" aria-pressed="false">°C</button></span></h2>
+        <div class="field">
+          <label for="kitchen">Kitchen <output id="kitchen-out" data-testid="kitchen-out">72°F</output></label>
+          <input type="range" id="kitchen" data-testid="kitchen" min="60" max="86" step="1" value="72">
+        </div>
+        <div class="field">
+          <label for="dough">Dough during bulk <output id="dough-out" data-testid="dough-out">76°F</output></label>
+          <input type="range" id="dough" data-testid="dough" min="64" max="84" step="1" value="76">
+        </div>
+        <div class="field">
+          <span class="lbl" id="st-lbl">Starter strength</span>
+          <div class="strength" role="group" aria-labelledby="st-lbl">
+            <button type="button" data-s="sluggish" data-testid="strength-sluggish" aria-pressed="false">Sluggish<span>barely doubles</span></button>
+            <button type="button" data-s="average" data-testid="strength-average" aria-pressed="true">Average<span>doubles in ~6 h</span></button>
+            <button type="button" data-s="vigorous" data-testid="strength-vigorous" aria-pressed="false">Vigorous<span>domes fast</span></button>
+          </div>
+        </div>
+        <div class="model-note" data-testid="model-note"><b>Rule of thumb, not lab science.</b> Bulk ≈ 5 h at 76°F with 20% levain and an average starter; every 14°F (≈8°C) cooler doubles it. Stronger starters, more levain and wetter doughs go a little faster. Watch the dough, not the clock.</div>
+      </section>
+      <section class="card">
+        <h2>Formula <small>baker's percentages</small></h2>
+        <div class="pair">
+          <div class="field"><label for="weight">Dough per loaf (g)</label><input type="number" id="weight" data-testid="weight" min="300" max="3000" step="10" value="900"></div>
+          <div class="field"><label for="loaves">Loaves</label><input type="number" id="loaves" data-testid="loaves" min="1" max="8" step="1" value="1"></div>
+        </div>
+        <div class="field"><label for="hyd">Hydration <output id="hyd-out" data-testid="hyd-out">75%</output></label><input type="range" id="hyd" data-testid="hyd" min="60" max="90" step="1" value="75"></div>
+        <div class="field"><label for="lev">Levain (of total flour) <output id="lev-out" data-testid="lev-out">20%</output></label><input type="range" id="lev" data-testid="lev" min="5" max="40" step="1" value="20"></div>
+        <div class="pair">
+          <div class="field"><label for="salt">Salt %</label><input type="number" id="salt" data-testid="salt" min="0" max="4" step="0.1" value="2"></div>
+          <div class="field"><label for="ww">Whole wheat %</label><input type="number" id="ww" data-testid="ww" min="0" max="100" step="5" value="10"></div>
+        </div>
+      </section>
+    </div>
+
+    <div>
+      <section class="card" id="schedule" data-testid="schedule">
+        <div class="print-head" id="print-head"></div>
+        <h2>Your bake <small id="span" data-testid="span"></small></h2>
+        <div class="summary">
+          <div><span>Start</span><b data-testid="start">—</b></div>
+          <div><span>Levain peak</span><b data-testid="levain-time">—</b></div>
+          <div><span>Bulk</span><b data-testid="bulk-time">—</b></div>
+          <div><span>Night steps</span><b data-testid="night-count">0</b></div>
+        </div>
+        <div id="alert" data-testid="alert" aria-live="polite"></div>
+        <svg id="gantt" data-testid="gantt" role="img" aria-label="Timeline"></svg>
+        <ol class="steps" id="steps" data-testid="steps"></ol>
+        <div class="tools"><button class="btn" id="now" data-testid="bake-now">Soonest possible bake</button><button class="btn primary" id="print" data-testid="print">Print schedule</button></div>
+      </section>
+      <section class="card recipe" data-testid="recipe">
+        <h2>Recipe <small id="recipe-sub"></small></h2>
+        <table><thead><tr><th>Ingredient</th><th>Grams</th><th>Baker's %</th></tr></thead><tbody id="recipe-body"></tbody></table>
+        <p class="no-print" style="font-size:12.5px;color:var(--ink-2);margin:10px 0 0">Baker's percentages are relative to <b>total flour</b>, including the flour inside the levain (assumed 100% hydration). Hydration counts all the water, including the levain's.</p>
+      </section>
+    </div>
+  </div>
+  <footer>Temperatures and times are rules of thumb. Your flour, your starter and your kitchen will have opinions.</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id) || document.querySelector(`[data-testid="${id}"]`);
+  const HOUR = 3600e3, MIN = 60e3;
+
+  // ---------- the rule-of-thumb fermentation model ----------
+  const STRENGTH = { sluggish: 1.3, average: 1, vigorous: 0.85 };
+  const tempFactor = (tF) => Math.pow(2, (76 - tF) / 14);
+  function bulkHours({ doughF, strength, levainPct, hydration }) {
+    const h = 5 * tempFactor(doughF) * STRENGTH[strength] * Math.pow(20 / levainPct, 0.45) * (1 - (hydration - 75) * 0.005);
+    return Math.max(2.5, Math.min(14, h));
+  }
+  function levainHours({ kitchenF, strength }) { return Math.max(2.5, Math.min(14, 5 * tempFactor(kitchenF) * STRENGTH[strength])); }
+
+  // ---------- baker's percentages ----------
+  function recipe({ weight, loaves, hydration, levainPct, saltPct, wwPct }) {
+    const D = weight * loaves, h = hydration / 100, s = saltPct / 100, i = levainPct / 100, ww = wwPct / 100;
+    const F = D / (1 + h + s);
+    const L = i * F, Lf = L / 2, Lw = L / 2;
+    const W = h * F, salt = s * F;
+    const wwFlour = ww * F;
+    const breadFlour = F - Lf - wwFlour;
+    const water = W - Lw;
+    return { D, F, W, L, Lf, Lw, salt, wwFlour, breadFlour, water, ok: water >= 0 && breadFlour >= 0 };
+  }
+
+  // ---------- state ----------
+  const S = { unit: 'F', kitchenF: 72, doughF: 76, strength: 'average', retard: 12, feed: true, out: null, hydration: 75, levainPct: 20, saltPct: 2, wwPct: 10, weight: 900, loaves: 1 };
+  const toC = (f) => (f - 32) * 5 / 9, toF = (c) => c * 9 / 5 + 32;
+  const tLabel = (f) => S.unit === 'F' ? `${Math.round(f)}°F` : `${toC(f).toFixed(1).replace(/\.0$/, '')}°C`;
+
+  function defaultOut() { const d = new Date(Date.now() + 2 * 864e5); d.setHours(10, 0, 0, 0); return d; }
+  const pad = (n) => String(n).padStart(2, '0');
+  const toLocalInput = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const clock = (d) => { let h = d.getHours(), m = d.getMinutes(); const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return `${h}:${pad(m)} ${ap}`; };
+  const dayLabel = (d) => `${DOW[d.getDay()]} ${d.getDate()}`;
+  const dur = (h) => { const m = Math.round(h * 60); return `${Math.floor(m / 60)} h ${pad(m % 60)} min`; };
+  const isNight = (d) => { const h = d.getHours(); return h >= 23 || h < 6; };
+
+  // ---------- backward scheduling ----------
+  function plan(st = S) {
+    const out = st.out.getTime();
+    const bulk = bulkHours({ doughF: st.doughF, strength: st.strength, levainPct: st.levainPct, hydration: st.hydration });
+    const lev = levainHours({ kitchenF: st.kitchenF, strength: st.strength });
+    const bakeStart = out - 45 * MIN;
+    const preheat = bakeStart - 60 * MIN;
+    const retardStart = bakeStart - st.retard * HOUR;
+    const shape = retardStart - 15 * MIN;
+    const preshape = shape - 30 * MIN;
+    const mix = preshape - bulk * HOUR;
+    const autolyse = mix - 60 * MIN;
+    const levain = mix - lev * HOUR;
+    const feed = levain - 12 * HOUR;
+    const steps = [];
+    if (st.feed) steps.push({ id: 'feed', t: feed, ico: '🥄', name: 'Feed the starter', note: 'Discard all but a spoonful and refresh it 1:1:1 so it is lively for the levain.' });
+    steps.push({ id: 'levain', t: levain, ico: '🥣', name: 'Build the levain', note: `Mix starter, flour and water 1:5:5 by weight. It should peak in about ${dur(lev)} at ${tLabel(st.kitchenF)}.` });
+    steps.push({ id: 'autolyse', t: autolyse, ico: '💧', name: 'Autolyse', note: 'Mix the flour and most of the water until no dry bits remain. Cover and rest.' });
+    steps.push({ id: 'mix', t: mix, ico: '✋', name: 'Mix', note: 'Add the levain, salt and the held-back water. Squeeze it through your fingers until it holds together. Bulk fermentation starts now.' });
+    for (let k = 1; k <= 4; k++) steps.push({ id: `fold${k}`, t: mix + k * 30 * MIN, ico: '↻', name: `Stretch and fold ${k} of 4`, note: 'Wet hands; lift each side and fold it over. Four sides, then cover.' });
+    steps.push({ id: 'preshape', t: preshape, ico: '⬭', name: 'Bulk ends: pre-shape', note: `After about ${dur(bulk)} of bulk the dough should have risen 50–75%, look domed and jiggle. Tip it out, round it and let it rest 30 min.` });
+    steps.push({ id: 'shape', t: shape, ico: '🧺', name: 'Shape and into the banneton', note: 'Build tension, then place it seam-side up in a floured basket.' });
+    steps.push({ id: 'retard', t: retardStart, ico: '❄', name: 'Into the fridge', note: `Cold retard for ${dur(st.retard)}. Flavour develops and the loaf is easier to score cold.` });
+    steps.push({ id: 'preheat', t: preheat, ico: '🔥', name: 'Preheat the oven', note: 'Dutch oven inside, 500°F / 260°C, for a full hour.' });
+    steps.push({ id: 'bake', t: bakeStart, ico: '🍞', name: 'Score and bake', note: 'Straight from the fridge. 20 min lid on at 500°F / 260°C, then about 25 min lid off at 450°F / 230°C.' });
+    steps.push({ id: 'out', t: out, ico: '⭐', name: 'Out of the oven', note: 'Cool on a rack for at least an hour before slicing. The crumb is still setting.' });
+    // folds and dough work at night are the ones that matter; fridge time can span the night
+    for (const s of steps) s.night = isNight(new Date(s.t));
+    return { steps, bulk, lev, start: steps[0].t, out };
+  }
+
+  function render() {
+    const p = plan();
+    const now = Date.now();
+    $('span').textContent = `${dur((p.out - p.start) / HOUR)} start to finish`;
+    const sd = new Date(p.start);
+    $('start').textContent = `${dayLabel(sd)}, ${clock(sd)}`;
+    $('levain-time').textContent = dur(p.lev);
+    $('bulk-time').textContent = dur(p.bulk);
+    const nights = p.steps.filter((s) => s.night);
+    $('night-count').textContent = String(nights.length);
+    let alert = '';
+    if (p.start < now) alert = `<div class="alert past" data-kind="past">That's too soon: this plan would have started ${dayLabel(sd)} at ${clock(sd)}, which has already passed. Pick a later bake time, or tap “Soonest possible bake”.</div>`;
+    else if (nights.length) alert = `<div class="alert" data-kind="night">${nights.length} step${nights.length > 1 ? 's fall' : ' falls'} between 11 PM and 6 AM (${nights.map((s) => s.name.toLowerCase()).join(', ')}). Try a different cold retard, or tap “Avoid night-time steps”.</div>`;
+    else alert = '<div class="alert ok" data-kind="ok">No steps between 11 PM and 6 AM. Sleep well.</div>';
+    $('alert').innerHTML = alert;
+    $('steps').innerHTML = p.steps.map((s) => { const d = new Date(s.t); return `<li class="step${s.night ? ' night' : ''}" data-testid="step-${s.id}" data-time="${d.toISOString()}"><time datetime="${d.toISOString()}">${clock(d)}<small>${dayLabel(d)}</small></time><span class="ico" aria-hidden="true">${s.night ? '☾' : s.ico}</span><div><b>${s.name}${s.night ? '<span class="moon">night</span>' : ''}</b><p>${s.note}</p></div></li>`; }).join('');
+    renderGantt(p);
+    $('print-head').textContent = `Sourdough plan: bread out ${dayLabel(new Date(p.out))} at ${clock(new Date(p.out))} · kitchen ${tLabel(S.kitchenF)}, dough ${tLabel(S.doughF)}, ${S.strength} starter`;
+    renderRecipe();
+    return p;
+  }
+  function renderGantt(p) {
+    const svg = $('gantt'), W = Math.max(300, svg.clientWidth || 700), H = 150, L = 8, R = 8;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    const t0 = p.start - 30 * MIN, t1 = p.out + 30 * MIN, x = (t) => L + (t - t0) / (t1 - t0) * (W - L - R);
+    let g = '';
+    // night bands
+    const d = new Date(t0); d.setHours(23, 0, 0, 0); if (d.getTime() > t0) d.setDate(d.getDate() - 1);
+    for (let n = d.getTime(); n < t1; n += 864e5) { const a = Math.max(t0, n), b = Math.min(t1, n + 7 * HOUR); if (b > a) g += `<rect x="${x(a)}" y="0" width="${x(b) - x(a)}" height="${H - 22}" fill="#34405e" opacity=".12"/>`; }
+    // midnight ticks
+    const m = new Date(t0); m.setHours(24, 0, 0, 0);
+    for (let n = m.getTime(); n < t1; n += 864e5) g += `<line x1="${x(n)}" x2="${x(n)}" y1="0" y2="${H - 22}" stroke="#34405e" stroke-dasharray="3 3" opacity=".5"/><text x="${x(n) + 4}" y="${H - 8}" font-size="11" fill="#6a5a4b">${dayLabel(new Date(n))}</text>`;
+    const byId = Object.fromEntries(p.steps.map((s) => [s.id, s.t]));
+    const bars = [
+      ['Starter', byId.feed, byId.levain, '#c9a87a'], ['Levain', byId.levain, byId.mix, '#b5733a'], ['Bulk', byId.mix, byId.preshape, '#8a4f22'],
+      ['Shape', byId.preshape, byId.retard, '#5f7f52'], ['Fridge', byId.retard, byId.bake, '#6d86b0'], ['Bake', byId.bake, byId.out, '#b0452b'],
+    ].filter((b) => b[1] != null);
+    bars.forEach(([name, a, b, col], i) => {
+      const y = 10 + (i % 3) * 36, w = Math.max(3, x(b) - x(a));
+      g += `<rect x="${x(a)}" y="${y}" width="${w}" height="24" rx="6" fill="${col}"><title>${name}: ${clock(new Date(a))} – ${clock(new Date(b))}</title></rect>`;
+      if (w > 44) g += `<text x="${x(a) + 7}" y="${y + 16}" font-size="12" font-weight="600" fill="#fff">${name}</text>`;
+    });
+    svg.innerHTML = g;
+    svg.setAttribute('aria-label', `Timeline from ${clock(new Date(p.start))} ${dayLabel(new Date(p.start))} to ${clock(new Date(p.out))} ${dayLabel(new Date(p.out))}; shaded bands are 11 PM to 6 AM`);
+  }
+  function renderRecipe() {
+    const r = recipe(S);
+    const pct = (g) => (g / r.F * 100).toFixed(1) + '%';
+    const g = (v) => Math.round(v).toLocaleString('en-US');
+    $('recipe-sub').textContent = `${S.loaves} × ${S.weight} g = ${g(r.D)} g dough`;
+    $('recipe-body').innerHTML = !r.ok ? '<tr><td colspan="3" style="color:var(--warn)">That much levain carries more water than the hydration allows. Lower the levain or raise the hydration.</td></tr>' : `
+      <tr data-testid="r-bread"><td>Bread flour</td><td>${g(r.breadFlour)}</td><td>${pct(r.breadFlour)}</td></tr>
+      ${S.wwPct > 0 ? `<tr data-testid="r-ww"><td>Whole wheat flour</td><td>${g(r.wwFlour)}</td><td>${pct(r.wwFlour)}</td></tr>` : ''}
+      <tr data-testid="r-water"><td>Water</td><td>${g(r.water)}</td><td>${pct(r.water)}</td></tr>
+      <tr data-testid="r-levain"><td>Levain (100% hydration)</td><td>${g(r.L)}</td><td>${pct(r.L)}</td></tr>
+      <tr class="sub"><td>… of which flour / water</td><td>${g(r.Lf)} / ${g(r.Lw)}</td><td></td></tr>
+      <tr data-testid="r-salt"><td>Salt</td><td>${(Math.round(r.salt * 10) / 10).toFixed(1)}</td><td>${pct(r.salt)}</td></tr>
+      <tr class="total" data-testid="r-total"><td>Total dough</td><td>${g(r.D)}</td><td>${(r.D / r.F * 100).toFixed(1)}%</td></tr>
+      <tr class="sub"><td>Total flour / total water</td><td>${g(r.F)} / ${g(r.W)}</td><td>100% / ${S.hydration}%</td></tr>`;
+  }
+
+  // ---------- controls ----------
+  function syncTemps() {
+    $('kitchen-out').textContent = tLabel(S.kitchenF); $('dough-out').textContent = tLabel(S.doughF);
+    const k = $('kitchen'), d = $('dough');
+    if (S.unit === 'F') { k.min = 60; k.max = 86; k.step = 1; d.min = 64; d.max = 84; d.step = 1; k.value = S.kitchenF; d.value = S.doughF; }
+    else { k.min = 15.5; k.max = 30; k.step = 0.5; d.min = 18; d.max = 29; d.step = 0.5; k.value = toC(S.kitchenF); d.value = toC(S.doughF); }
+    $('u-f').setAttribute('aria-pressed', String(S.unit === 'F')); $('u-c').setAttribute('aria-pressed', String(S.unit === 'C'));
+  }
+  const fromSlider = (v) => S.unit === 'F' ? +v : toF(+v);
+  $('kitchen').addEventListener('input', (e) => { S.kitchenF = fromSlider(e.target.value); syncTemps(); render(); });
+  $('dough').addEventListener('input', (e) => { S.doughF = fromSlider(e.target.value); syncTemps(); render(); });
+  $('u-f').addEventListener('click', () => { S.unit = 'F'; syncTemps(); render(); });
+  $('u-c').addEventListener('click', () => { S.unit = 'C'; syncTemps(); render(); });
+  document.querySelectorAll('.strength button').forEach((b) => b.addEventListener('click', () => { S.strength = b.dataset.s; document.querySelectorAll('.strength button').forEach((q) => q.setAttribute('aria-pressed', String(q === b))); render(); }));
+  $('retard').addEventListener('input', (e) => { S.retard = +e.target.value; $('retard-out').textContent = `${S.retard} h`; render(); });
+  $('feed').addEventListener('change', (e) => { S.feed = e.target.checked; render(); });
+  $('out').addEventListener('change', (e) => { const v = e.target.value; if (!v) return; const d = new Date(v); if (!isNaN(d)) { S.out = d; render(); } });
+  const num = (id, key, lo, hi) => $(id).addEventListener('input', (e) => { const v = parseFloat(e.target.value); if (Number.isFinite(v)) { S[key] = Math.max(lo, Math.min(hi, v)); render(); } });
+  num('weight', 'weight', 100, 5000); num('loaves', 'loaves', 1, 20); num('salt', 'saltPct', 0, 5); num('ww', 'wwPct', 0, 100);
+  $('hyd').addEventListener('input', (e) => { S.hydration = +e.target.value; $('hyd-out').textContent = `${S.hydration}%`; render(); });
+  $('lev').addEventListener('input', (e) => { S.levainPct = +e.target.value; $('lev-out').textContent = `${S.levainPct}%`; render(); });
+  $('avoid').addEventListener('click', () => {
+    // try every cold-retard length and keep the one with the fewest night steps (closest to the current length on ties)
+    let best = S.retard, bestN = Infinity;
+    for (let r = 6; r <= 18; r += 0.5) { const n = plan({ ...S, retard: r }).steps.filter((s) => s.night).length; if (n < bestN || (n === bestN && Math.abs(r - S.retard) < Math.abs(best - S.retard))) { bestN = n; best = r; } }
+    S.retard = best; $('retard').value = best; $('retard-out').textContent = `${best} h`; render();
+  });
+  $('now').addEventListener('click', () => {
+    // earliest bake (to the next 15 minutes) whose first step is at least 10 minutes from now
+    const p = plan(), lead = p.out - p.start;
+    const t = Math.ceil((Date.now() + 10 * MIN + lead) / (15 * MIN)) * 15 * MIN;
+    S.out = new Date(t); $('out').value = toLocalInput(S.out); render();
+  });
+  $('print').addEventListener('click', () => window.print());
+  addEventListener('resize', () => renderGantt(plan()));
+
+  S.out = defaultOut(); $('out').value = toLocalInput(S.out);
+  syncTemps(); render();
+
+  window.__dough = {
+    get state() { return { ...S, out: S.out.toISOString() }; },
+    plan: () => { const p = plan(); return { ...p, steps: p.steps.map((s) => ({ id: s.id, t: s.t, night: s.night })) }; },
+    bulkHours, levainHours, recipe,
+  };
+})();
+</script>
+</body>
+</html>

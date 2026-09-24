@@ -1,0 +1,546 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Test Data Factory — Seeded Fake Data Generator</title>
+<meta name="description" content="A seeded generator of fake-but-realistic test data: people, addresses, reserved-domain emails, fictional 555-01xx phone numbers, dates and documented test card numbers, plus an edge-case pack of unicode, RTL, emoji, long strings, stray whitespace, quotes, zero-width characters and leap days. Build a schema, preview it and export JSON or CSV — same seed, same data.">
+<style>
+  :root {
+    --kraft: #c9a47a;
+    --kraft-2: #b98f63;
+    --label: #fffdf7;
+    --ink: #1c1712;
+    --ink-2: #5a4e42;
+    --ink-3: #8b7d6e;
+    --stamp: #c21d2e;
+    --blue: #1d4f91;
+    --edge: #fff0a8;
+    --edge-ink: #7a5a00;
+    --line: #1c1712;
+    --hair: #e6dccd;
+    --stencil: Impact, "Haettenschweiler", "Arial Narrow Bold", "Arial Black", sans-serif;
+    --sans: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+    --mono: "Courier New", ui-monospace, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { color: var(--ink); font-family: var(--sans); line-height: 1.45; overflow-x: hidden; background-color: var(--kraft);
+    background-image:
+      radial-gradient(circle at 20% 30%, rgba(255,255,255,.08) 0 1px, transparent 1.5px),
+      radial-gradient(circle at 70% 80%, rgba(60,30,0,.10) 0 1px, transparent 1.5px),
+      repeating-linear-gradient(8deg, rgba(90,55,20,.05) 0 2px, transparent 2px 7px);
+    background-size: 23px 23px, 31px 31px, auto; }
+  :focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  input, select, pre, textarea { max-width: 100%; }
+  .back { position: fixed; top: 10px; left: 10px; z-index: 40; background: var(--label); color: var(--ink); border: 2px solid var(--ink);
+    font: 700 12px/1 var(--sans); padding: 7px 10px; text-decoration: none; box-shadow: 3px 3px 0 var(--ink); }
+  .back:hover { background: var(--ink); color: var(--label); }
+  .wrap { max-width: 1220px; margin: 0 auto; padding: 60px 18px 60px; }
+
+  header.top { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px 30px; align-items: end; margin-bottom: 22px; }
+  h1 { margin: 0; font: 400 clamp(46px, 8.5vw, 104px)/.86 var(--stencil); letter-spacing: .02em; text-transform: uppercase; color: var(--ink); }
+  h1 span { display: block; color: var(--label); -webkit-text-stroke: 2px var(--ink); }
+  .sub { margin: 12px 0 0; max-width: 62ch; font-size: 15px; color: #2f261d; }
+  .ticket { background: var(--label); border: 2px solid var(--ink); padding: 10px 14px 8px; transform: rotate(2deg); box-shadow: 4px 4px 0 rgba(28,23,18,.8); min-width: 0; }
+  .ticket .code { height: 40px; width: 190px; max-width: 100%; background: repeating-linear-gradient(90deg, var(--ink) 0 2px, transparent 2px 4px, var(--ink) 4px 5px, transparent 5px 8px, var(--ink) 8px 11px, transparent 11px 12px); }
+  .ticket small { display: block; font: 700 11px var(--mono); letter-spacing: .2em; margin-top: 4px; }
+
+  .label { background: var(--label); border: 2px solid var(--ink); box-shadow: 5px 5px 0 rgba(28,23,18,.85); padding: 14px 16px 16px; position: relative; min-width: 0; }
+  .label h2 { margin: 0 0 10px; font: 400 26px/1 var(--stencil); text-transform: uppercase; letter-spacing: .04em; display: flex; align-items: center; gap: 10px; }
+  .label h2 .n { font: 700 12px var(--mono); border: 2px solid var(--ink); border-radius: 50%; width: 26px; height: 26px; display: inline-grid; place-items: center; letter-spacing: 0; }
+  .grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 22px; align-items: start; }
+  .stack { display: grid; gap: 22px; min-width: 0; }
+
+  .knobs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
+  .knobs label, .fld { display: grid; gap: 3px; font: 700 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-2); min-width: 0; }
+  input[type=number], input[type=text], select { border: 2px solid var(--ink); background: #fff; padding: 6px 8px; font: 600 15px var(--mono); letter-spacing: 0; text-transform: none; min-width: 0; width: 100%; border-radius: 0; }
+  .seedrow { display: flex; gap: 6px; min-width: 0; }
+  .seedrow input { flex: 1; }
+  .btn { border: 2px solid var(--ink); background: var(--label); padding: 7px 12px; font: 700 13px var(--sans); box-shadow: 2px 2px 0 var(--ink); text-transform: uppercase; letter-spacing: .05em; }
+  .btn:hover { background: var(--ink); color: var(--label); }
+  .btn:active { transform: translate(2px, 2px); box-shadow: none; }
+  .btn.red { background: var(--stamp); color: #fff; }
+  .btn.sm { padding: 3px 7px; font-size: 12px; box-shadow: none; }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .edgebox { margin-top: 14px; border: 2px dashed var(--ink); padding: 10px 12px; background: repeating-linear-gradient(-45deg, #fff9df 0 12px, #fffdf3 12px 24px); }
+  .edgebox .row1 { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .switch { display: inline-flex; align-items: center; gap: 8px; border: 2px solid var(--ink); background: #fff; padding: 5px 10px; font-weight: 700; }
+  .switch i { width: 16px; height: 16px; border: 2px solid var(--ink); display: inline-block; background: #fff; }
+  .switch[aria-pressed=true] i { background: var(--stamp); box-shadow: inset 0 0 0 2px #fff; }
+  .edgebox input[type=range] { width: 100%; accent-color: var(--stamp); }
+  .kinds { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0 0; padding: 0; list-style: none; }
+  .kinds li { font: 700 10.5px var(--mono); border: 1px solid var(--ink-3); padding: 1px 5px; background: #fff; color: var(--ink-3); }
+  .kinds li.hit { border-color: var(--edge-ink); background: var(--edge); color: var(--edge-ink); }
+
+  /* schema */
+  .fields { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .fields li { display: grid; grid-template-columns: 22px minmax(0, 1fr) minmax(0, 1fr) auto; gap: 6px; align-items: center; border-bottom: 1px dashed var(--hair); padding-bottom: 6px; }
+  .fields .ix { font: 700 12px var(--mono); color: var(--ink-3); }
+  .fields input, .fields select { font-size: 13px; padding: 4px 6px; border-width: 1.5px; }
+  .fields .acts { display: flex; gap: 3px; }
+  .icon { width: 28px; height: 28px; border: 1.5px solid var(--ink); background: #fff; font: 700 13px/1 var(--mono); padding: 0; }
+  .icon:hover { background: var(--ink); color: #fff; }
+  .icon:disabled { opacity: .3; cursor: default; background: #fff; color: var(--ink); }
+  .addrow { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+
+  /* preview */
+  .tablewrap { overflow: auto; max-height: 520px; border: 2px solid var(--ink); background: #fff; max-width: 100%; }
+  table.pv { border-collapse: collapse; font: 12.5px/1.35 var(--mono); min-width: 100%; }
+  .pv th { position: sticky; top: 0; background: var(--ink); color: var(--label); text-align: left; padding: 6px 8px; white-space: nowrap; font-weight: 700; z-index: 1; }
+  .pv td { padding: 4px 8px; border-bottom: 1px solid var(--hair); border-right: 1px dotted var(--hair); white-space: nowrap; max-width: 260px; overflow: hidden; text-overflow: ellipsis; vertical-align: top; }
+  .pv tr:nth-child(even) td { background: #fbf7ee; }
+  .pv td.rn { color: var(--ink-3); text-align: right; }
+  .pv td[data-edge] { background: var(--edge) !important; color: var(--edge-ink); box-shadow: inset 3px 0 0 var(--edge-ink); }
+  .ws { color: var(--stamp); font-weight: 700; }
+  .meta { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font: 12px var(--mono); color: var(--ink-2); margin: 8px 0 0; }
+  .stamp { position: absolute; right: 16px; top: 12px; font: 400 18px var(--stencil); color: var(--stamp); border: 3px solid var(--stamp); padding: 2px 8px; transform: rotate(-6deg); letter-spacing: .08em; opacity: .85; pointer-events: none; }
+
+  .exp-ctl { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+  .seg { display: inline-flex; border: 2px solid var(--ink); }
+  .seg button { border: 0; background: #fff; padding: 5px 14px; font: 700 13px var(--sans); }
+  .seg button + button { border-left: 2px solid var(--ink); }
+  .seg button[aria-pressed=true] { background: var(--ink); color: var(--label); }
+  pre.out { margin: 0; border: 2px solid var(--ink); background: #1c1712; color: #f3e7d3; padding: 12px; font: 12px/1.5 var(--mono); max-height: 320px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .status { font: 12px var(--mono); color: var(--ink-2); min-height: 1.4em; }
+  .notes { font-size: 13px; color: var(--ink-2); margin: 10px 0 0; }
+  .notes li { margin: 3px 0; }
+
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: minmax(0, 1fr); }
+    header.top { grid-template-columns: minmax(0, 1fr); }
+    .ticket { justify-self: start; }
+  }
+  @media (max-width: 480px) {
+    .wrap { padding-left: 12px; padding-right: 12px; }
+    .fields li { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .fields .ix { display: none; }
+    .fields .acts { grid-column: 1 / -1; justify-content: flex-end; }
+    .knobs { grid-template-columns: minmax(0, 1fr); }
+    .label { padding: 12px; box-shadow: 3px 3px 0 rgba(28,23,18,.85); }
+    .stamp { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { .btn:active { transform: none; } }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Test Data <span>Factory</span></h1>
+      <p class="sub">Fake-but-realistic rows for your fixtures, stamped with a seed so the same seed always ships the same crate. Emails only use the reserved <b>example.com / .org / .net</b> domains, phones stay in the fictional <b>555-0100–0199</b> block, and card numbers come from a short list of widely documented sandbox test numbers. Flip on the edge-case pack when you want to find out what your form really does with <b>O'Brien</b>.</p>
+    </div>
+    <div class="ticket" aria-hidden="true"><div class="code"></div><small id="lot">LOT · SEED 0</small></div>
+  </header>
+
+  <div class="grid">
+    <div class="stack">
+      <section class="label" aria-labelledby="h-run">
+        <h2 id="h-run"><span class="n">1</span>Run settings</h2>
+        <div class="knobs">
+          <label>Seed
+            <span class="seedrow"><input type="number" id="seed" data-testid="seed" min="0" max="4294967295" step="1"><button class="btn sm" type="button" id="reroll" data-testid="reroll" aria-label="New random seed">⟳</button></span>
+          </label>
+          <label>Rows (1–1000)<input type="number" id="rows" data-testid="rows" min="1" max="1000" step="1"></label>
+        </div>
+        <div class="presets" role="group" aria-label="Schema presets">
+          <button class="btn sm" type="button" data-preset="customers" data-testid="preset-customers">Customers</button>
+          <button class="btn sm" type="button" data-preset="payments" data-testid="preset-payments">Payments</button>
+          <button class="btn sm" type="button" data-preset="signup" data-testid="preset-signup">Sign-up form</button>
+        </div>
+        <div class="edgebox">
+          <div class="row1">
+            <button class="switch" type="button" id="edge" data-testid="edge-toggle" aria-pressed="false"><i aria-hidden="true"></i>Edge-case pack</button>
+            <span class="status" id="edge-out" data-testid="edge-rate-out"></span>
+          </div>
+          <label class="fld" style="margin-top:8px">Share of rows with edge cases<input type="range" id="rate" data-testid="edge-rate" min="5" max="100" step="5"></label>
+          <ul class="kinds" id="kinds" data-testid="edge-kinds" aria-label="Edge case kinds present in the output"></ul>
+        </div>
+      </section>
+
+      <section class="label" aria-labelledby="h-schema">
+        <h2 id="h-schema"><span class="n">2</span>Schema</h2>
+        <ol class="fields" id="fields" data-testid="fields"></ol>
+        <div class="addrow">
+          <button class="btn" type="button" id="add" data-testid="add-field">+ Add field</button>
+        </div>
+        <ul class="notes">
+          <li>Every row is one fictional person, so name, email and username agree with each other.</li>
+          <li>Columns are seeded independently: adding a field never reshuffles the others.</li>
+        </ul>
+      </section>
+    </div>
+
+    <div class="stack">
+      <section class="label" aria-labelledby="h-prev">
+        <h2 id="h-prev"><span class="n">3</span>Preview</h2>
+        <span class="stamp" aria-hidden="true">FAKE DATA</span>
+        <div class="tablewrap" tabindex="0" role="region" aria-labelledby="h-prev"><table class="pv" id="pv" data-testid="preview"></table></div>
+        <p class="meta"><span id="pv-meta" data-testid="preview-meta"></span><span>edge cells highlighted · <span class="ws">·</span> marks spaces at the ends, <span class="ws">⟨ZW⟩</span> zero-width characters</span></p>
+      </section>
+
+      <section class="label" aria-labelledby="h-exp">
+        <h2 id="h-exp"><span class="n">4</span>Export</h2>
+        <div class="exp-ctl">
+          <div class="seg" role="group" aria-label="Export format">
+            <button type="button" data-fmt="json" data-testid="fmt-json" aria-pressed="true">JSON</button>
+            <button type="button" data-fmt="csv" data-testid="fmt-csv" aria-pressed="false">CSV</button>
+          </div>
+          <button class="btn" type="button" id="dl" data-testid="download">Download</button>
+          <button class="btn" type="button" id="copy" data-testid="copy">Copy</button>
+          <span class="status" id="status" data-testid="status" aria-live="polite"></span>
+        </div>
+        <pre class="out" id="out" data-testid="export" tabindex="0" aria-label="Export preview"></pre>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  // ---------- PRNG ----------
+  function mulberry32(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  function hash(str) { let h = 2166136261 >>> 0; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  const rngFor = (seed, key, row) => mulberry32(hash(seed + '|' + key + '|' + row));
+  const pick = (r, arr) => arr[Math.floor(r() * arr.length)];
+  const int = (r, a, b) => a + Math.floor(r() * (b - a + 1));
+  const pad = (n, w = 2) => String(n).padStart(w, '0');
+
+  // ---------- word lists (all fictional combinations) ----------
+  const FIRST = ['Ava', 'Mateo', 'Priya', 'Noah', 'Amara', 'Liam', 'Sofia', 'Kenji', 'Zara', 'Diego', 'Hana', 'Elijah', 'Fatima', 'Owen', 'Leila', 'Marcus', 'Ines', 'Theo', 'Chloe', 'Ravi', 'Grace', 'Tomas', 'Yara', 'Felix', 'Nadia', 'Caleb', 'Mei', 'Jonah', 'Aisha', 'Hugo', 'Lucia', 'Samir', 'Ruby', 'Andre', 'Keiko', 'Isaac', 'Maya', 'Emeka', 'Clara', 'Rowan'];
+  const LAST = ['Okafor', 'Lindqvist', 'Moreno', 'Hart', 'Nakamura', 'Reyes', 'Patel', 'Whitaker', 'Castellano', 'Byrne', 'Achebe', 'Kowalski', 'Fairweather', 'Duarte', 'Haddad', 'Sorensen', 'Tran', 'Mbeki', 'Calloway', 'Ibarra', 'Novak', 'Ashford', 'Ferreira', 'Kim', 'Delacroix', 'Quinlan', 'Osei', 'Petrov', 'Winslow', 'Aguilar', 'Brennan', 'Saito', 'Montague', 'Adeyemi', 'Holloway', 'Varga', 'Lund', 'Cordero', 'Marsh', 'Tanaka'];
+  const STREETS = ['Juniper', 'Harbor View', 'Old Mill', 'Kestrel', 'Larkspur', 'Quarry', 'Birchwood', 'Foundry', 'Lantern', 'Copperleaf', 'Tamarack', 'Willow Bend', 'Sparrow', 'Granite', 'Orchard'];
+  const SUFFIX = ['St', 'Ave', 'Rd', 'Ln', 'Way', 'Ct', 'Blvd', 'Pl'];
+  const CITIES = ['Fernhaven', 'Kestrel Bay', 'Millbrook Falls', 'Ashgrove', 'Harlow Springs', 'Pinecrest Hollow', 'Stonebridge Crossing', 'Brindlewood', 'Lanternfield', 'Coralton', 'Duskwater', 'Marrow Creek'];
+  const STATES = ['AL', 'AZ', 'CA', 'CO', 'FL', 'GA', 'IL', 'MA', 'MI', 'MN', 'NC', 'NY', 'OH', 'OR', 'PA', 'TX', 'VA', 'WA', 'WI'];
+  const AREA = ['206', '212', '303', '312', '404', '415', '503', '512', '602', '617', '713', '919'];
+  const CO_A = ['Copperleaf', 'Bramble', 'Northgate', 'Tidewell', 'Lumen', 'Quillfeather', 'Ironbark', 'Saltmarsh', 'Hollowpine', 'Brightwater'];
+  const CO_B = ['Logistics', 'Analytics', 'Outfitters', 'Robotics', 'Bakery', 'Studios', 'Freight', 'Health', 'Labs', 'Supply'];
+  const CO_C = ['LLC', 'Inc.', 'Co.', 'Ltd.', 'Group'];
+  const WORDS = ['quiet', 'invoice', 'pending', 'ribbon', 'orbit', 'maple', 'ledger', 'signal', 'harbor', 'velvet', 'copper', 'lantern', 'thread', 'meadow', 'rocket', 'pixel', 'saddle', 'glacier', 'parcel', 'tundra'];
+  const DOMAINS = ['example.com', 'example.org', 'example.net'];
+  // Widely documented sandbox/test card numbers (never valid for real payments)
+  const CARDS = [
+    ['Visa', '4242424242424242'], ['Visa', '4000056655665556'], ['Mastercard', '5555555555554444'], ['Mastercard', '2223003122003222'],
+    ['Mastercard', '5200828282828210'], ['American Express', '378282246310005'], ['American Express', '371449635398431'],
+    ['Discover', '6011111111111117'], ['Diners Club', '3056930009020004'], ['JCB', '3566002020360505'], ['UnionPay', '6200000000000005'],
+  ];
+
+  // ---------- edge cases ----------
+  const LONG = ('Maximiliana-Wolfhart-Featherstonehaugh-').repeat(8).slice(0, 255);
+  const EDGE = {
+    unicode: { label: 'unicode', s: ['Zoë Łukasiewicz', 'Siobhán Ní Bhriain', 'Nguyễn Thị Minh', '山田 太郎', 'José Müller-Øster', 'Ångström Ærø'] },
+    rtl: { label: 'RTL', s: ['مريم الحسيني', 'יעל כהן', 'Order #12 لـ سارة', 'דוד לוי'] },
+    emoji: { label: 'emoji', s: ['Sam 🚀 Rivera', '👩🏽‍💻 Dev Team', 'Taco 🌮 Tuesday', '👨‍👩‍👧 Family'] },
+    long: { label: 'long (255)', s: [LONG] },
+    whitespace: { label: 'lead/trail spaces', s: ['  Ana Lima', 'Ben Cole   ', '  Cy Park  ', '\tTabbed Name'] },
+    quotes: { label: 'quotes', s: ["O'Brien", 'Pat "Sparky" O\'Neil', "D'Angelo, Jr.", '“Curly” ‘Quotes’'] },
+    zerowidth: { label: 'zero-width', s: ['Mia​Chen', 'Liam‍Park', '﻿Noah Byrne', 'Eve‌Stone'] },
+    markup: { label: 'markup / SQL', s: ['<img src=x onerror=alert(1)>', "Robert'); DROP TABLE students;--", '<b>bold</b> & co', '${7*7} {{7*7}}'] },
+    empty: { label: 'empty string', s: [''] },
+    leapday: { label: 'leap day', d: ['2024-02-29', '2000-02-29', '2028-02-29', '2020-02-29'] },
+  };
+  const EDGE_ORDER = Object.keys(EDGE);
+  const EDGE_EMAIL = { quotes: "o'brien+qa@example.org", unicode: 'UPPER.Case@EXAMPLE.NET', long: 'a.very.long.local.part.for.testing.limits.' + 'x'.repeat(20) + '@example.com', whitespace: ' spaced@example.com ' };
+
+  // ---------- field types ----------
+  const TYPES = {
+    seq: { l: 'Row number', text: false },
+    uuid: { l: 'UUID (v4-shaped)', text: false },
+    firstName: { l: 'First name', text: true },
+    lastName: { l: 'Last name', text: true },
+    fullName: { l: 'Full name', text: true },
+    username: { l: 'Username', text: true },
+    email: { l: 'Email (example.*)', text: false, email: true },
+    phone: { l: 'Phone (555-01xx)', text: false },
+    street: { l: 'Street address', text: true },
+    city: { l: 'City', text: true },
+    state: { l: 'State', text: false },
+    zip: { l: 'ZIP', text: false },
+    company: { l: 'Company', text: true },
+    date: { l: 'Date (2020–2026)', text: false, date: true },
+    birthdate: { l: 'Birth date (age 18–89)', text: false, date: true },
+    timestamp: { l: 'Timestamp (UTC)', text: false },
+    int: { l: 'Integer 0–1000', text: false },
+    price: { l: 'Price', text: false },
+    bool: { l: 'Boolean', text: false },
+    cardNumber: { l: 'Card number (test)', text: false },
+    cardBrand: { l: 'Card brand', text: false },
+    cardExpiry: { l: 'Card expiry', text: false },
+    cardCvc: { l: 'Card CVC', text: false },
+    note: { l: 'Free text', text: true },
+  };
+  const PRESETS = {
+    customers: [['id', 'seq'], ['first_name', 'firstName'], ['last_name', 'lastName'], ['email', 'email'], ['phone', 'phone'], ['street', 'street'], ['city', 'city'], ['state', 'state'], ['zip', 'zip'], ['signed_up', 'date']],
+    payments: [['payment_id', 'uuid'], ['cardholder', 'fullName'], ['brand', 'cardBrand'], ['card_number', 'cardNumber'], ['expiry', 'cardExpiry'], ['cvc', 'cardCvc'], ['amount', 'price'], ['captured', 'bool'], ['created_at', 'timestamp']],
+    signup: [['username', 'username'], ['display_name', 'fullName'], ['email', 'email'], ['birth_date', 'birthdate'], ['company', 'company'], ['bio', 'note'], ['newsletter', 'bool']],
+  };
+
+  function person(seed, row) {
+    const r = rngFor(seed, 'person', row);
+    const first = pick(r, FIRST), last = pick(r, LAST);
+    return { first, last, n: int(r, 1, 99), dom: pick(r, DOMAINS), style: int(r, 0, 2) };
+  }
+  const iso = (d) => `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+  const REF = Date.UTC(2026, 0, 1); // fixed reference "today" so output never drifts with the clock
+
+  function value(type, seed, key, row) {
+    const r = rngFor(seed, key + ':' + type, row);
+    const p = person(seed, row);
+    switch (type) {
+      case 'seq': return row + 1;
+      case 'uuid': {
+        const h = Array.from({ length: 32 }, () => Math.floor(r() * 16).toString(16));
+        h[12] = '4'; h[16] = '89ab'[Math.floor(r() * 4)];
+        const s = h.join('');
+        return `${s.slice(0, 8)}-${s.slice(8, 12)}-${s.slice(12, 16)}-${s.slice(16, 20)}-${s.slice(20)}`;
+      }
+      case 'firstName': return p.first;
+      case 'lastName': return p.last;
+      case 'fullName': return `${p.first} ${p.last}`;
+      case 'username': return (p.first + p.last[0]).toLowerCase() + pad(p.n);
+      case 'email': {
+        const f = p.first.toLowerCase(), l = p.last.toLowerCase();
+        const local = [`${f}.${l}`, `${f[0]}${l}${p.n}`, `${f}+test${p.n}`][p.style];
+        return `${local}@${p.dom}`;
+      }
+      case 'phone': return `+1 (${pick(r, AREA)}) 555-01${pad(int(r, 0, 99))}`;
+      case 'street': return `${int(r, 10, 9899)} ${pick(r, STREETS)} ${pick(r, SUFFIX)}`;
+      case 'city': return pick(r, CITIES);
+      case 'state': return pick(r, STATES);
+      case 'zip': return pad(int(r, 1001, 99899), 5);
+      case 'company': return `${pick(r, CO_A)} ${pick(r, CO_B)} ${pick(r, CO_C)}`;
+      case 'date': return iso(new Date(Date.UTC(2020, 0, 1) + int(r, 0, 2556) * 864e5));
+      case 'birthdate': { const age = int(r, 18, 89); return iso(new Date(REF - age * 365.25 * 864e5 - int(r, 0, 364) * 864e5)); }
+      case 'timestamp': return new Date(Date.UTC(2025, 0, 1) + Math.floor(r() * 365 * 864e5)).toISOString().replace(/\.\d{3}Z$/, 'Z');
+      case 'int': return int(r, 0, 1000);
+      case 'price': return Math.round((1 + r() * 998.99) * 100) / 100;
+      case 'bool': return r() < 0.5;
+      case 'cardNumber': return CARDS[int(rngFor(seed, 'card', row), 0, CARDS.length - 1)][1];
+      case 'cardBrand': return CARDS[int(rngFor(seed, 'card', row), 0, CARDS.length - 1)][0];
+      case 'cardExpiry': return `${pad(int(r, 1, 12))}/${int(r, 29, 33)}`;
+      case 'cardCvc': return CARDS[int(rngFor(seed, 'card', row), 0, CARDS.length - 1)][0] === 'American Express' ? pad(int(r, 0, 9999), 4) : pad(int(r, 0, 999), 3);
+      case 'note': { const n = int(r, 3, 8); const w = Array.from({ length: n }, () => pick(r, WORDS)); w[0] = w[0][0].toUpperCase() + w[0].slice(1); return w.join(' ') + '.'; }
+      default: return null;
+    }
+  }
+
+  function edgeFor(kind, type, seed, key, row) {
+    const e = EDGE[kind], T = TYPES[type];
+    const r = rngFor(seed, 'edgeval:' + key, row);
+    if (T.date && e.d) return pick(r, e.d);
+    if (T.text && e.s) return pick(r, e.s);
+    if (T.email && EDGE_EMAIL[kind]) return EDGE_EMAIL[kind];
+    return undefined;
+  }
+
+  function generate(state) {
+    const { seed, rows, fields, edge, rate } = state;
+    const out = [], edges = [];
+    let cycle = 0;
+    for (let i = 0; i < rows; i++) {
+      const obj = {}, eRow = {};
+      let kind = null;
+      if (edge && rngFor(seed, 'edge', i)() < rate / 100) { kind = EDGE_ORDER[cycle % EDGE_ORDER.length]; cycle++; }
+      for (const f of fields) {
+        let v = value(f.type, seed, f.key, i);
+        if (kind) { const ev = edgeFor(kind, f.type, seed, f.key, i); if (ev !== undefined) { v = ev; eRow[f.name] = kind; } }
+        obj[f.name] = v;
+      }
+      out.push(obj); edges.push(eRow);
+    }
+    return { data: out, edges };
+  }
+
+  // ---------- export ----------
+  function csvCell(v) {
+    const s = v == null ? '' : String(v);
+    return /[",\r\n]|^\s|\s$/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+  function toCSV(fields, data) {
+    const lines = [fields.map((f) => csvCell(f.name)).join(',')];
+    for (const row of data) lines.push(fields.map((f) => csvCell(row[f.name])).join(','));
+    return lines.join('\r\n') + '\r\n';
+  }
+
+  // ---------- state ----------
+  const LS = 'lab050-tdf';
+  let uid = 0;
+  const mk = (name, type) => ({ name, type, key: 'f' + (++uid) + '-' + name });
+  let state = { seed: 1234, rows: 25, edge: false, rate: 30, fmt: 'json', fields: PRESETS.customers.map(([n, t]) => mk(n, t)) };
+  try {
+    const s = JSON.parse(localStorage.getItem(LS) || 'null');
+    if (s && Array.isArray(s.fields)) {
+      state = { ...state, ...s };
+      uid = s.fields.reduce((m, f) => Math.max(m, parseInt(String(f.key).slice(1), 10) || 0), 0);
+    }
+  } catch (e) { /* storage unavailable */ }
+  const qs = new URLSearchParams(location.search);
+  if (qs.has('seed') && /^\d+$/.test(qs.get('seed'))) state.seed = Number(qs.get('seed')) >>> 0;
+  const save = () => { try { localStorage.setItem(LS, JSON.stringify(state)); } catch (e) { /* ignore */ } };
+
+  const $ = (id) => document.getElementById(id);
+  let last = null;
+
+  function renderFields() {
+    const ol = $('fields');
+    ol.innerHTML = '';
+    state.fields.forEach((f, i) => {
+      const li = document.createElement('li');
+      li.dataset.testid = 'field';
+      li.innerHTML = `<span class="ix">${i + 1}</span>
+        <input type="text" aria-label="Field ${i + 1} name" data-testid="field-name-${i}" value="">
+        <select aria-label="Field ${i + 1} type" data-testid="field-type-${i}">${Object.entries(TYPES).map(([k, t]) => `<option value="${k}">${t.l}</option>`).join('')}</select>
+        <span class="acts"><button class="icon" type="button" data-a="up" aria-label="Move ${f.name} up" ${i === 0 ? 'disabled' : ''}>↑</button><button class="icon" type="button" data-a="down" aria-label="Move ${f.name} down" ${i === state.fields.length - 1 ? 'disabled' : ''}>↓</button><button class="icon" type="button" data-a="del" data-testid="field-del-${i}" aria-label="Remove ${f.name}" ${state.fields.length === 1 ? 'disabled' : ''}>✕</button></span>`;
+      const inp = li.querySelector('input');
+      inp.value = f.name;
+      li.querySelector('select').value = f.type;
+      inp.addEventListener('input', () => {
+        const v = inp.value.trim() || `field_${i + 1}`;
+        f.name = v; save(); regenerate();
+      });
+      li.querySelector('select').addEventListener('change', (e) => { f.type = e.target.value; save(); regenerate(); });
+      li.querySelectorAll('.icon').forEach((b) => b.addEventListener('click', () => {
+        const a = b.dataset.a;
+        if (a === 'del') state.fields.splice(i, 1);
+        else { const j = a === 'up' ? i - 1 : i + 1; [state.fields[i], state.fields[j]] = [state.fields[j], state.fields[i]]; }
+        save(); renderFields(); regenerate();
+        const focusSel = a === 'del' ? `[data-testid="field-name-${Math.min(i, state.fields.length - 1)}"]` : `[data-testid="field-name-${a === 'up' ? i - 1 : i + 1}"]`;
+        const el = document.querySelector(focusSel); if (el) el.focus();
+      }));
+      ol.appendChild(li);
+    });
+  }
+
+  function visible(v) {
+    const s = String(v);
+    const span = document.createElement('span');
+    const lead = s.match(/^\s+/), trail = s.match(/\s+$/);
+    const core = s.replace(/^\s+/, '').replace(/\s+$/, '');
+    const addWs = (m) => { if (m) { const w = document.createElement('span'); w.className = 'ws'; w.textContent = '·'.repeat(m[0].length); span.appendChild(w); } };
+    if (s.length && !s.trim()) { addWs([s]); return span; }
+    addWs(lead);
+    // mark stray zero-width characters, but leave the joiners inside emoji sequences (👩🏽‍💻) alone
+    core.split(/([​‌﻿]|(?<![\p{Extended_Pictographic}\u{1F3FB}-\u{1F3FF}️])‍)/u).forEach((part) => {
+      if (part === undefined) return;
+      if (/^[​‌‍﻿]$/.test(part)) { const w = document.createElement('span'); w.className = 'ws'; w.textContent = '⟨ZW⟩'; w.title = 'U+' + part.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0'); span.appendChild(w); }
+      else if (part) span.appendChild(document.createTextNode(part));
+    });
+    addWs(trail);
+    if (!s.length) { const w = document.createElement('span'); w.className = 'ws'; w.textContent = '∅ empty'; span.appendChild(w); }
+    return span;
+  }
+
+  function renderPreview() {
+    const t = $('pv');
+    t.innerHTML = '';
+    const head = document.createElement('tr');
+    head.innerHTML = '<th scope="col">#</th>';
+    state.fields.forEach((f) => { const th = document.createElement('th'); th.scope = 'col'; th.textContent = f.name; head.appendChild(th); });
+    const thead = document.createElement('thead'); thead.appendChild(head); t.appendChild(thead);
+    const tb = document.createElement('tbody');
+    const n = Math.min(50, last.data.length);
+    for (let i = 0; i < n; i++) {
+      const tr = document.createElement('tr');
+      tr.dataset.testid = 'prow';
+      const rn = document.createElement('td'); rn.className = 'rn'; rn.textContent = i + 1; tr.appendChild(rn);
+      state.fields.forEach((f) => {
+        const td = document.createElement('td');
+        const v = last.data[i][f.name];
+        const ek = last.edges[i][f.name];
+        if (ek) { td.dataset.edge = ek; td.title = 'Edge case: ' + EDGE[ek].label; }
+        td.dataset.col = f.name;
+        td.appendChild(visible(typeof v === 'number' && f.type === 'price' ? v.toFixed(2) : v));
+        tr.appendChild(td);
+      });
+      tb.appendChild(tr);
+    }
+    t.appendChild(tb);
+    const edgeCells = last.edges.reduce((s, e) => s + Object.keys(e).length, 0);
+    $('pv-meta').textContent = `showing ${n} of ${last.data.length} rows · ${state.fields.length} fields · ${edgeCells} edge cells`;
+  }
+
+  function renderKinds() {
+    const hit = new Set();
+    last.edges.forEach((e) => Object.values(e).forEach((k) => hit.add(k)));
+    $('kinds').innerHTML = EDGE_ORDER.map((k) => `<li class="${hit.has(k) ? 'hit' : ''}" data-kind="${k}">${EDGE[k].label}</li>`).join('');
+    $('kinds').dataset.hit = EDGE_ORDER.filter((k) => hit.has(k)).join(' ');
+    $('edge-out').textContent = state.edge ? `${state.rate}% of rows · ${hit.size}/${EDGE_ORDER.length} kinds present` : 'off';
+  }
+
+  function exportText() {
+    return state.fmt === 'json' ? JSON.stringify(last.data, null, 2) : toCSV(state.fields, last.data);
+  }
+  function renderExport() {
+    const txt = exportText();
+    const MAX = 12000;
+    $('out').textContent = txt.length > MAX ? txt.slice(0, MAX) + `\n… ${txt.length - MAX} more characters in the download` : txt;
+    $('out').dataset.len = txt.length;
+    document.querySelectorAll('.seg button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.fmt === state.fmt));
+  }
+
+  function regenerate() {
+    last = generate(state);
+    $('lot').textContent = `LOT · SEED ${state.seed}`;
+    renderPreview(); renderKinds(); renderExport();
+    $('status').textContent = '';
+  }
+
+  function syncInputs() {
+    $('seed').value = state.seed; $('rows').value = state.rows; $('rate').value = state.rate;
+    $('edge').setAttribute('aria-pressed', state.edge); $('rate').disabled = !state.edge;
+  }
+
+  // ---------- events ----------
+  $('seed').addEventListener('input', () => {
+    const v = $('seed').value;
+    if (/^\d+$/.test(v)) { state.seed = Number(v) >>> 0; save(); regenerate(); }
+  });
+  $('reroll').addEventListener('click', () => {
+    state.seed = Math.floor(Math.random() * 1e6); syncInputs(); save(); regenerate();
+    $('status').textContent = `New seed ${state.seed}`;
+  });
+  $('rows').addEventListener('input', () => {
+    const v = Number($('rows').value);
+    if (Number.isInteger(v) && v >= 1 && v <= 1000) { state.rows = v; save(); regenerate(); }
+  });
+  $('rows').addEventListener('change', () => { const v = Math.min(1000, Math.max(1, Math.round(Number($('rows').value) || 1))); state.rows = v; $('rows').value = v; save(); regenerate(); });
+  $('edge').addEventListener('click', () => { state.edge = !state.edge; syncInputs(); save(); regenerate(); });
+  $('rate').addEventListener('input', () => { state.rate = Number($('rate').value); save(); regenerate(); });
+  document.querySelectorAll('[data-preset]').forEach((b) => b.addEventListener('click', () => {
+    state.fields = PRESETS[b.dataset.preset].map(([n, t]) => mk(n, t)); save(); renderFields(); regenerate();
+    $('status').textContent = `Loaded ${b.textContent} schema`;
+  }));
+  $('add').addEventListener('click', () => {
+    let n = state.fields.length + 1, name = `field_${n}`;
+    while (state.fields.some((f) => f.name === name)) name = `field_${++n}`;
+    state.fields.push(mk(name, 'note')); save(); renderFields(); regenerate();
+    document.querySelector(`[data-testid="field-name-${state.fields.length - 1}"]`).focus();
+  });
+  document.querySelectorAll('.seg button').forEach((b) => b.addEventListener('click', () => { state.fmt = b.dataset.fmt; save(); renderExport(); }));
+  $('dl').addEventListener('click', () => {
+    const txt = exportText();
+    const blob = new Blob([txt], { type: state.fmt === 'json' ? 'application/json' : 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = `test-data-seed${state.seed}-${state.rows}rows.${state.fmt}`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    $('status').textContent = `Downloaded ${a.download}`;
+  });
+  $('copy').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(exportText()); $('status').textContent = 'Copied to clipboard'; }
+    catch (e) { $('status').textContent = 'Clipboard blocked — use Download instead'; }
+  });
+
+  window.__tdf = { generate: (o) => generate({ ...state, ...o }), toCSV, cards: CARDS.map((c) => c[1]), get state() { return state; } };
+  syncInputs(); renderFields(); regenerate();
+})();
+</script>
+</body>
+</html>

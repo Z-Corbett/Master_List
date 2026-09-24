@@ -1,0 +1,36 @@
+{
+  "id": "060",
+  "slug": "060-marfa-lights",
+  "file": "lab/060-marfa-lights.html",
+  "title": "Marfa Lights — a generative West Texas night",
+  "category": "Generative",
+  "tags": ["canvas", "seeded-noise", "web-audio", "astronomy", "simulation"],
+  "description": "A generative night on the high desert near Marfa, Texas: layered mesas fade from dusk to dark while a seeded star field turns counterclockwise around Polaris at the sidereal rate, with optional long-exposure star trails. On the horizon, lights driven by seeded noise drift, pulse, split and merge. You can scrub or time-lapse the night, lift binoculars to magnify the horizon, and turn on a Web Audio wind.",
+  "prompt": "Make me a generative West Texas desert night inspired by the Marfa lights. Layered mesas at dusk fading to night, a big star field that slowly rotates about the celestial pole (Polaris), and mysterious drifting lights on the horizon that split, merge and pulse, driven by seeded noise. Add a time-of-night slider, a 'viewing platform' binocular zoom mode, and ambient wind with Web Audio that starts only after I click. Mention the real phenomenon only in general, accurate terms.",
+  "qa": {
+    "methodology": [
+      "Astronomy oracle: for three stars the spec measures the angle about Polaris at 21:30 and 23:30 and requires exactly +30.08° (2 h × 15.041°/h, counterclockwise when facing north) with an unchanged radius, and requires Polaris itself to stay fixed.",
+      "Time-of-night mapping: slider values map to exact clock labels and phases (dusk, night, first light), darkness is 1 in the middle of the night, and the canvas aria-label reports the rotation (52.6° at 00:30).",
+      "Determinism: with page.clock paused so the animation loop cannot interfere, reset() plus step(300) yields the same light histories on replay and different ones for another seed; splits and merges both occur and the light count stays within bounds.",
+      "Binocular mode: a pixel outside the eyepieces must be pure black, arrow keys must move the aim by exact steps, a tap left of centre must swing the view left, and Escape must restore the full scene.",
+      "Time-lapse: page.clock.runFor(5 s) advances the night by about 30 minutes, and pausing freezes it exactly.",
+      "Audio policy: no AudioContext exists before the first click on Wind; the button state toggles after that."
+    ],
+    "risks": [
+      "Frame-rate dependence: the lights use a fixed 1/30 s step with an accumulator, so the simulation does not change with display refresh rate.",
+      "Star-trail arcs must turn the same way as the live stars; the arc direction is derived from the same rotation function.",
+      "Autoplay policy: audio must never start on load; the context is created inside the click handler.",
+      "Wide control bars on small phones: the dashboard collapses to a 2×2 button grid and was checked with wider letter-spacing."
+    ],
+    "playwright": "The page animates continuously, so the determinism tests install page.clock and pause it before navigation. That stops requestAnimationFrame, and the spec drives the light simulation through window.__marfa.step() in exact increments. The star rotation is checked with geometry rather than pixels: the page exposes star() and polaris() screen positions for any time, and the spec compares angles and radii. Pixels are read only where the answer is certain (pure black outside the binocular eyepieces). The time-lapse is tested with clock.runFor, which advances the fake rAF clock. Web Audio can't be listened to in a headless browser, so the spec checks that no context exists before the gesture and that one exists after.",
+    "coverage": [
+      "Time slider labels, phases, darkness and aria-label",
+      "Counterclockwise sidereal rotation about a fixed Polaris",
+      "Seeded light replay, splits and merges, bounded count, stats text",
+      "Binocular blackout, keyboard and tap aiming, Escape",
+      "Time-lapse rate and pause under page.clock",
+      "Trails toggle and wind audio started only by a gesture"
+    ]
+  },
+  "a11y": "All controls are native buttons with aria-pressed plus a labelled range for the time of night. The canvas is focusable, carries a live-updated aria-label (time, phase, sky rotation, light count), and in binocular mode can be aimed with the arrow keys and closed with Escape. The light count is announced through an aria-live region. Under reduced motion, twinkling stops and the lights drift more slowly."
+}

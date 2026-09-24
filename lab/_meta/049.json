@@ -1,0 +1,36 @@
+{
+  "id": "049",
+  "slug": "049-waterfall",
+  "file": "lab/049-waterfall.html",
+  "title": "Waterfall — Network Request Timeline Simulator",
+  "category": "QA & Testing",
+  "tags": ["web-performance", "simulation", "http2", "core-web-vitals", "budgets"],
+  "description": "A millisecond-step simulator of a fictional storefront loading thirteen requests across four origins, drawn as an animated waterfall with queue, DNS, TCP, TLS, TTFB and download phases plus a main-thread lane. Switch between approximate network profiles, flip HTTP/2, compression, preload, defer, async and lazy-loading, and watch the critical request chain, the FCP and LCP markers and the per-type byte budgets react.",
+  "prompt": "Build 'Waterfall', a network request timeline simulator for a fictional page. Give it a realistic set of resources — HTML, CSS, JS, a web font, images and an API call — with sizes, priorities and dependencies, spread across a few origins. Let me pick a network profile (fast 4G, slow 4G, 3G, clearly labelled as approximate) and toggle HTTP/2 multiplexing, preload, defer, async, lazy-loading and compression. Actually simulate it: shared bandwidth, connection setup per origin, the six-connection limit on HTTP/1.1, parser-blocking scripts, discovery through CSS. Render an animated waterfall with DNS / connect / TLS / TTFB / download segments, highlight the critical request chain, and mark FCP and LCP. Add per-type budgets that turn red when exceeded. Make it look like an instrument panel, not a dashboard template.",
+  "qa": {
+    "methodology": [
+      "Model-level oracles: byte totals are hand-checked sums of the resource table (161 KB of compressed JS, 512 KB raw, 426 KB of images) so budget maths is asserted exactly, not approximately.",
+      "Metamorphic relations for the timing model: a slower profile must never make FCP or LCP earlier; preload must move the hero's start before the end of the HTML and improve LCP; defer must cut FCP when a script is the render blocker.",
+      "Causal checks on the critical chain: with compression off on slow 4G the chain is html → vendor.js, and deferring vendor.js removes it from the chain and flips its main-thread execution to 'defer'.",
+      "Protocol behaviour: HTTP/2 uses one connection per origin (4 total); HTTP/1.1 opens more and several same-origin requests show their own TCP + TLS segments.",
+      "Persistence and budgets: editing a budget turns the row green immediately and survives a reload.",
+      "Responsive and wider-font review at 1280, 390 and 360 px: the waterfall keeps a fixed label column and percentage-positioned bars so it never scrolls sideways."
+    ],
+    "risks": [
+      "Circular dependencies in the model (font discovery depends on first styling, which depends on scripts sharing the same bandwidth) — solved by re-evaluating gates every simulated millisecond.",
+      "Tuning resource sizes can silently flip which resource limits LCP, breaking chain expectations.",
+      "Animated clip-path reveal could hide bars from a screenshot or a test taken mid-animation."
+    ],
+    "playwright": "Everything the spec needs is written onto the DOM as data attributes — each row's start, end, segment list and critical flag, each metric's milliseconds, each budget's used value and over state — so no assertion depends on bar pixel widths. The simulation is deterministic (a fixed 1 ms step, no randomness), so exact values like the 512.0 KB JS total are safe to assert while timings are compared relationally. emulateMedia({ reducedMotion: 'reduce' }) skips the 1.8 s reveal animation, which removes any need for waits or page.clock. Visual screenshots were reviewed by hand rather than committed with toHaveScreenshot, because font rendering differs across machines.",
+    "coverage": [
+      "Network profile switching, radio state and approximate labelling",
+      "LCP budget going red on 3G",
+      "Compression off: exact JS and image totals, JS budget over, bytes increase",
+      "Budget edit clears the warning and persists across reload",
+      "Render-blocking vendor.js on the critical chain, then deferred off it; async tag.js",
+      "Preload moves hero and font starts earlier and improves LCP; request detail panel",
+      "HTTP/1.1 extra connections and handshakes; lazy-load skips four requests"
+    ]
+  },
+  "a11y": "Network profiles are an arrow-key radiogroup, toggles are aria-pressed buttons, and every waterfall row is a button with a spoken summary (type, size, priority, start and end, critical status) that opens a text breakdown in a live region. Metric changes are announced politely, and budgets show text status alongside the colour."
+}

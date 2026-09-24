@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SemVer Lab — Conventional Commits &amp; Range Resolver</title>
+<meta name="description" content="Paste Conventional Commit messages to get the next semantic version — breaking changes, 0.x rules and pre-release channels included — plus a grouped changelog. A second tab resolves dependency ranges (^, ~, x, hyphen, comparators, ||) with node-semver semantics in a truth table.">
+<style>
+  :root {
+    --bg: #e3f4ea;
+    --bg-2: #d3ecdf;
+    --card: #fbfffc;
+    --ink: #0e3a2c;
+    --ink-2: #3f6b5b;
+    --ink-3: #7fa293;
+    --line: #bfe0cf;
+    --major: #ff5f4a;
+    --minor: #f2b300;
+    --patch: #16a37a;
+    --pre: #7a5af8;
+    --no: #b8c9c0;
+    --round: "Arial Rounded MT Bold", "Nunito", "Varela Round", "Segoe UI", system-ui, sans-serif;
+    --sans: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.5; overflow-x: hidden;
+    background-image: radial-gradient(circle at 12px 12px, var(--bg-2) 2px, transparent 2.5px); background-size: 24px 24px; }
+  :focus-visible { outline: 3px solid var(--pre); outline-offset: 2px; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  input, select, textarea, pre { max-width: 100%; }
+  .back { position: fixed; top: 10px; left: 10px; z-index: 40; background: var(--ink); color: #eafff4; text-decoration: none; font: 700 13px/1 var(--round); padding: 9px 14px; border-radius: 999px; }
+  .back:hover { background: var(--patch); }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 62px 18px 60px; }
+
+  header.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 30px; margin-bottom: 22px; }
+  h1 { margin: 0; font: 800 clamp(42px, 7vw, 84px)/.95 var(--round); letter-spacing: -.02em; display: flex; align-items: baseline; gap: .2em; flex-wrap: wrap; }
+  h1 .v { display: inline-flex; gap: 4px; font-size: .55em; transform: translateY(-.15em); }
+  h1 .v span { padding: .08em .3em; border-radius: .3em; color: #fff; }
+  .lede { margin: 8px 0 0; color: var(--ink-2); max-width: 62ch; font-size: 15.5px; }
+  [role=tablist] { display: inline-flex; background: var(--card); border: 2px solid var(--ink); border-radius: 999px; padding: 4px; gap: 4px; }
+  [role=tab] { border: 0; background: transparent; border-radius: 999px; padding: 8px 18px; font: 700 14px var(--round); }
+  [role=tab][aria-selected=true] { background: var(--ink); color: #eafff4; }
+
+  .grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 18px; align-items: start; }
+  .card { background: var(--card); border: 2px solid var(--ink); border-radius: 18px; padding: 16px 18px; min-width: 0; box-shadow: 5px 5px 0 var(--ink); }
+  .card + .card { margin-top: 18px; }
+  .card h2 { margin: 0 0 10px; font: 800 20px var(--round); }
+  .fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+  label.f { display: grid; gap: 3px; font: 700 12px var(--round); color: var(--ink-2); min-width: 0; }
+  input[type=text], input[type=date], select, textarea { border: 2px solid var(--line); border-radius: 10px; background: #fff; padding: 7px 10px; font: 14px var(--mono); width: 100%; min-width: 0; }
+  input:focus, select:focus, textarea:focus { border-color: var(--ink); outline: none; }
+  textarea { resize: vertical; line-height: 1.5; }
+  textarea#commits { min-height: 300px; font-size: 13px; }
+  .chk { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; margin: 10px 0; }
+  .chk input { margin-top: 3px; accent-color: var(--patch); }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+  .btn { border: 2px solid var(--ink); background: #fff; border-radius: 999px; padding: 5px 12px; font: 700 13px var(--round); }
+  .btn:hover { background: var(--ink); color: #eafff4; }
+  .hint { font-size: 12.5px; color: var(--ink-3); margin: 6px 0 0; }
+  .hint code, .note code { font: 12px var(--mono); background: var(--bg); padding: 0 4px; border-radius: 4px; }
+
+  .next { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
+  .ver { display: inline-flex; gap: 4px; font: 800 34px/1 var(--round); font-variant-numeric: tabular-nums; flex-wrap: wrap; min-width: 0; }
+  .ver span { background: #fff; border: 2px solid var(--ink); border-radius: 10px; padding: 6px 10px; }
+  .ver span.hi { color: #fff; border-color: transparent; }
+  .ver span.pre { font-size: .6em; align-self: center; background: #efeaff; border-color: var(--pre); color: var(--pre); }
+  .ver span.pre.hi { background: var(--pre); color: #fff; }
+  .arrow { font: 800 30px var(--round); color: var(--ink-3); }
+  .from { font: 700 20px var(--mono); color: var(--ink-2); }
+  .bump { display: inline-block; font: 800 12px var(--round); letter-spacing: .08em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; color: #fff; }
+  .b-major { background: var(--major); } .b-minor { background: var(--minor); color: #3a2a00; } .b-patch { background: var(--patch); } .b-none { background: var(--no); color: var(--ink); } .b-pre { background: var(--pre); }
+  .reason { font-size: 13.5px; color: var(--ink-2); margin: 10px 0 0; }
+  ul.parsed { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  ul.parsed li { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; gap: 8px; align-items: start; padding: 6px 8px; border-radius: 10px; background: #f3fbf6; font-size: 13.5px; }
+  ul.parsed li.bad { background: #fff1ee; }
+  .type { font: 700 11px var(--mono); text-align: center; border-radius: 6px; padding: 2px 4px; background: var(--no); color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
+  .type.feat { background: var(--minor); color: #3a2a00; } .type.fix, .type.perf, .type.revert { background: var(--patch); color: #fff; } .type.bad { background: var(--major); color: #fff; }
+  .desc { min-width: 0; overflow-wrap: anywhere; }
+  .desc b { font-family: var(--mono); font-size: 12.5px; }
+  .desc .brk { display: block; color: var(--major); font-size: 12.5px; font-weight: 700; }
+  .eff { font: 700 11px var(--round); color: var(--ink-3); white-space: nowrap; }
+  .eff.major { color: var(--major); } .eff.minor { color: #a67a00; } .eff.patch { color: var(--patch); }
+  .md { font-size: 14px; }
+  .md h3 { font: 800 22px var(--round); margin: 0 0 6px; }
+  .md h4 { font: 800 14px var(--round); margin: 12px 0 4px; text-transform: none; }
+  .md ul { margin: 0; padding-left: 20px; }
+  .md li { overflow-wrap: anywhere; }
+  .md .none { color: var(--ink-3); }
+  pre.raw { margin: 10px 0 0; background: var(--ink); color: #cff5e2; border-radius: 12px; padding: 12px; font: 12px/1.55 var(--mono); max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .status { font-size: 12.5px; color: var(--ink-2); }
+
+  /* ranges */
+  .rgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+  textarea.list { min-height: 220px; font-size: 13px; }
+  .desugar { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; font: 12.5px var(--mono); }
+  .desugar li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 8px; padding: 4px 8px; background: #f3fbf6; border-radius: 8px; }
+  .desugar li span { overflow-wrap: anywhere; min-width: 0; }
+  .desugar li span:last-child { color: var(--ink-2); }
+  .desugar li.err span:last-child { color: var(--major); }
+  .tt-wrap { overflow: auto; max-width: 100%; border: 2px solid var(--ink); border-radius: 14px; background: #fff; }
+  table.tt { border-collapse: separate; border-spacing: 0; font: 12.5px var(--mono); }
+  .tt th, .tt td { padding: 6px 8px; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); text-align: center; white-space: nowrap; }
+  .tt thead th { background: var(--ink); color: #eafff4; position: sticky; top: 0; font-weight: 700; }
+  .tt thead th:first-child { left: 0; z-index: 2; }
+  .tt tbody th { text-align: left; background: #f3fbf6; position: sticky; left: 0; font-weight: 700; }
+  .tt td button { border: 0; background: none; width: 30px; height: 26px; border-radius: 7px; font: 800 15px var(--round); }
+  .tt td.y button { background: #d7f5e6; color: var(--patch); }
+  .tt td.n button { color: #c9d6cf; }
+  .tt td.y button:hover, .tt td.n button:hover, .tt td button[aria-pressed=true] { outline: 2px solid var(--ink); }
+  .tt tfoot td, .tt tfoot th { background: #fff8e0; font-weight: 700; }
+  .explain { margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: #f3fbf6; border: 2px dashed var(--line); font-size: 13.5px; min-height: 44px; }
+  .explain code { font: 12.5px var(--mono); }
+  .note { font-size: 12.5px; color: var(--ink-3); margin: 10px 0 0; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  @media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 560px) {
+    .wrap { padding-left: 12px; padding-right: 12px; }
+    .rgrid, .fields { grid-template-columns: minmax(0, 1fr); }
+    .card { padding: 14px; box-shadow: 3px 3px 0 var(--ink); }
+    .ver { font-size: 26px; }
+    ul.parsed li { grid-template-columns: 62px minmax(0, 1fr); }
+    ul.parsed li .eff { grid-column: 2; }
+    .desugar li { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>SemVer Lab <span class="v" aria-hidden="true"><span style="background:var(--major)">2</span><span style="background:var(--minor);color:#3a2a00">4</span><span style="background:var(--patch)">1</span></span></h1>
+      <p class="lede">Two halves of the same contract. <b>Release</b>: paste Conventional Commits and get the next version and a grouped changelog. <b>Resolve</b>: see which versions a dependency range really accepts, with the same rules npm's semver package uses — pre-release quirks included.</p>
+    </div>
+    <div role="tablist" aria-label="Mode">
+      <button role="tab" id="tab-rel" aria-controls="p-rel" aria-selected="true" data-testid="tab-release">Release</button>
+      <button role="tab" id="tab-res" aria-controls="p-res" aria-selected="false" tabindex="-1" data-testid="tab-ranges">Resolve ranges</button>
+    </div>
+  </header>
+
+  <section id="p-rel" role="tabpanel" aria-labelledby="tab-rel">
+    <div class="grid">
+      <div class="card">
+        <h2>Commits since the last tag</h2>
+        <div class="fields">
+          <label class="f">Current version<input type="text" id="cur" data-testid="current" value="1.4.2" autocomplete="off" spellcheck="false"></label>
+          <label class="f">Channel<select id="chan" data-testid="channel"><option value="">stable</option><option value="alpha">pre-release: alpha</option><option value="beta">pre-release: beta</option><option value="rc">pre-release: rc</option></select></label>
+        </div>
+        <label class="chk"><input type="checkbox" id="zero" data-testid="zero-minor" checked><span>While on <b>0.x</b>, breaking changes bump the <b>minor</b> (0.3.1 → 0.4.0), not straight to 1.0.0</span></label>
+        <div class="presets" role="group" aria-label="Example commit sets">
+          <button class="btn" type="button" data-preset="feature" data-testid="preset-feature">Feature release</button>
+          <button class="btn" type="button" data-preset="breaking" data-testid="preset-breaking">Breaking</button>
+          <button class="btn" type="button" data-preset="patch" data-testid="preset-patch">Patch only</button>
+          <button class="btn" type="button" data-preset="chores" data-testid="preset-chores">Chores</button>
+        </div>
+        <label class="f" for="commits">Commit messages</label>
+        <textarea id="commits" data-testid="commits" spellcheck="false"></textarea>
+        <p class="hint">Separate multi-line commits with a line containing only <code>---</code>. Without separators, every line is its own commit (leading short hashes are ignored).</p>
+      </div>
+
+      <div>
+        <div class="card" aria-live="polite">
+          <h2>Next version</h2>
+          <div class="next">
+            <span class="from" id="from" data-testid="from"></span><span class="arrow" aria-hidden="true">→</span>
+            <span class="ver" id="ver" data-testid="next-version"></span>
+            <span class="bump" id="bump" data-testid="bump"></span>
+          </div>
+          <p class="reason" id="reason" data-testid="reason"></p>
+        </div>
+        <div class="card">
+          <h2>Parsed commits <span class="status" id="pcount"></span></h2>
+          <ul class="parsed" id="parsed" data-testid="parsed"></ul>
+        </div>
+        <div class="card">
+          <div class="row" style="justify-content:space-between"><h2 style="margin:0">Changelog</h2>
+            <div class="row"><label class="f" style="grid-template-columns:auto 150px;align-items:center;gap:6px">Date<input type="date" id="date" data-testid="date"></label><button class="btn" type="button" id="copy" data-testid="copy">Copy markdown</button></div></div>
+          <div class="md" id="md" data-testid="changelog" style="margin-top:10px"></div>
+          <pre class="raw" id="raw" data-testid="changelog-raw" tabindex="0" aria-label="Changelog markdown"></pre>
+          <p class="status" id="cstatus" aria-live="polite"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="p-res" role="tabpanel" aria-labelledby="tab-res" hidden>
+    <div class="card">
+      <h2>Ranges × versions</h2>
+      <div class="rgrid">
+        <label class="f">Ranges (one per line)<textarea class="list" id="ranges" data-testid="ranges" spellcheck="false"></textarea></label>
+        <label class="f">Versions (one per line)<textarea class="list" id="versions" data-testid="versions" spellcheck="false"></textarea></label>
+      </div>
+      <p class="note">Desugared form — what each range means as plain comparators (a trailing <code>-0</code> means “below every pre-release of that version”):</p>
+      <ul class="desugar" id="desugar" data-testid="desugar"></ul>
+    </div>
+    <div class="card">
+      <h2>Truth table</h2>
+      <div class="tt-wrap" role="region" aria-label="Truth table" tabindex="0"><table class="tt" id="tt" data-testid="truth-table"></table></div>
+      <div class="explain" id="explain" data-testid="explain" aria-live="polite">Select a cell to see why a version does or does not satisfy a range.</div>
+      <p class="note">Pre-release rule: a version like <code>2.0.0-rc.1</code> only satisfies a range if some comparator in the same set names a pre-release of the same <code>major.minor.patch</code>. Build metadata (<code>+build</code>) is ignored.</p>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  // ================= SemVer core =================
+  const NUM = /^(0|[1-9]\d*)$/;
+  function parseVersion(s) {
+    const m = /^\s*v?=?\s*(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?\s*$/.exec(s);
+    if (!m) return null;
+    const pre = m[4] ? m[4].split('.') : [];
+    if (pre.some((id) => /^\d+$/.test(id) && !NUM.test(id))) return null; // no leading zeros in numeric ids
+    return { M: +m[1], m: +m[2], p: +m[3], pre: pre.map((id) => (NUM.test(id) ? +id : id)) };
+  }
+  const fmt = (v) => `${v.M}.${v.m}.${v.p}${v.pre.length ? '-' + v.pre.join('.') : ''}`;
+  function cmpPre(a, b) {
+    if (!a.length && !b.length) return 0;
+    if (!a.length) return 1;
+    if (!b.length) return -1;
+    for (let i = 0; ; i++) {
+      const x = a[i], y = b[i];
+      if (x === undefined && y === undefined) return 0;
+      if (x === undefined) return -1;
+      if (y === undefined) return 1;
+      if (x === y) continue;
+      const xn = typeof x === 'number', yn = typeof y === 'number';
+      if (xn && yn) return x < y ? -1 : 1;
+      if (xn) return -1;
+      if (yn) return 1;
+      return x < y ? -1 : 1;
+    }
+  }
+  function compare(a, b) { return (a.M - b.M) || (a.m - b.m) || (a.p - b.p) || cmpPre(a.pre, b.pre); }
+  const sign = (n) => (n > 0 ? 1 : n < 0 ? -1 : 0);
+
+  // ---------- ranges (node-semver semantics) ----------
+  const isX = (x) => x === undefined || x === '' || /^[xX*]$/.test(x);
+  const V = (M, m, p, pre = []) => ({ M, m, p, pre });
+  const ANY = { op: '', v: null };
+  function parsePartial(s) {
+    const m = /^v?=?\s*([0-9]+|[xX*])(?:\.([0-9]+|[xX*])(?:\.([0-9]+|[xX*])(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-.]+)?)?)?$/.exec(s);
+    if (!m) return null;
+    return { M: m[1], m: m[2], p: m[3], pre: m[4] ? m[4].split('.').map((id) => (NUM.test(id) ? +id : id)) : [] };
+  }
+  function xrange(op, t) {
+    const xM = isX(t.M), xm = xM || isX(t.m), xp = xm || isX(t.p);
+    let M = xM ? 0 : +t.M, m = xm ? 0 : +t.m, p = xp ? 0 : +t.p;
+    if (op === '=' && xp) op = '';
+    if (xM) return op === '>' || op === '<' ? [{ op: '<', v: V(0, 0, 0, [0]) }] : [ANY];
+    if (op && xp) {
+      if (op === '>') { op = '>='; if (xm) { M += 1; m = 0; p = 0; } else { m += 1; p = 0; } }
+      else if (op === '<=') { op = '<'; if (xm) M += 1; else m += 1; }
+      return [{ op, v: V(M, m, p, op === '<' ? [0] : []) }];
+    }
+    if (xm) return [{ op: '>=', v: V(M, 0, 0) }, { op: '<', v: V(M + 1, 0, 0, [0]) }];
+    if (xp) return [{ op: '>=', v: V(M, m, 0) }, { op: '<', v: V(M, m + 1, 0, [0]) }];
+    return [{ op: op || '=', v: V(M, m, p, t.pre) }];
+  }
+  function tilde(t) {
+    const xM = isX(t.M), xm = xM || isX(t.m), xp = xm || isX(t.p);
+    if (xM) return [ANY];
+    const M = +t.M;
+    if (xm) return [{ op: '>=', v: V(M, 0, 0) }, { op: '<', v: V(M + 1, 0, 0, [0]) }];
+    const m = +t.m;
+    if (xp) return [{ op: '>=', v: V(M, m, 0) }, { op: '<', v: V(M, m + 1, 0, [0]) }];
+    return [{ op: '>=', v: V(M, m, +t.p, t.pre) }, { op: '<', v: V(M, m + 1, 0, [0]) }];
+  }
+  function caret(t) {
+    const xM = isX(t.M), xm = xM || isX(t.m), xp = xm || isX(t.p);
+    if (xM) return [ANY];
+    const M = +t.M;
+    if (xm) return [{ op: '>=', v: V(M, 0, 0) }, { op: '<', v: V(M + 1, 0, 0, [0]) }];
+    const m = +t.m;
+    if (xp) return M === 0 ? [{ op: '>=', v: V(0, m, 0) }, { op: '<', v: V(0, m + 1, 0, [0]) }] : [{ op: '>=', v: V(M, m, 0) }, { op: '<', v: V(M + 1, 0, 0, [0]) }];
+    const p = +t.p;
+    const lo = { op: '>=', v: V(M, m, p, t.pre) };
+    if (M === 0) return m === 0 ? [lo, { op: '<', v: V(0, 0, p + 1, [0]) }] : [lo, { op: '<', v: V(0, m + 1, 0, [0]) }];
+    return [lo, { op: '<', v: V(M + 1, 0, 0, [0]) }];
+  }
+  function hyphen(a, b) {
+    const out = [];
+    const xaM = isX(a.M), xam = xaM || isX(a.m), xap = xam || isX(a.p);
+    if (!xaM) out.push({ op: '>=', v: xam ? V(+a.M, 0, 0) : xap ? V(+a.M, +a.m, 0) : V(+a.M, +a.m, +a.p, a.pre) });
+    const xbM = isX(b.M), xbm = xbM || isX(b.m), xbp = xbm || isX(b.p);
+    if (!xbM) out.push(xbm ? { op: '<', v: V(+b.M + 1, 0, 0, [0]) } : xbp ? { op: '<', v: V(+b.M, +b.m + 1, 0, [0]) } : { op: '<=', v: V(+b.M, +b.m, +b.p, b.pre) });
+    return out.length ? out : [ANY];
+  }
+  function parseRange(raw) {
+    const sets = raw.split('||').map((part) => {
+      let s = part.trim();
+      const h = /^(\S+)\s+-\s+(\S+)$/.exec(s);
+      if (h) {
+        const a = parsePartial(h[1]), b = parsePartial(h[2]);
+        if (!a || !b) throw new Error(`bad hyphen range “${s}”`);
+        return hyphen(a, b);
+      }
+      s = s.replace(/(<=|>=|<|>|=|~>|~|\^)\s+/g, '$1');
+      if (!s) return [ANY];
+      return s.split(/\s+/).flatMap((tok) => {
+        const m = /^(<=|>=|<|>|=|~>|~|\^)?(.*)$/.exec(tok);
+        const op = m[1] || '', t = parsePartial(m[2]);
+        if (!t) throw new Error(`can't parse “${tok}”`);
+        if (op === '~' || op === '~>') return tilde(t);
+        if (op === '^') return caret(t);
+        return xrange(op, t);
+      });
+    });
+    return sets.map((set) => { const real = set.filter((c) => c.v); return real.length ? real : [ANY]; });
+  }
+  const cstr = (c) => (c.v ? `${c.op === '=' ? '' : c.op}${fmt(c.v)}` : '*');
+  function testComp(v, c) {
+    if (!c.v) return true;
+    const r = compare(v, c.v);
+    switch (c.op) { case '>': return r > 0; case '>=': return r >= 0; case '<': return r < 0; case '<=': return r <= 0; default: return r === 0; }
+  }
+  function testSet(set, v) {
+    for (const c of set) if (!testComp(v, c)) return { ok: false, why: 'comparator', c };
+    if (v.pre.length) {
+      const allowed = set.some((c) => c.v && c.v.pre.length && c.v.M === v.M && c.v.m === v.m && c.v.p === v.p);
+      if (!allowed) return { ok: false, why: 'prerelease' };
+    }
+    return { ok: true };
+  }
+  function satisfies(v, sets) {
+    const res = sets.map((s) => testSet(s, v));
+    return { ok: res.some((r) => r.ok), res };
+  }
+
+  // ================= Conventional Commits =================
+  const HEADER = /^(\w+)(?:\(([^()\r\n]+)\))?(!)?: (\S.*)$/;
+  const BREAKING = /^BREAKING[ -]CHANGE: *(.+)$/m;
+  function splitCommits(text) {
+    const t = text.replace(/\r\n/g, '\n').trim();
+    if (!t) return [];
+    if (/^---\s*$/m.test(t)) return t.split(/^---\s*$/m).map((x) => x.trim()).filter(Boolean);
+    return t.split('\n').map((l) => l.replace(/^[0-9a-f]{7,40}\s+/, '').trim()).filter(Boolean);
+  }
+  function parseCommit(msg) {
+    const lines = msg.split('\n');
+    const m = HEADER.exec(lines[0].trim());
+    if (!m) return { raw: lines[0], valid: false };
+    const body = lines.slice(1).join('\n');
+    const foot = BREAKING.exec(body);
+    const type = m[1].toLowerCase();
+    return { raw: lines[0], valid: true, type, scope: m[2] || '', bang: !!m[3], desc: m[4], breaking: !!m[3] || !!foot, note: foot ? foot[1].trim() : '' };
+  }
+  const LEVEL = { none: 0, patch: 1, minor: 2, major: 3 };
+  function impact(c) {
+    if (!c.valid) return 'none';
+    if (c.breaking) return 'major';
+    if (c.type === 'feat') return 'minor';
+    if (c.type === 'fix' || c.type === 'perf' || c.type === 'revert') return 'patch';
+    return 'none';
+  }
+  function nextVersion(curStr, commits, chan, zeroMinor) {
+    const cur = parseVersion(curStr);
+    if (!cur) return { error: 'Current version is not valid SemVer (e.g. 1.4.2 or 2.0.0-rc.1).' };
+    let need = commits.reduce((a, c) => (LEVEL[impact(c)] > LEVEL[a] ? impact(c) : a), 'none');
+    const reasons = [];
+    if (need === 'none') return { cur, next: null, bump: 'none', reasons: ['No feat, fix, perf, revert or breaking commits — nothing to release.'] };
+    const base = V(cur.M, cur.m, cur.p);
+    let effective = need;
+    if (base.M === 0 && need === 'major' && zeroMinor) { effective = 'minor'; reasons.push('0.x: breaking change bumps the minor, not the major.'); }
+    const bumpFrom = (b, lvl) => (lvl === 'major' ? V(b.M + 1, 0, 0) : lvl === 'minor' ? V(b.M, b.m + 1, 0) : V(b.M, b.m, b.p + 1));
+    let next, kind = effective;
+    if (cur.pre.length) {
+      // a pre-release already implies a bump level relative to the previous stable release
+      const implied = base.p !== 0 ? 'patch' : base.m !== 0 ? 'minor' : 'major';
+      const covered = LEVEL[effective] <= LEVEL[implied] || (base.M === 0 && base.m === 0 && base.p === 0);
+      let target = covered ? base : (() => {
+        if (effective === 'major') return V(base.M + 1, 0, 0);
+        if (effective === 'minor') return V(base.M, base.m + 1, 0);
+        return base;
+      })();
+      if (!covered) reasons.push(`${fmt(cur)} only promises a ${implied} bump; these commits need a ${effective}.`);
+      if (!chan) { next = target; kind = covered ? 'graduate' : effective; if (covered) reasons.push(`Graduating the pre-release to ${fmt(target)}.`); }
+      else {
+        const sameLine = covered && cur.pre[0] === chan && typeof cur.pre[1] === 'number';
+        next = sameLine ? V(target.M, target.m, target.p, [chan, cur.pre[1] + 1]) : V(target.M, target.m, target.p, [chan, 0]);
+        kind = 'pre';
+        reasons.push(sameLine ? `Same ${chan} line: increment the pre-release number.` : `Start a new ${chan} line at ${fmt(V(target.M, target.m, target.p))}.`);
+      }
+    } else {
+      const t = bumpFrom(base, effective);
+      next = chan ? V(t.M, t.m, t.p, [chan, 0]) : t;
+      if (chan) { kind = 'pre'; reasons.push(`Pre-release channel ${chan}: ${effective} bump, then -${chan}.0.`); }
+    }
+    const top = commits.find((c) => impact(c) === need);
+    reasons.unshift(`Largest change: ${need}${top ? ` (from “${top.raw}”)` : ''}.`);
+    return { cur, next, bump: kind, level: effective, reasons };
+  }
+  function changelog(res, commits, date) {
+    const ver = res.next ? fmt(res.next) : fmt(res.cur);
+    const L = [`## ${ver} (${date})`, ''];
+    const item = (c, text) => `* ${c.scope ? `**${c.scope}:** ` : ''}${text}`;
+    const brk = commits.filter((c) => c.valid && c.breaking);
+    const groups = [['Features', 'feat'], ['Bug Fixes', 'fix'], ['Performance Improvements', 'perf'], ['Reverts', 'revert']];
+    if (brk.length) { L.push('### ⚠ BREAKING CHANGES', ''); brk.forEach((c) => L.push(item(c, c.note || c.desc))); L.push(''); }
+    groups.forEach(([title, type]) => {
+      const cs = commits.filter((c) => c.valid && c.type === type);
+      if (cs.length) { L.push(`### ${title}`, ''); cs.forEach((c) => L.push(item(c, c.desc))); L.push(''); }
+    });
+    const other = {};
+    commits.filter((c) => c.valid && !['feat', 'fix', 'perf', 'revert'].includes(c.type)).forEach((c) => { other[c.type] = (other[c.type] || 0) + 1; });
+    const o = Object.entries(other).map(([k, n]) => `${n} ${k}`).join(', ');
+    if (o) L.push(`_Not in changelog: ${o}._`, '');
+    return L.join('\n').trimEnd() + '\n';
+  }
+  function mdToHtml(md) {
+    const out = []; let inList = false;
+    const inline = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/_(.+?)_/g, '<i>$1</i>');
+    md.split('\n').forEach((l) => {
+      if (l.startsWith('* ')) { if (!inList) { out.push('<ul>'); inList = true; } out.push(`<li>${inline(l.slice(2))}</li>`); return; }
+      if (inList) { out.push('</ul>'); inList = false; }
+      if (l.startsWith('### ')) out.push(`<h4>${inline(l.slice(4))}</h4>`);
+      else if (l.startsWith('## ')) out.push(`<h3>${inline(l.slice(3))}</h3>`);
+      else if (l.trim()) out.push(`<p class="none">${inline(l)}</p>`);
+    });
+    if (inList) out.push('</ul>');
+    return out.join('');
+  }
+
+  // ================= Release UI =================
+  const PRESETS = {
+    feature: ['feat(search): add fuzzy matching for product names', 'fix(cart): keep quantity when a variant changes', 'docs: explain the new search operators', 'chore(deps): bump lint rules', 'perf(images): lazy-decode thumbnails', 'Update README'].join('\n'),
+    breaking: ['feat(api)!: remove the v1 /orders endpoints', '---', 'fix(auth): refresh tokens before they expire\n\nThe refresh now happens 60 seconds early.\n\nBREAKING CHANGE: `auth.refresh()` now returns a Promise.', '---', 'feat: add dark mode', '---', 'refactor(ui): split the Header component'].join('\n'),
+    patch: ['fix: correct VAT rounding on invoices', 'fix(i18n): missing French strings on checkout', 'test: cover the rounding edge case'].join('\n'),
+    chores: ['chore: tidy scripts', 'ci: cache node_modules', 'style: run formatter', 'docs(readme): badges'].join('\n'),
+  };
+  const LS = 'lab054-semver';
+  let state = { cur: '1.4.2', chan: '', zero: true, commits: PRESETS.feature, ranges: '', versions: '', tab: 'rel' };
+  const DEF_RANGES = ['^1.2.3', '~1.2.3', '1.x', '1.2.7 || >=1.2.9 <2.0.0', '1.2.3 - 2.3', '>=1.2.7 <1.3.0', '^0.2.3', '^0.0.3', '>1.2.3-alpha.3', '<1.2'].join('\n');
+  const DEF_VERS = ['1.2.2', '1.2.3', '1.2.7', '1.2.8', '1.2.9', '1.4.6', '1.9.9', '2.0.0-rc.1', '2.0.0', '2.3.9', '0.2.5', '0.3.0', '0.0.3', '0.0.4', '1.2.3-alpha.7', '3.4.5-alpha.9', '1.1.9+build.5'].join('\n');
+  state.ranges = DEF_RANGES; state.versions = DEF_VERS;
+  try { const s = JSON.parse(localStorage.getItem(LS) || 'null'); if (s && typeof s.commits === 'string') state = { ...state, ...s }; } catch (e) { /* ignore */ }
+  const save = () => { try { localStorage.setItem(LS, JSON.stringify(state)); } catch (e) { /* ignore */ } };
+  const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+  $('date').value = today;
+
+  function renderRelease() {
+    const commits = splitCommits(state.commits).map(parseCommit);
+    const res = nextVersion(state.cur, commits, state.chan, state.zero);
+    $('from').textContent = res.cur ? fmt(res.cur) : state.cur;
+    const ver = $('ver');
+    if (res.error) {
+      ver.innerHTML = '<span>?</span>'; $('bump').className = 'bump b-major'; $('bump').textContent = 'invalid';
+      $('reason').textContent = res.error; ver.dataset.v = '';
+    } else {
+      const v = res.next || res.cur;
+      const lvl = res.level;
+      const hi = (k) => (res.next && ((k === 'M' && lvl === 'major') || (k === 'm' && lvl === 'minor') || (k === 'p' && lvl === 'patch')) && res.bump !== 'graduate');
+      const bg = { M: 'var(--major)', m: 'var(--minor)', p: 'var(--patch)' };
+      ver.innerHTML = ['M', 'm', 'p'].map((k) => `<span class="${hi(k) ? 'hi' : ''}" ${hi(k) ? `style="background:${bg[k]}${k === 'm' ? ';color:#3a2a00' : ''}"` : ''}>${v[k]}</span>`).join('<b aria-hidden="true">.</b>')
+        + (v.pre.length ? `<span class="pre ${res.bump === 'pre' ? 'hi' : ''}">-${esc(v.pre.join('.'))}</span>` : '');
+      ver.dataset.v = res.next ? fmt(res.next) : '';
+      ver.setAttribute('aria-label', res.next ? `Next version ${fmt(res.next)}` : 'No release');
+      const label = res.bump === 'none' ? 'no release' : res.bump === 'graduate' ? 'graduate' : res.bump === 'pre' ? `pre-${res.level}` : res.bump;
+      $('bump').className = 'bump b-' + (res.bump === 'pre' || res.bump === 'graduate' ? 'pre' : res.bump);
+      $('bump').textContent = label; $('bump').dataset.bump = label;
+      $('reason').textContent = res.reasons.join(' ');
+    }
+    $('parsed').innerHTML = commits.map((c) => {
+      const eff = impact(c);
+      if (!c.valid) return `<li class="bad" data-testid="commit" data-valid="false"><span class="type bad">invalid</span><span class="desc">${esc(c.raw)}<span class="brk" style="color:var(--ink-2);font-weight:400">Not a Conventional Commit header — expected <code>type(scope): description</code>.</span></span><span class="eff">ignored</span></li>`;
+      return `<li data-testid="commit" data-valid="true" data-type="${c.type}" data-breaking="${c.breaking}"><span class="type ${esc(c.type)}">${esc(c.type)}</span><span class="desc">${c.scope ? `<b>${esc(c.scope)}</b> · ` : ''}${esc(c.desc)}${c.breaking ? `<span class="brk">BREAKING${c.bang ? ' (!)' : ''}${c.note ? ': ' + esc(c.note) : ''}</span>` : ''}</span><span class="eff ${eff}">${eff === 'none' ? '—' : eff}</span></li>`;
+    }).join('');
+    const bad = commits.filter((c) => !c.valid).length;
+    $('pcount').textContent = `${commits.length} commit${commits.length === 1 ? '' : 's'}${bad ? ` · ${bad} invalid` : ''}`;
+    if (!res.error) {
+      const md = changelog(res, commits, $('date').value || today);
+      $('raw').textContent = md; $('md').innerHTML = mdToHtml(md);
+    }
+  }
+  const bindRel = () => {
+    $('cur').value = state.cur; $('chan').value = state.chan; $('zero').checked = state.zero; $('commits').value = state.commits;
+  };
+  $('cur').addEventListener('input', () => { state.cur = $('cur').value.trim(); save(); renderRelease(); });
+  $('chan').addEventListener('change', () => { state.chan = $('chan').value; save(); renderRelease(); });
+  $('zero').addEventListener('change', () => { state.zero = $('zero').checked; save(); renderRelease(); });
+  $('commits').addEventListener('input', () => { state.commits = $('commits').value; save(); renderRelease(); });
+  $('date').addEventListener('input', renderRelease);
+  document.querySelectorAll('[data-preset]').forEach((b) => b.addEventListener('click', () => { state.commits = PRESETS[b.dataset.preset]; $('commits').value = state.commits; save(); renderRelease(); }));
+  $('copy').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText($('raw').textContent); $('cstatus').textContent = 'Markdown copied'; } catch (e) { $('cstatus').textContent = 'Clipboard blocked — select the text below instead'; }
+  });
+
+  // ================= Resolve UI =================
+  let sel = null;
+  function renderRanges() {
+    const ranges = state.ranges.split('\n').map((s) => s.trim()).filter(Boolean);
+    const vers = state.versions.split('\n').map((s) => s.trim()).filter(Boolean);
+    const parsedR = ranges.map((r) => { try { return { r, sets: parseRange(r) }; } catch (e) { return { r, err: e.message }; } });
+    const parsedV = vers.map((s) => ({ s, v: parseVersion(s) }));
+    $('desugar').innerHTML = parsedR.map((p, i) => `<li class="${p.err ? 'err' : ''}" data-testid="desugar-${i}"><span>${esc(p.r)}</span><span>${p.err ? esc(p.err) : esc(p.sets.map((set) => set.map(cstr).join(' ')).join(' || '))}</span></li>`).join('');
+    const head = `<thead><tr><th scope="col">version \\ range</th>${parsedR.map((p, j) => `<th scope="col" data-testid="rh-${j}">${esc(p.r)}</th>`).join('')}</tr></thead>`;
+    const body = parsedV.map((pv, i) => `<tr><th scope="row" data-testid="vh-${i}">${esc(pv.s)}${pv.v ? '' : ' ⚠'}</th>${parsedR.map((pr, j) => {
+      if (!pv.v || pr.err) return '<td>–</td>';
+      const ok = satisfies(pv.v, pr.sets).ok;
+      return `<td class="${ok ? 'y' : 'n'}"><button type="button" data-i="${i}" data-j="${j}" data-testid="cell-${i}-${j}" data-ok="${ok}" aria-label="${esc(pv.s)} ${ok ? 'satisfies' : 'does not satisfy'} ${esc(pr.r)}" aria-pressed="${sel && sel[0] === i && sel[1] === j}">${ok ? '✓' : '·'}</button></td>`;
+    }).join('')}</tr>`).join('');
+    const foot = `<tfoot><tr><th scope="row">max satisfying</th>${parsedR.map((pr, j) => {
+      if (pr.err) return '<td>–</td>';
+      const best = parsedV.filter((pv) => pv.v && satisfies(pv.v, pr.sets).ok).sort((a, b) => compare(b.v, a.v))[0];
+      return `<td data-testid="max-${j}">${best ? esc(best.s) : 'none'}</td>`;
+    }).join('')}</tr></tfoot>`;
+    $('tt').innerHTML = head + '<tbody>' + body + '</tbody>' + foot;
+    $('tt').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+      sel = [Number(b.dataset.i), Number(b.dataset.j)];
+      $('tt').querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', x === b));
+      explain(parsedV[sel[0]], parsedR[sel[1]]);
+    }));
+    if (sel && parsedV[sel[0]] && parsedR[sel[1]] && parsedV[sel[0]].v && !parsedR[sel[1]].err) explain(parsedV[sel[0]], parsedR[sel[1]]);
+  }
+  function explain(pv, pr) {
+    const s = satisfies(pv.v, pr.sets);
+    const parts = pr.sets.map((set, k) => {
+      const r = s.res[k]; const txt = `<code>${esc(set.map(cstr).join(' '))}</code>`;
+      if (r.ok) return `${txt}: every comparator holds ✓`;
+      if (r.why === 'prerelease') return `${txt}: comparators hold, but <b>${esc(fmt(pv.v))}</b> is a pre-release and no comparator here names a pre-release of ${pv.v.M}.${pv.v.m}.${pv.v.p}`;
+      return `${txt}: fails <code>${esc(cstr(r.c))}</code>`;
+    });
+    $('explain').innerHTML = `<b>${esc(pv.s)}</b> ${s.ok ? 'satisfies' : 'does not satisfy'} <b>${esc(pr.r)}</b>.<br>` + parts.join('<br>');
+  }
+  $('ranges').addEventListener('input', () => { state.ranges = $('ranges').value; save(); renderRanges(); });
+  $('versions').addEventListener('input', () => { state.versions = $('versions').value; save(); renderRanges(); });
+
+  // ================= tabs =================
+  const tabs = [$('tab-rel'), $('tab-res')];
+  function selectTab(t, focus) {
+    tabs.forEach((x) => { const on = x === t; x.setAttribute('aria-selected', on); x.tabIndex = on ? 0 : -1; $(x.getAttribute('aria-controls')).hidden = !on; });
+    state.tab = t === tabs[0] ? 'rel' : 'res'; save();
+    if (focus) t.focus();
+  }
+  tabs.forEach((t, i) => {
+    t.addEventListener('click', () => selectTab(t));
+    t.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); selectTab(tabs[(i + 1) % 2], true); }
+    });
+  });
+
+  window.__semver = { parseVersion, compare, parseRange, satisfies: (v, r) => satisfies(parseVersion(v), parseRange(r)).ok, nextVersion: (cur, msgs, chan = '', zero = true) => { const r = nextVersion(cur, msgs.map(parseCommit), chan, zero); return r.next ? fmt(r.next) : null; }, parseCommit };
+  bindRel(); $('ranges').value = state.ranges; $('versions').value = state.versions;
+  renderRelease(); renderRanges();
+  if (state.tab === 'res') selectTab(tabs[1]);
+})();
+</script>
+</body>
+</html>

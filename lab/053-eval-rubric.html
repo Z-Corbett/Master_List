@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eval Rubric Builder — Grade LLM Outputs, Measure Agreement</title>
+<meta name="description" content="Build a weighted rubric for grading LLM outputs with 1–5 anchors per criterion, grade eight fictional responses as two independent raters, and get weighted scores, per-criterion averages, percent agreement and Cohen's kappa. Export the rubric and scores as JSON.">
+<style>
+  :root {
+    --bg: #ebe6f5;
+    --card: #fbf9ff;
+    --ink: #24163f;
+    --ink-2: #5b4d78;
+    --ink-3: #9185a8;
+    --line: #d6cde8;
+    --plum: #4a2a7a;
+    --gold: #e8a53a;
+    --gold-2: #fff1d6;
+    --a: #3b5bdb;
+    --a-2: #e3e9ff;
+    --b: #c2255c;
+    --b-2: #ffe3ee;
+    --good: #2b8a3e;
+    --serif: Georgia, "Times New Roman", serif;
+    --sans: "Gill Sans", "Gill Sans MT", Calibri, "Segoe UI", system-ui, sans-serif;
+    --mono: ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.5; overflow-x: hidden;
+    background-image: radial-gradient(circle at 100% 0, #dcd2f0 0, transparent 40%), radial-gradient(circle at 0 100%, #f3e5d6 0, transparent 35%); }
+  :focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  input, select, textarea, pre { max-width: 100%; }
+  .back { position: fixed; top: 10px; left: 10px; z-index: 40; background: var(--plum); color: #fff; text-decoration: none; font: 600 13px/1 var(--sans); padding: 8px 12px; border-radius: 999px; }
+  .back:hover { background: var(--ink); }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 60px 18px 60px; }
+
+  header.top { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px 30px; align-items: center; margin-bottom: 24px; }
+  .eyebrow { font: 600 12px var(--sans); letter-spacing: .22em; text-transform: uppercase; color: var(--plum); }
+  h1 { margin: 4px 0 6px; font: italic 400 clamp(38px, 6vw, 70px)/1 var(--serif); letter-spacing: -.01em; }
+  h1 b { font-style: normal; font-weight: 700; color: var(--plum); }
+  .lede { margin: 0; color: var(--ink-2); max-width: 64ch; font-size: 16px; }
+  .grade-badge { width: 120px; height: 120px; border-radius: 50%; border: 3px double var(--plum); display: grid; place-items: center; text-align: center; background: var(--card); transform: rotate(-8deg); }
+  .grade-badge b { display: block; font: 700 40px/1 var(--serif); color: var(--plum); }
+  .grade-badge small { font: 600 10px var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+
+  section.panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; margin-bottom: 18px; box-shadow: 0 12px 30px -24px rgba(36,22,63,.45); min-width: 0; }
+  .ph { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  .ph h2 { margin: 0; font: 400 28px/1.1 var(--serif); }
+  .ph h2 span { font: 600 13px var(--sans); color: var(--gold); letter-spacing: .12em; margin-right: 8px; vertical-align: middle; }
+  .ph p { margin: 0; color: var(--ink-2); font-size: 14px; max-width: 60ch; }
+  .btn { border: 1.5px solid var(--plum); background: transparent; color: var(--plum); padding: 6px 14px; border-radius: 999px; font-weight: 600; font-size: 14px; }
+  .btn:hover { background: var(--plum); color: #fff; }
+  .btn.solid { background: var(--plum); color: #fff; }
+  .btn.solid:hover { background: var(--ink); }
+  .btn.sm { padding: 3px 10px; font-size: 12.5px; }
+  .btn.warn { border-color: var(--b); color: var(--b); }
+  .btn.warn:hover { background: var(--b); color: #fff; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+  /* rubric */
+  .crits { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 12px; }
+  .crit { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: #fff; min-width: 0; border-top: 5px solid var(--plum); }
+  .crit .top { display: grid; grid-template-columns: minmax(0, 1fr) 84px auto; gap: 8px; align-items: end; }
+  .crit label { display: grid; gap: 2px; font: 600 11px var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); min-width: 0; }
+  .crit input[type=text], .crit input[type=number], .crit textarea { border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; font: 15px var(--sans); color: var(--ink); background: #fff; width: 100%; min-width: 0; letter-spacing: 0; text-transform: none; }
+  .crit input.name { font: 700 17px var(--serif); }
+  .wbar { height: 6px; border-radius: 3px; background: var(--line); margin: 8px 0 4px; overflow: hidden; }
+  .wbar i { display: block; height: 100%; background: var(--gold); }
+  .wpct { font: 12px var(--mono); color: var(--ink-2); }
+  details.anchors { margin-top: 8px; }
+  details.anchors summary { cursor: pointer; font-size: 13.5px; color: var(--plum); font-weight: 600; }
+  .anc { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 6px; align-items: start; margin-top: 6px; }
+  .anc b { width: 26px; height: 26px; border-radius: 50%; background: var(--gold-2); color: var(--plum); display: grid; place-items: center; font: 700 13px var(--serif); }
+  .anc textarea { min-height: 38px; font-size: 13.5px !important; resize: vertical; }
+  .x { border: 0; background: none; color: var(--b); font-size: 20px; line-height: 1; padding: 4px; }
+
+  /* grading */
+  .gradebar { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-bottom: 14px; }
+  .raters { display: inline-flex; border-radius: 999px; background: #efeaf8; padding: 3px; }
+  .raters button { border: 0; background: transparent; padding: 6px 14px; border-radius: 999px; font-weight: 600; font-size: 14px; }
+  .raters button[aria-pressed=true][data-r=A] { background: var(--a); color: #fff; }
+  .raters button[aria-pressed=true][data-r=B] { background: var(--b); color: #fff; }
+  .snav { display: flex; gap: 5px; flex-wrap: wrap; list-style: none; margin: 0; padding: 0; }
+  .snav button { width: 34px; height: 34px; border-radius: 50%; border: 1.5px solid var(--line); background: #fff; font: 700 14px var(--serif); position: relative; }
+  .snav button[aria-current=true] { border-color: var(--plum); background: var(--plum); color: #fff; }
+  .snav button.done::after { content: ""; position: absolute; right: -2px; top: -2px; width: 10px; height: 10px; border-radius: 50%; background: var(--rc, var(--a)); border: 2px solid #fff; }
+  .grade { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+  .sample { border: 1px solid var(--line); border-radius: 12px; background: #fff; padding: 14px 16px; min-width: 0; }
+  .sample .tag { font: 600 11px var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+  .sample h3 { margin: 2px 0 8px; font: 400 20px/1.25 var(--serif); }
+  .sample .ctx { font-size: 13px; color: var(--ink-2); background: #f6f3fb; border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; overflow-wrap: anywhere; }
+  .sample .resp { font-size: 14.5px; white-space: pre-wrap; overflow-wrap: anywhere; border-left: 3px solid var(--gold); padding-left: 12px; }
+  .scores { display: grid; gap: 10px; min-width: 0; }
+  fieldset.sc { border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px 10px; margin: 0; background: #fff; min-width: 0; }
+  fieldset.sc legend { font: 700 15px var(--serif); padding: 0 4px; }
+  fieldset.sc legend small { font: 12px var(--mono); color: var(--ink-3); margin-left: 6px; }
+  .tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
+  .tile { position: relative; border: 1.5px solid var(--line); border-radius: 10px; text-align: center; padding: 6px 0; font: 700 18px var(--serif); background: #fff; cursor: pointer; }
+  .tile input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; width: 100%; height: 100%; }
+  .tile:has(input:checked) { background: var(--rc); border-color: var(--rc); color: #fff; }
+  .tile:has(input:focus-visible) { outline: 3px solid var(--gold); outline-offset: 2px; }
+  .tile .other { position: absolute; top: 2px; right: 4px; font: 700 9px var(--mono); color: var(--oc); }
+  .anchor-txt { font-size: 13px; color: var(--ink-2); margin: 6px 0 0; min-height: 1.5em; }
+  .grade[data-r=A] { --rc: var(--a); --oc: var(--b); }
+  .grade[data-r=B] { --rc: var(--b); --oc: var(--a); }
+
+  /* results */
+  .results { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 18px; }
+  .tw { overflow-x: auto; max-width: 100%; }
+  table.t { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .t th { text-align: left; font: 600 11px var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); padding: 6px 8px; border-bottom: 2px solid var(--line); white-space: nowrap; }
+  .t td { padding: 6px 8px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  .t td.num { font-family: var(--mono); font-size: 13px; white-space: nowrap; }
+  .t .ca { color: var(--a); font-weight: 700; } .t .cb { color: var(--b); font-weight: 700; }
+  .t tr.flag td { background: var(--gold-2); }
+  .kbig { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+  .kbig div { flex: 1 1 140px; border-radius: 12px; padding: 10px 14px; background: #f3effa; min-width: 0; }
+  .kbig b { display: block; font: 700 36px/1.05 var(--serif); color: var(--plum); }
+  .kbig small { font: 600 11px var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+  .kbig em { font-style: normal; font-size: 13px; color: var(--ink-2); display: block; }
+  .note { font-size: 12.5px; color: var(--ink-3); margin: 10px 0 0; }
+  pre.json { margin: 10px 0 0; background: #1f1433; color: #e8def9; border-radius: 12px; padding: 14px; font: 12px/1.5 var(--mono); max-height: 300px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .status { font-size: 13px; color: var(--ink-2); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  @media (max-width: 900px) {
+    .grade, .results { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 560px) {
+    .wrap { padding-left: 12px; padding-right: 12px; }
+    header.top { grid-template-columns: minmax(0, 1fr); }
+    .grade-badge { display: none; }
+    section.panel { padding: 14px; }
+    .crit .top { grid-template-columns: minmax(0, 1fr) 70px auto; }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">LLM evaluation · human grading</div>
+      <h1>Eval <b>Rubric</b> Builder</h1>
+      <p class="lede">Write down what “good” means before you grade: weighted criteria with a described anchor for every point on a 1–5 scale. Then grade eight fictional assistant responses as two independent raters and find out whether your rubric is actually <em>reliable</em> — weighted scores, per-criterion averages, percent agreement and Cohen's kappa.</p>
+    </div>
+    <div class="grade-badge" aria-hidden="true"><div><b id="badge">κ</b><small>agreement</small></div></div>
+  </header>
+
+  <section class="panel" aria-labelledby="rb-h">
+    <div class="ph">
+      <h2 id="rb-h"><span>01</span>Rubric</h2>
+      <div class="row">
+        <button class="btn sm" type="button" id="add-crit" data-testid="add-criterion">+ Criterion</button>
+        <button class="btn sm" type="button" id="reset-rubric" data-testid="reset-rubric">Reset to default</button>
+      </div>
+    </div>
+    <div class="crits" id="crits"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="gr-h">
+    <div class="ph">
+      <h2 id="gr-h"><span>02</span>Grade</h2>
+      <p>Grade as Rater A, then switch to Rater B and grade blind — the other rater's score only appears as a small letter after you commit your own.</p>
+    </div>
+    <div class="gradebar">
+      <div class="raters" role="group" aria-label="Active rater">
+        <button type="button" data-r="A" data-testid="rater-A" aria-pressed="true">Rater A</button>
+        <button type="button" data-r="B" data-testid="rater-B" aria-pressed="false">Rater B</button>
+      </div>
+      <ol class="snav" id="snav" aria-label="Samples"></ol>
+      <div class="row">
+        <button class="btn sm" type="button" id="demo" data-testid="demo">Fill demo ratings</button>
+        <button class="btn sm warn" type="button" id="clear" data-testid="clear">Clear ratings</button>
+      </div>
+    </div>
+    <div class="grade" id="grade" data-r="A">
+      <article class="sample" id="sample" data-testid="sample" aria-live="polite"></article>
+      <div class="scores" id="scores"></div>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="rs-h">
+    <div class="ph"><h2 id="rs-h"><span>03</span>Results</h2></div>
+    <div class="kbig">
+      <div><small>Cohen's κ · all items</small><b id="k-all" data-testid="kappa-overall">—</b><em id="k-all-lbl"></em></div>
+      <div><small>Percent agreement</small><b id="p-all" data-testid="agree-overall">—</b><em id="p-all-n"></em></div>
+    </div>
+    <div class="results">
+      <div class="tw">
+        <table class="t" data-testid="sample-table">
+          <caption class="sr">Weighted score per sample and rater</caption>
+          <thead><tr><th scope="col">Sample</th><th scope="col">A</th><th scope="col">B</th><th scope="col">Δ</th></tr></thead>
+          <tbody id="st"></tbody>
+        </table>
+      </div>
+      <div class="tw">
+        <table class="t" data-testid="criterion-table">
+          <caption class="sr">Per-criterion averages and agreement</caption>
+          <thead><tr><th scope="col">Criterion</th><th scope="col">Avg A</th><th scope="col">Avg B</th><th scope="col">κ</th><th scope="col">Agree</th></tr></thead>
+          <tbody id="ct"></tbody>
+        </table>
+      </div>
+    </div>
+    <p class="note">κ = (p<sub>o</sub> − p<sub>e</sub>) / (1 − p<sub>e</sub>): observed agreement corrected for the agreement expected by chance from each rater's own score distribution (unweighted, five categories). Labels follow the commonly used Landis &amp; Koch bands. Only items scored by both raters count. Weighted scores are on the 1–5 scale; highlighted rows differ by half a point or more — worth a calibration chat.</p>
+    <div class="row" style="margin-top:12px">
+      <button class="btn solid" type="button" id="export" data-testid="export-json">Download JSON</button>
+      <span class="status" id="status" data-testid="status" aria-live="polite"></span>
+    </div>
+    <pre class="json" id="json" data-testid="json" tabindex="0" aria-label="Export preview"></pre>
+  </section>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const DEFAULT_RUBRIC = [
+    { id: 'correct', name: 'Correctness', weight: 40, desc: 'Facts, numbers and code are right.', anchors: [
+      'Wrong on the main point, or states something false with confidence.', 'Mostly wrong; a correct fragment does not rescue it.', 'Main point right, but a notable error or unsupported claim.', 'Correct; only trivial slips that would not mislead.', 'Fully correct and precise; nothing a reviewer would change.'] },
+    { id: 'grounded', name: 'Groundedness', weight: 25, desc: 'Sticks to the provided context; no invented policy.', anchors: [
+      'Invents facts that contradict the context.', 'Adds unsupported specifics the user could act on.', 'Some claims go beyond the context but are hedged.', 'Grounded; minor harmless extrapolation.', 'Every claim traceable to the context or clearly general knowledge.'] },
+    { id: 'helpful', name: 'Helpfulness', weight: 20, desc: 'Solves the user\'s actual task.', anchors: [
+      'Ignores or refuses the task without reason.', 'Addresses the task only tangentially.', 'Answers the task but leaves the user doing extra work.', 'Answers directly and completely.', 'Answers completely and anticipates the obvious next need.'] },
+    { id: 'tone', name: 'Clarity & tone', weight: 15, desc: 'Right length, register and structure.', anchors: [
+      'Rude, confusing or wildly the wrong length.', 'Hard to follow or noticeably off-tone.', 'Understandable; padding or awkward phrasing.', 'Clear and appropriately concise.', 'Exemplary: crisp, warm where needed, easy to scan.'] },
+  ];
+  const SAMPLES = [
+    { id: 's1', task: 'Summarise', prompt: 'Summarise the refund policy in two sentences.', ctx: 'Tidepool Travel policy: full refund if cancelled 24+ hours before departure; within 24 hours, a travel credit valid for 12 months; no-shows receive nothing.',
+      resp: 'Cancel at least 24 hours before departure for a full refund. Later cancellations get a 12-month travel credit, and no-shows get nothing.' },
+    { id: 's2', task: 'Support', prompt: 'What baggage can I bring on a Basic fare?', ctx: 'Basic fare: one personal item that fits under the seat. Carry-on and checked bags cost extra.',
+      resp: 'Basic fares include one personal item plus a free 10 kg carry-on, and you can add checked bags at the airport.' },
+    { id: 's3', task: 'Explain code', prompt: 'What does the regex ^\\d{3}-\\d{4}$ match?', ctx: '(no context)',
+      resp: 'It matches a whole string made of exactly three digits, a hyphen and four digits — for example "555-0123" — and nothing else, because ^ and $ anchor the start and end.\n\nIt would not match "555-01234" or " 555-0123".' },
+    { id: 's4', task: 'Draft email', prompt: 'Write a polite reply declining Thursday\'s vendor meeting.', ctx: '(no context)',
+      resp: 'No. Can\'t make Thursday.' },
+    { id: 's5', task: 'Arithmetic', prompt: 'Convert 72 °F to Celsius.', ctx: '(no context)',
+      resp: '(72 − 32) × 5/9 = 22.2 °C (to one decimal place).' },
+    { id: 's6', task: 'Support', prompt: 'How do I reset my Tidepool password?', ctx: 'Help centre: Go to Sign in → Forgot password, enter your email, and follow the link we send. Links expire after 30 minutes.',
+      resp: 'Tap Sign in → Forgot password, enter your email and use the link we send — it expires after 30 minutes. If it doesn\'t arrive, check spam or call our 24/7 hotline to reset it by phone.' },
+    { id: 's7', task: 'Translate', prompt: 'Translate “Where is the train station?” into Spanish.', ctx: '(no context)',
+      resp: '¿Dónde está la estación de tren?' },
+    { id: 's8', task: 'Brainstorm', prompt: 'List three risks of deploying on a Friday afternoon.', ctx: '(no context)',
+      resp: 'Here are some thoughts! Deploying is something teams do a lot, and Fridays are a day of the week. Risks might include things going wrong, people being tired, and maybe other stuff too. It depends!' },
+  ];
+  // demo ratings: [correct, grounded, helpful, tone] per sample, for raters A and B
+  const DEMO = {
+    A: { s1: [5, 5, 5, 5], s2: [2, 1, 3, 4], s3: [5, 5, 4, 4], s4: [3, 5, 2, 1], s5: [5, 5, 5, 4], s6: [4, 2, 4, 4], s7: [5, 5, 5, 5], s8: [2, 4, 1, 2] },
+    B: { s1: [5, 5, 4, 5], s2: [1, 1, 2, 4], s3: [5, 5, 5, 3], s4: [3, 5, 1, 1], s5: [5, 5, 4, 4], s6: [4, 3, 4, 4], s7: [5, 4, 5, 5], s8: [2, 3, 1, 1] },
+  };
+  const LS = 'lab053-rubric';
+  const clone = (x) => JSON.parse(JSON.stringify(x));
+  let rubric = clone(DEFAULT_RUBRIC);
+  let ratings = { A: {}, B: {} };
+  let rater = 'A', idx = 0, cid = 0;
+  try {
+    const s = JSON.parse(localStorage.getItem(LS) || 'null');
+    if (s && Array.isArray(s.rubric) && s.ratings) { rubric = s.rubric; ratings = s.ratings; }
+  } catch (e) { /* ignore */ }
+  const save = () => { try { localStorage.setItem(LS, JSON.stringify({ rubric, ratings })); } catch (e) { /* ignore */ } };
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  // ---------- statistics ----------
+  function cohenKappa(a, b, cats = [1, 2, 3, 4, 5]) {
+    const n = a.length;
+    if (!n) return { kappa: null, po: null, pe: null, n: 0 };
+    let agree = 0;
+    for (let i = 0; i < n; i++) if (a[i] === b[i]) agree++;
+    const po = agree / n;
+    let pe = 0;
+    for (const c of cats) pe += (a.filter((x) => x === c).length / n) * (b.filter((x) => x === c).length / n);
+    const kappa = pe === 1 ? null : (po - pe) / (1 - pe);
+    return { kappa, po, pe, n };
+  }
+  function band(k) {
+    if (k == null) return 'undefined — no variation';
+    if (k < 0) return 'poor (worse than chance)';
+    if (k <= 0.2) return 'slight';
+    if (k <= 0.4) return 'fair';
+    if (k <= 0.6) return 'moderate';
+    if (k <= 0.8) return 'substantial';
+    return 'almost perfect';
+  }
+  const get = (r, s, c) => (ratings[r][s] || {})[c];
+  function weighted(r, s) {
+    let sw = 0, sum = 0;
+    rubric.forEach((c) => { const v = get(r, s, c.id); if (v != null) { sw += c.weight; sum += c.weight * v; } });
+    return sw > 0 ? sum / sw : null;
+  }
+  function compute() {
+    const perCrit = rubric.map((c) => {
+      const a = [], b = [], allA = [], allB = [];
+      SAMPLES.forEach((s) => {
+        const x = get('A', s.id, c.id), y = get('B', s.id, c.id);
+        if (x != null) allA.push(x); if (y != null) allB.push(y);
+        if (x != null && y != null) { a.push(x); b.push(y); }
+      });
+      const avg = (arr) => (arr.length ? arr.reduce((p, q) => p + q, 0) / arr.length : null);
+      return { id: c.id, name: c.name, avgA: avg(allA), avgB: avg(allB), ...cohenKappa(a, b), a, b };
+    });
+    const pooledA = perCrit.flatMap((p) => p.a), pooledB = perCrit.flatMap((p) => p.b);
+    const overall = cohenKappa(pooledA, pooledB);
+    const perSample = SAMPLES.map((s) => ({ id: s.id, A: weighted('A', s.id), B: weighted('B', s.id),
+      bigGap: false }));
+    perSample.forEach((p) => { p.bigGap = p.A != null && p.B != null && Math.abs(p.A - p.B) >= 0.5; });
+    return { perCrit, overall, perSample };
+  }
+
+  // ---------- rubric UI ----------
+  function renderRubric() {
+    const box = $('crits');
+    const total = rubric.reduce((s, c) => s + (Number(c.weight) || 0), 0) || 1;
+    box.innerHTML = '';
+    rubric.forEach((c, i) => {
+      const el = document.createElement('div');
+      el.className = 'crit'; el.dataset.testid = 'criterion';
+      const pct = ((Number(c.weight) || 0) / total) * 100;
+      el.innerHTML = `<div class="top">
+          <label>Criterion<input type="text" class="name" data-testid="crit-name-${c.id}" value="${esc(c.name)}"></label>
+          <label>Weight<input type="number" min="0" max="100" step="5" data-testid="weight-${c.id}" value="${c.weight}"></label>
+          <button class="x" type="button" data-testid="remove-${c.id}" aria-label="Remove ${esc(c.name)}" ${rubric.length <= 1 ? 'disabled' : ''}>×</button>
+        </div>
+        <div class="wbar"><i style="width:${pct}%"></i></div>
+        <div class="wpct" data-testid="wpct-${c.id}">${pct.toFixed(1)}% of the total score</div>
+        <label style="margin-top:6px">What it measures<input type="text" data-testid="crit-desc-${c.id}" value="${esc(c.desc)}"></label>
+        <details class="anchors"><summary>1–5 anchors</summary>${c.anchors.map((a, k) => `<div class="anc"><b>${k + 1}</b><label class="sr" for="an-${c.id}-${k}">${esc(c.name)} anchor ${k + 1}</label><textarea id="an-${c.id}-${k}" data-testid="anchor-${c.id}-${k + 1}">${esc(a)}</textarea></div>`).join('')}</details>`;
+      const [nameI, wI] = el.querySelectorAll('.top input');
+      nameI.addEventListener('input', () => { c.name = nameI.value.trim() || `Criterion ${i + 1}`; save(); renderScores(); renderResults(); });
+      wI.addEventListener('input', () => {
+        const v = Number(wI.value);
+        if (Number.isFinite(v) && v >= 0) { c.weight = v; save(); updateWeights(); renderResults(); }
+      });
+      el.querySelector('[data-testid^="crit-desc"]').addEventListener('input', (e) => { c.desc = e.target.value; save(); renderScores(); renderExport(); });
+      el.querySelectorAll('textarea').forEach((t, k) => t.addEventListener('input', () => { c.anchors[k] = t.value; save(); renderScores(); renderExport(); }));
+      el.querySelector('.x').addEventListener('click', () => {
+        rubric.splice(i, 1);
+        ['A', 'B'].forEach((r) => Object.values(ratings[r]).forEach((o) => { delete o[c.id]; }));
+        save(); renderAll();
+        $('add-crit').focus();
+      });
+      box.appendChild(el);
+    });
+  }
+  function updateWeights() {
+    const total = rubric.reduce((s, c) => s + (Number(c.weight) || 0), 0) || 1;
+    rubric.forEach((c) => {
+      const pct = ((Number(c.weight) || 0) / total) * 100;
+      const p = document.querySelector(`[data-testid="wpct-${c.id}"]`);
+      if (p) { p.textContent = `${pct.toFixed(1)}% of the total score`; p.previousElementSibling.firstElementChild.style.width = pct + '%'; }
+    });
+  }
+
+  // ---------- grading UI ----------
+  function renderNav() {
+    $('snav').innerHTML = SAMPLES.map((s, i) => {
+      const done = rubric.every((c) => get(rater, s.id, c.id) != null);
+      return `<li><button type="button" data-i="${i}" data-testid="sample-nav-${i + 1}" class="${done ? 'done' : ''}" aria-current="${i === idx}" aria-label="Sample ${i + 1}${done ? ', fully graded by rater ' + rater : ''}">${i + 1}</button></li>`;
+    }).join('');
+    $('snav').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { idx = Number(b.dataset.i); renderGrade(); }));
+    $('grade').dataset.r = rater;
+    document.querySelectorAll('.raters button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.r === rater));
+    document.documentElement.style.setProperty('--rc', rater === 'A' ? 'var(--a)' : 'var(--b)');
+  }
+  function renderSample() {
+    const s = SAMPLES[idx];
+    $('sample').innerHTML = `<span class="tag">Sample ${idx + 1} of ${SAMPLES.length} · ${s.task}</span><h3>${esc(s.prompt)}</h3>
+      <div class="ctx"><b>Context:</b> ${esc(s.ctx)}</div><div class="resp" data-testid="response">${esc(s.resp)}</div>`;
+  }
+  function renderScores() {
+    const s = SAMPLES[idx], other = rater === 'A' ? 'B' : 'A';
+    const box = $('scores');
+    box.innerHTML = '';
+    rubric.forEach((c) => {
+      const v = get(rater, s.id, c.id), ov = get(other, s.id, c.id);
+      const fs = document.createElement('fieldset');
+      fs.className = 'sc'; fs.dataset.testid = 'score-row-' + c.id;
+      fs.innerHTML = `<legend>${esc(c.name)}<small>weight ${c.weight}</small></legend><div class="tiles">${[1, 2, 3, 4, 5].map((n) =>
+        `<label class="tile">${n}<input type="radio" name="sc-${c.id}" value="${n}" data-testid="score-${c.id}-${n}" aria-label="${esc(c.name)}: ${n} — ${esc(c.anchors[n - 1])}" ${v === n ? 'checked' : ''}>${v != null && ov === n ? `<span class="other" aria-hidden="true">${other}</span>` : ''}</label>`).join('')}</div>
+        <p class="anchor-txt" data-testid="anchor-text-${c.id}">${v != null ? `<b>${v}</b> · ${esc(c.anchors[v - 1])}` : esc(c.desc)}</p>`;
+      fs.querySelectorAll('input').forEach((inp) => inp.addEventListener('change', () => {
+        (ratings[rater][s.id] = ratings[rater][s.id] || {})[c.id] = Number(inp.value);
+        save(); renderScores(); renderNav(); renderResults();
+        const again = document.querySelector(`[data-testid="score-${c.id}-${inp.value}"]`); if (again) again.focus();
+      }));
+      box.appendChild(fs);
+    });
+  }
+  function renderGrade() { renderNav(); renderSample(); renderScores(); }
+
+  // ---------- results ----------
+  const f2 = (x) => (x == null ? '—' : x.toFixed(2));
+  function renderResults() {
+    const R = compute();
+    $('st').innerHTML = R.perSample.map((p, i) => {
+      const d = p.A != null && p.B != null ? Math.abs(p.A - p.B) : null;
+      return `<tr class="${p.bigGap ? 'flag' : ''}" data-testid="srow-${i + 1}"><td>${i + 1}. ${esc(SAMPLES[i].task)}</td><td class="num ca" data-testid="wscore-${i + 1}-A">${f2(p.A)}</td><td class="num cb" data-testid="wscore-${i + 1}-B">${f2(p.B)}</td><td class="num">${f2(d)}</td></tr>`;
+    }).join('');
+    $('ct').innerHTML = R.perCrit.map((p) => `<tr data-testid="crow-${p.id}"><td>${esc(p.name)}</td><td class="num ca" data-testid="avg-${p.id}-A">${f2(p.avgA)}</td><td class="num cb" data-testid="avg-${p.id}-B">${f2(p.avgB)}</td>
+      <td class="num" data-testid="kappa-${p.id}" title="${band(p.kappa)}">${p.n ? (p.kappa == null ? 'n/a' : p.kappa.toFixed(2)) : '—'}</td><td class="num" data-testid="agree-${p.id}">${p.n ? (p.po * 100).toFixed(1) + '%' : '—'}</td></tr>`).join('');
+    const o = R.overall;
+    $('k-all').textContent = o.n ? (o.kappa == null ? 'n/a' : o.kappa.toFixed(2)) : '—';
+    $('k-all-lbl').textContent = o.n ? band(o.kappa) : 'grade with both raters to compare';
+    $('p-all').textContent = o.n ? (o.po * 100).toFixed(1) + '%' : '—';
+    $('p-all-n').textContent = o.n ? `${Math.round(o.po * o.n)} of ${o.n} paired scores match` : '';
+    $('badge').textContent = o.n && o.kappa != null ? o.kappa.toFixed(2) : 'κ';
+    renderExport(R);
+  }
+  function exportObj(R = compute()) {
+    return {
+      generatedBy: 'Eval Rubric Builder (Zac\'s Lab 053)',
+      scale: { min: 1, max: 5 },
+      rubric: rubric.map((c) => ({ id: c.id, name: c.name, description: c.desc, weight: c.weight, anchors: Object.fromEntries(c.anchors.map((a, k) => [k + 1, a])) })),
+      samples: SAMPLES.map((s) => ({ id: s.id, prompt: s.prompt, response: s.resp })),
+      ratings: clone(ratings),
+      results: {
+        weightedScores: R.perSample.map((p) => ({ sample: p.id, A: p.A == null ? null : +p.A.toFixed(4), B: p.B == null ? null : +p.B.toFixed(4) })),
+        perCriterion: R.perCrit.map((p) => ({ criterion: p.id, avgA: p.avgA == null ? null : +p.avgA.toFixed(4), avgB: p.avgB == null ? null : +p.avgB.toFixed(4), n: p.n, percentAgreement: p.po == null ? null : +p.po.toFixed(4), cohensKappa: p.kappa == null ? null : +p.kappa.toFixed(4) })),
+        overall: { n: R.overall.n, percentAgreement: R.overall.po == null ? null : +R.overall.po.toFixed(4), cohensKappa: R.overall.kappa == null ? null : +R.overall.kappa.toFixed(4), interpretation: R.overall.n ? band(R.overall.kappa) : null },
+      },
+    };
+  }
+  function renderExport(R) { $('json').textContent = JSON.stringify(exportObj(R), null, 2); }
+
+  function renderAll() { renderRubric(); renderGrade(); renderResults(); }
+
+  // ---------- events ----------
+  document.querySelectorAll('.raters button').forEach((b) => b.addEventListener('click', () => { rater = b.dataset.r; renderGrade(); }));
+  $('add-crit').addEventListener('click', () => {
+    let n = rubric.length + 1; let id = 'c' + n;
+    while (rubric.some((c) => c.id === id)) id = 'c' + (++n);
+    rubric.push({ id, name: `Criterion ${rubric.length + 1}`, weight: 10, desc: 'Describe what this measures.', anchors: ['Unacceptable.', 'Poor.', 'Acceptable.', 'Good.', 'Excellent.'] });
+    save(); renderAll();
+    const inp = document.querySelector(`[data-testid="crit-name-${id}"]`); inp.focus(); inp.select();
+  });
+  $('reset-rubric').addEventListener('click', () => { rubric = clone(DEFAULT_RUBRIC); save(); renderAll(); $('status').textContent = 'Rubric reset'; });
+  $('demo').addEventListener('click', () => {
+    ratings = { A: {}, B: {} };
+    ['A', 'B'].forEach((r) => Object.entries(DEMO[r]).forEach(([s, arr]) => {
+      ratings[r][s] = {};
+      DEFAULT_RUBRIC.forEach((c, k) => { if (rubric.some((x) => x.id === c.id)) ratings[r][s][c.id] = arr[k]; });
+    }));
+    save(); renderAll(); $('status').textContent = 'Demo ratings loaded for both raters';
+  });
+  $('clear').addEventListener('click', () => { ratings = { A: {}, B: {} }; save(); renderAll(); $('status').textContent = 'Ratings cleared'; });
+  $('export').addEventListener('click', () => {
+    const blob = new Blob([JSON.stringify(exportObj(), null, 2)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'eval-rubric-results.json';
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    $('status').textContent = 'Downloaded eval-rubric-results.json';
+  });
+
+  window.__rubric = { cohenKappa, compute, exportObj };
+  renderAll();
+})();
+</script>
+</body>
+</html>

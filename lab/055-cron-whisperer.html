@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cron Whisperer — Cron Builder, Explainer &amp; DST-Aware Scheduler</title>
+<meta name="description" content="Build and explain cron expressions: 5 or 6 fields, ranges, steps, lists, month and weekday names, and the day-of-month OR day-of-week rule. See the next 10 runs in any IANA timezone with daylight-saving gaps and overlaps explained, and a month heatmap of runs.">
+<style>
+  :root {
+    --sky: #dcecfb;
+    --sky-2: #c7def5;
+    --paper: #ffffff;
+    --ink: #10243e;
+    --ink-2: #435a78;
+    --ink-3: #8397b1;
+    --line: #c2d5ea;
+    --coral: #ff6b4a;
+    --coral-2: #ffe1d9;
+    --butter: #ffe8a3;
+    --ok: #1f8a5b;
+    --slab: Rockwell, "Rockwell Nova", "Roboto Slab", "Zilla Slab", "Courier New", Georgia, serif;
+    --sans: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--sky); color: var(--ink); font-family: var(--sans); line-height: 1.5; overflow-x: hidden;
+    background-image: linear-gradient(180deg, #eaf4fd 0, var(--sky) 380px); }
+  :focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  input, select, pre { max-width: 100%; }
+  .back { position: fixed; top: 10px; left: 10px; z-index: 40; background: var(--paper); color: var(--ink); text-decoration: none; font: 700 13px/1 var(--slab); padding: 8px 12px; border: 2px solid var(--ink); border-radius: 8px; }
+  .back:hover { background: var(--ink); color: var(--paper); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 62px 18px 60px; }
+
+  header.top { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 20px; align-items: center; margin-bottom: 22px; }
+  .dial { width: 96px; height: 96px; border-radius: 50%; background: var(--paper); border: 3px solid var(--ink); position: relative; box-shadow: 4px 4px 0 var(--coral); }
+  .dial i { position: absolute; left: 50%; top: 50%; width: 3px; background: var(--ink); transform-origin: 50% 100%; border-radius: 2px; }
+  .dial i.h { height: 26px; margin: -26px 0 0 -1.5px; transform: rotate(var(--hr, 60deg)); }
+  .dial i.m { height: 36px; margin: -36px 0 0 -1.5px; transform: rotate(var(--mn, 180deg)); background: var(--coral); }
+  .dial b { position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px; border-radius: 50%; background: var(--ink); }
+  h1 { margin: 0; font: 700 clamp(38px, 6.4vw, 74px)/1 var(--slab); letter-spacing: -.01em; }
+  h1 em { font-style: normal; color: var(--coral); }
+  .lede { margin: 6px 0 0; color: var(--ink-2); max-width: 70ch; font-size: 15px; }
+
+  .expr { background: var(--paper); border: 3px solid var(--ink); border-radius: 16px; padding: 16px 18px; box-shadow: 6px 6px 0 var(--ink); margin-bottom: 20px; }
+  .expr label.big { display: block; font: 700 12px var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 4px; }
+  .exprrow { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  #expr { flex: 1 1 320px; min-width: 0; font: 700 clamp(22px, 3.6vw, 34px) var(--mono); border: 0; border-bottom: 3px dashed var(--line); padding: 4px 2px; background: transparent; letter-spacing: .04em; }
+  #expr:focus { outline: none; border-bottom-color: var(--coral); }
+  .say { font: 400 clamp(18px, 2.3vw, 24px)/1.35 var(--slab); margin: 12px 0 0; }
+  .say.err { color: var(--coral); }
+  .fields { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+  .fields.five .sec { display: none; }
+  .fields.five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .fld { display: grid; gap: 3px; min-width: 0; }
+  .fld label { font: 700 11px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
+  .fld input { border: 2px solid var(--line); border-radius: 8px; padding: 5px 8px; font: 600 15px var(--mono); min-width: 0; width: 100%; background: #f7fbff; }
+  .fld input:focus { border-color: var(--ink); outline: none; }
+  .fld input[aria-invalid=true] { border-color: var(--coral); background: var(--coral-2); }
+  .fld small { font: 11px var(--mono); color: var(--ink-3); overflow-wrap: anywhere; }
+  .opts { display: flex; gap: 8px 18px; flex-wrap: wrap; align-items: center; margin-top: 12px; font-size: 14px; }
+  .opts label { display: flex; gap: 6px; align-items: center; min-width: 0; max-width: 100%; }
+  .opts select { border: 2px solid var(--line); border-radius: 8px; padding: 4px 8px; background: #fff; min-width: 0; max-width: 100%; flex: 1 1 auto; width: 220px; }
+  .opts input[type=checkbox] { accent-color: var(--coral); }
+  .presets { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+  .chip { border: 2px solid var(--ink); background: var(--butter); border-radius: 999px; padding: 3px 11px; font: 600 12.5px var(--sans); }
+  .chip:hover { background: var(--ink); color: var(--butter); }
+  .chip code { font: 12px var(--mono); }
+
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+  .card { background: var(--paper); border: 2px solid var(--ink); border-radius: 16px; padding: 16px 18px; min-width: 0; }
+  .card h2 { margin: 0 0 4px; font: 700 22px var(--slab); display: flex; justify-content: space-between; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .card h2 small { font: 12.5px var(--sans); color: var(--ink-3); }
+  ol.runs { list-style: none; margin: 10px 0 0; padding: 0; counter-reset: r; }
+  ol.runs li { counter-increment: r; display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 7px 0; border-bottom: 1px dashed var(--line); }
+  ol.runs li::before { content: counter(r); font: 700 13px var(--slab); color: var(--ink-3); }
+  .rt { font: 600 14.5px var(--mono); overflow-wrap: anywhere; }
+  .rt small { display: block; font: 12px var(--sans); color: var(--ink-3); }
+  .rel { font: 12.5px var(--sans); color: var(--ink-2); white-space: nowrap; }
+  .dst { grid-column: 2 / -1; font-size: 12.5px; background: var(--coral-2); border-left: 4px solid var(--coral); padding: 4px 8px; border-radius: 0 6px 6px 0; }
+  .none { color: var(--ink-3); font-style: italic; }
+  .policy { display: grid; gap: 6px; margin-top: 12px; font-size: 13px; color: var(--ink-2); }
+  .policy label { display: flex; gap: 8px; align-items: flex-start; }
+  .policy input { accent-color: var(--coral); margin-top: 3px; }
+
+  .hm-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 8px 0; }
+  .hm-h b { font: 700 17px var(--slab); }
+  .nav { border: 2px solid var(--ink); background: #fff; border-radius: 8px; width: 34px; height: 30px; font-weight: 700; }
+  .nav:hover { background: var(--ink); color: #fff; }
+  .cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+  .cal .dn { font: 700 11px var(--sans); text-align: center; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; }
+  .cal .d { aspect-ratio: 1 / .85; border-radius: 8px; background: #f0f6fd; border: 1px solid var(--line); padding: 3px 5px; display: flex; flex-direction: column; justify-content: space-between; min-width: 0; font-size: 11px; }
+  .cal .d .n { font: 700 12px var(--slab); }
+  .cal .d .c { font: 600 10.5px var(--mono); text-align: right; overflow: hidden; white-space: nowrap; }
+  .cal .d.l1 { background: #ffd9cf; } .cal .d.l2 { background: #ffb3a1; } .cal .d.l3 { background: #ff8a70; color: #3a0d02; } .cal .d.l4 { background: var(--coral); color: #fff; border-color: #d94b2b; }
+  .cal .d.today { outline: 3px solid var(--ink); outline-offset: -2px; }
+  .cal .d.tr { box-shadow: inset 0 -4px 0 var(--ink); }
+  .cal .blank { background: transparent; border: 0; }
+  .legend { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); margin-top: 8px; align-items: center; }
+  .legend i { display: inline-block; width: 14px; height: 14px; border-radius: 4px; vertical-align: -3px; margin-right: 3px; border: 1px solid var(--line); }
+  .ref { margin-top: 20px; }
+  .ref table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .ref th, .ref td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .ref th { font: 700 12px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+  .ref code { font: 13px var(--mono); background: #eef5fd; padding: 0 4px; border-radius: 4px; }
+  .tw { overflow-x: auto; }
+  .note { font-size: 13px; color: var(--ink-2); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  @media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 600px) {
+    .wrap { padding-left: 12px; padding-right: 12px; }
+    header.top { grid-template-columns: minmax(0, 1fr); }
+    .dial { display: none; }
+    .fields, .fields.five { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .expr { padding: 14px; box-shadow: 4px 4px 0 var(--ink); }
+    ol.runs li { grid-template-columns: 22px minmax(0, 1fr); }
+    ol.runs li .rel { grid-column: 2; }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="top">
+    <div class="dial" aria-hidden="true"><i class="h"></i><i class="m"></i><b></b></div>
+    <div>
+      <h1>Cron <em>Whisperer</em></h1>
+      <p class="lede">Type a cron expression or build it field by field. It reads the schedule back in plain English, lists the next ten runs in any IANA timezone — and tells you exactly what happens when daylight saving skips or repeats an hour.</p>
+    </div>
+  </header>
+
+  <section class="expr" aria-label="Cron expression">
+    <label class="big" for="expr">Expression</label>
+    <div class="exprrow">
+      <input id="expr" data-testid="expr" type="text" spellcheck="false" autocomplete="off" aria-describedby="say">
+    </div>
+    <p class="say" id="say" data-testid="explanation" aria-live="polite"></p>
+    <div class="fields" id="fields"></div>
+    <div class="opts">
+      <label><input type="checkbox" id="secs" data-testid="seconds"> Seconds field</label>
+      <label>Timezone <select id="tz" data-testid="tz"></select></label>
+    </div>
+    <div class="presets" role="group" aria-label="Presets" id="presets"></div>
+  </section>
+
+  <div class="grid">
+    <section class="card" aria-labelledby="runs-h">
+      <h2 id="runs-h">Next 10 runs <small id="now" data-testid="now"></small></h2>
+      <ol class="runs" id="runs" data-testid="runs" aria-live="polite"></ol>
+      <div class="policy" role="radiogroup" aria-label="Daylight saving policy">
+        <label><input type="radio" name="pol" value="vixie" data-testid="pol-vixie" checked><span><b>Vixie cron rules.</b> Fixed-time jobs skipped by a spring-forward jump run when the clocks change; in a fall-back overlap they run once. Jobs with <code>*</code> in the minute or hour field just follow the new wall clock.</span></label>
+        <label><input type="radio" name="pol" value="wall" data-testid="pol-wall"><span><b>Pure wall-clock match.</b> Run at every instant whose local time matches: nothing in a gap, twice in an overlap.</span></label>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="hm-h">
+      <h2 id="hm-h">Month heatmap <small>runs per day in the selected timezone</small></h2>
+      <div class="hm-h">
+        <button class="nav" type="button" id="prev" data-testid="prev-month" aria-label="Previous month">‹</button>
+        <b id="month" data-testid="month-label" aria-live="polite"></b>
+        <button class="nav" type="button" id="next" data-testid="next-month" aria-label="Next month">›</button>
+      </div>
+      <div class="cal" id="cal" data-testid="heatmap" role="grid" aria-label="Runs per day"></div>
+      <div class="legend"><span><i style="background:#f0f6fd"></i>none</span><span><i style="background:#ffd9cf"></i>few</span><span><i style="background:#ff8a70"></i>more</span><span><i style="background:var(--coral)"></i>most</span><span><i style="background:#f0f6fd;box-shadow:inset 0 -4px 0 var(--ink)"></i>clocks change</span></div>
+    </section>
+  </div>
+
+  <section class="card ref" aria-labelledby="ref-h">
+    <h2 id="ref-h">Field reference</h2>
+    <div class="tw"><table>
+      <thead><tr><th scope="col">Field</th><th scope="col">Values</th><th scope="col">Notes</th></tr></thead>
+      <tbody>
+        <tr><td>second (optional)</td><td><code>0–59</code></td><td>Only when the expression has six fields.</td></tr>
+        <tr><td>minute</td><td><code>0–59</code></td><td><code>*</code> any · <code>5</code> · <code>1,15,30</code> list · <code>0-29</code> range · <code>*/15</code> or <code>10-50/20</code> step</td></tr>
+        <tr><td>hour</td><td><code>0–23</code></td><td>Local time in the chosen timezone.</td></tr>
+        <tr><td>day of month</td><td><code>1–31</code></td><td>Days that don't exist in a month (31 April) never match.</td></tr>
+        <tr><td>month</td><td><code>1–12</code> or <code>JAN–DEC</code></td><td>Names are case-insensitive.</td></tr>
+        <tr><td>day of week</td><td><code>0–7</code> or <code>SUN–SAT</code></td><td>0 and 7 are both Sunday.</td></tr>
+      </tbody>
+    </table></div>
+    <p class="note"><b>The OR rule:</b> when both day-of-month and day-of-week are restricted, a day matches if <em>either</em> matches — <code>0 0 1 * MON</code> runs on the 1st <em>and</em> on every Monday. A field counts as unrestricted only if it starts with <code>*</code> (so, as in Vixie cron, <code>*/2</code> in one day field means the other is ANDed). Macros: <code>@yearly</code>, <code>@monthly</code>, <code>@weekly</code>, <code>@daily</code>, <code>@hourly</code>.</p>
+  </section>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  const DAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+  const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const SPECS = {
+    sec: { label: 'second', min: 0, max: 59 }, min: { label: 'minute', min: 0, max: 59 }, hour: { label: 'hour', min: 0, max: 23 },
+    dom: { label: 'day of month', min: 1, max: 31 }, mon: { label: 'month', min: 1, max: 12, names: MONTHS, base: 1 }, dow: { label: 'day of week', min: 0, max: 7, names: DAYS, base: 0 },
+  };
+  const MACROS = { '@yearly': '0 0 1 1 *', '@annually': '0 0 1 1 *', '@monthly': '0 0 1 * *', '@weekly': '0 0 * * 0', '@daily': '0 0 * * *', '@midnight': '0 0 * * *', '@hourly': '0 * * * *' };
+
+  // ---------- parsing ----------
+  function val(tok, spec) {
+    if (/^\d+$/.test(tok)) return Number(tok);
+    if (spec.names) { const i = spec.names.indexOf(tok.toUpperCase()); if (i >= 0) return i + spec.base; }
+    throw new Error(`“${tok}” is not a valid ${spec.label}`);
+  }
+  function parseField(str, key) {
+    const spec = SPECS[key];
+    if (!str) throw new Error(`missing ${spec.label} field`);
+    const set = new Set();
+    const star = str.startsWith('*');
+    for (const part of str.split(',')) {
+      const m = /^(\*|[A-Za-z0-9]+)(?:-([A-Za-z0-9]+))?(?:\/(\d+))?$/.exec(part);
+      if (!m) throw new Error(`can't read “${part}” in the ${spec.label} field`);
+      if (m[1] === '*' && m[2]) throw new Error(`“${part}”: * can't start a range`);
+      const step = m[3] !== undefined ? Number(m[3]) : 1;
+      if (step < 1) throw new Error(`step must be at least 1 in the ${spec.label} field`);
+      let lo, hi;
+      if (m[1] === '*') { lo = spec.min; hi = key === 'dow' ? 6 : spec.max; }
+      else { lo = val(m[1], spec); hi = m[2] !== undefined ? val(m[2], spec) : (m[3] !== undefined ? (key === 'dow' ? 6 : spec.max) : lo); }
+      for (const v of [lo, hi]) if (v < spec.min || v > spec.max) throw new Error(`${v} is out of range for ${spec.label} (${spec.min}–${spec.max})`);
+      if (lo > hi) throw new Error(`range ${m[1]}-${m[2]} runs backwards in the ${spec.label} field`);
+      for (let v = lo; v <= hi; v += step) set.add(key === 'dow' && v === 7 ? 0 : v);
+    }
+    return { raw: str, star, vals: [...set].sort((a, b) => a - b) };
+  }
+  function parseCron(input, allowSecs) {
+    let s = input.trim().replace(/\s+/g, ' ');
+    let macro = null;
+    if (s.startsWith('@')) {
+      if (s.toLowerCase() === '@reboot') throw new Error('@reboot runs at start-up, not on a schedule');
+      macro = s.toLowerCase(); s = MACROS[macro];
+      if (!s) throw new Error(`unknown macro ${input.trim()}`);
+    }
+    const parts = s.split(' ');
+    let hasSec = false;
+    if (parts.length === 6) hasSec = true;
+    else if (parts.length !== 5) throw new Error(`expected 5 fields${allowSecs ? ' (or 6 with seconds)' : ''}, got ${parts.length}`);
+    if (hasSec && !allowSecs) throw new Error('six fields — switch on “Seconds field” to use a leading seconds field');
+    const f = hasSec ? parts : ['0', ...parts];
+    const keys = ['sec', 'min', 'hour', 'dom', 'mon', 'dow'];
+    const c = { hasSec, macro, raw: parts };
+    keys.forEach((k, i) => { c[k] = parseField(f[i], k); });
+    return c;
+  }
+
+  // ---------- explanation ----------
+  const pad = (n) => String(n).padStart(2, '0');
+  const andList = (a) => (a.length <= 1 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]);
+  const stepOf = (raw) => { const m = /^\*\/(\d+)$/.exec(raw); return m ? Number(m[1]) : null; };
+  function runs(vals) { // compress into contiguous runs
+    const out = []; let s = vals[0], p = vals[0];
+    for (let i = 1; i <= vals.length; i++) { const v = vals[i]; if (v === p + 1) { p = v; continue; } out.push([s, p]); s = v; p = v; }
+    return out;
+  }
+  function fieldPhrase(f, key, unit, names) {
+    const spec = SPECS[key];
+    const full = f.vals.length === (key === 'dow' ? 7 : spec.max - spec.min + 1);
+    if (full) return null;
+    const st = stepOf(f.raw);
+    if (st) return `every ${st} ${unit}s`;
+    const show = (v) => (names ? names[v - (key === 'mon' ? 1 : 0)] : String(v));
+    const rs = runs(f.vals);
+    return andList(rs.map(([a, b]) => (a === b ? show(a) : b === a + 1 ? `${show(a)}, ${show(b)}` : `${show(a)} through ${show(b)}`)));
+  }
+  function explain(c) {
+    const out = [];
+    const secs = c.hasSec ? c.sec : null;
+    const allSecs = secs && secs.vals.length === 60;
+    const oneSec = !secs || secs.vals.length === 1;
+    const secStr = secs && oneSec && secs.vals[0] ? `:${pad(secs.vals[0])}` : '';
+    // time of day
+    const mFull = c.min.vals.length === 60, hFull = c.hour.vals.length === 24;
+    let time;
+    if (oneSec && c.min.vals.length === 1 && c.hour.vals.length <= 6 && !hFull) {
+      time = 'At ' + andList(c.hour.vals.map((h) => `${pad(h)}:${pad(c.min.vals[0])}${secStr}`));
+    } else {
+      const parts = [];
+      if (secs && !oneSec) parts.push(allSecs ? 'every second' : stepOf(secs.raw) ? `every ${stepOf(secs.raw)} seconds` : `at second ${fieldPhrase(secs, 'sec', 'second')}`);
+      if (mFull) { if (!secs || oneSec) parts.push(secs && secs.vals[0] ? `every minute at :${pad(secs.vals[0])}` : 'every minute'); }
+      else {
+        const st = stepOf(c.min.raw);
+        parts.push(st ? `${parts.length ? 'of ' : ''}every ${st} minutes` : c.min.vals.length === 1 ? `at minute ${c.min.vals[0]}` : `at minutes ${fieldPhrase(c.min, 'min', 'minute')}`);
+      }
+      if (!hFull) {
+        const st = stepOf(c.hour.raw);
+        const rs = runs(c.hour.vals);
+        if (st) parts.push(`past every ${st} hours`);
+        else if (rs.length === 1 && rs[0][0] !== rs[0][1]) parts.push(`between ${pad(rs[0][0])}:00 and ${pad(rs[0][1])}:59`);
+        else parts.push(`during hour${c.hour.vals.length > 1 ? 's' : ''} ${andList(c.hour.vals.map((h) => pad(h) + ':00'))}`);
+      } else if (!mFull && c.min.vals.length === 1) parts.push('past every hour');
+      time = parts.join(', ');
+      time = time[0].toUpperCase() + time.slice(1);
+    }
+    out.push(time);
+    // days
+    const domR = !c.dom.star, dowR = !c.dow.star;
+    const domP = fieldPhrase(c.dom, 'dom', 'day');
+    const dowP = fieldPhrase(c.dow, 'dow', 'day', DAY_NAMES);
+    const domText = domP ? (stepOf(c.dom.raw) ? `${domP} of the month` : `on day${c.dom.vals.length > 1 ? 's' : ''} ${domP} of the month`) : null;
+    const dowText = dowP ? (stepOf(c.dow.raw) ? dowP : `on ${dowP}`) : null;
+    if (domR && dowR && domText && dowText) out.push(`${domText} or ${dowText} (either one is enough)`);
+    else if (domText && dowText) out.push(`${domText} and ${dowText} (a field starting with * makes both required)`);
+    else { if (domText) out.push(domText); if (dowText) out.push(dowText); }
+    const monP = fieldPhrase(c.mon, 'mon', 'month', MONTH_NAMES);
+    if (monP) out.push(stepOf(c.mon.raw) ? `${monP}` : `in ${monP}`);
+    return out[0] + (out.length > 1 ? ' ' + out.slice(1).join(', ') : '') + '.';
+  }
+
+  // ---------- timezone maths ----------
+  const fmtCache = new Map();
+  function dtf(tz) {
+    if (!fmtCache.has(tz)) fmtCache.set(tz, new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric', weekday: 'short' }));
+    return fmtCache.get(tz);
+  }
+  function parts(ms, tz) {
+    const o = {};
+    for (const p of dtf(tz).formatToParts(new Date(ms))) o[p.type] = p.value;
+    const r = { y: +o.year, mo: +o.month, d: +o.day, h: +o.hour % 24, mi: +o.minute, s: +o.second };
+    r.off = Math.round((Date.UTC(r.y, r.mo - 1, r.d, r.h, r.mi, r.s) - Math.floor(ms / 1000) * 1000) / 60000);
+    return r;
+  }
+  const offAt = (ms, tz) => parts(ms, tz).off;
+  // all UTC instants whose wall clock in tz is y-mo-d h:mi (0 = gap, 2 = overlap)
+  function wallToUtc(y, mo, d, h, mi, tz) {
+    const guess = Date.UTC(y, mo - 1, d, h, mi);
+    const offs = new Set([offAt(guess - 12 * 3600e3, tz), offAt(guess + 12 * 3600e3, tz), offAt(guess, tz)]);
+    const out = [];
+    for (const off of offs) {
+      const t = guess - off * 60000; const p = parts(t, tz);
+      if (p.y === y && p.mo === mo && p.d === d && p.h === h && p.mi === mi && !out.includes(t)) out.push(t);
+    }
+    return out.sort((a, b) => a - b);
+  }
+  function transitionBetween(lo, hi, tz) { // first instant in (lo, hi] whose offset differs from lo's
+    const o = offAt(lo, tz);
+    while (hi - lo > 60000) { const mid = lo + Math.floor((hi - lo) / 120000) * 60000; if (offAt(mid, tz) === o) lo = mid; else hi = mid; }
+    return hi;
+  }
+  const daysIn = (y, mo) => new Date(Date.UTC(y, mo, 0)).getUTCDate();
+  function dayMatch(c, y, mo, d) {
+    if (!c.mon.vals.includes(mo)) return false;
+    if (d > daysIn(y, mo)) return false;
+    const dow = new Date(Date.UTC(y, mo - 1, d)).getUTCDay();
+    const inDom = c.dom.vals.includes(d), inDow = c.dow.vals.includes(dow);
+    // Vixie cron: if either field starts with '*', both must match (a bare '*' matches everything); otherwise either may
+    if (c.dom.star || c.dow.star) return inDom && inDow;
+    return inDom || inDow;
+  }
+  // runs on one local day: [{t, note?}] sorted
+  function dayRuns(c, y, mo, d, tz, policy, limitCount) {
+    const a = offAt(Date.UTC(y, mo - 1, d) - 14 * 3600e3, tz), b = offAt(Date.UTC(y, mo - 1, d, 23, 59) + 14 * 3600e3, tz);
+    const secs = c.sec.vals;
+    const out = [];
+    const fixed = !c.min.star && !c.hour.star;
+    if (a === b) {
+      if (limitCount) return c.hour.vals.length * c.min.vals.length * secs.length;
+      for (const h of c.hour.vals) for (const mi of c.min.vals) for (const s of secs) out.push({ t: Date.UTC(y, mo - 1, d, h, mi, s) - a * 60000 });
+      return out;
+    }
+    let count = 0;
+    for (const h of c.hour.vals) for (const mi of c.min.vals) {
+      const inst = wallToUtc(y, mo, d, h, mi, tz);
+      const wall = `${pad(h)}:${pad(mi)}`;
+      let list = [];
+      if (inst.length === 1) list = [{ t: inst[0] }];
+      else if (inst.length === 0) {
+        if (policy === 'vixie' && fixed) {
+          const guess = Date.UTC(y, mo - 1, d, h, mi);
+          const tr = transitionBetween(guess - a * 60000 - 3 * 3600e3, guess - a * 60000 + 3 * 3600e3, tz);
+          list = [{ t: tr, shiftedFrom: wall, note: `${wall} does not exist on this day (clocks spring forward); Vixie cron runs the job as soon as the clocks change.` }];
+        } else list = []; // skipped
+      } else {
+        if (policy === 'vixie' && fixed) list = [{ t: inst[0], note: `${wall} happens twice (clocks fall back); a fixed-time job runs only the first time.` }];
+        else list = inst.map((t, k) => ({ t, note: `${wall} happens twice (clocks fall back) — this is the ${k ? 'second' : 'first'} run.` }));
+      }
+      for (const r of list) for (const s of secs) { count++; if (!limitCount) out.push({ ...r, t: r.t + (r.shiftedFrom ? 0 : s * 1000) }); }
+    }
+    if (limitCount) return count;
+    const seen = new Set();
+    return out.filter((r) => (seen.has(r.t) ? false : seen.add(r.t))).sort((p, q) => p.t - q.t);
+  }
+  function dayHasTransition(y, mo, d, tz) {
+    // instants near local 00:00 and 23:59 of that day; a different UTC offset means the clocks changed in between
+    const s0 = Date.UTC(y, mo - 1, d, 0, 0), e0 = Date.UTC(y, mo - 1, d, 23, 59);
+    const s = s0 - offAt(s0, tz) * 60000, e = e0 - offAt(e0, tz) * 60000;
+    return offAt(s, tz) !== offAt(e, tz);
+  }
+  function nextRuns(c, fromMs, tz, policy, n = 10) {
+    const p0 = parts(fromMs, tz);
+    const out = [];
+    let day = Date.UTC(p0.y, p0.mo - 1, p0.d);
+    for (let i = 0; i < 366 * 8 && out.length < n; i++, day += 864e5) {
+      const dt = new Date(day); const y = dt.getUTCFullYear(), mo = dt.getUTCMonth() + 1, d = dt.getUTCDate();
+      if (!dayMatch(c, y, mo, d)) continue;
+      for (const r of dayRuns(c, y, mo, d, tz, policy)) { if (r.t > fromMs) { out.push(r); if (out.length >= n) break; } }
+    }
+    return out;
+  }
+  function skippedOnDay(c, y, mo, d, tz) {
+    const a = offAt(Date.UTC(y, mo - 1, d) - 14 * 3600e3, tz), b = offAt(Date.UTC(y, mo - 1, d, 23, 59) + 14 * 3600e3, tz);
+    if (a === b) return [];
+    const res = [];
+    for (const h of c.hour.vals) for (const mi of c.min.vals) if (!wallToUtc(y, mo, d, h, mi, tz).length) res.push(`${pad(h)}:${pad(mi)}`);
+    return res;
+  }
+
+  // ---------- formatting ----------
+  const abbr = new Map();
+  function zoneName(ms, tz) {
+    if (!abbr.has(tz)) abbr.set(tz, new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'short' }));
+    const p = abbr.get(tz).formatToParts(new Date(ms)).find((x) => x.type === 'timeZoneName');
+    return p ? p.value : '';
+  }
+  function offStr(off) { const s = off >= 0 ? '+' : '−'; const a = Math.abs(off); return `UTC${s}${pad(Math.floor(a / 60))}:${pad(a % 60)}`; }
+  function rel(ms, now) {
+    let s = Math.round((ms - now) / 1000);
+    if (s < 60) return `in ${s}s`;
+    const d = Math.floor(s / 86400); s -= d * 86400; const h = Math.floor(s / 3600); s -= h * 3600; const m = Math.floor(s / 60);
+    return 'in ' + [d && `${d}d`, h && `${h}h`, (m || (!d && !h)) && `${m}m`].filter(Boolean).slice(0, 2).join(' ');
+  }
+
+  // ---------- UI ----------
+  const PRESETS = [
+    ['Every 5 min', '*/5 * * * *'], ['Weekdays 09:30', '30 9 * * MON-FRI'], ['1st & 15th or Mondays', '0 0 1,15 * MON'], ['Quarterly 06:00', '0 6 1 JAN,APR,JUL,OCT *'],
+    ['02:30 daily (DST!)', '30 2 * * *'], ['01:30 daily (DST!)', '30 1 * * *'], ['Every 30 s', '*/30 * * * * *'], ['Leap day noon', '0 12 29 2 *'], ['@weekly', '@weekly'], ['Office hours', '*/15 9-17 * * 1-5'],
+  ];
+  const LS = 'lab055-cron';
+  const qs = new URLSearchParams(location.search);
+  const localTz = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) { return 'UTC'; } })();
+  let state = { expr: '30 9 * * MON-FRI', secs: false, tz: localTz, policy: 'vixie' };
+  try { const s = JSON.parse(localStorage.getItem(LS) || 'null'); if (s && typeof s.expr === 'string') state = { ...state, ...s }; } catch (e) { /* ignore */ }
+  if (qs.get('tz')) state.tz = qs.get('tz');
+  if (qs.get('cron')) state.expr = qs.get('cron');
+  const save = () => { try { localStorage.setItem(LS, JSON.stringify(state)); } catch (e) { /* ignore */ } };
+  let zones = [];
+  try { zones = Intl.supportedValuesOf('timeZone'); } catch (e) { zones = []; }
+  if (!zones.length) zones = ['UTC', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'Europe/London', 'Europe/Berlin', 'Asia/Tokyo', 'Asia/Kolkata', 'Australia/Sydney', 'Australia/Lord_Howe'];
+  const zoneOk = (z) => { try { new Intl.DateTimeFormat('en-US', { timeZone: z }); return true; } catch (e) { return false; } };
+  if (!zoneOk(state.tz)) state.tz = 'UTC';
+  const allZones = ['UTC', ...zones.filter((z) => z !== 'UTC')];
+  if (!allZones.includes(state.tz)) allZones.unshift(state.tz);
+  $('tz').innerHTML = allZones.map((z) => `<option value="${z}">${z.replace(/_/g, ' ')}</option>`).join('');
+
+  const FIELD_KEYS = ['sec', 'min', 'hour', 'dom', 'mon', 'dow'];
+  const FIELD_HINT = { sec: '0–59', min: '0–59', hour: '0–23', dom: '1–31', mon: '1–12 · JAN–DEC', dow: '0–7 · SUN–SAT' };
+  $('fields').innerHTML = FIELD_KEYS.map((k) => `<div class="fld ${k === 'sec' ? 'sec' : ''}"><label for="f-${k}">${SPECS[k].label}</label><input id="f-${k}" data-testid="field-${k}" spellcheck="false" autocomplete="off"><small>${FIELD_HINT[k]}</small></div>`).join('');
+  $('presets').innerHTML = PRESETS.map(([l, e], i) => `<button class="chip" type="button" data-i="${i}" data-testid="preset-${i}">${l} <code>${e}</code></button>`).join('');
+
+  let parsed = null, monthView = null;
+  function syncFieldsFromExpr() {
+    let s = state.expr.trim().replace(/\s+/g, ' ');
+    if (MACROS[s.toLowerCase()]) s = MACROS[s.toLowerCase()];
+    const p = s.split(' ');
+    const vals = p.length === 6 ? p : ['0', ...p];
+    FIELD_KEYS.forEach((k, i) => { const inp = $('f-' + k); if (document.activeElement !== inp) inp.value = vals[i] || ''; });
+  }
+  function exprFromFields() {
+    const v = FIELD_KEYS.map((k) => $('f-' + k).value.trim() || '*');
+    return (state.secs ? v : v.slice(1)).join(' ');
+  }
+
+  function render() {
+    $('fields').classList.toggle('five', !state.secs);
+    $('secs').checked = state.secs;
+    $('tz').value = state.tz;
+    document.querySelector(`input[name=pol][value="${state.policy}"]`).checked = true;
+    FIELD_KEYS.forEach((k) => $('f-' + k).removeAttribute('aria-invalid'));
+    const now = Date.now();
+    const np = parts(now, state.tz);
+    $('now').textContent = `now ${np.y}-${pad(np.mo)}-${pad(np.d)} ${pad(np.h)}:${pad(np.mi)} ${zoneName(now, state.tz)}`;
+    document.documentElement.style.setProperty('--hr', `${(np.h % 12) * 30 + np.mi / 2}deg`);
+    document.documentElement.style.setProperty('--mn', `${np.mi * 6}deg`);
+    try {
+      parsed = parseCron(state.expr, state.secs);
+      $('say').textContent = explain(parsed); $('say').className = 'say'; $('expr').removeAttribute('aria-invalid');
+      $('say').dataset.valid = 'true';
+    } catch (e) {
+      parsed = null;
+      $('say').textContent = e.message.charAt(0).toUpperCase() + e.message.slice(1) + '.'; $('say').className = 'say err'; $('expr').setAttribute('aria-invalid', 'true');
+      $('say').dataset.valid = 'false';
+      const m = /(second|minute|hour|day of month|month|day of week)/.exec(e.message);
+      if (m) { const k = FIELD_KEYS.find((x) => SPECS[x].label === m[1]); if (k) $('f-' + k).setAttribute('aria-invalid', 'true'); }
+    }
+    renderRuns(now);
+    if (!monthView) monthView = { y: np.y, mo: np.mo };
+    renderMonth(now);
+  }
+  function renderRuns(now) {
+    const ol = $('runs');
+    if (!parsed) { ol.innerHTML = '<li class="none">Fix the expression to see runs.</li>'; return; }
+    const list = nextRuns(parsed, now, state.tz, state.policy);
+    if (!list.length) { ol.innerHTML = '<li class="none" data-testid="no-runs">No runs in the next eight years — does that date exist?</li>'; return; }
+    ol.innerHTML = list.map((r) => {
+      const p = parts(r.t, state.tz);
+      const wd = DAYS[new Date(Date.UTC(p.y, p.mo - 1, p.d)).getUTCDay()];
+      const local = `${p.y}-${pad(p.mo)}-${pad(p.d)} ${pad(p.h)}:${pad(p.mi)}${parsed.hasSec ? ':' + pad(p.s) : ''}`;
+      return `<li data-testid="run" data-local="${local}" data-utc="${new Date(r.t).toISOString()}" data-note="${r.note ? (r.shiftedFrom ? 'gap' : 'overlap') : ''}">
+        <span class="rt">${wd.charAt(0) + wd.slice(1).toLowerCase()} ${local}<small>${zoneName(r.t, state.tz)} · ${offStr(p.off)} · ${new Date(r.t).toISOString().replace('.000Z', 'Z')}</small></span>
+        <span class="rel">${rel(r.t, now)}</span>${r.note ? `<span class="dst" data-testid="dst-note">${r.note}</span>` : ''}</li>`;
+    }).join('');
+    // explain skipped wall times inside the window covered by these runs
+    const first = list[0].t, last = list[list.length - 1].t;
+    const notes = [];
+    for (let t = first - 864e5; t <= last + 864e5 && notes.length < 3; t += 864e5) {
+      const p = parts(t, state.tz);
+      if (!dayMatch(parsed, p.y, p.mo, p.d)) continue;
+      const fixed = !parsed.min.star && !parsed.hour.star;
+      if (state.policy === 'vixie' && fixed) continue;
+      const sk = skippedOnDay(parsed, p.y, p.mo, p.d, state.tz);
+      const tag = `${p.y}-${pad(p.mo)}-${pad(p.d)}`;
+      if (sk.length && !notes.some((n) => n.includes(tag))) notes.push(`${tag}: ${sk.length} scheduled time${sk.length > 1 ? 's' : ''} (${andList(sk.slice(0, 4))}${sk.length > 4 ? ', …' : ''}) fall in the spring-forward gap and are skipped.`);
+    }
+    if (notes.length) ol.insertAdjacentHTML('beforeend', notes.map((n) => `<li class="skip" style="grid-template-columns:28px minmax(0,1fr)"><span class="dst" data-testid="skip-note" style="grid-column:2">${n}</span></li>`).join(''));
+  }
+  function renderMonth(now) {
+    const { y, mo } = monthView;
+    $('month').textContent = `${MONTH_NAMES[mo - 1]} ${y}`;
+    const cal = $('cal');
+    const np = parts(now, state.tz);
+    let html = DAYS.map((d) => `<div class="dn" role="columnheader">${d.slice(0, 2)}</div>`).join('');
+    const firstDow = new Date(Date.UTC(y, mo - 1, 1)).getUTCDay();
+    for (let i = 0; i < firstDow; i++) html += '<div class="d blank" aria-hidden="true"></div>';
+    const counts = [];
+    for (let d = 1; d <= daysIn(y, mo); d++) counts.push(parsed && dayMatch(parsed, y, mo, d) ? dayRuns(parsed, y, mo, d, state.tz, state.policy, true) : 0);
+    const max = Math.max(1, ...counts);
+    for (let d = 1; d <= counts.length; d++) {
+      const n = counts[d - 1];
+      const lvl = n === 0 ? 0 : Math.max(1, Math.ceil((Math.log(n + 1) / Math.log(max + 1)) * 4));
+      const tr = dayHasTransition(y, mo, d, state.tz);
+      const isToday = np.y === y && np.mo === mo && np.d === d;
+      html += `<div class="d l${lvl}${isToday ? ' today' : ''}${tr ? ' tr' : ''}" role="gridcell" data-testid="day-${d}" data-count="${n}" aria-label="${MONTH_NAMES[mo - 1]} ${d}: ${n} run${n === 1 ? '' : 's'}${tr ? ', clocks change' : ''}"><span class="n">${d}</span><span class="c">${n ? n.toLocaleString('en-US') : ''}</span></div>`;
+    }
+    cal.innerHTML = html;
+  }
+
+  $('expr').addEventListener('input', () => { state.expr = $('expr').value; save(); syncFieldsFromExpr(); render(); });
+  FIELD_KEYS.forEach((k) => $('f-' + k).addEventListener('input', () => { state.expr = exprFromFields(); $('expr').value = state.expr; save(); render(); }));
+  $('secs').addEventListener('change', () => {
+    state.secs = $('secs').checked;
+    const p = state.expr.trim().split(/\s+/);
+    if (state.secs && p.length === 5) state.expr = '0 ' + p.join(' ');
+    if (!state.secs && p.length === 6) state.expr = p.slice(1).join(' ');
+    $('expr').value = state.expr; save(); syncFieldsFromExpr(); render();
+  });
+  $('tz').addEventListener('change', () => { state.tz = $('tz').value; monthView = null; save(); render(); });
+  document.querySelectorAll('input[name=pol]').forEach((r) => r.addEventListener('change', () => { state.policy = r.value; save(); render(); }));
+  $('presets').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    const expr = PRESETS[Number(b.dataset.i)][1];
+    state.secs = expr.split(' ').length === 6; state.expr = expr;
+    $('expr').value = expr; save(); syncFieldsFromExpr(); render();
+  });
+  $('prev').addEventListener('click', () => { monthView.mo--; if (monthView.mo < 1) { monthView.mo = 12; monthView.y--; } renderMonth(Date.now()); });
+  $('next').addEventListener('click', () => { monthView.mo++; if (monthView.mo > 12) { monthView.mo = 1; monthView.y++; } renderMonth(Date.now()); });
+  setInterval(() => { renderRuns(Date.now()); }, 30000);
+
+  window.__cron = { parseCron, explain, nextRuns: (expr, fromIso, tz, policy = 'vixie', secs = false) => nextRuns(parseCron(expr, secs), Date.parse(fromIso), tz, policy).map((r) => new Date(r.t).toISOString()), wallToUtc };
+  $('expr').value = state.expr;
+  syncFieldsFromExpr();
+  render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+{
+  "id": "051",
+  "slug": "051-state-machine-studio",
+  "file": "lab/051-state-machine-studio.html",
+  "title": "State Machine Studio — FSM Designer & Test Generator",
+  "category": "QA & Testing",
+  "tags": ["state-machines", "model-based-testing", "svg", "coverage", "drag-and-drop"],
+  "description": "A blueprint-style drafting table for finite-state machines: draw states and labelled transitions, drag them into place, and fire events to walk the flow while unreachable states, dead ends and ambiguous events are flagged live. It then generates test cases for full transition or all-states coverage and writes them out as a readable Playwright-style outline, with checkout and login machines as presets.",
+  "prompt": "Build 'State Machine Studio'. Let me draw a finite-state machine — states as nodes, transitions as labelled edges, drag to arrange — for flows like checkout or login. Simulate it by firing events, including ones that aren't handled in the current state. Highlight unreachable states and dead ends as I edit. Then do model-based test design for me: auto-generate test cases for full transition coverage and for all-states coverage, show the stats, and export them as a readable Playwright-style test outline I could hand to someone to wire up. Include two preset machines that each have a planted problem. Make it look like an engineering blueprint.",
+  "qa": {
+    "methodology": [
+      "Model-based oracle: the spec replays every generated test case against the machine definition it reads from the page, proving each case is executable and that the union of steps equals exactly the set of reachable transitions (13 of 14 in the checkout preset).",
+      "All-states criterion checked the same way: the replayed cases visit every reachable login state, and use fewer steps than the transition suite.",
+      "Static-analysis behaviour: planted defects (an unreachable PromoApplied, a dead-end FraudHold, a dead-end Locked) are reported, then disappear after the fix is drawn in.",
+      "Simulation semantics: enabled events move the current state and light the edge; an unhandled event is logged as ignored without moving; reset clears history.",
+      "Editor round-trip: add, rename (transitions follow the rename), wire, keyboard-nudge and reload persistence; mouse drag verified to move the node, redraw its edge path and not count as a click."
+    ],
+    "risks": [
+      "Renaming a state must rewrite every transition that references it, or the graph silently loses edges.",
+      "Greedy coverage walks can emit a case that is not executable if paths are stitched incorrectly — hence the replay oracle.",
+      "Pointer drag conversion between screen and SVG coordinates breaks when the canvas is scaled or scrolled on small screens.",
+      "A click that ends a drag would open the inspector unexpectedly."
+    ],
+    "playwright": "Graph structure is asserted through data attributes (data-ids on analysis lists, data-events on edges and generated cases) and a window.__fsm hook that returns the machine, so the spec can be its own oracle instead of trusting the page's coverage numbers. Event buttons for unhandled events are aria-disabled rather than disabled, so Playwright's actionability check refuses them; the spec uses click({ force: true }) deliberately to exercise the negative path. The mouse drag test is desktop-only via test.skip(isMobile, …) because the mobile sheet is a horizontal scroller, while keyboard nudging covers movement on both projects. The generated outline is checked for exact lines, and the count of 'TC' tests is matched with a regex kept inside an expect so the site's test counter is not fooled.",
+    "coverage": [
+      "Unreachable / dead-end detection and their fixes",
+      "Firing enabled and unhandled events, history log, reset",
+      "Transition coverage replay oracle and outline content",
+      "All-states coverage replay oracle on the login preset",
+      "Add / rename / wire / keyboard-nudge a state, persistence across reload",
+      "Mouse drag moves a node and redraws edges (desktop)"
+    ]
+  },
+  "a11y": "States are focusable SVG buttons with labels that include initial, final, current, unreachable and dead-end status; Enter selects and arrow keys move them. Event buttons, selects and inputs are labelled, the current state is announced through a live region, and every edge also appears in a text transition list with labelled delete buttons."
+}

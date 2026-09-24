@@ -1,0 +1,665 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Waterfall — Network Request Timeline Simulator</title>
+<meta name="description" content="Simulate how a fictional storefront loads over approximate network profiles. Flip HTTP/2, preload, defer, async, lazy-loading and compression, watch the request waterfall redraw with DNS, connect, TLS, TTFB and download phases, follow the critical request chain to FCP and LCP, and keep per-type byte budgets green.">
+<style>
+  :root {
+    --bg: #e8edf1;
+    --panel: #f7f9fa;
+    --ink: #13181d;
+    --ink-2: #4d5863;
+    --ink-3: #7f8a95;
+    --line: #c9d2da;
+    --hot: #ff5a1f;
+    --crit: #e0213a;
+    --ok: #13854a;
+    --q: #aab4be;
+    --dns: #139e96;
+    --tcp: #f0932b;
+    --tls: #8e55e0;
+    --ttfb: #37a64a;
+    --dl: #2f6fe4;
+    --exec: #d9a400;
+    --cond: "Arial Narrow", "Roboto Condensed", "Helvetica Neue", Arial, sans-serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+    --lw: 230px;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.45; overflow-x: hidden;
+    background-image: linear-gradient(var(--bg), var(--bg)), repeating-linear-gradient(90deg, transparent 0 79px, #dbe2e8 79px 80px); }
+  :focus-visible { outline: 3px solid var(--hot); outline-offset: 2px; }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  input, select, pre { max-width: 100%; }
+  .back { position: fixed; top: 10px; left: 10px; z-index: 40; background: var(--ink); color: #fff; text-decoration: none;
+    font: 700 12px/1 var(--sans); padding: 8px 11px; border-radius: 3px; letter-spacing: .02em; }
+  .back:hover { background: var(--hot); }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 58px 18px 60px; }
+
+  header.hero { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 10px 36px; align-items: end; margin-bottom: 22px; }
+  .kicker { font: 700 12px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--hot); }
+  h1 { margin: 4px 0 0; font: 800 clamp(48px, 9vw, 112px)/.84 var(--cond); font-stretch: condensed; letter-spacing: -.02em; text-transform: uppercase; }
+  h1 .drip { display: inline-block; background: linear-gradient(180deg, var(--ink) 55%, var(--dl) 55%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .lede { margin: 0; color: var(--ink-2); font-size: 15px; max-width: 58ch; }
+  .lede b { color: var(--ink); }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; min-width: 0; }
+  .ctl { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: 14px 26px; align-items: start; margin-bottom: 14px; }
+  .lbl { font: 700 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 6px; }
+  .nets { display: flex; flex-wrap: wrap; gap: 6px; }
+  .net { border: 1.5px solid var(--ink); background: transparent; padding: 7px 12px; border-radius: 3px; text-align: left; min-width: 0; }
+  .net b { display: block; font: 800 16px/1.1 var(--cond); text-transform: uppercase; letter-spacing: .02em; }
+  .net small { font: 11px var(--mono); color: var(--ink-2); }
+  .net[aria-checked=true] { background: var(--ink); color: #fff; }
+  .net[aria-checked=true] small { color: #c5ced6; }
+  .approx { font-size: 11.5px; color: var(--ink-3); margin: 6px 0 0; max-width: 46ch; }
+  .toggles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .tg { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); background: #fff; border-radius: 4px; padding: 7px 10px; text-align: left; min-width: 0; }
+  .tg .sw { flex: none; width: 30px; height: 17px; border-radius: 9px; background: var(--q); position: relative; transition: background .15s; }
+  .tg .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: #fff; transition: transform .15s; }
+  .tg[aria-pressed=true] .sw { background: var(--ink); }
+  .tg[aria-pressed=true] .sw::after { transform: translateX(13px); }
+  .tg span.t { min-width: 0; }
+  .tg b { display: block; font-size: 13px; }
+  .tg small { display: block; font-size: 11px; color: var(--ink-3); line-height: 1.3; }
+
+  .metrics { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; border: 1px solid var(--ink); border-radius: 6px; overflow: hidden; margin-bottom: 14px; background: var(--ink); }
+  .m { background: var(--panel); padding: 10px 12px; min-width: 0; border-right: 1px solid var(--line); }
+  .m:last-child { border-right: 0; }
+  .m .k { font: 700 10.5px var(--mono); letter-spacing: .12em; color: var(--ink-3); text-transform: uppercase; }
+  .m .v { font: 800 30px/1.05 var(--cond); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .m .v small { font: 600 13px var(--sans); color: var(--ink-3); margin-left: 2px; }
+  .m.over .v { color: var(--crit); }
+  .m .b { font: 11px var(--mono); color: var(--ink-3); }
+  .m.over .b { color: var(--crit); font-weight: 700; }
+
+  /* waterfall */
+  .wf-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+  .wf-head h2 { margin: 0; font: 800 24px/1 var(--cond); text-transform: uppercase; letter-spacing: .01em; }
+  .btn { border: 1.5px solid var(--ink); background: #fff; border-radius: 3px; padding: 6px 12px; font-weight: 700; font-size: 13px; }
+  .btn:hover { background: var(--ink); color: #fff; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font: 11.5px var(--mono); color: var(--ink-2); margin: 0 0 10px; padding: 0; list-style: none; }
+  .legend li { display: flex; align-items: center; gap: 5px; }
+  .legend i { width: 14px; height: 9px; border-radius: 2px; display: inline-block; }
+  .chart { position: relative; --pp: 1; }
+  .axis { display: grid; grid-template-columns: var(--lw) minmax(0, 1fr); font: 10.5px var(--mono); color: var(--ink-3); height: 20px; }
+  .axis .ticks { position: relative; border-bottom: 1px solid var(--line); }
+  .axis .ticks span { position: absolute; bottom: 3px; transform: translateX(-50%); white-space: nowrap; }
+  .axis .ticks span:first-child { transform: none; }
+  .rows { position: relative; }
+  .row { display: grid; grid-template-columns: var(--lw) minmax(0, 1fr); width: 100%; border: 0; border-bottom: 1px solid #e3e8ec; background: transparent; padding: 0; text-align: left; min-height: 30px; align-items: center; position: relative; }
+  .row:hover, .row[aria-pressed=true] { background: #fff; }
+  .row[data-critical=true] .rl { box-shadow: inset 4px 0 0 var(--crit); }
+  .row[data-critical=true] .nm { color: var(--crit); }
+  .row[data-skipped=true] { opacity: .55; }
+  .rl { display: flex; align-items: center; gap: 7px; padding: 3px 8px 3px 10px; min-width: 0; }
+  .chip { flex: none; font: 700 9.5px var(--mono); letter-spacing: .06em; padding: 2px 4px; border-radius: 2px; color: #fff; width: 38px; text-align: center; }
+  .t-html { background: #13181d; } .t-css { background: #7c3aed; } .t-js { background: #b58300; } .t-font { background: #0f766e; } .t-img { background: #c2410c; } .t-xhr { background: #1d4ed8; }
+  .nmw { min-width: 0; display: grid; }
+  .nm { font: 600 12.5px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rl small { font: 10.5px var(--mono); color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tr { position: relative; height: 30px; clip-path: inset(0 calc((1 - var(--pp)) * 100%) 0 0); }
+  .seg { position: absolute; top: 9px; height: 12px; min-width: 1px; }
+  .seg.queue { background: repeating-linear-gradient(135deg, var(--q) 0 2px, transparent 2px 5px); }
+  .seg.dns { background: var(--dns); } .seg.tcp { background: var(--tcp); } .seg.tls { background: var(--tls); }
+  .seg.ttfb { background: var(--ttfb); } .seg.dl { background: var(--dl); } .seg.exec { background: var(--exec); top: 7px; height: 16px; }
+  .seg.exec.parse { background: #8d99a6; }
+  .row[data-critical=true] .seg.dl { background: var(--crit); }
+  .skipnote { position: absolute; left: 6px; top: 7px; font: 11px var(--mono); color: var(--ink-3); white-space: nowrap; }
+  .row.main { border-top: 2px solid var(--ink); background: #f1f4f6; }
+  .row.main .rl b { font: 800 14px var(--cond); text-transform: uppercase; }
+  .elabel { position: absolute; top: 9px; font: 700 9px var(--mono); color: #3d2e00; white-space: nowrap; overflow: hidden; pointer-events: none; padding-left: 2px; }
+  .markers { position: absolute; top: 20px; bottom: 0; left: var(--lw); right: 0; pointer-events: none; }
+  .mk { position: absolute; top: 0; bottom: 0; border-left: 2px dashed var(--ink); transition: opacity .3s; }
+  .mk span { position: absolute; top: -1px; left: 3px; font: 800 11px/1 var(--cond); background: var(--ink); color: #fff; padding: 3px 4px; border-radius: 2px; white-space: nowrap; letter-spacing: .04em; }
+  .mk.lcp { border-color: var(--crit); } .mk.lcp span { background: var(--crit); top: 18px; }
+  .mk.dcl { border-color: var(--ink-3); } .mk.dcl span { background: var(--ink-3); top: 36px; }
+  .mk.hide { opacity: 0; }
+  .playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--hot); left: calc(var(--pp) * 100%); opacity: .8; }
+  .detail { margin-top: 10px; font: 12.5px/1.55 var(--mono); color: var(--ink-2); min-height: 40px; }
+  .detail b { color: var(--ink); }
+
+  .lower { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+  .lower h2 { margin: 0 0 8px; font: 800 20px/1 var(--cond); text-transform: uppercase; }
+  .chain { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font: 12.5px var(--mono); }
+  .chain li { background: #fff; border: 1.5px solid var(--crit); color: var(--crit); padding: 4px 8px; border-radius: 3px; overflow-wrap: anywhere; }
+  .chain li.gate { background: var(--crit); color: #fff; font-weight: 700; }
+  .chain li.arrow { border: 0; background: none; padding: 0; color: var(--ink-3); }
+  .why { font-size: 13px; color: var(--ink-2); margin: 10px 0 0; }
+  table.bud { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .bud th { text-align: left; font: 700 10.5px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); padding: 4px 6px; border-bottom: 1px solid var(--line); }
+  .bud td { padding: 5px 6px; border-bottom: 1px solid #e3e8ec; font-variant-numeric: tabular-nums; }
+  .bud td.num { font-family: var(--mono); white-space: nowrap; }
+  .bud input { width: 70px; border: 1px solid var(--line); border-radius: 3px; padding: 3px 5px; font-family: var(--mono); background: #fff; }
+  .bar { height: 8px; background: #e3e8ec; border-radius: 4px; overflow: hidden; min-width: 50px; }
+  .bar i { display: block; height: 100%; background: var(--ok); border-radius: 4px; }
+  tr[data-over=true] .bar i { background: var(--crit); }
+  tr[data-over=true] td.st { color: var(--crit); font-weight: 700; }
+  td.st { color: var(--ok); font: 700 11px var(--mono); }
+  .notes { margin-top: 14px; font-size: 13px; color: var(--ink-2); }
+  .notes summary { cursor: pointer; font-weight: 700; color: var(--ink); }
+  .notes ul { padding-left: 18px; margin: 8px 0 0; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  @media (max-width: 980px) {
+    .ctl { grid-template-columns: minmax(0, 1fr); }
+    .metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .m:nth-child(3) { border-right: 0; }
+    .m:nth-child(-n+3) { border-bottom: 1px solid var(--line); }
+    .lower { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 720px) {
+    :root { --lw: 116px; }
+    header.hero { grid-template-columns: minmax(0, 1fr); }
+    .toggles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .rl { padding-left: 7px; gap: 5px; }
+    .chip { width: 30px; font-size: 8.5px; padding: 2px 2px; }
+    .nm { font-size: 11px; }
+    .rl small { display: none; }
+    .m .v { font-size: 24px; }
+    .elabel { display: none; }
+    .wrap { padding-left: 12px; padding-right: 12px; }
+  }
+  @media (max-width: 560px) {
+    .bud .barcol { display: none; }
+    .bud input { width: 58px; }
+    .bud td, .bud th { padding-left: 3px; padding-right: 3px; }
+  }
+  @media (max-width: 400px) {
+    .toggles { grid-template-columns: minmax(0, 1fr); }
+    .bud .barcol { display: none; }
+    .bud input { width: 58px; }
+    .bud td, .bud th { padding-left: 3px; padding-right: 3px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tg .sw, .tg .sw::after, .mk { transition: none; }
+    .playhead { display: none; }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="hero">
+    <div>
+      <div class="kicker">Network timeline simulator · QA &amp; performance</div>
+      <h1>Water<span class="drip">fall</span></h1>
+    </div>
+    <p class="lede">A fictional trail-gear storefront, <b>fernbrook.example</b>, loads thirteen requests across four origins. Change the network and the delivery tricks, then watch the <b>request waterfall</b> redraw: every bar is split into DNS, connect, TLS, time-to-first-byte and download, the <b>critical request chain</b> to Largest Contentful Paint glows red, and the byte budgets tell you when a type has gone over.</p>
+  </header>
+
+  <section class="panel ctl" aria-label="Simulation settings">
+    <div>
+      <p class="lbl" id="net-lbl">Network profile</p>
+      <div class="nets" role="radiogroup" aria-labelledby="net-lbl" id="nets"></div>
+      <p class="approx">Approximate simulation profiles, not measurements of any real network: fixed bandwidth and round-trip time, no packet loss or TCP slow start.</p>
+    </div>
+    <div>
+      <p class="lbl">Delivery toggles</p>
+      <div class="toggles" id="toggles"></div>
+    </div>
+  </section>
+
+  <section class="metrics" aria-label="Simulated metrics" data-testid="metrics">
+    <div class="m" id="m-fcp" data-testid="m-fcp"><div class="k">FCP</div><div class="v"></div><div class="b"></div></div>
+    <div class="m" id="m-lcp" data-testid="m-lcp"><div class="k">LCP</div><div class="v"></div><div class="b"></div></div>
+    <div class="m" id="m-dcl" data-testid="m-dcl"><div class="k">DOMContentLoaded</div><div class="v"></div><div class="b">deferred scripts done</div></div>
+    <div class="m" id="m-done" data-testid="m-done"><div class="k">Network idle</div><div class="v"></div><div class="b">last byte + exec</div></div>
+    <div class="m" id="m-req" data-testid="m-req"><div class="k">Requests</div><div class="v"></div><div class="b"></div></div>
+    <div class="m" id="m-bytes" data-testid="m-bytes"><div class="k">Transferred</div><div class="v"></div><div class="b"></div></div>
+  </section>
+  <p class="sr" aria-live="polite" id="live" data-testid="live"></p>
+
+  <section class="panel" aria-labelledby="wf-h">
+    <div class="wf-head">
+      <h2 id="wf-h">Request waterfall</h2>
+      <button class="btn" id="replay" data-testid="replay" type="button">▶ Replay load</button>
+    </div>
+    <ul class="legend" aria-label="Legend">
+      <li><i style="background:repeating-linear-gradient(135deg,var(--q) 0 2px,transparent 2px 5px)"></i>queued / stalled</li>
+      <li><i style="background:var(--dns)"></i>DNS</li>
+      <li><i style="background:var(--tcp)"></i>TCP connect</li>
+      <li><i style="background:var(--tls)"></i>TLS</li>
+      <li><i style="background:var(--ttfb)"></i>waiting (TTFB)</li>
+      <li><i style="background:var(--dl)"></i>download</li>
+      <li><i style="background:var(--crit)"></i>critical chain</li>
+      <li><i style="background:var(--exec)"></i>script execution</li>
+    </ul>
+    <div class="chart" id="chart" data-testid="chart">
+      <div class="axis" aria-hidden="true"><div></div><div class="ticks" id="ticks"></div></div>
+      <div class="rows" id="rows" role="list" aria-label="Requests in start order"></div>
+      <div class="markers" id="markers" aria-hidden="true"></div>
+    </div>
+    <div class="detail" id="detail" data-testid="detail" aria-live="polite">Select a request to see its phases.</div>
+  </section>
+
+  <div class="lower">
+    <section class="panel" aria-labelledby="ch-h">
+      <h2 id="ch-h">Critical request chain</h2>
+      <ol class="chain" id="chain" data-testid="chain"></ol>
+      <p class="why" id="why" data-testid="why"></p>
+    </section>
+    <section class="panel" aria-labelledby="bd-h">
+      <h2 id="bd-h">Budgets</h2>
+      <table class="bud" data-testid="budgets">
+        <thead><tr><th scope="col">Type</th><th scope="col">Used</th><th scope="col">Budget</th><th scope="col" class="barcol"><span class="sr">Usage</span></th><th scope="col">Status</th></tr></thead>
+        <tbody id="bud"></tbody>
+      </table>
+    </section>
+  </div>
+
+  <details class="notes panel">
+    <summary>How the simulation works (and what it leaves out)</summary>
+    <ul>
+      <li>Bandwidth is shared between all downloads in flight. With HTTP/2 each origin gets one connection and shares are weighted by priority (Highest 8 · High 4 · Medium 2 · Low 1); with HTTP/1.1 each origin may open up to six connections, each paying its own TCP and TLS round trips, and shares are equal.</li>
+      <li>A new origin costs one round trip for DNS, one for TCP and one for TLS 1.3. Time to first byte is one round trip plus the server's think time.</li>
+      <li>Resources in the HTML are found when the document finishes arriving. Preload hints are found as soon as the response headers arrive. The web font is otherwise only found when the page is first styled, because the browser needs CSS and layout to know the text uses it.</li>
+      <li>Synchronous scripts wait for the stylesheet, then block the parser and first paint. Deferred scripts run in order after parsing; async scripts run whenever they arrive. Text uses <code>font-display: swap</code>, so the font never blocks paint.</li>
+      <li>LCP is the hero image: it paints at the later of first paint and the image arriving (plus a short decode). Lazy-loading applies only to the four below-the-fold product photos, which are then not requested during the initial load.</li>
+      <li>Timing budgets use the widely quoted “good” thresholds: FCP 1.8 s and LCP 2.5 s.</li>
+    </ul>
+  </details>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const PROFILES = {
+    fast4g: { label: 'Fast 4G', kbps: 9000, rtt: 60 },
+    slow4g: { label: 'Slow 4G', kbps: 1600, rtt: 150 },
+    g3: { label: '3G', kbps: 400, rtt: 400 },
+  };
+  const ORIGINS = { www: 'www.fernbrook.example', img: 'img.fernbrook.example', api: 'api.fernbrook.example', tag: 'tags.metricsly.example' };
+  // raw = uncompressed KB, gz = compressed KB (null = already compressed format)
+  const RES = [
+    { id: 'html', name: '/', type: 'html', origin: 'www', raw: 42, gz: 11, server: 90 },
+    { id: 'css', name: 'main.css', type: 'css', origin: 'www', raw: 88, gz: 16, server: 10 },
+    { id: 'analytics', name: 'tag.js', type: 'js', origin: 'tag', raw: 62, gz: 21, server: 20, exec: 40 },
+    { id: 'vendor', name: 'vendor.js', type: 'js', origin: 'www', raw: 310, gz: 98, server: 10, exec: 180 },
+    { id: 'app', name: 'app.js', type: 'js', origin: 'www', raw: 140, gz: 42, server: 10, exec: 90 },
+    { id: 'logo', name: 'logo.svg', type: 'img', origin: 'www', raw: 6, gz: 2, server: 10 },
+    { id: 'hero', name: 'hero-trail.jpg', type: 'img', origin: 'img', raw: 240, gz: null, server: 15 },
+    { id: 'font', name: 'fern-sans.woff2', type: 'font', origin: 'www', raw: 38, gz: null, server: 10 },
+    { id: 'p1', name: 'pack-45l.webp', type: 'img', origin: 'img', raw: 46, gz: null, server: 15, below: true },
+    { id: 'p2', name: 'tent-2p.webp', type: 'img', origin: 'img', raw: 46, gz: null, server: 15, below: true },
+    { id: 'p3', name: 'stove-mini.webp', type: 'img', origin: 'img', raw: 46, gz: null, server: 15, below: true },
+    { id: 'p4', name: 'headlamp.webp', type: 'img', origin: 'img', raw: 46, gz: null, server: 15, below: true },
+    { id: 'api', name: '/v1/products?featured', type: 'xhr', origin: 'api', raw: 24, gz: 5, server: 140 },
+  ];
+  const TYPE_LABEL = { html: 'HTML', css: 'CSS', js: 'JS', font: 'FONT', img: 'IMG', xhr: 'XHR' };
+  const W = { Highest: 8, High: 4, Medium: 2, Low: 1 };
+  const TOGGLES = [
+    { k: 'h2', t: 'HTTP/2 multiplexing', d: 'one connection per origin' },
+    { k: 'gzip', t: 'Compression', d: 'brotli/gzip on text' },
+    { k: 'preload', t: 'Preload', d: 'hero image + web font' },
+    { k: 'defer', t: 'Defer', d: 'vendor.js + app.js' },
+    { k: 'async', t: 'Async', d: 'third-party tag.js' },
+    { k: 'lazy', t: 'Lazy-load', d: '4 below-fold photos' },
+  ];
+  const BUDGET_TYPES = ['html', 'css', 'js', 'font', 'img', 'xhr'];
+  const DEFAULT_BUDGETS = { html: 20, css: 25, js: 170, font: 50, img: 300, xhr: 20, fcp: 1800, lcp: 2500 };
+  const LS = 'lab049-waterfall';
+
+  let cfg = { net: 'fast4g', h2: true, gzip: true, preload: false, defer: false, async: false, lazy: false };
+  let budgets = { ...DEFAULT_BUDGETS };
+  try { const s = JSON.parse(localStorage.getItem(LS) || 'null'); if (s && s.budgets) budgets = { ...budgets, ...s.budgets }; } catch (e) { /* storage unavailable */ }
+  const qs = new URLSearchParams(location.search);
+  if (PROFILES[qs.get('net')]) cfg.net = qs.get('net');
+  const save = () => { try { localStorage.setItem(LS, JSON.stringify({ budgets })); } catch (e) { /* ignore */ } };
+
+  function priorityOf(r, c) {
+    switch (r.id) {
+      case 'html': case 'css': return 'Highest';
+      case 'font': return 'High';
+      case 'vendor': case 'app': return c.defer ? 'Low' : 'High';
+      case 'analytics': return c.async ? 'Low' : 'High';
+      case 'hero': return 'High';
+      case 'logo': return 'Medium';
+      case 'api': return 'High';
+      default: return 'Low';
+    }
+  }
+
+  // ---------- simulation ----------
+  function simulate(c) {
+    const P = PROFILES[c.net], bw = P.kbps / 8, rtt = P.rtt; // bytes per ms
+    const R = RES.map((r) => ({ ...r, pri: priorityOf(r, c), bytes: Math.round(((c.gzip && r.gz != null) ? r.gz : r.raw) * 1024),
+      skipped: !!(c.lazy && r.below), disc: null, by: null, assigned: null, sendAt: null, dlStart: null, end: null, left: 0, segs: [], conn: null, respStart: null }));
+    const get = (id) => R.find((r) => r.id === id);
+    R.forEach((r) => { r.left = r.bytes; });
+    const origins = {};
+    const syncOrder = ['analytics', 'vendor', 'app'].filter((id) => !(id === 'analytics' ? c.async : c.defer));
+    const deferOrder = c.defer ? ['vendor', 'app'] : [];
+
+    function gates() {
+      const g = { exec: {} };
+      const html = get('html'), css = get('css');
+      if (html.end == null) return g;
+      let tt = html.end, lim = 'html';
+      let ok = true;
+      for (const id of syncOrder) {
+        const s = get(id);
+        if (s.end == null || css.end == null) { ok = false; break; }
+        const cands = [[tt, lim], [s.end, id], [css.end, 'css']];
+        const best = cands.reduce((a, b) => (b[0] > a[0] ? b : a));
+        tt = best[0]; lim = best[1];
+        g.exec[id] = [tt, tt + s.exec, 'sync'];
+        tt += s.exec;
+      }
+      if (!ok) return g;
+      if (css.end == null) return g;
+      g.syncDone = tt;
+      g.parseEnd = tt + 30;
+      g.exec.parse = [tt, tt + 30, 'parse'];
+      if (css.end > tt) { g.renderReady = css.end; g.renderLim = 'css'; } else { g.renderReady = tt; g.renderLim = lim; }
+      g.fcp = g.renderReady + 40;
+      let dt = g.parseEnd;
+      let dOk = true;
+      for (const id of deferOrder) {
+        const s = get(id);
+        if (s.end == null) { dOk = false; break; }
+        dt = Math.max(dt, s.end);
+        g.exec[id] = [dt, dt + s.exec, 'defer'];
+        dt += s.exec;
+      }
+      if (dOk) g.dcl = dt;
+      const an = get('analytics');
+      if (c.async && an.end != null) g.exec.analytics = [an.end, an.end + an.exec, 'async'];
+      return g;
+    }
+
+    function discovery(r, g) {
+      const html = get('html');
+      if (r.id === 'html') return [0, null];
+      if (c.preload && (r.id === 'hero' || r.id === 'font')) return html.respStart != null ? [html.respStart, 'html'] : null;
+      if (r.id === 'font') return g.renderReady != null ? [g.renderReady, g.renderLim] : null;
+      if (r.id === 'api') return g.exec.app ? [g.exec.app[1], 'app'] : null;
+      return html.end != null ? [html.end, 'html'] : null;
+    }
+
+    function origin(id) {
+      return origins[id] || (origins[id] = { dnsStart: null, dnsEnd: null, conns: [] });
+    }
+
+    const LIMIT = 90000;
+    let t = 0, g = {};
+    const live = R.filter((r) => !r.skipped);
+    for (; t < LIMIT; t++) {
+      g = gates();
+      for (const r of live) {
+        if (r.disc != null) continue;
+        const d = discovery(r, g);
+        if (d && d[0] <= t) { r.disc = t; r.by = d[1]; }
+      }
+      // connection assignment, highest priority first
+      const waiting = live.filter((r) => r.disc != null && r.assigned == null).sort((a, b) => W[b.pri] - W[a.pri] || a.disc - b.disc);
+      for (const r of waiting) {
+        const o = origin(r.origin);
+        let conn = null;
+        if (c.h2) conn = o.conns[0] || null;
+        else conn = o.conns.find((k) => !k.busy) || null;
+        if (!conn && (c.h2 || o.conns.length < 6)) {
+          // open a new connection
+          let cs;
+          if (o.dnsStart == null) { o.dnsStart = t; o.dnsEnd = t + rtt; r.segs.push(['dns', t, t + rtt]); cs = t + rtt; }
+          else { cs = Math.max(t, o.dnsEnd); if (cs > t) r.segs.push(['queue', t, cs]); }
+          r.segs.push(['tcp', cs, cs + rtt]);
+          r.segs.push(['tls', cs + rtt, cs + 2 * rtt]);
+          conn = { readyAt: cs + 2 * rtt, busy: false, n: o.conns.length + 1 };
+          o.conns.push(conn);
+          r.newConn = true;
+        }
+        if (!conn) continue; // all six HTTP/1.1 connections busy: stay queued
+        r.assigned = t; r.conn = conn.n;
+        if (r.disc < t) r.segs.unshift(['queue', r.disc, t]);
+        if (!c.h2) conn.busy = true;
+        r.connObj = conn;
+        r.sendAt = Math.max(t, conn.readyAt);
+        if (!r.newConn && r.sendAt > t) r.segs.push(['queue', t, r.sendAt]);
+        r.respStart = r.sendAt + rtt + r.server;
+        r.segs.push(['ttfb', r.sendAt, r.respStart]);
+      }
+      // bandwidth share for this millisecond
+      const active = live.filter((r) => r.respStart != null && r.respStart <= t && r.end == null);
+      if (active.length) {
+        const tot = active.reduce((s, r) => s + (c.h2 ? W[r.pri] : 1), 0);
+        for (const r of active) {
+          r.left -= bw * (c.h2 ? W[r.pri] : 1) / tot;
+          if (r.left <= 0) { r.end = t + 1; r.segs.push(['dl', r.respStart, r.end]); if (r.connObj) r.connObj.busy = false; }
+        }
+      }
+      if (live.every((r) => r.end != null)) { g = gates(); if (g.dcl != null && g.fcp != null && (!c.async || g.exec.analytics)) break; }
+    }
+    g = gates();
+    const hero = get('hero');
+    const heroPaint = hero.end + 15;
+    const lcp = Math.max(g.fcp, heroPaint);
+    const lcpLim = heroPaint >= g.fcp ? 'hero' : 'fcp';
+    // walk the chain back from the LCP gate
+    const chain = [];
+    let cur = lcpLim === 'hero' ? 'hero' : g.renderLim;
+    const seen = new Set();
+    while (cur && !seen.has(cur)) { seen.add(cur); chain.unshift(cur); cur = get(cur).by; }
+    let done = 0;
+    for (const r of live) done = Math.max(done, r.end);
+    for (const k in g.exec) done = Math.max(done, g.exec[k][1]);
+    const bytesByType = {};
+    BUDGET_TYPES.forEach((k) => { bytesByType[k] = 0; });
+    live.forEach((r) => { bytesByType[r.type] += r.bytes; });
+    const conns = Object.values(origins).reduce((s, o) => s + o.conns.length, 0);
+    return { R, g, fcp: g.fcp, lcp, lcpLim, dcl: g.dcl, done, chain, bytesByType, conns,
+      requests: live.length, bytes: live.reduce((s, r) => s + r.bytes, 0), profile: P, cfg: { ...c } };
+  }
+
+  // ---------- rendering ----------
+  const $ = (id) => document.getElementById(id);
+  const fmtMs = (ms) => (ms >= 1000 ? (ms / 1000).toFixed(2) + '<small>s</small>' : Math.round(ms) + '<small>ms</small>');
+  const fmtMsTxt = (ms) => (ms >= 1000 ? (ms / 1000).toFixed(2) + ' s' : Math.round(ms) + ' ms');
+  const kb = (b) => (b / 1024).toFixed(b < 10240 ? 1 : 0);
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let result = null, selected = null, anim = 0;
+
+  function buildControls() {
+    const nets = $('nets');
+    Object.entries(PROFILES).forEach(([k, p]) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'net'; b.setAttribute('role', 'radio'); b.dataset.testid = 'net-' + k; b.dataset.k = k;
+      b.innerHTML = `<b>${p.label}</b><small>≈${p.kbps >= 1000 ? p.kbps / 1000 + ' Mbps' : p.kbps + ' kbps'} · ${p.rtt} ms RTT</small>`;
+      b.addEventListener('click', () => { cfg.net = k; run(); });
+      b.addEventListener('keydown', (e) => {
+        const keys = Object.keys(PROFILES); const i = keys.indexOf(k);
+        let n = null;
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') n = keys[(i + 1) % keys.length];
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') n = keys[(i + keys.length - 1) % keys.length];
+        if (n) { e.preventDefault(); cfg.net = n; run(); nets.querySelector(`[data-k="${n}"]`).focus(); }
+      });
+      nets.appendChild(b);
+    });
+    const tg = $('toggles');
+    TOGGLES.forEach((o) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'tg'; b.dataset.testid = 'tg-' + o.k; b.dataset.k = o.k;
+      b.innerHTML = `<span class="sw" aria-hidden="true"></span><span class="t"><b>${o.t}</b><small>${o.d}</small></span>`;
+      b.addEventListener('click', () => { cfg[o.k] = !cfg[o.k]; run(); });
+      tg.appendChild(b);
+    });
+    const tb = $('bud');
+    [...BUDGET_TYPES, 'fcp', 'lcp'].forEach((k) => {
+      const tr = document.createElement('tr');
+      tr.dataset.testid = 'budget-' + k;
+      const unit = (k === 'fcp' || k === 'lcp') ? 'ms' : 'KB';
+      const name = k === 'fcp' ? 'FCP' : k === 'lcp' ? 'LCP' : TYPE_LABEL[k];
+      tr.innerHTML = `<td><span class="chip ${unit === 'KB' ? 't-' + k : 't-html'}">${name}</span></td><td class="num used"></td>
+        <td class="num"><input type="number" min="0" step="${unit === 'KB' ? 5 : 100}" aria-label="${name} budget in ${unit}" data-testid="budget-input-${k}" value="${budgets[k]}"> ${unit}</td>
+        <td class="barcol"><div class="bar"><i></i></div></td><td class="st"></td>`;
+      tr.querySelector('input').addEventListener('input', (e) => {
+        const v = Number(e.target.value);
+        if (Number.isFinite(v) && v >= 0) { budgets[k] = v; save(); renderBudgets(); }
+      });
+      tb.appendChild(tr);
+    });
+    $('replay').addEventListener('click', () => animate());
+  }
+
+  function syncControls() {
+    document.querySelectorAll('.net').forEach((b) => { const on = b.dataset.k === cfg.net; b.setAttribute('aria-checked', on); b.tabIndex = on ? 0 : -1; });
+    document.querySelectorAll('.tg').forEach((b) => b.setAttribute('aria-pressed', !!cfg[b.dataset.k]));
+  }
+
+  function niceStep(span) {
+    const steps = [50, 100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000];
+    const max = window.innerWidth < 720 ? 4 : 8;
+    return steps.find((s) => span / s <= max) || 20000;
+  }
+
+  function renderChart() {
+    const res = result;
+    const step = niceStep(res.done);
+    const span = Math.max(step, Math.ceil((res.done * 1.04) / step) * step);
+    const pct = (ms) => (ms / span) * 100;
+    $('ticks').innerHTML = Array.from({ length: Math.floor(span / step) + 1 }, (_, i) => i * step)
+      .filter((v) => v < span).map((v) => `<span style="left:${pct(v)}%">${v >= 1000 ? v / 1000 + 's' : v}</span>`).join('');
+    const rows = $('rows');
+    rows.innerHTML = '';
+    const ordered = [...res.R].sort((a, b) => (a.skipped - b.skipped) || (a.disc ?? 1e9) - (b.disc ?? 1e9) || RES.indexOf(RES.find((x) => x.id === a.id)) - RES.indexOf(RES.find((x) => x.id === b.id)));
+    const crit = new Set(res.chain);
+    for (const r of ordered) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'row'; b.setAttribute('role', 'listitem');
+      b.dataset.testid = 'row-' + r.id; b.dataset.id = r.id;
+      b.dataset.critical = crit.has(r.id); b.dataset.skipped = r.skipped;
+      if (!r.skipped) { b.dataset.start = r.disc; b.dataset.end = r.end; b.dataset.segs = r.segs.map((s) => s[0]).join(' '); }
+      b.setAttribute('aria-pressed', selected === r.id);
+      b.setAttribute('aria-label', r.skipped ? `${r.name}, image, lazy-loaded, not requested during initial load`
+        : `${r.name}, ${TYPE_LABEL[r.type]}, ${kb(r.bytes)} kilobytes, ${r.pri} priority, from ${Math.round(r.disc)} to ${Math.round(r.end)} milliseconds${crit.has(r.id) ? ', on the critical chain' : ''}`);
+      const segs = r.skipped ? `<span class="skipnote">lazy · requested on scroll</span>`
+        : r.segs.map(([k, a, z]) => `<i class="seg ${k}" data-seg="${k}" style="left:${pct(a)}%;width:${Math.max(0.15, pct(z - a))}%"></i>`).join('');
+      b.innerHTML = `<span class="rl"><span class="chip t-${r.type}">${TYPE_LABEL[r.type]}</span><span class="nmw"><span class="nm">${r.name}</span><small>${kb(r.bytes)} KB · ${r.pri}${r.newConn && !r.skipped ? ' · new conn' : ''}</small></span></span><span class="tr">${segs}</span>`;
+      b.addEventListener('click', () => { selected = r.id; renderChartSelection(); showDetail(r); });
+      rows.appendChild(b);
+    }
+    // main thread lane
+    const mt = document.createElement('div');
+    mt.className = 'row main'; mt.setAttribute('role', 'listitem'); mt.dataset.testid = 'row-main';
+    const names = { analytics: 'tag.js', vendor: 'vendor.js', app: 'app.js', parse: 'parse' };
+    const ex = Object.entries(res.g.exec);
+    mt.setAttribute('aria-label', 'Main thread: ' + ex.map(([k, [a, z, kind]]) => `${names[k]} ${kind} ${Math.round(a)} to ${Math.round(z)} ms`).join('; '));
+    mt.innerHTML = `<span class="rl"><b>Main thread</b></span><span class="tr">${ex.map(([k, [a, z, kind]]) =>
+      `<i class="seg exec ${k === 'parse' ? 'parse' : ''}" data-exec="${k}" data-kind="${kind}" style="left:${pct(a)}%;width:${Math.max(0.3, pct(z - a))}%"></i><span class="elabel" style="left:${pct(a)}%;width:${pct(z - a)}%">${names[k]}</span>`).join('')}</span>`;
+    rows.appendChild(mt);
+    $('markers').innerHTML = [['fcp', 'FCP', res.fcp], ['lcp', 'LCP', res.lcp], ['dcl', 'DCL', res.dcl]]
+      .map(([k, l, v]) => `<div class="mk ${k}" data-at="${v}" style="left:${pct(v)}%" data-testid="mk-${k}"><span>${l}</span></div>`).join('') + '<div class="playhead" id="playhead"></div>';
+    $('chart').dataset.span = span;
+  }
+
+  function renderChartSelection() {
+    document.querySelectorAll('.row[data-id]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.id === selected));
+  }
+
+  function showDetail(r) {
+    if (!r) { $('detail').textContent = 'Select a request to see its phases.'; return; }
+    if (r.skipped) { $('detail').innerHTML = `<b>${r.name}</b> is below the fold and marked <b>loading="lazy"</b>: it is not requested until the visitor scrolls near it, so it costs nothing in the initial load.`; return; }
+    const sum = {};
+    r.segs.forEach(([k, a, z]) => { sum[k] = (sum[k] || 0) + (z - a); });
+    const lbl = { queue: 'queued', dns: 'DNS', tcp: 'connect', tls: 'TLS', ttfb: 'TTFB', dl: 'download' };
+    const byTxt = r.by == null ? 'navigation' : r.by === 'html' ? (result.cfg.preload && (r.id === 'hero' || r.id === 'font') ? 'preload hint in the HTML head' : 'the HTML parser') : r.by === 'app' ? 'app.js after it ran' : `first styling (waited on ${get(r.by).name})`;
+    $('detail').innerHTML = `<b>${r.name}</b> · ${ORIGINS[r.origin]} · ${r.pri} priority · ${kb(r.bytes)} KB${r.gz != null && !result.cfg.gzip ? ' (uncompressed)' : ''}<br>
+      found at ${Math.round(r.disc)} ms by ${byTxt} · ` + Object.entries(lbl).filter(([k]) => sum[k]).map(([k, l]) => `${l} ${Math.round(sum[k])} ms`).join(' · ') + ` · done ${Math.round(r.end)} ms`;
+  }
+  const get = (id) => result.R.find((r) => r.id === id);
+
+  function renderMetrics() {
+    const res = result;
+    const setM = (id, html, over, note) => { const el = $(id); el.querySelector('.v').innerHTML = html; el.classList.toggle('over', !!over); if (note != null) el.querySelector('.b').textContent = note; };
+    setM('m-fcp', fmtMs(res.fcp), res.fcp > budgets.fcp, `budget ${fmtMsTxt(budgets.fcp)}`);
+    setM('m-lcp', fmtMs(res.lcp), res.lcp > budgets.lcp, `budget ${fmtMsTxt(budgets.lcp)}`);
+    setM('m-dcl', fmtMs(res.dcl));
+    setM('m-done', fmtMs(res.done));
+    setM('m-req', String(res.requests), false, `${res.conns} connection${res.conns === 1 ? '' : 's'}`);
+    setM('m-bytes', kb(res.bytes) + '<small>KB</small>', false, res.cfg.gzip ? 'text compressed' : 'no compression');
+    $('m-fcp').dataset.ms = Math.round(res.fcp); $('m-lcp').dataset.ms = Math.round(res.lcp);
+    $('m-dcl').dataset.ms = Math.round(res.dcl); $('m-done').dataset.ms = Math.round(res.done);
+    $('m-req').dataset.n = res.requests; $('m-req').dataset.conns = res.conns; $('m-bytes').dataset.bytes = res.bytes;
+    $('m-fcp').dataset.over = res.fcp > budgets.fcp; $('m-lcp').dataset.over = res.lcp > budgets.lcp;
+    // chain
+    const names = res.chain.map((id) => get(id).name);
+    const parts = [];
+    names.forEach((n, i) => { if (i) parts.push('<li class="arrow" aria-hidden="true">→</li>'); parts.push(`<li data-id="${res.chain[i]}">${n}</li>`); });
+    if (res.lcpLim === 'fcp') parts.push('<li class="arrow" aria-hidden="true">→</li><li class="gate">first paint</li>');
+    parts.push('<li class="arrow" aria-hidden="true">→</li><li class="gate">LCP ' + fmtMsTxt(res.lcp) + '</li>');
+    $('chain').innerHTML = parts.join('');
+    $('chain').dataset.ids = res.chain.join(' ');
+    let why;
+    if (res.lcpLim === 'hero') {
+      why = `The hero image is the last thing LCP waits for: it arrives at ${fmtMsTxt(get('hero').end)}, after first paint at ${fmtMsTxt(res.fcp)}.`;
+      if (!res.cfg.preload) why += ' A preload hint would let the browser request it from the response headers instead of waiting for the whole document.';
+    } else {
+      const lim = get(res.g.renderLim);
+      why = `LCP is held back by first paint, which waits on ${lim.name}${lim.type === 'js' ? ' — a render-blocking script' : lim.type === 'css' ? ' — the render-blocking stylesheet' : ''}. The hero is ready at ${fmtMsTxt(get('hero').end)} but cannot paint before ${fmtMsTxt(res.fcp)}.`;
+      if (lim.type === 'js') why += ' Try defer (or async for independent third-party code).';
+    }
+    $('why').textContent = why;
+    $('live').textContent = `${res.profile.label}: FCP ${fmtMsTxt(res.fcp)}, LCP ${fmtMsTxt(res.lcp)}, ${res.requests} requests, ${kb(res.bytes)} KB.`;
+    renderBudgets();
+  }
+
+  function renderBudgets() {
+    if (!result) return;
+    const res = result;
+    [...BUDGET_TYPES, 'fcp', 'lcp'].forEach((k) => {
+      const tr = document.querySelector(`[data-testid="budget-${k}"]`);
+      const timing = k === 'fcp' || k === 'lcp';
+      const used = timing ? res[k] : res.bytesByType[k] / 1024;
+      const cap = budgets[k];
+      const over = used > cap;
+      tr.dataset.over = over; tr.dataset.used = timing ? Math.round(used) : used.toFixed(1);
+      tr.querySelector('.used').textContent = timing ? fmtMsTxt(used) : used.toFixed(1) + ' KB';
+      tr.querySelector('.bar i').style.width = Math.min(100, cap > 0 ? (used / cap) * 100 : 100) + '%';
+      tr.querySelector('.st').textContent = over ? `over by ${timing ? Math.round(used - cap) + ' ms' : (used - cap).toFixed(1) + ' KB'}` : 'within';
+    });
+    ['fcp', 'lcp'].forEach((k) => {
+      const el = $('m-' + k); const over = res[k] > budgets[k];
+      el.classList.toggle('over', over); el.dataset.over = over; el.querySelector('.b').textContent = `budget ${fmtMsTxt(budgets[k])}`;
+    });
+  }
+
+  function animate() {
+    cancelAnimationFrame(anim);
+    const chart = $('chart');
+    const mks = [...document.querySelectorAll('.mk')];
+    if (reduce.matches) { chart.style.setProperty('--pp', 1); mks.forEach((m) => m.classList.remove('hide')); return; }
+    const span = Number(chart.dataset.span);
+    const dur = 1800; let t0 = null;
+    const tick = (now) => {
+      if (t0 == null) t0 = now;
+      const p = Math.min(1, (now - t0) / dur);
+      chart.style.setProperty('--pp', p.toFixed(4));
+      mks.forEach((m) => m.classList.toggle('hide', Number(m.dataset.at) / span > p));
+      if (p < 1) anim = requestAnimationFrame(tick);
+      else { const ph = $('playhead'); if (ph) ph.style.opacity = 0; }
+    };
+    anim = requestAnimationFrame(tick);
+  }
+
+  function run() {
+    result = simulate(cfg);
+    syncControls();
+    renderChart();
+    renderMetrics();
+    if (selected) { const r = get(selected); showDetail(r); }
+    animate();
+  }
+
+  window.__wf = { simulate: (c) => { const r = simulate({ ...cfg, ...c }); return { fcp: r.fcp, lcp: r.lcp, dcl: r.dcl, done: r.done, chain: r.chain, conns: r.conns, bytes: r.bytes }; }, get result() { return result; } };
+  buildControls();
+  run();
+})();
+</script>
+</body>
+</html>

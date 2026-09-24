@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Marfa Lights — a generative West Texas night</title>
+<meta name="description" content="A generative West Texas desert night: mesas fading from dusk to dark, a star field turning slowly around Polaris, and mysterious lights on the horizon that drift, split, merge and pulse. Scrub the time of night, lift the binoculars, and listen to the wind.">
+<style>
+  :root {
+    --sand: #e9c89a;
+    --sand-2: #c9a377;
+    --dusk: #f08a5d;
+    --rose: #c75b7a;
+    --indigo: #1a1840;
+    --ink: #0b0a1a;
+    --glow: #ffd9a0;
+    --muted: #a99bb8;
+    --geo: Futura, "Century Gothic", "Avenir Next", "Trebuchet MS", system-ui, sans-serif;
+    --body: "Avenir Next", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    --mono: ui-monospace, Consolas, Menlo, monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--ink); color: #efe6f4; font: 15.5px/1.55 var(--body); overflow-x: hidden; }
+  :focus-visible { outline: 2px solid var(--glow); outline-offset: 3px; }
+  button, input { font: inherit; color: inherit; }
+  a.back { position: fixed; top: 12px; left: 12px; z-index: 40; font: 600 12px/1 var(--geo); letter-spacing: .16em; text-transform: uppercase; color: var(--sand);
+    text-decoration: none; padding: 8px 12px; border-radius: 999px; background: rgba(11, 10, 26, .6); border: 1px solid rgba(233, 200, 154, .35); }
+  a.back:hover { background: var(--sand); color: var(--ink); }
+
+  .stage { position: relative; height: 100vh; height: 100svh; min-height: 520px; max-height: 1000px; overflow: hidden; }
+  #night { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: manipulation; }
+  #night.binocs { cursor: crosshair; }
+  .title { position: absolute; top: 58px; left: 0; right: 0; text-align: center; pointer-events: none; padding: 0 16px; }
+  .title h1 { margin: 0; font: 500 clamp(30px, 6vw, 64px)/1 var(--geo); letter-spacing: .32em; text-transform: uppercase; padding-left: .32em; color: var(--sand); text-shadow: 0 0 24px rgba(255, 190, 120, .35); }
+  .title p { margin: 10px 0 0; font: 500 12px/1.4 var(--geo); letter-spacing: .3em; text-transform: uppercase; color: var(--muted); }
+
+  .dash { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); width: min(980px, calc(100% - 24px)); display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px 16px; align-items: center;
+    padding: 12px 16px; border-radius: 18px; background: rgba(14, 12, 32, .66); border: 1px solid rgba(233, 200, 154, .2); backdrop-filter: blur(10px); }
+  .dash > * { min-width: 0; }
+  .clock { font: 600 26px/1 var(--mono); color: var(--glow); font-variant-numeric: tabular-nums; min-width: 5ch; }
+  .clock small { display: block; font: 600 10px/1.2 var(--geo); letter-spacing: .22em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
+  .slider label { display: block; font: 600 10.5px/1 var(--geo); letter-spacing: .22em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+  input[type=range] { width: 100%; max-width: 100%; accent-color: var(--dusk); min-height: 28px; }
+  .ticks { display: flex; justify-content: space-between; font: 11px/1 var(--mono); color: #7d7196; }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .btn { min-height: 42px; min-width: 42px; padding: 0 14px; border-radius: 999px; border: 1px solid rgba(233, 200, 154, .45); background: rgba(233, 200, 154, .06); cursor: pointer;
+    font: 600 12px/1 var(--geo); letter-spacing: .14em; text-transform: uppercase; color: var(--sand); display: inline-flex; align-items: center; gap: 8px; }
+  .btn:hover { background: rgba(233, 200, 154, .18); }
+  .btn[aria-pressed="true"] { background: var(--sand); color: var(--ink); border-color: var(--sand); }
+  .btn svg { width: 16px; height: 16px; flex: none; }
+  .live { position: absolute; top: 12px; right: 12px; font: 12px/1.4 var(--mono); color: var(--muted); text-align: right; background: rgba(11,10,26,.5); padding: 6px 10px; border-radius: 10px; max-width: 46vw; }
+  .live b { color: var(--glow); font-weight: 600; }
+  .hint { position: absolute; left: 50%; transform: translateX(-50%); bottom: 118px; font: 600 11px/1.3 var(--geo); letter-spacing: .18em; text-transform: uppercase; color: var(--glow);
+    background: rgba(11,10,26,.6); padding: 6px 12px; border-radius: 999px; white-space: nowrap; max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; }
+
+  .field-notes { max-width: 1060px; margin: 0 auto; padding: 60px 22px 70px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; }
+  .field-notes section { min-width: 0; }
+  .field-notes h2 { font: 600 13px/1.2 var(--geo); letter-spacing: .26em; text-transform: uppercase; color: var(--sand); margin: 0 0 10px; display: flex; gap: 10px; align-items: center; }
+  .field-notes h2::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--glow); box-shadow: 0 0 12px var(--glow); flex: none; }
+  .field-notes p { margin: 0 0 10px; color: #cfc3dc; }
+  .legend-row { display: flex; gap: 14px; flex-wrap: wrap; font: 12.5px/1.4 var(--mono); color: var(--muted); }
+  footer { text-align: center; padding: 0 20px 40px; font: 12px/1.4 var(--mono); color: #6f6488; }
+
+  @media (max-width: 760px) {
+    .dash { grid-template-columns: auto minmax(0, 1fr); bottom: 10px; padding: 10px 12px; }
+    .btns { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .btns .btn { flex: 1 1 0; justify-content: center; padding: 0 8px; min-width: 0; }
+    .hint { bottom: 170px; }
+    .field-notes { grid-template-columns: minmax(0, 1fr); }
+    .title { top: 56px; }
+    .live { top: 124px; right: 10px; max-width: 60vw; }
+    .hint { bottom: 226px; }
+  }
+  @media (max-width: 420px) { .btn .lbl-long { display: none; } .title p { letter-spacing: .18em; } }
+</style>
+</head>
+<body>
+<a href="../index.html#lab" class="back" data-testid="back-link">← Zac's Lab</a>
+
+<main>
+  <div class="stage">
+    <canvas id="night" data-testid="night" tabindex="0" role="img" aria-label="West Texas desert at night"></canvas>
+    <div class="title"><h1>Marfa Lights</h1><p>Presidio County, Texas · looking north</p></div>
+    <div class="live" id="live" data-testid="live" aria-live="polite"></div>
+    <div class="hint" id="hint" data-testid="hint" hidden>Tap the horizon to aim · arrow keys pan</div>
+    <div class="dash">
+      <div class="clock"><span id="clock" data-testid="clock">21:00</span><small id="phase" data-testid="phase">night</small></div>
+      <div class="slider">
+        <label for="time">Time of night</label>
+        <input type="range" id="time" data-testid="time" min="0" max="600" step="1" value="90">
+        <div class="ticks" aria-hidden="true"><span>19:30</span><span>22:00</span><span>00:30</span><span>03:00</span><span>05:30</span></div>
+      </div>
+      <div class="btns">
+        <button class="btn" id="play" data-testid="play" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2l10 6-10 6z" fill="currentColor"/></svg><span>Time-lapse</span></button>
+        <button class="btn" id="trails" data-testid="trails" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 12a8 8 0 0 1 12-8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4 13a6 6 0 0 1 9-6" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><span>Trails</span></button>
+        <button class="btn" id="binocs" data-testid="binocs" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="4.5" cy="10" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="11.5" cy="10" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4 6l1.5-3h5L12 6" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><span>Binoculars</span></button>
+        <button class="btn" id="wind" data-testid="wind" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 6h9a2 2 0 1 0-2-2M1 10h12a2 2 0 1 1-2 2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><span>Wind</span></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="field-notes">
+    <section>
+      <h2>What people see</h2>
+      <p>For decades, visitors on the high desert east of Marfa have reported glowing orbs low over Mitchell Flat, toward the Chinati Mountains: lights that hover, drift, split apart, merge and fade.</p>
+      <p>There is a roadside viewing area on US 90 east of town where people gather after dark to watch for them.</p>
+    </section>
+    <section>
+      <h2>What might explain them</h2>
+      <p>Investigators have attributed many sightings to distant vehicle headlights and to mirages, where layers of warm and cool air bend light across the flat. Not everyone is convinced, and the mystery is part of the draw.</p>
+      <p>The lights here are pure invention: seeded noise decides where each one drifts, when it splits and when two merge.</p>
+    </section>
+    <section>
+      <h2>The sky overhead</h2>
+      <p>This scene faces north, so the stars wheel counterclockwise around Polaris, about 15° per hour. Marfa sits near 30° north, so Polaris stands about 30° above the horizon.</p>
+      <p>The star field is generated, with a stylised Big Dipper and Cassiopeia on opposite sides of the pole.</p>
+      <div class="legend-row" data-testid="stats"><span id="stat-seed">seed #1</span><span id="stat-events">0 splits · 0 merges</span></div>
+    </section>
+  </div>
+  <footer>A generative piece. Times are illustrative; no date or real star positions are implied.</footer>
+</main>
+
+<script>
+(() => {
+  'use strict';
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const qs = new URLSearchParams(location.search);
+  let SEED = parseInt(qs.get('seed'), 10); if (!Number.isFinite(SEED)) SEED = 1 + Math.floor(Math.random() * 9999);
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+  const $ = (id) => document.getElementById(id);
+
+  // seeded 1-D value noise
+  function makeNoise(seed) {
+    const r = mulberry32(seed), T = new Float32Array(512); for (let i = 0; i < 512; i++) T[i] = r() * 2 - 1;
+    return (x) => { const i = Math.floor(x), f = x - i, a = T[i & 511], b = T[(i + 1) & 511], u = f * f * (3 - 2 * f); return a + (b - a) * u; };
+  }
+
+  // ---------- constants ----------
+  const START = 19.5, SPAN = 10; // 19:30 → 05:30
+  const SIDEREAL = 15.041; // degrees per hour
+  const LAT = 30.3;
+  const cv = $('night'), ctx = cv.getContext('2d');
+  let W = 0, H = 0, DPR = 1, horizon = 0, pole = { x: 0, y: 0 }, pxPerDeg = 1;
+
+  // ---------- state ----------
+  const S = { minutes: 90, playing: false, trails: false, binocs: false, aim: { x: 0.5, y: 0 }, zoom: 4, wind: false, simT: 0, splits: 0, merges: 0, trailFrom: null };
+
+  // ---------- stars (positions in pole-centred polar coords: r in degrees from Polaris, a in radians) ----------
+  let stars = [];
+  function makeStars() {
+    const r = mulberry32(SEED * 31 + 7); stars = [];
+    for (let i = 0; i < 2600; i++) {
+      const d = Math.acos(1 - r() * 1.0) * 180 / Math.PI; // uniform over the visible hemisphere around the pole
+      const mag = Math.pow(r(), 3.2);
+      stars.push({ r: Math.min(120, d), a: r() * Math.PI * 2, s: 0.8 + mag * 1.7, b: 0.35 + mag * 0.65, tw: r() * 6.28, hue: r() < 0.12 ? 'warm' : r() < 0.2 ? 'blue' : 'white' });
+    }
+    // stylised asterisms: [r (deg from pole), angle] — opposite sides of Polaris
+    const dipper = [[28, 0], [32, 0.13], [35, 0.25], [37, 0.36], [36, 0.55], [42, 0.58], [44, 0.42]];
+    const cass = [[34, Math.PI - 0.35], [30, Math.PI - 0.2], [33, Math.PI - 0.02], [29, Math.PI + 0.14], [33, Math.PI + 0.3]];
+    for (const [d, a] of dipper) stars.push({ r: d, a: a + 2.2, s: 2.1, b: 1, tw: 0, hue: 'white', named: 'dipper' });
+    for (const [d, a] of cass) stars.push({ r: d, a: a + 2.2, s: 1.9, b: 0.95, tw: 1, hue: 'white', named: 'cass' });
+    stars.push({ r: 0, a: 0, s: 2.2, b: 1, tw: 0, hue: 'white', named: 'polaris' });
+  }
+  const hourOf = (m) => START + m / 60;
+  const rotationDeg = (m) => (hourOf(m) - 21) * SIDEREAL; // counterclockwise when facing north
+  function starXY(st, m) {
+    const ang = st.a + rotationDeg(m) * Math.PI / 180;
+    // counterclockwise on screen: y grows downward, so subtract the sine term
+    return { x: pole.x + Math.cos(ang) * st.r * pxPerDeg, y: pole.y - Math.sin(ang) * st.r * pxPerDeg };
+  }
+
+  // ---------- sky colour by time ----------
+  function skyPhase(m) {
+    const h = hourOf(m);
+    if (h < 20.4) return 'dusk';
+    if (h < 21.2) return 'last light';
+    if (h > 28.9) return 'first light';
+    return 'night';
+  }
+  function darkness(m) { const h = hourOf(m); const eve = Math.min(1, Math.max(0, (h - 19.6) / 1.6)); const morn = Math.min(1, Math.max(0, (29.6 - h) / 0.9)); return Math.min(eve, morn); }
+  function mix(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+  const rgb = (c, al = 1) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${al})`;
+
+  // ---------- mesas ----------
+  let mesas = [];
+  function makeMesas() {
+    const r = mulberry32(SEED * 97 + 3); mesas = [];
+    for (let layer = 0; layer < 3; layer++) {
+      const pts = []; let x = 0, y = 0.5;
+      while (x < 1.05) {
+        const flat = r() < 0.45;
+        if (flat) { const top = 0.35 + r() * 0.65, w = 0.04 + r() * 0.12; pts.push([x, y]); x += 0.008 + r() * 0.01; pts.push([x, top]); x += w; pts.push([x, top - r() * 0.05]); x += 0.008 + r() * 0.012; y = r() * 0.3; pts.push([x, y]); }
+        else { x += 0.02 + r() * 0.05; y = Math.max(0, Math.min(0.45, y + (r() - 0.5) * 0.25)); pts.push([x, y]); }
+      }
+      mesas.push({ pts, h: [0.05, 0.075, 0.03][layer], layer });
+    }
+  }
+
+  // ---------- the lights ----------
+  let lights = [], simRng, noise, nextId = 1;
+  function resetLights() {
+    simRng = mulberry32(SEED * 1013 + 1); noise = makeNoise(SEED * 7 + 5); lights = []; nextId = 1; S.simT = 0; S.splits = 0; S.merges = 0;
+    for (let i = 0; i < 3; i++) spawn();
+  }
+  function spawn(from) {
+    const r = simRng;
+    const L = from ? { x: from.x, y: from.y, hue: from.hue, b: from.b * 0.7 } : { x: 0.15 + r() * 0.7, y: 4 + r() * 22, hue: r() < 0.6 ? 0 : r() < 0.5 ? 1 : 2, b: 0 };
+    L.id = nextId++; L.seedOff = r() * 400; L.age = 0; L.life = 20 + r() * 50; L.bias = (r() - 0.5) * 0.004; L.target = 0.6 + r() * 0.4;
+    L.pulse = from ? from.pulse : 0.55; // set now: a frame can draw this light before the next stepLights()
+    lights.push(L); return L;
+  }
+  function stepLights(dt) {
+    const r = simRng; S.simT += dt;
+    for (const L of lights) {
+      L.age += dt;
+      const n = noise(L.seedOff + S.simT * 0.15);
+      L.x += (n * 0.006 + L.bias) * dt;
+      L.y = Math.max(2, Math.min(34, L.y + noise(L.seedOff + 90 + S.simT * 0.2) * 6 * dt));
+      const fadeIn = Math.min(1, L.age / 3), fadeOut = Math.min(1, Math.max(0, (L.life - L.age) / 4));
+      L.pulse = 0.55 + 0.45 * noise(L.seedOff + 200 + S.simT * 0.9);
+      L.b = L.target * fadeIn * fadeOut;
+    }
+    // split: a light occasionally buds a twin that drifts off the other way
+    if (lights.length < 8 && r() < 0.02 * dt * lights.length) {
+      const p = lights[Math.floor(r() * lights.length)];
+      if (p.age > 4 && p.b > 0.3) { const c = spawn(p); c.bias = -p.bias - 0.002 * Math.sign(p.bias || 1); p.bias += 0.001 * Math.sign(p.bias || 1); S.splits++; }
+    }
+    // merge: two lights that meet become one brighter light
+    for (let i = 0; i < lights.length; i++) for (let j = i + 1; j < lights.length; j++) {
+      const a = lights[i], b = lights[j];
+      if (a.age > 3 && b.age > 3 && Math.abs(a.x - b.x) < 0.006 && Math.abs(a.y - b.y) < 5) {
+        a.target = Math.min(1.25, a.target + b.target * 0.5); a.life = Math.max(a.life, a.age + 12); b.life = b.age; b.dead = true; S.merges++;
+      }
+    }
+    lights = lights.filter((L) => !L.dead && L.age < L.life && L.x > -0.05 && L.x < 1.05);
+    while (lights.length < 2) spawn();
+    if (lights.length < 6 && r() < 0.02 * dt) spawn();
+  }
+
+  // ---------- drawing ----------
+  let sceneCanvas = document.createElement('canvas'), sctx = sceneCanvas.getContext('2d');
+  function size() {
+    DPR = Math.min(2, devicePixelRatio || 1);
+    const rct = cv.getBoundingClientRect(); W = rct.width; H = rct.height;
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+    sceneCanvas.width = cv.width; sceneCanvas.height = cv.height;
+    horizon = H * 0.72;
+    // vertical field of view ~ 60°, so pixels per degree:
+    pxPerDeg = Math.max(horizon / 58, 5.5);
+    pole = { x: W * 0.5, y: horizon - LAT * pxPerDeg };
+    trailBuf = null;
+  }
+  let trailBuf = null, trailCtx = null;
+  function drawScene(c, m, now) {
+    const dark = darkness(m), phase = skyPhase(m);
+    c.setTransform(DPR, 0, 0, DPR, 0, 0);
+    // sky
+    const top = mix([58, 70, 130], [8, 8, 26], dark), mid = mix([199, 91, 122], [22, 20, 60], dark), low = mix([240, 138, 93], [40, 30, 74], dark);
+    const morningTint = hourOf(m) > 28.4 ? Math.min(1, (hourOf(m) - 28.4) / 1.1) : 0;
+    const g = c.createLinearGradient(0, 0, 0, horizon);
+    g.addColorStop(0, rgb(mix(top, [30, 40, 90], morningTint * 0.6))); g.addColorStop(0.62, rgb(mix(mid, [70, 70, 130], morningTint * 0.6))); g.addColorStop(1, rgb(mix(low, [150, 120, 150], morningTint * 0.7)));
+    c.fillStyle = g; c.fillRect(0, 0, W, horizon + 2);
+    // stars
+    const starAlpha = Math.max(0, (dark - 0.25) / 0.75);
+    if (S.trails && trailBuf) c.drawImage(trailBuf, 0, 0, W, H);
+    if (starAlpha > 0) {
+      const tw = reduced.matches ? 0 : now / 1000;
+      for (const st of stars) {
+        const p = starXY(st, m);
+        if (p.y > horizon - 1 || p.x < -4 || p.x > W + 4 || p.y < -4) continue;
+        const ext = Math.min(1, (horizon - p.y) / (H * 0.08)); // extinction near the horizon
+        const a = starAlpha * st.b * (0.35 + 0.65 * ext) * (st.named ? 1 : 0.8 + 0.2 * Math.sin(st.tw + tw * 2.2));
+        c.fillStyle = st.hue === 'warm' ? `rgba(255,214,170,${a})` : st.hue === 'blue' ? `rgba(190,210,255,${a})` : `rgba(245,242,255,${a})`;
+        const s = st.s * (st.named ? 1.1 : 1);
+        if (s > 1.4) { c.beginPath(); c.arc(p.x, p.y, s * 0.75, 0, 7); c.fill(); } else c.fillRect(p.x, p.y, s, s);
+      }
+      // Milky Way-ish glow band, turning with the sky
+      c.save(); c.translate(pole.x, pole.y); c.rotate(-rotationDeg(m) * Math.PI / 180 - 0.7);
+      const mw = c.createLinearGradient(0, -pxPerDeg * 70, 0, -pxPerDeg * 50); mw.addColorStop(0, 'rgba(200,190,255,0)'); mw.addColorStop(0.5, `rgba(200,190,255,${0.07 * starAlpha})`); mw.addColorStop(1, 'rgba(200,190,255,0)');
+      c.fillStyle = mw; c.fillRect(-W * 2, -pxPerDeg * 70, W * 4, pxPerDeg * 20); c.restore();
+    }
+    // horizon glow at dusk / dawn
+    const hg = c.createLinearGradient(0, horizon - H * 0.2, 0, horizon);
+    hg.addColorStop(0, 'rgba(255,150,100,0)'); hg.addColorStop(1, `rgba(255,150,100,${0.35 * (1 - dark)})`);
+    c.fillStyle = hg; c.fillRect(0, horizon - H * 0.2, W, H * 0.2);
+    // mesas (far → near) and the flat
+    const cols = [mix([122, 84, 110], [30, 24, 52], dark), mix([88, 58, 80], [20, 16, 38], dark), mix([60, 40, 50], [14, 11, 26], dark)];
+    mesas.forEach((ms, k) => {
+      c.fillStyle = rgb(cols[k]); c.beginPath(); c.moveTo(0, horizon + 2);
+      const base = horizon + [0, 3, 8][k];
+      for (const [x, y] of ms.pts) c.lineTo(x * W, base - y * ms.h * H);
+      c.lineTo(W, base); c.lineTo(W, H); c.lineTo(0, H); c.fill();
+    });
+    const fg = c.createLinearGradient(0, horizon, 0, H); fg.addColorStop(0, rgb(mix([120, 80, 70], [22, 17, 34], dark))); fg.addColorStop(1, rgb(mix([70, 44, 40], [8, 7, 16], dark)));
+    c.fillStyle = fg; c.fillRect(0, horizon + 8, W, H - horizon);
+    // a fence line and a lone yucca for scale
+    c.strokeStyle = rgb(mix([40, 26, 30], [5, 4, 12], dark)); c.lineWidth = 1.5;
+    for (let x = W * 0.05; x < W; x += W * 0.09) { c.beginPath(); c.moveTo(x, H * 0.86 + (x / W) * 20); c.lineTo(x, H * 0.86 + (x / W) * 20 - 26); c.stroke(); }
+    c.beginPath(); c.moveTo(0, H * 0.86 - 18); c.lineTo(W, H * 0.86 + 2); c.moveTo(0, H * 0.86 - 10); c.lineTo(W, H * 0.86 + 10); c.stroke();
+    const yx = W * 0.8, yy = H * 0.93; c.fillStyle = rgb(mix([35, 22, 26], [4, 3, 10], dark));
+    c.fillRect(yx - 2, yy - 60, 4, 60); for (let i = 0; i < 14; i++) { const a = -Math.PI / 2 + (i - 6.5) * 0.16; c.beginPath(); c.moveTo(yx, yy - 58); c.lineTo(yx + Math.cos(a) * 26 - 1.5, yy - 58 + Math.sin(a) * 26); c.lineTo(yx + Math.cos(a) * 26 + 1.5, yy - 58 + Math.sin(a) * 26); c.fill(); }
+    // the lights
+    const vis = 0.25 + 0.75 * dark;
+    for (const L of lights) {
+      const x = L.x * W, y = horizon - L.y * (H / 700), a = L.b * L.pulse * vis;
+      if (!(a > 0.01) || !Number.isFinite(x) || !Number.isFinite(y)) continue; // also skips NaN
+      const col = [[255, 238, 200], [255, 190, 120], [255, 140, 110]][L.hue];
+      const rad = 14 + 22 * a;
+      const gl = c.createRadialGradient(x, y, 0, x, y, rad); gl.addColorStop(0, rgb(col, Math.min(1, a))); gl.addColorStop(0.18, rgb(col, a * 0.55)); gl.addColorStop(1, rgb(col, 0));
+      c.fillStyle = gl; c.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+      c.fillStyle = `rgba(255,255,245,${Math.min(1, a * 1.2)})`; c.beginPath(); c.arc(x, y, 1.6 + a, 0, 7); c.fill();
+      // shimmering reflection on the flat (the mirage look)
+      c.fillStyle = rgb(col, a * 0.12); c.fillRect(x - rad * 0.4, horizon + 6, rad * 0.8, 2);
+    }
+    void phase;
+  }
+  function updateTrails(m) {
+    if (!S.trails) return;
+    if (!trailBuf) { trailBuf = document.createElement('canvas'); trailBuf.width = cv.width; trailBuf.height = cv.height; trailCtx = trailBuf.getContext('2d'); trailCtx.setTransform(DPR, 0, 0, DPR, 0, 0); S.trailFrom = m; }
+    const from = S.trailFrom, to = m;
+    if (to === from) return;
+    trailCtx.lineWidth = 1;
+    const a0 = -(rotationDeg(from)) * Math.PI / 180, a1 = -(rotationDeg(to)) * Math.PI / 180;
+    for (const st of stars) {
+      if (st.b < 0.55 && !st.named) continue;
+      trailCtx.strokeStyle = `rgba(235,230,255,${0.18 + st.b * 0.35})`;
+      trailCtx.beginPath(); trailCtx.arc(pole.x, pole.y, st.r * pxPerDeg, -st.a + a0, -st.a + a1, a1 < a0); trailCtx.stroke();
+    }
+    S.trailFrom = to;
+  }
+  function render(now) {
+    drawScene(S.binocs ? sctx : ctx, S.minutes, now);
+    if (S.binocs) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cv.width, cv.height);
+      const cx = S.aim.x * W, cy = horizon - S.aim.y, R = Math.min(W * 0.22, H * 0.3), gap = R * 0.72;
+      ctx.save(); ctx.scale(DPR, DPR);
+      ctx.beginPath(); ctx.arc(W / 2 - gap, H / 2, R, 0, 7); ctx.arc(W / 2 + gap, H / 2, R, 0, 7); ctx.clip();
+      const z = S.zoom;
+      ctx.drawImage(sceneCanvas, (cx - W / (2 * z)) * DPR, (cy - H / (2 * z)) * DPR, (W / z) * DPR, (H / z) * DPR, 0, 0, W, H);
+      const vg = ctx.createRadialGradient(W / 2, H / 2, R * 0.6, W / 2, H / 2, R * 1.9); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.75)');
+      ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+      ctx.strokeStyle = 'rgba(255,217,160,.25)'; ctx.lineWidth = 1; ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      ctx.beginPath(); ctx.moveTo(W / 2 - 8, H / 2); ctx.lineTo(W / 2 + 8, H / 2); ctx.moveTo(W / 2, H / 2 - 8); ctx.lineTo(W / 2, H / 2 + 8); ctx.stroke();
+    }
+  }
+
+  // ---------- UI & loop ----------
+  const fmt = (m) => { const h = Math.floor(hourOf(m)) % 24, mm = Math.round((hourOf(m) % 1) * 60) % 60; return `${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}`; };
+  function setMinutes(m) {
+    S.minutes = Math.max(0, Math.min(600, m));
+    $('time').value = Math.round(S.minutes);
+    $('clock').textContent = fmt(S.minutes);
+    $('phase').textContent = skyPhase(S.minutes);
+    updateTrails(S.minutes);
+    cv.setAttribute('aria-label', `Desert night at ${fmt(S.minutes)} (${skyPhase(S.minutes)}), stars turned ${rotationDeg(S.minutes).toFixed(1)} degrees about Polaris, ${lights.length} lights on the horizon`);
+  }
+  function updateLive() {
+    const n = lights.filter((L) => L.b > 0.05).length;
+    $('live').innerHTML = `<b>${n}</b> light${n === 1 ? '' : 's'} on the horizon`;
+    $('stat-events').textContent = `${S.splits} split${S.splits === 1 ? '' : 's'} · ${S.merges} merge${S.merges === 1 ? '' : 's'}`;
+  }
+  $('time').addEventListener('input', (e) => { S.trailFrom = S.trails ? S.minutes : null; setMinutes(+e.target.value); });
+  function press(id, on) { $(id).setAttribute('aria-pressed', String(on)); }
+  $('play').addEventListener('click', () => { S.playing = !S.playing; press('play', S.playing); if (S.playing && S.minutes >= 600) setMinutes(0); });
+  $('trails').addEventListener('click', () => { S.trails = !S.trails; press('trails', S.trails); trailBuf = null; if (S.trails) updateTrails(S.minutes); });
+  $('binocs').addEventListener('click', () => {
+    S.binocs = !S.binocs; press('binocs', S.binocs); cv.classList.toggle('binocs', S.binocs); $('hint').hidden = !S.binocs;
+    if (S.binocs) { const L = lights.slice().sort((a, b) => b.b - a.b)[0]; if (L) S.aim = { x: L.x, y: L.y * (H / 700) }; cv.focus({ preventScroll: true }); }
+  });
+  cv.addEventListener('pointerdown', (e) => {
+    if (!S.binocs) return;
+    const r = cv.getBoundingClientRect(), gap = Math.min(W * 0.22, H * 0.3) * 0.72;
+    // aim relative to the current view: tapping off-centre nudges the view that way
+    const dx = (e.clientX - r.left - W / 2) / S.zoom, dy = (e.clientY - r.top - H / 2) / S.zoom;
+    void gap;
+    S.aim.x = Math.max(0, Math.min(1, S.aim.x + dx / W)); S.aim.y = Math.max(-H * 0.1, Math.min(H * 0.5, S.aim.y - dy));
+  });
+  cv.addEventListener('keydown', (e) => {
+    if (!S.binocs) return;
+    const step = e.shiftKey ? 0.05 : 0.015;
+    if (e.key === 'ArrowLeft') S.aim.x = Math.max(0, S.aim.x - step);
+    else if (e.key === 'ArrowRight') S.aim.x = Math.min(1, S.aim.x + step);
+    else if (e.key === 'ArrowUp') S.aim.y = Math.min(H * 0.5, S.aim.y + 10);
+    else if (e.key === 'ArrowDown') S.aim.y = Math.max(-H * 0.1, S.aim.y - 10);
+    else if (e.key === 'Escape') { $('binocs').click(); }
+    else return;
+    e.preventDefault();
+  });
+
+  // ---------- wind (Web Audio, only after a click) ----------
+  let audio = null;
+  function startWind() {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false;
+    const ac = new AC();
+    const len = ac.sampleRate * 3, buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+    const r = mulberry32(SEED + 99); let last = 0;
+    for (let i = 0; i < len; i++) { const w = r() * 2 - 1; last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5; } // brown-ish noise
+    const src = ac.createBufferSource(); src.buffer = buf; src.loop = true;
+    const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 420; bp.Q.value = 0.7;
+    const gain = ac.createGain(); gain.gain.value = 0;
+    const lfo = ac.createOscillator(); lfo.frequency.value = 0.09; const lfoG = ac.createGain(); lfoG.gain.value = 260; lfo.connect(lfoG); lfoG.connect(bp.frequency);
+    const lfo2 = ac.createOscillator(); lfo2.frequency.value = 0.053; const lfo2G = ac.createGain(); lfo2G.gain.value = 0.12; lfo2.connect(lfo2G); lfo2G.connect(gain.gain);
+    src.connect(bp); bp.connect(gain); gain.connect(ac.destination);
+    src.start(); lfo.start(); lfo2.start();
+    gain.gain.setTargetAtTime(0.22, ac.currentTime, 0.8);
+    audio = { ac, gain };
+    return true;
+  }
+  $('wind').addEventListener('click', () => {
+    if (!S.wind) { if (!audio) startWind(); else { audio.ac.resume(); audio.gain.gain.setTargetAtTime(0.22, audio.ac.currentTime, 0.5); } S.wind = !!audio; }
+    else { S.wind = false; if (audio) { audio.gain.gain.setTargetAtTime(0, audio.ac.currentTime, 0.3); setTimeout(() => { if (!S.wind && audio) audio.ac.suspend(); }, 1200); } }
+    press('wind', S.wind);
+  });
+
+  let lastT = null, acc = 0, liveT = 0;
+  const DT = 1 / 30;
+  function loop(now) {
+    if (lastT == null) lastT = now;
+    const el = Math.min(0.25, (now - lastT) / 1000); lastT = now;
+    if (!document.hidden) {
+      acc += reduced.matches ? el * 0.35 : el;
+      while (acc >= DT) { stepLights(DT); acc -= DT; }
+      if (S.playing) { const m = S.minutes + el * 6; if (m >= 600) { S.playing = false; press('play', false); } setMinutes(m); } // 1 hour per 10 s
+      render(now);
+      liveT += el; if (liveT > 0.5) { liveT = 0; updateLive(); }
+    }
+    requestAnimationFrame(loop);
+  }
+
+  // ---------- boot ----------
+  makeStars(); makeMesas(); resetLights(); size();
+  for (let i = 0; i < 90; i++) stepLights(DT * 3); // let the horizon settle before the first frame
+  setMinutes(90); updateLive();
+  $('stat-seed').textContent = 'seed #' + SEED;
+  addEventListener('resize', () => { size(); render(performance.now()); });
+  requestAnimationFrame(loop);
+
+  window.__marfa = {
+    get state() { return { minutes: S.minutes, clock: fmt(S.minutes), phase: skyPhase(S.minutes), rotationDeg: rotationDeg(S.minutes), darkness: darkness(S.minutes), splits: S.splits, merges: S.merges, lights: lights.length, binocs: S.binocs, aim: { ...S.aim }, wind: S.wind, trails: S.trails, simT: S.simT }; },
+    lights: () => lights.map((L) => ({ id: L.id, x: +L.x.toFixed(5), y: +L.y.toFixed(3), b: +L.b.toFixed(4) })),
+    reset: () => { resetLights(); },
+    step: (sec) => { const n = Math.round(sec / DT); for (let i = 0; i < n; i++) stepLights(DT); updateLive(); return { splits: S.splits, merges: S.merges, lights: lights.length }; },
+    star: (i, m) => starXY(stars[i], m ?? S.minutes),
+    polaris: () => starXY(stars[stars.length - 1], S.minutes),
+    get audioState() { return audio ? audio.ac.state : 'none'; },
+    pixel: (x, y) => { const d = ctx.getImageData(Math.round(x * DPR), Math.round(y * DPR), 1, 1).data; return [d[0], d[1], d[2]]; },
+    get size() { return { W, H, horizon }; },
+    setMinutes,
+  };
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+{
+  "id": "058",
+  "slug": "058-mosaic-maker",
+  "file": "lab/058-mosaic-maker.html",
+  "title": "Mosaic Maker — images set in tesserae",
+  "category": "Generative",
+  "tags": ["canvas", "image-processing", "superpixels", "distance-transform", "png-export"],
+  "description": "Turns a picture into a Byzantine-style mosaic. Tesserae grow like superpixels, measured in squares turned to the local edge direction, so the rows follow outlines instead of cutting across them. You can pick one of three procedural cartoons or a local upload that never leaves the browser, then set the tile count, laying style, grout width and colour, gold-leaf tiles and a smalti glass palette, and export a PNG.",
+  "prompt": "Make me a mosaic maker that turns an image into a Byzantine-style mosaic of tesserae. Offer a few built-in generated images plus a local upload that never leaves the browser (say so on the page). The tiles should follow the edges in the image using the gradient direction, not just sit on a grid; include jittered-grid and Voronoi layouts for comparison. Give me grout colour and width, gold-leaf tiles, a tile-count slider, and PNG export. Make it look like a restorer's workbench, not a filter app.",
+  "qa": {
+    "methodology": [
+      "Quality oracle: the page reports the mean per-pixel difference between the source and each pixel's tile colour. The spec requires the edge-following layout to score under half the error of the regular grid and of the Voronoi layout at the same tile budget, on two different cartoons.",
+      "Count oracle: the tile slider has to produce within ±15% of the requested number of connected tesserae at 400, 1,400 and 3,000, and the status line and canvas aria-label have to report that count.",
+      "Pixel probes where the answer is certain: every tile-boundary pixel along 25 scanlines must be the chosen charcoal grout (within its texture noise), the gilded fish body must read as warm gold, and with gold off it must read as the cartoon's cream.",
+      "Upload path: a red and blue half-and-half PNG made inside the page goes through setInputFiles. The spec checks the fitted size (800×400), the colour on each side, and that no tessera straddles the red and blue seam.",
+      "Grout geometry: a 0 px grout must give exactly zero grout pixels and the same tiles, and a 5 px grout must give clearly more grout coverage than the default.",
+      "Export: the download has the expected filename and a PNG signature, and exporting while the cartoon is shown switches back to the mosaic first."
+    ],
+    "risks": [
+      "SLIC-style assignment with a colour term can split a tile into disconnected fragments; a connected-components pass merges slivers, and tile counts are taken after that pass.",
+      "Render cost grows with image size (three layout passes plus a two-pass chamfer distance transform); uploads are capped at 800 px on the long side.",
+      "The debounced render means tests could read stale stats; every assertion waits for the busy overlay to clear and the stats to match the new setting.",
+      "Uploads must stay local: blob URLs are revoked after decoding, and the shared smoke test flags any network request."
+    ],
+    "playwright": "The output is a canvas made by an image-processing pipeline, so screenshot comparisons would break on any small change to the algorithm. The spec instead uses measurements the page exposes through window.__mosaic: tile count, grout coverage, gold-tile count and mean reconstruction error, plus tileAt() and pixel() for targeted probes. The most useful assertion compares the reconstruction error of two layouts; it catches a broken orientation field or colour term, which no DOM check could. The upload test builds its PNG in the page with a canvas and passes the bytes to setInputFiles, so there is no fixture file to maintain. The export test uses waitForEvent('download') and checks the file's magic bytes. The debounced renders are awaited with expect.poll rather than fixed sleeps.",
+    "coverage": [
+      "Tile slider at three counts, with the count in the status line and aria-label",
+      "Edge-following versus grid and Voronoi reconstruction error on two cartoons",
+      "Grout width 0/2/5 and grout colour checked on boundary pixels",
+      "Gold leaf on and off, with pixel colour checks",
+      "Local upload through setInputFiles: fitted size, colours, no tiles straddling the seam",
+      "Compare toggle and PNG export"
+    ]
+  },
+  "a11y": "Every control is a native labelled range, select, checkbox, colour input or button. The cartoon and grout choices use aria-pressed, and the file input is focusable behind its styled label. The status line is aria-live, and the canvas aria-label describes the source, tile count, laying style and gold tiles."
+}

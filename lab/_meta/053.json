@@ -1,0 +1,35 @@
+{
+  "id": "053",
+  "slug": "053-eval-rubric",
+  "file": "lab/053-eval-rubric.html",
+  "title": "Eval Rubric Builder — Grade LLM Outputs, Measure Agreement",
+  "category": "AI & Agents",
+  "tags": ["llm-evals", "rubrics", "cohens-kappa", "inter-rater-agreement", "json-export"],
+  "description": "Build a weighted rubric for grading LLM responses — criteria, weights and a described anchor for every point from 1 to 5 — then grade eight fictional assistant answers as two independent raters. The page computes weighted scores, per-criterion averages, percent agreement and Cohen's kappa (per criterion and pooled), and exports the rubric, ratings and results as JSON.",
+  "prompt": "Build 'Eval Rubric Builder' for grading LLM outputs. Let me define criteria with weights and 1–5 anchors, each with a description of what that score means. Include about eight fictional sample responses — some good, some hallucinated, some rude or rambling — and let me grade them as two raters, switching between Rater A and Rater B. Compute weighted scores, per-criterion averages, inter-rater agreement as percent agreement and Cohen's kappa. Implement kappa correctly and verify it against a hand-computed example in the spec. Export the rubric and scores as JSON. Style it like a thoughtful academic report card — lilac, plum and a gold accent, a serif display face.",
+  "qa": {
+    "methodology": [
+      "Hand-computed oracle: an eight-item example is worked through in a comment at the top of the spec (p_o = 0.625, p_e = 0.21875, κ = 0.52); the spec asserts its own implementation gets 0.52 and then drives the UI to the same 0.52 and 62.5%.",
+      "Boundary cases of the statistic: identical varied ratings give κ = 1, perfectly opposite ratings give κ = −1, and constant identical ratings (p_e = 1) are reported as undefined rather than a division by zero.",
+      "Independent recomputation of the pooled kappa over all 32 demo pairs inside the test, compared with the value the page shows.",
+      "Weighted-score arithmetic checked by hand for specific samples, then re-checked after zeroing a weight (normalised percentages update too).",
+      "Workflow and state: blind grading (the other rater's mark appears only after you commit), completion markers, rubric edits flowing into grading and results, removing a criterion purges its ratings, reload persistence, and a JSON export whose numbers match the screen."
+    ],
+    "risks": [
+      "Kappa computed only over items both raters scored — mixing in unpaired items would silently distort p_o and p_e.",
+      "Division by zero when both raters use a single identical category (p_e = 1).",
+      "Deleting a criterion must remove its ratings, or weighted scores keep counting a ghost criterion.",
+      "Display rounding (two decimals) must not disagree with the exported value."
+    ],
+    "playwright": "The statistics are the risk, so the spec carries its own tiny kappa implementation and a documented hand calculation, and the UI is driven to that exact case with sixteen radio checks rather than seeding state. Radios are real inputs stretched invisibly over each score tile, so locator.check() works on desktop and on the touch profile without force. window.__rubric exposes cohenKappa and exportObj for boundary cases and for reading back ratings. The download is captured with waitForEvent('download'); no screenshots are compared.",
+    "coverage": [
+      "Kappa 0.52 / 62.5% hand-computed example end to end",
+      "κ = 1, κ = −1 and undefined-kappa edge cases",
+      "Blind grading, other-rater marker, completion markers",
+      "Weighted scores by hand and after a weight change; pooled kappa oracle on demo data",
+      "Add / rename / re-anchor / remove criteria with rating cleanup and reload persistence",
+      "JSON export structure and agreement values; clearing ratings"
+    ]
+  },
+  "a11y": "Each score is a native radio in a fieldset legended with the criterion, and every radio's accessible name includes its anchor description, so screen-reader users hear what a 4 means. Rater and sample controls are buttons with pressed/current state, the results are real tables with captions, and all rubric fields are labelled."
+}

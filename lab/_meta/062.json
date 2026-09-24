@@ -1,0 +1,35 @@
+{
+  "id": "062",
+  "slug": "062-utxo-puzzle",
+  "file": "lab/062-utxo-puzzle.html",
+  "title": "UTXO Puzzle — a Bitcoin coin-selection game",
+  "category": "Games",
+  "tags": ["bitcoin", "algorithms", "optimization", "seeded-prng", "education"],
+  "description": "A Bitcoin coin-selection puzzle over six seeded levels, with fee rates from 2 to 125 sat/vB. You pick which UTXOs to spend and watch the transaction balance live (inputs − payment − change = fee), using a clearly labelled approximate P2WPKH size model. Dust and uneconomic change go to the miner. When you broadcast, your choice is scored with a simplified Bitcoin Core-style waste metric and compared with largest-first, smallest-first, branch-and-bound and the exhaustive optimum.",
+  "prompt": "Make a Bitcoin coin-selection game. My wallet holds a set of UTXOs with seeded amounts in sats; each level asks me to pay an amount at a given fee rate. I choose inputs so that inputs − outputs − change = fee, trying to minimise fee and waste and avoid dust change. Explain vbytes with a clearly labelled approximate P2WPKH size model (about 68 vB per input, 31 vB per output, 10.5 vB overhead), and compare my pick with algorithms like largest-first and a branch-and-bound exact match. Keep it honest: it's an educational simulation, not a wallet.",
+  "qa": {
+    "methodology": [
+      "Independent oracle: the spec re-implements the size, fee, change, dust and waste rules itself, and every number the UI shows (equation, vsize, fee, waste) must match the oracle for the chosen coins.",
+      "Conservation check: for every valid transaction the spec asserts inputs − payment − change − fee = 0 exactly, with fees rounded up to whole sats.",
+      "Algorithm checks: largest-first must equal 'the k largest coins for the smallest k that funds the payment'; the page's optimum must equal a brute-force minimum computed in the test; branch-and-bound results must be changeless and never beat the optimum.",
+      "Planted puzzles: levels 2 and 5 are generated with a two-coin changeless match, and the spec requires branch-and-bound to find one there.",
+      "Scoring: submitting the optimum earns 3 stars and the 'Optimal' verdict, and spending every coin at 28 sat/vB earns 1 star; the level button's accessible name records the stars.",
+      "Determinism and input: the same seed gives identical wallets after a reload, a new seed changes them, and coins toggle with Enter and Space."
+    ],
+    "risks": [
+      "Off-by-one sat errors from rounding fractional vbytes (10.5 vB overhead); fees are always rounded up, and the oracle uses the same rule.",
+      "Rules for when to drop change (below dust, or change worth less than it costs to create and later spend) are subtle; the dust note and equation are tested on a real dust case found by search.",
+      "The exhaustive optimum is 2^n; wallets are capped at 12 coins (4,095 subsets) so it stays instant on phones.",
+      "Accuracy of Bitcoin facts: the 294-sat P2WPKH dust limit and the vbyte figures are labelled as approximate or policy-dependent on the page."
+    ],
+    "playwright": "Most of the value is in the arithmetic, so the spec includes its own implementation of the rules and compares the rendered text against it, rather than copying numbers out of the page. Where a scenario depends on the data (a selection that leaves dust-sized change), the spec searches the seeded levels through window.__utxo, then drives the UI with real clicks on the coins it found and asserts the note and equation text. Brute-forcing all subsets in the test gives a second opinion on the optimum. Everything is deterministic from ?seed=, so no mocking or clock control is needed, and screenshots were checked by eye rather than compared.",
+    "coverage": [
+      "Live equation, vsize, fee and waste versus an independent oracle; insufficient funds",
+      "Dust-sized leftover dropped to the fee, with the explanatory note",
+      "Largest-first, branch-and-bound and optimum checked on three levels",
+      "Broadcast scoring (3 stars vs 1 star), retry, next level",
+      "Seeded levels and keyboard toggling of coins"
+    ]
+  },
+  "a11y": "Coins are toggle buttons with aria-pressed and a label giving the amount and confirmations. Level buttons use aria-current and report earned stars in their accessible name. The equation and results are aria-live, the star rating has a text alternative, and the comparison is a real table."
+}

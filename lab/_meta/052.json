@@ -1,0 +1,36 @@
+{
+  "id": "052",
+  "slug": "052-diff-review",
+  "file": "lab/052-diff-review.html",
+  "title": "Diff Review Dojo — Code Review Trainer",
+  "category": "QA & Testing",
+  "tags": ["code-review", "training", "syntax-highlighting", "diff", "game"],
+  "description": "Twelve short fictional pull requests in JS, TS, TSX, SQL and CSS, each hiding one real bug — an off-by-one loop, an async forEach, SQL built by string interpolation, a stale-response race, a boolean comparator, a clickable div, a UTC date key, a BETWEEN on timestamps, a removed focus ring, rounding money, a mutating reducer and a deleted null guard. Click the guilty line, pick a bug category, and the reveal explains the bug and shows the fix, with score, streak, and unified or split views.",
+  "prompt": "Build 'Diff Review Dojo', a code-review trainer. Write about ten short fictional diffs in JS, TS, SQL and CSS, each hiding exactly one real bug — off-by-one, missing await, SQL injection via string concatenation, a race condition, a wrong comparator, an accessibility regression, a timezone bug and so on. Let me click a line to leave a review comment with a bug category, then submit or approve; the reveal should explain the bug and show the fix. Keep score and a streak. Offer unified and split diff views with realistic syntax colouring — write the highlighter yourself. Every bug must be genuinely wrong, not a matter of taste. Give it a calm dojo feel: washi paper, sumi ink, one vermilion seal.",
+  "qa": {
+    "methodology": [
+      "Scoring rules as a decision table: right line + right category = 10, right line + wrong category = 5, wrong line = 0 with the correct line named, approve = 0; each branch has an explicit test and streak/best are checked after each.",
+      "Answer-key run: a full playthrough driven by the window.__dojo hook proves every one of the twelve bugs is gradable as a clean hit and that the maximum is exactly 120.",
+      "Content review of each diff by hand: every planted bug was checked to be objectively wrong (e.g. $100 / 3 rounds to 99.99, toISOString is UTC, BETWEEN '2026-03-31' stops at midnight).",
+      "View parity: split view pairs removed and added runs row by row, keeps the same line test ids, and grading and bug highlighting work there too.",
+      "Tokenizer checks per language: keywords and comments get the right token classes in TS and SQL, and a multi-line template literal keeps string colouring across lines.",
+      "Keyboard path: line-number buttons open the composer with Enter; validation, edit with the saved category preselected, and delete."
+    ],
+    "risks": [
+      "Hunk line-number arithmetic: an off-by-one in the viewer itself would point the reveal at the wrong line.",
+      "The regex highlighter must never inject raw code as HTML — code containing '<' (TSX) is escaped before tokens are wrapped.",
+      "Empty alternation groups in a tokenizer regex match everywhere and silently disable later token rules (caught during build for SQL and CSS).",
+      "Split view renders two cells per context line, so test ids must stay unique."
+    ],
+    "playwright": "Everything is DOM, so role and test-id locators do the work; each diff line row carries data-testid line-N keyed to its index in the diff, identical in unified and split views. The hard part is scale — twelve rounds — which the answer-key test handles by reading the current diff's bug line and category from a small window.__dojo hook rather than hard-coding twelve answers, with an explicit test.setTimeout for the long run. The submit button is truly disabled until a comment exists, so the spec can assert toBeDisabled() rather than inspecting styles. ?seed= shuffles the order with a seeded PRNG, and the spec checks it is a stable permutation.",
+    "coverage": [
+      "Clean hit: score, streak, bug highlight, explanation, fix, focus to Next",
+      "Half credit, miss with the correct line named, approve on a buggy diff",
+      "Composer validation, keyboard open, edit with preselected category, delete",
+      "Split view pairing and SQL syntax tokens; grading in split view",
+      "Full perfect run to 120 and best-streak persistence",
+      "Seeded shuffle is a deterministic permutation"
+    ]
+  },
+  "a11y": "Each line number is a real button with a name like “Comment on added line 15”, the composer uses a labelled radio group for categories and moves focus into it, and verdicts and score changes are announced through live regions. Diff colour is always paired with +/− signs, and bug highlights add a thick edge marker as well as colour."
+}

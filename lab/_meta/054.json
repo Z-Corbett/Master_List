@@ -1,0 +1,35 @@
+{
+  "id": "054",
+  "slug": "054-semver-lab",
+  "file": "lab/054-semver-lab.html",
+  "title": "SemVer Lab — Conventional Commits & Range Resolver",
+  "category": "Tools",
+  "tags": ["semver", "conventional-commits", "changelog", "npm", "release-engineering"],
+  "description": "Paste Conventional Commit messages and SemVer Lab parses type, scope and breaking changes (the ! marker and the BREAKING CHANGE footer), proposes the next version — including 0.x handling and alpha/beta/rc pre-release lines that continue, escalate or graduate — and writes a grouped markdown changelog. The second tab resolves dependency ranges (^, ~, x, hyphen, comparators, ||) with node-semver semantics in a truth table that explains every cell.",
+  "prompt": "Build 'SemVer Lab'. Tab one: I paste or pick a list of Conventional Commit messages; parse type, scope and breaking changes (both the ! and the BREAKING CHANGE footer), propose the next version — including 0.x rules and pre-release tags — and generate a grouped changelog. Tab two: a dependency range resolver that tests versions against ranges (^, ~, x-ranges, hyphen ranges, >=, ||) following node-semver semantics exactly, including its pre-release rule, with a truth table view. Show me what each range desugars to. Make it bright and friendly — mint, rounded type, the three version numbers as coloured blocks.",
+  "qa": {
+    "methodology": [
+      "Differential testing during development: the page's range engine was run against npm's own bundled semver package on 43 ranges × 36 versions (1,548 checks, 0 mismatches) plus version sort order; the spec keeps the node-semver README examples as fixed oracles.",
+      "Specification-based cases for Conventional Commits: ! and BREAKING CHANGE footers both mark breaking, the footer token is case-sensitive, non-conforming headers are flagged and ignored.",
+      "State-transition checks for pre-releases: start an rc line, continue it (rc.0 → rc.1), switch channel (→ beta.0), escalate when commits need a bigger bump than the pre-release promises (1.5.0-rc.0 + breaking → 2.0.0-rc.0), and graduate to stable.",
+      "Boundary checks on 0.x (breaking → minor unless opted out), no-release commit sets, and invalid / v-prefixed current versions.",
+      "Changelog content asserted as exact markdown fragments per section, including scope bolding and the not-in-changelog tally."
+    ],
+    "risks": [
+      "The -0 sentinel in upper bounds (<2.0.0-0) is what keeps 2.0.0-rc.1 out of ^1.2.3; a naive <2.0.0 lets it in.",
+      "The pre-release rule is per comparator set, not per range, so || ranges are easy to get wrong.",
+      "X-range comparators (>1.2, <=1.2) desugar non-obviously (>=1.3.0, <1.3.0-0).",
+      "Deciding whether an existing pre-release already covers the needed bump."
+    ],
+    "playwright": "Everything the spec needs is on the DOM: data-v on the next version, data-bump labels, data-valid/data-breaking on parsed commits, and data-ok on every truth-table cell, so a helper reads a whole column of matches and compares it with a list. Exact oracles came from running npm's own semver package against the page during development rather than from memory — which caught two of my own wrong expectations while writing the spec. Nothing is time-dependent except the changelog date, which the spec matches by pattern. Keyboard tab switching and localStorage persistence are exercised with reload().",
+    "coverage": [
+      "Feature release → minor with grouped changelog and invalid-commit flag",
+      "Breaking via ! and footer, 0.x minor rule and opt-out, case-sensitive footer",
+      "Pre-release start / continue / channel switch / escalate / graduate",
+      "No-release commit set, invalid and v-prefixed current version",
+      "Range truth table vs node-semver README examples, desugaring, max satisfying, cell explanations",
+      "Live range editing with parse errors, keyboard tabs, persistence"
+    ]
+  },
+  "a11y": "Tabs follow the ARIA tabs pattern with arrow-key switching; the next version is announced in a live region with an explicit label. Truth-table cells are buttons named “X satisfies Y” or “does not satisfy”, and selecting one explains the result in text, so nothing relies on the tick colour alone."
+}

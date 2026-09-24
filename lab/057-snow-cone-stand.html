@@ -1,0 +1,707 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snow Cone Stand — an Austin summer business sim</title>
+<meta name="description" content="Run a shaved-ice stand through fourteen scorching Austin summer days: read an uncertain forecast, buy ice, cups and syrup, set your price and flavours, then watch customers line up or walk away. Ice melts, reputation travels, and a running ledger tracks every dollar.">
+<style>
+  :root {
+    --sky: #ffd9a8;
+    --sky-2: #ffb98a;
+    --paper: #fffaf0;
+    --ink: #2b1238;
+    --ink-2: #6d4f78;
+    --cherry: #e8304f;
+    --blue: #2f7cf6;
+    --lime: #53b83a;
+    --tiger: #ff6d3a;
+    --mango: #f5a511;
+    --pickle: #8fa82a;
+    --gold: #ffcf3f;
+    --good: #238a4a;
+    --bad: #c62a3f;
+    --round: "Cooper Black", "Cooper Std", "Bookman Old Style", "Arial Rounded MT Bold", Georgia, serif;
+    --sans: "Trebuchet MS", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, Consolas, Menlo, monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { color: var(--ink); font: 15px/1.5 var(--sans); overflow-x: hidden; background: var(--sky);
+    background-image: repeating-conic-gradient(from 0deg at 50% -10%, rgba(255,255,255,.18) 0 6deg, transparent 6deg 12deg), linear-gradient(#ffe7c2, var(--sky) 40%, var(--sky-2)); min-height: 100vh; }
+  :focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+  button, input, select { font: inherit; color: inherit; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; font: 700 13px/1 var(--sans); color: var(--ink); text-decoration: none;
+    background: var(--paper); border: 2.5px solid var(--ink); padding: 7px 11px; border-radius: 999px; box-shadow: 2px 3px 0 var(--ink); }
+  a.back:hover { background: var(--gold); }
+
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 58px 18px 40px; }
+  header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 30px; margin-bottom: 18px; }
+  header > * { min-width: 0; }
+  .kicker { margin: 0 0 4px; font: 700 12px/1.2 var(--sans); letter-spacing: .22em; text-transform: uppercase; color: var(--cherry); }
+  h1 { margin: 0; font: 400 clamp(40px, 9vw, 82px)/.95 var(--round); letter-spacing: -.01em; color: var(--paper);
+    -webkit-text-stroke: 2px var(--ink); text-shadow: 3px 4px 0 var(--ink), 6px 8px 0 rgba(43,18,56,.15); }
+  h1 .c1 { color: var(--cherry); } h1 .c2 { color: var(--blue); } h1 .c3 { color: var(--lime); }
+  header p { margin: 10px 0 0; max-width: 56ch; color: var(--ink-2); }
+  .dayboard { display: flex; gap: 10px; flex-wrap: wrap; }
+  .chip { background: var(--paper); border: 2.5px solid var(--ink); border-radius: 14px; padding: 6px 12px; box-shadow: 3px 3px 0 var(--ink); min-width: 0; }
+  .chip span { display: block; font: 700 10.5px/1.2 var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--ink-2); }
+  .chip b { font: 400 22px/1.2 var(--round); font-variant-numeric: tabular-nums; }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 18px; align-items: start; }
+  .card { background: var(--paper); border: 2.5px solid var(--ink); border-radius: 18px; box-shadow: 5px 6px 0 var(--ink); padding: 14px 16px; min-width: 0; }
+  .card h2 { margin: 0 0 10px; font: 400 21px/1.1 var(--round); }
+  .card h2 small { font: 700 11px/1 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); margin-left: 6px; }
+  .stage { padding: 10px; }
+  .scene-wrap { position: relative; border-radius: 12px; overflow: hidden; border: 2px solid var(--ink); }
+  #scene { display: block; width: 100%; height: auto; aspect-ratio: 800 / 420; background: #ffcf8a; }
+  .scene-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 14px; padding: 10px 4px 2px; }
+  .scene-bar > * { min-width: 0; }
+  .tally { font: 600 13.5px/1.4 var(--mono); color: var(--ink-2); overflow-wrap: anywhere; }
+  .tally b { color: var(--ink); }
+
+  .btn { min-height: 44px; border: 2.5px solid var(--ink); border-radius: 999px; background: var(--paper); padding: 6px 16px; font-weight: 700; cursor: pointer;
+    box-shadow: 2px 3px 0 var(--ink); transition: transform .08s, box-shadow .08s; max-width: 100%; }
+  .btn:hover { background: #fff1c9; }
+  .btn:active { transform: translate(2px, 3px); box-shadow: 0 0 0 var(--ink); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+  .btn.go { background: var(--cherry); color: #fff; font: 400 19px/1 var(--round); width: 100%; min-height: 54px; letter-spacing: .02em; }
+  .btn.go:hover:not(:disabled) { background: #ff4a67; }
+  .btn.small { min-height: 36px; padding: 2px 10px; font-size: 13px; }
+
+  .forecast { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 14px; align-items: center; margin-bottom: 8px; }
+  .fc-icon { width: 64px; height: 64px; }
+  .fc-main b { font: 400 30px/1 var(--round); }
+  .fc-main div { font-size: 13.5px; color: var(--ink-2); }
+  .band { position: relative; height: 16px; border-radius: 999px; border: 2px solid var(--ink); background: linear-gradient(90deg, #8fd0ff, #ffe28a 45%, #ff7a4a 80%, #d91e3c); margin: 6px 0 2px; }
+  .band i { position: absolute; top: -2px; bottom: -2px; border: 2.5px solid var(--ink); border-radius: 999px; background: rgba(255,255,255,.55); }
+  .band-scale { display: flex; justify-content: space-between; font: 11px/1 var(--mono); color: var(--ink-2); }
+  .outlook { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 10px 0 2px; }
+  .outlook div { border: 2px dashed #c9b6cf; border-radius: 10px; padding: 5px 8px; font-size: 12.5px; color: var(--ink-2); min-width: 0; }
+  .outlook b { color: var(--ink); }
+
+  .shop { display: grid; gap: 6px; }
+  .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 2px dotted #e6d6e6; }
+  .row > * { min-width: 0; }
+  .row .name b { display: block; font-size: 14.5px; }
+  .row .name small { color: var(--ink-2); font-size: 12.5px; }
+  .stepper { display: inline-flex; align-items: center; gap: 4px; }
+  .stepper button { width: 36px; height: 36px; border-radius: 50%; border: 2.5px solid var(--ink); background: #fff; font-weight: 800; font-size: 18px; line-height: 1; cursor: pointer; }
+  .stepper button:hover:not(:disabled) { background: var(--gold); }
+  .stepper button:disabled { opacity: .35; }
+  .stepper output { min-width: 26px; text-align: center; font: 700 16px/1 var(--mono); }
+  .flav { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .swatch { flex: none; width: 22px; height: 22px; border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%; border: 2px solid var(--ink); }
+  .toggle { border: 2px solid var(--ink); border-radius: 999px; background: #fff; font: 700 12px/1 var(--sans); padding: 6px 9px; cursor: pointer; min-height: 32px; white-space: nowrap; }
+  .toggle[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  .toggle:disabled { opacity: .4; cursor: not-allowed; }
+  .stepper button.toggle { width: auto; height: auto; min-height: 32px; border-radius: 999px; font-size: 12px; margin-right: 6px; padding: 6px 9px; }
+  .price { margin: 12px 0 6px; }
+  .price label { display: flex; justify-content: space-between; font-weight: 700; }
+  .price output { font: 400 26px/1 var(--round); }
+  input[type=range] { width: 100%; max-width: 100%; accent-color: var(--cherry); min-height: 30px; }
+  .totals { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; font: 600 13.5px/1.4 var(--mono); margin: 8px 0 10px; }
+  .totals .over { color: var(--bad); }
+  .hint { font-size: 13px; color: var(--ink-2); margin: 6px 0 0; min-height: 1.4em; }
+
+  .ledger table, .history table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .ledger td { padding: 4px 0; border-bottom: 1px dashed #dccbdc; }
+  .ledger td:last-child { text-align: right; font-family: var(--mono); }
+  .ledger tr.total td { border-top: 2.5px solid var(--ink); border-bottom: 0; font-weight: 800; font-size: 16px; padding-top: 8px; }
+  .neg { color: var(--bad); } .pos { color: var(--good); }
+  .ledger .note { font-size: 13px; color: var(--ink-2); margin: 10px 0; }
+  .stars { font-size: 18px; letter-spacing: 2px; color: var(--tiger); }
+
+  .layout { grid-template-areas: "stage side" "lower side"; }
+  .layout > .stage { grid-area: stage; } .layout > aside { grid-area: side; min-width: 0; } .layout > .lower { grid-area: lower; min-width: 0; }
+  .lower { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-content: start; }  .chart-box { position: relative; }
+  #chart { display: block; width: 100%; height: 220px; }
+  .tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--paper); font: 12.5px/1.35 var(--mono); padding: 6px 8px; border-radius: 8px; white-space: nowrap; transform: translate(-50%, -110%); }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-2); margin-bottom: 4px; }
+  .legend i { display: inline-block; width: 14px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  .history { overflow-x: auto; max-width: 100%; }
+  .history th, .history td { padding: 4px 6px; text-align: right; border-bottom: 1px solid #eadcea; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .history th:first-child, .history td:first-child { text-align: left; }
+  .history th { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-2); }
+  .final { text-align: center; }
+  .final b.big { display: block; font: 400 44px/1.1 var(--round); }
+  .final .grade { font: 700 16px/1.3 var(--sans); color: var(--cherry); margin: 6px 0 12px; }
+  footer { margin-top: 24px; font-size: 12.5px; color: var(--ink-2); text-align: center; }
+
+  @media (max-width: 960px) {
+    .layout, .lower { grid-template-columns: minmax(0, 1fr); }
+    .layout { grid-template-areas: "stage" "side" "lower"; }
+  }
+  @media (max-width: 480px) {
+    .wrap { padding: 54px 12px 30px; }
+    .card { padding: 12px; border-radius: 14px; box-shadow: 3px 4px 0 var(--ink); }
+    .chip b { font-size: 18px; }
+    .toggle { padding: 6px 7px; font-size: 11.5px; }
+    .stepper button { width: 34px; height: 34px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .btn { transition: none; }
+  }
+</style>
+</head>
+<body>
+<a href="../index.html#lab" class="back" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <div>
+      <p class="kicker">Barton Springs Rd · Austin, Texas · a summer business sim</p>
+      <h1><span class="c1">Snow</span> <span class="c2">Cone</span> <span class="c3">Stand</span></h1>
+      <p>Fourteen July days, one folding stand, one cooler with no freezer. Read the forecast, stock up, price it right — and remember that whatever ice you don't sell is a puddle by morning.</p>
+    </div>
+    <div class="dayboard">
+      <div class="chip"><span>Day</span><b data-testid="day">1 / 14</b></div>
+      <div class="chip"><span>Cash</span><b data-testid="cash">$40.00</b></div>
+      <div class="chip"><span>Reputation</span><b data-testid="rep">50</b></div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <section class="card stage" aria-label="The stand">
+      <div class="scene-wrap"><canvas id="scene" width="800" height="420" role="img" aria-label="The snow cone stand" data-testid="scene"></canvas></div>
+      <div class="scene-bar">
+        <div class="tally" data-testid="tally" aria-live="polite">Morning prep. The stand opens at 10 AM.</div>
+        <button class="btn small" id="skip" data-testid="skip" hidden>Skip to closing ⏭</button>
+      </div>
+    </section>
+
+    <aside>
+      <section class="card" id="morning" data-testid="morning">
+        <h2 id="date-h">Monday morning <small data-testid="date">Jul 6</small></h2>
+        <div class="forecast">
+          <svg class="fc-icon" viewBox="0 0 64 64" aria-hidden="true" id="fc-icon"></svg>
+          <div class="fc-main">
+            <b data-testid="forecast-high">99°F</b>
+            <div data-testid="forecast-detail">±3°F · 10% chance of storms</div>
+          </div>
+        </div>
+        <div class="band" aria-hidden="true"><i id="band-i"></i></div>
+        <div class="band-scale" aria-hidden="true"><span>80°</span><span>90°</span><span>100°</span><span>110°</span></div>
+        <div class="outlook" id="outlook"></div>
+
+        <h2 style="margin-top:14px">Supply run <small>paid up front</small></h2>
+        <div class="shop" id="shop"></div>
+        <div class="price">
+          <label for="price">Price per cone <output id="price-out" data-testid="price-out">$3.00</output></label>
+          <input type="range" id="price" data-testid="price" min="1" max="6" step="0.25" value="3">
+        </div>
+        <div class="totals"><span>Order: <b data-testid="order-total">$0.00</b></span><span>Left after: <b data-testid="cash-after">$40.00</b></span></div>
+        <button class="btn go" id="open" data-testid="open">Open the stand</button>
+        <p class="hint" id="hint" data-testid="hint" aria-live="polite"></p>
+      </section>
+
+      <section class="card ledger" id="ledger" data-testid="ledger" hidden aria-live="polite">
+        <h2>End of day <small id="ledger-day"></small></h2>
+        <table><tbody id="ledger-body"></tbody></table>
+        <p class="note" id="ledger-note" data-testid="ledger-note"></p>
+        <button class="btn go" id="next" data-testid="next">Next morning</button>
+      </section>
+
+      <section class="card final" id="final" data-testid="final" hidden aria-live="polite">
+        <h2>Season's over</h2>
+        <b class="big" data-testid="final-profit">$0</b>
+        <div>total profit over 14 days</div>
+        <div class="grade" data-testid="grade"></div>
+        <button class="btn go" id="again" data-testid="again">New season (new seed)</button>
+      </section>
+    </aside>
+
+  <div class="lower">
+    <section class="card">
+      <h2>Profit <small>daily bars · running total line</small></h2>
+      <div class="legend"><span><i style="background:var(--lime)"></i>profit day</span><span><i style="background:var(--cherry)"></i>loss day</span><span><i style="background:var(--ink);height:3px"></i>running total</span></div>
+      <div class="chart-box"><svg id="chart" data-testid="chart" role="img" aria-label="Profit chart, no days yet"></svg><div class="tip" id="tip" hidden></div></div>
+    </section>
+    <section class="card history">
+      <h2>The books</h2>
+      <table data-testid="history"><thead><tr><th>Day</th><th>High</th><th>Price</th><th>Sold</th><th>Walked</th><th>Melt</th><th>Profit</th></tr></thead><tbody id="hist-body"><tr><td colspan="7" style="text-align:left;color:var(--ink-2)">No days on the books yet.</td></tr></tbody></table>
+    </section>
+  </div>
+  </div>
+  <footer>A simulation with invented demand numbers — the heat, sadly, is realistic. Seed <span id="seed" data-testid="seed">#1</span> · add <code>?seed=</code> to replay a season.</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  // ---------- seeded randomness ----------
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const hash = (...n) => { let h = 2166136261; for (const x of n) { h ^= x; h = Math.imul(h, 16777619); h ^= h >>> 13; } return h >>> 0; };
+  const gauss = (r) => { const u = Math.max(1e-9, r()), v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+  const qs = new URLSearchParams(location.search);
+  let SEED = parseInt(qs.get('seed'), 10);
+  if (!Number.isFinite(SEED)) SEED = 1 + Math.floor(Math.random() * 9999);
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+
+  // ---------- constants ----------
+  const DAYS = 14, START_CASH = 40;
+  const ICE_BAG = { lbs: 10, cost: 3 }, CUP_SLEEVE = { n: 50, cost: 4 }, BOTTLE = { servings: 25, cost: 6 };
+  const ICE_PER_CONE = 0.4, MAX_FLAVOURS = 4;
+  const FLAVOURS = [
+    { id: 'tiger', name: "Tiger's Blood", note: 'strawberry + coconut', color: '#ff4d3a', appeal: 1.4 },
+    { id: 'blue', name: 'Blue Raspberry', note: 'the blue tongue', color: '#2f7cf6', appeal: 1.2 },
+    { id: 'cherry', name: 'Cherry', note: 'classic', color: '#c8102e', appeal: 1.0 },
+    { id: 'mango', name: 'Mango Chamoy', note: 'sweet, tangy, chile', color: '#f5a511', appeal: 0.95 },
+    { id: 'lime', name: 'Key Lime', note: 'tart', color: '#53b83a', appeal: 0.8 },
+    { id: 'pickle', name: 'Dill Pickle', note: 'for the brave', color: '#8fa82a', appeal: 0.45 },
+  ];
+  const VARIETY_DEMAND = [0, 0.8, 0.95, 1.05, 1.1];
+  const VARIETY_SAT = [0, 0.4, 0.7, 0.9, 1];
+  const START_DATE = Date.UTC(2026, 6, 6); // Monday, July 6 2026
+  const DOW = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const dateOf = (d) => new Date(START_DATE + d * 864e5);
+  const isWeekend = (d) => { const w = dateOf(d).getUTCDay(); return w === 0 || w === 6; };
+  const money = (v) => (v < 0 ? '−$' : '$') + Math.abs(v).toFixed(2);
+
+  // ---------- the season's weather (all drawn up front from the seed) ----------
+  function makeWeather(seed) {
+    const r = mulberry32(hash(seed, 101));
+    const phase = r() * 6.28, wave = Math.floor(r() * 10), days = [];
+    for (let d = 0; d < DAYS; d++) {
+      let center = 97 + 3.5 * Math.sin(d * 0.62 + phase) + (Math.abs(d - wave) < 2.5 ? 5 : 0) + (r() - 0.5) * 3;
+      center = Math.round(center);
+      const storm = r() < 0.16;
+      const rainP = storm ? 45 + Math.round(r() * 30) : 5 + Math.round(r() * 15);
+      const sigma = 2 + Math.round(r() * 2);
+      const rain = r() * 100 < rainP;
+      let actual = Math.round(center + gauss(r) * sigma * 0.8);
+      if (rain) actual -= 6 + Math.round(r() * 4);
+      const out1 = Math.round(center + gauss(r) * 3), out2 = Math.round(center + gauss(r) * 4);
+      days.push({ center, rainP, sigma, rain, actual, outlook: [out1, out2] });
+    }
+    return days;
+  }
+
+  // ---------- state ----------
+  let S;
+  function newState() {
+    const offered = new Set();
+    return { seed: SEED, weather: makeWeather(SEED), day: 0, phase: 'morning', cash: START_CASH, rep: 50,
+      cups: 0, syrup: Object.fromEntries(FLAVOURS.map((f) => [f.id, 0])), offered,
+      price: 3, order: { ice: 0, cups: 0, syrup: Object.fromEntries(FLAVOURS.map((f) => [f.id, 0])) },
+      history: [], last: null };
+  }
+  const orderCost = (o) => o.ice * ICE_BAG.cost + o.cups * CUP_SLEEVE.cost + Object.values(o.syrup).reduce((a, b) => a + b, 0) * BOTTLE.cost;
+  const syrupAfter = (id) => S.syrup[id] + S.order.syrup[id] * BOTTLE.servings;
+
+  // ---------- simulate one day (pure: state in, result out) ----------
+  function simulateDay(st) {
+    const w = st.weather[st.day];
+    const T = w.actual;
+    const r = mulberry32(hash(st.seed, 7000 + st.day));
+    // 400 would-be customers are drawn first, so the crowd does not depend on the player's choices
+    const pool = [];
+    for (let i = 0; i < 400; i++) {
+      const u = r(), v = r();
+      const t = 9 * Math.min(0.999, 0.3 * u + 0.7 * Math.sqrt(v)); // afternoon-heavy arrivals
+      pool.push({ t, z: gauss(r), pick: r(), side: r() < 0.5 ? -1 : 1, look: Math.floor(r() * 6) });
+    }
+    const crowdNoise = 0.9 + r() * 0.2;
+    const offered = FLAVOURS.filter((f) => st.offered.has(f.id) && syrupAfter(f.id) > 0);
+    const nOff = Math.min(MAX_FLAVOURS, offered.length);
+    const tempF = Math.max(0.15, Math.min(1.4, (T - 72) / 28));
+    const potential = nOff === 0 ? 0 : Math.round(150 * tempF * (w.rain ? 0.4 : 1) * (isWeekend(st.day) ? 1.25 : 1) * (0.6 + 0.8 * st.rep / 100) * VARIETY_DEMAND[nOff] * crowdNoise);
+    const custs = pool.slice(0, Math.min(400, potential)).sort((a, b) => a.t - b.t);
+    const ref = 3.25 + (T - 95) * 0.06;
+    const k = Math.max(0, T - 65) / 1400; // share of cooler ice lost per hour
+    let ice = st.order.ice * ICE_BAG.lbs, cups = st.cups + st.order.cups * CUP_SLEEVE.n, melted = 0, lastT = 0;
+    const syr = Object.fromEntries(FLAVOURS.map((f) => [f.id, syrupAfter(f.id)]));
+    const res = { T, rain: w.rain, potential, sold: 0, walked: 0, out: { ice: 0, cups: 0, syrup: 0 }, byFlavour: {}, events: [] };
+    for (const c of custs) {
+      const lost = ice * (1 - Math.exp(-k * (c.t - lastT))); ice -= lost; melted += lost; lastT = c.t;
+      const wtp = ref * Math.exp(0.3 * c.z) * (0.85 + 0.3 * st.rep / 100);
+      if (st.price > wtp) { res.walked++; res.events.push({ t: c.t, kind: 'pricey', side: c.side, look: c.look }); continue; }
+      const avail = offered.filter((f) => syr[f.id] > 0);
+      let why = null;
+      if (ice < ICE_PER_CONE) why = 'ice'; else if (cups < 1) why = 'cups'; else if (!avail.length) why = 'syrup';
+      if (why) { res.out[why]++; res.events.push({ t: c.t, kind: 'out', why, side: c.side, look: c.look }); continue; }
+      const total = avail.reduce((a, f) => a + f.appeal, 0);
+      let x = c.pick * total, f = avail[0];
+      for (const g of avail) { x -= g.appeal; if (x <= 0) { f = g; break; } }
+      ice -= ICE_PER_CONE; cups--; syr[f.id]--;
+      res.sold++; res.byFlavour[f.id] = (res.byFlavour[f.id] || 0) + 1;
+      res.events.push({ t: c.t, kind: 'buy', flavour: f.id, side: c.side, look: c.look });
+    }
+    const tail = ice * (1 - Math.exp(-k * (9 - lastT))); ice -= tail; melted += tail;
+    res.meltLbs = melted + ice; // no freezer: the rest melts overnight
+    res.leftoverLbs = ice;
+    res.meltCost = res.meltLbs / ICE_BAG.lbs * ICE_BAG.cost;
+    res.revenue = res.sold * st.price;
+    res.costs = { ice: st.order.ice * ICE_BAG.cost, cups: st.order.cups * CUP_SLEEVE.cost, syrup: Object.values(st.order.syrup).reduce((a, b) => a + b, 0) * BOTTLE.cost };
+    res.spent = res.costs.ice + res.costs.cups + res.costs.syrup;
+    res.profit = res.revenue - res.spent;
+    res.cupsLeft = cups; res.syrupLeft = syr;
+    const stockouts = res.out.ice + res.out.cups + res.out.syrup;
+    const servedFrac = res.sold + stockouts === 0 ? 1 : res.sold / (res.sold + stockouts);
+    const value = Math.max(0, Math.min(1, (5.5 - st.price) / 3.5));
+    const sat = 100 * (0.6 * servedFrac + 0.2 * value + 0.2 * VARIETY_SAT[nOff]);
+    res.repAfter = Math.round(0.65 * st.rep + 0.35 * sat);
+    res.nOffered = nOff;
+    return res;
+  }
+
+  function openStand() {
+    if (S.phase !== 'morning') return null;
+    const cost = orderCost(S.order);
+    if (cost > S.cash + 1e-9) { hint('That order costs more than the cash box holds.'); return null; }
+    const nOff = FLAVOURS.filter((f) => S.offered.has(f.id) && syrupAfter(f.id) > 0).length;
+    if (!nOff) { hint('Pick at least one flavour with syrup on hand.'); return null; }
+    const res = simulateDay(S);
+    S.cash = S.cash - res.spent + res.revenue;
+    S.cups = res.cupsLeft;
+    S.syrup = { ...res.syrupLeft };
+    S.repBefore = S.rep;
+    S.rep = res.repAfter;
+    S.history.push({ day: S.day, T: res.T, rain: res.rain, price: S.price, sold: res.sold, walked: res.walked + res.out.ice + res.out.cups + res.out.syrup, melt: res.meltLbs, profit: res.profit, cash: S.cash });
+    S.last = res;
+    S.phase = 'open';
+    hint('');
+    render();
+    playDay(res);
+    return res;
+  }
+  function closeDay() {
+    if (S.phase !== 'open') return;
+    anim = null;
+    S.phase = 'closed';
+    S.order = { ice: 0, cups: 0, syrup: Object.fromEntries(FLAVOURS.map((f) => [f.id, 0])) };
+    render(); drawScene(performance.now());
+  }
+  function nextMorning() {
+    if (S.phase !== 'closed') return;
+    if (S.day >= DAYS - 1) { S.phase = 'done'; render(); return; }
+    S.day++; S.phase = 'morning'; S.last = null;
+    for (const id of [...S.offered]) if (S.syrup[id] <= 0) S.offered.delete(id);
+    render(); drawScene(performance.now());
+  }
+
+  // ---------- UI ----------
+  const $ = (id) => document.getElementById(id) || document.querySelector(`[data-testid="${id}"]`);
+  const hint = (m) => { $('hint').textContent = m; };
+  function buildShop() {
+    const rows = [
+      `<div class="row"><div class="name"><b>Ice · 10 lb bag</b><small>$3 · ~25 cones · melts by morning</small></div><div class="stepper">${stepper('ice', 'ice bags')}</div></div>`,
+      `<div class="row"><div class="name"><b>Cups · sleeve of 50</b><small>$4 · keep for later days · <span data-testid="cups-have">0</span> on hand</small></div><div class="stepper">${stepper('cups', 'cup sleeves')}</div></div>`,
+    ];
+    for (const f of FLAVOURS) rows.push(`<div class="row"><div class="flav"><span class="swatch" style="background:${f.color}"></span><div class="name"><b>${f.name}</b><small>$6/bottle · <span data-testid="syrup-${f.id}">0</span> servings</small></div></div>
+      <div class="stepper"><button class="toggle" type="button" aria-pressed="false" data-flav="${f.id}" data-testid="offer-${f.id}" aria-label="Offer ${f.name}">Offer</button>${stepper('syrup-' + f.id, f.name + ' bottles')}</div></div>`);
+    $('shop').innerHTML = rows.join('');
+  }
+  const stepper = (key, label) => `<button type="button" data-step="${key}" data-d="-1" data-testid="${key}-minus" aria-label="One fewer ${label}">−</button><output data-testid="${key}-qty" id="q-${key}">0</output><button type="button" data-step="${key}" data-d="1" data-testid="${key}-plus" aria-label="One more ${label}">+</button>`;
+
+  function setOrder(key, d) {
+    if (S.phase !== 'morning') return;
+    const o = S.order;
+    if (key === 'ice') o.ice = Math.max(0, Math.min(40, o.ice + d));
+    else if (key === 'cups') o.cups = Math.max(0, Math.min(20, o.cups + d));
+    else { const id = key.slice(6); o.syrup[id] = Math.max(0, Math.min(10, o.syrup[id] + d)); if (d > 0 && !S.offered.has(id) && S.offered.size < MAX_FLAVOURS) S.offered.add(id); if (syrupAfter(id) <= 0) S.offered.delete(id); }
+    render();
+  }
+
+  $('shop').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.step) setOrder(b.dataset.step, +b.dataset.d);
+    else if (b.dataset.flav) {
+      const id = b.dataset.flav;
+      if (S.offered.has(id)) S.offered.delete(id);
+      else if (S.offered.size >= MAX_FLAVOURS) hint('Four flavours is all the window has room for.');
+      else if (syrupAfter(id) <= 0) hint('Buy a bottle first — no syrup, no flavour.');
+      else S.offered.add(id);
+      render();
+    }
+  });
+  $('price').addEventListener('input', (e) => { S.price = +e.target.value; render(); });
+  $('open').addEventListener('click', openStand);
+  $('skip').addEventListener('click', closeDay);
+  $('next').addEventListener('click', nextMorning);
+  $('again').addEventListener('click', () => { const u = new URL(location.href); u.searchParams.set('seed', String(1 + Math.floor(Math.random() * 9999))); location.href = u.toString(); });
+
+  function iconSvg(w) {
+    const sun = '<circle cx="32" cy="30" r="12" fill="#ffcf3f" stroke="#2b1238" stroke-width="2.5"/>' + Array.from({ length: 8 }, (_, i) => { const a = i * Math.PI / 4; return `<line x1="${32 + Math.cos(a) * 17}" y1="${30 + Math.sin(a) * 17}" x2="${32 + Math.cos(a) * 23}" y2="${30 + Math.sin(a) * 23}" stroke="#2b1238" stroke-width="2.5" stroke-linecap="round"/>`; }).join('');
+    const cloud = '<path d="M16 46a9 9 0 0 1 3-17 12 12 0 0 1 23-2 9 9 0 0 1 6 19z" fill="#e7e1ef" stroke="#2b1238" stroke-width="2.5"/>';
+    const bolt = '<path d="M31 45l-4 9h5l-3 8 9-11h-5l3-6z" fill="#ffcf3f" stroke="#2b1238" stroke-width="1.8"/>';
+    return w.rainP >= 40 ? '<g transform="translate(6,-6) scale(.8)">' + sun + '</g>' + cloud + bolt : sun;
+  }
+
+  function render() {
+    const w = S.weather[S.day], d = dateOf(S.day);
+    $('day').textContent = `${S.day + 1} / ${DAYS}`;
+    $('cash').textContent = money(S.cash);
+    $('rep').textContent = String(S.rep);
+    $('seed').textContent = '#' + S.seed;
+    $('date-h').firstChild.textContent = `${DOW[d.getUTCDay()]} morning `;
+    $('date').textContent = `${MON[d.getUTCMonth()]} ${d.getUTCDate()}${isWeekend(S.day) ? ' · weekend crowd' : ''}`;
+    $('forecast-high').textContent = `High ${w.center}°F`;
+    $('forecast-detail').textContent = `likely ${w.center - w.sigma}–${w.center + w.sigma}°F · ${w.rainP}% chance of storms`;
+    const pct = (t) => Math.max(0, Math.min(100, (t - 80) / 30 * 100));
+    const bi = $('band-i'); bi.style.left = pct(w.center - w.sigma) + '%'; bi.style.width = (pct(w.center + w.sigma) - pct(w.center - w.sigma)) + '%';
+    $('fc-icon').innerHTML = iconSvg(w);
+    $('outlook').innerHTML = [1, 2].map((k) => {
+      if (S.day + k >= DAYS) return `<div>Day ${S.day + k + 1}: season's over</div>`;
+      const dd = dateOf(S.day + k), o = w.outlook[k - 1], spread = 3 + 2 * k;
+      return `<div>${DOW[dd.getUTCDay()].slice(0, 3)} outlook<br><b>${o - spread}–${o + spread}°F</b></div>`;
+    }).join('');
+    // shop
+    $('q-ice').textContent = S.order.ice;
+    $('q-cups').textContent = S.order.cups;
+    document.querySelector('[data-testid="cups-have"]').textContent = S.cups + S.order.cups * CUP_SLEEVE.n;
+    for (const f of FLAVOURS) {
+      $('q-syrup-' + f.id).textContent = S.order.syrup[f.id];
+      document.querySelector(`[data-testid="syrup-${f.id}"]`).textContent = syrupAfter(f.id);
+      const t = document.querySelector(`[data-flav="${f.id}"]`);
+      t.setAttribute('aria-pressed', String(S.offered.has(f.id)));
+      t.textContent = S.offered.has(f.id) ? 'On menu' : 'Offer';
+    }
+    const cost = orderCost(S.order);
+    $('order-total').textContent = money(cost);
+    $('cash-after').textContent = money(S.cash - cost);
+    $('cash-after').classList.toggle('over', cost > S.cash);
+    $('price').value = S.price;
+    $('price-out').textContent = money(S.price);
+    const morning = S.phase === 'morning';
+    $('morning').hidden = !(morning || S.phase === 'open');
+    $('morning').querySelectorAll('button,input').forEach((el) => { el.disabled = !morning; });
+    $('open').disabled = !morning || cost > S.cash;
+    $('ledger').hidden = S.phase !== 'closed';
+    $('final').hidden = S.phase !== 'done';
+    $('skip').hidden = S.phase !== 'open';
+    if (S.phase === 'morning') $('tally').textContent = `Morning prep. ${S.offered.size} flavour${S.offered.size === 1 ? '' : 's'} on the menu at ${money(S.price)}. Opens at 10 AM.`;
+    if ((S.phase === 'closed' || S.phase === 'done') && S.last) $('tally').textContent = `Closed at 7 PM · ${S.last.sold} cones sold · ${S.last.potential - S.last.sold} walked away.`;
+    if (S.phase === 'closed' || S.phase === 'done') renderLedger();
+    if (S.phase === 'done') renderFinal();
+    renderHistory();
+    renderChart();
+  }
+
+  function renderLedger() {
+    const r = S.last, h = S.history[S.history.length - 1];
+    if (!r || !h) return;
+    $('ledger-day').textContent = `day ${h.day + 1} · ${r.T}°F${r.rain ? ' · storms' : ''}`;
+    const row = (a, b, cls = '') => `<tr class="${cls}"><td>${a}</td><td>${b}</td></tr>`;
+    $('ledger-body').innerHTML = [
+      row(`Cones sold (${r.sold} × ${money(h.price)})`, `<span class="pos" data-testid="revenue">${money(r.revenue)}</span>`),
+      row(`Ice (${r.costs.ice / ICE_BAG.cost} bags)`, `<span class="neg">${money(-r.costs.ice)}</span>`),
+      row('Cups', `<span class="neg">${money(-r.costs.cups)}</span>`),
+      row('Syrup', `<span class="neg">${money(-r.costs.syrup)}</span>`),
+      row(`Melt waste · ${r.meltLbs.toFixed(1)} lb`, `<span data-testid="melt">${money(r.meltCost)} of ice</span>`),
+      row('Day profit', `<span class="${r.profit >= 0 ? 'pos' : 'neg'}" data-testid="profit">${money(r.profit)}</span>`, 'total'),
+    ].join('');
+    const outs = r.out.ice + r.out.cups + r.out.syrup;
+    const parts = [`${r.potential} people came by; ${r.sold} bought a cone.`];
+    if (r.walked) parts.push(`${r.walked} said it was too pricey.`);
+    if (outs) parts.push(`${outs} were turned away — out of ${[r.out.ice && 'ice', r.out.cups && 'cups', r.out.syrup && 'syrup'].filter(Boolean).join(' and ')}.`);
+    const fav = Object.entries(r.byFlavour).sort((a, b) => b[1] - a[1])[0];
+    if (fav) parts.push(`Top seller: ${FLAVOURS.find((f) => f.id === fav[0]).name}.`);
+    const dr = S.rep - S.repBefore;
+    parts.push(`Reputation ${dr >= 0 ? 'up' : 'down'} ${Math.abs(dr)} to ${S.rep}.`);
+    $('ledger-note').textContent = parts.join(' ');
+    $('next').textContent = S.day >= DAYS - 1 ? 'Close the season' : 'Next morning';
+  }
+  function totalProfit() { return S.cash - START_CASH; }
+  function grade(p) {
+    if (p >= 3800) return 'Legend of Barton Springs Road — people plan their swims around you.';
+    if (p >= 3000) return 'Local favourite — the line reaches the crosswalk.';
+    if (p >= 2000) return 'Solid summer — the stand paid for itself and then some.';
+    if (p >= 800) return 'Break-even-ish — the cooler has seen things.';
+    return 'Mostly puddles — next summer, check the forecast.';
+  }
+  function renderFinal() { const p = totalProfit(); $('final-profit').textContent = money(p); $('grade').textContent = grade(p); }
+
+  function renderHistory() {
+    if (!S.history.length) return;
+    $('hist-body').innerHTML = S.history.map((h) => `<tr><td>${h.day + 1}</td><td>${h.T}°${h.rain ? ' ⛈' : ''}</td><td>${money(h.price)}</td><td>${h.sold}</td><td>${h.walked}</td><td>${h.melt.toFixed(1)} lb</td><td class="${h.profit >= 0 ? 'pos' : 'neg'}">${money(h.profit)}</td></tr>`).join('');
+  }
+
+  // ---------- profit chart (daily bars + running total, one $ axis) ----------
+  function renderChart() {
+    const svg = $('chart'), W = Math.max(280, svg.clientWidth || 600), H = 220, L = 46, R = 10, T = 12, B = 26;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    const hs = S.history; let run = 0;
+    const runs = hs.map((h) => (run += h.profit));
+    const vals = [0, ...hs.map((h) => h.profit), ...runs];
+    let lo = Math.min(...vals), hi = Math.max(...vals, 100);
+    const step = niceStep((hi - lo) / 4); lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step;
+    const y = (v) => T + (hi - v) / (hi - lo) * (H - T - B);
+    const bw = (W - L - R) / DAYS, x = (i) => L + i * bw + bw / 2;
+    let g = '';
+    for (let v = lo; v <= hi + 1e-6; v += step) g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="${v === 0 ? '#2b1238' : '#eadcea'}" stroke-width="${v === 0 ? 1.5 : 1}"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="#6d4f78" font-family="ui-monospace,Consolas,monospace">${v < 0 ? '−' : ''}$${Math.abs(v)}</text>`;
+    for (let i = 0; i < DAYS; i++) if (i % 2 === 0 || W > 480) g += `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="11" fill="#6d4f78">${i + 1}</text>`;
+    hs.forEach((h, i) => {
+      const y0 = y(0), y1 = y(h.profit), top = Math.min(y0, y1), ht = Math.max(1, Math.abs(y1 - y0)), w = Math.max(4, bw * 0.56);
+      const col = h.profit >= 0 ? '#53b83a' : '#e8304f';
+      const rr = Math.min(4, ht / 2, w / 2);
+      const path = h.profit >= 0
+        ? `M${x(i) - w / 2},${y0}V${top + rr}q0,-${rr} ${rr},-${rr}h${w - 2 * rr}q${rr},0 ${rr},${rr}V${y0}z`
+        : `M${x(i) - w / 2},${y0}V${top + ht - rr}q0,${rr} ${rr},${rr}h${w - 2 * rr}q${rr},0 ${rr},-${rr}V${y0}z`;
+      g += `<path d="${path}" fill="${col}"/><rect x="${x(i) - bw / 2}" y="${T}" width="${bw}" height="${H - T - B}" fill="transparent" data-i="${i}" class="hit"/>`;
+    });
+    if (hs.length) {
+      g += `<polyline fill="none" stroke="#2b1238" stroke-width="2" stroke-linejoin="round" points="${runs.map((v, i) => `${x(i)},${y(v)}`).join(' ')}"/>`;
+      g += runs.map((v, i) => `<circle cx="${x(i)}" cy="${y(v)}" r="4" fill="#2b1238" stroke="#fffaf0" stroke-width="2" pointer-events="none"/>`).join('');
+      const lv = runs[runs.length - 1];
+      g += `<text x="${Math.min(W - R - 4, x(hs.length - 1) + 8)}" y="${y(lv) - 8}" text-anchor="${hs.length > 11 ? 'end' : 'start'}" font-size="12" font-weight="700" fill="#2b1238">${money(lv)}</text>`;
+    }
+    svg.innerHTML = g;
+    svg.setAttribute('aria-label', hs.length ? `Profit chart: ${hs.length} days, running total ${money(runs[runs.length - 1])}` : 'Profit chart, no days yet');
+  }
+  function niceStep(raw) { const p = Math.pow(10, Math.floor(Math.log10(Math.max(1, raw)))); const m = raw / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p; }
+  $('chart').addEventListener('pointermove', (e) => {
+    const t = e.target.closest('.hit'), tip = $('tip');
+    if (!t) { tip.hidden = true; return; }
+    const i = +t.dataset.i, h = S.history[i], box = $('chart').getBoundingClientRect(), bb = t.getBoundingClientRect();
+    tip.innerHTML = `Day ${i + 1} · ${h.T}°F<br>profit ${money(h.profit)}<br>total ${money(S.history.slice(0, i + 1).reduce((a, b) => a + b.profit, 0))}`;
+    tip.style.left = Math.max(60, Math.min(box.width - 60, bb.left - box.left + bb.width / 2)) + 'px';
+    tip.style.top = '40px'; tip.hidden = false;
+  });
+  $('chart').addEventListener('pointerleave', () => { $('tip').hidden = true; });
+
+  // ---------- the scene ----------
+  const cv = $('scene'), ctx = cv.getContext('2d');
+  let anim = null;
+  const LOOKS = ['#ff7a4a', '#2f7cf6', '#53b83a', '#b04cf0', '#f5a511', '#1fb3a5'];
+  const DAY_MS = 12000;
+  function playDay(res) {
+    if (reduced.matches) { closeDay(); return; }
+    anim = { res, t0: performance.now() };
+    requestAnimationFrame(tick);
+  }
+  function tick(now) {
+    if (!anim) return;
+    const p = (now - anim.t0) / DAY_MS;
+    drawScene(now, p);
+    const done = anim.res.events.filter((e) => e.t / 9 <= p);
+    const sold = done.filter((e) => e.kind === 'buy').length;
+    const hr = 10 + Math.min(9, 9 * p), hh = Math.floor(hr), mm = Math.floor((hr - hh) * 60 / 15) * 15;
+    $('tally').innerHTML = `<b>${(hh > 12 ? hh - 12 : hh)}:${String(mm).padStart(2, '0')} ${hh >= 12 ? 'PM' : 'AM'}</b> · sold <b>${sold}</b> · walked <b>${done.length - sold}</b>`;
+    if (p >= 1.06) { closeDay(); return; }
+    requestAnimationFrame(tick);
+  }
+  function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+  function drawScene(now, p) {
+    const W = 800, H = 420;
+    const w = S.weather[S.day];
+    const phase = S.phase;
+    const rainy = (phase === 'open' || phase === 'closed') && S.last && S.last.rain;
+    const dusk = phase === 'closed' || phase === 'done' || (phase === 'open' && p > 0.85);
+    const duskAmt = phase === 'open' ? Math.max(0, Math.min(1, (p - 0.85) / 0.2)) : (dusk ? 1 : 0);
+    // sky
+    const g = ctx.createLinearGradient(0, 0, 0, 300);
+    if (rainy) { g.addColorStop(0, '#6f7d99'); g.addColorStop(1, '#b8bfcf'); }
+    else { g.addColorStop(0, mix('#ffd36b', '#3b2466', duskAmt)); g.addColorStop(1, mix('#fff1c9', '#ff8a5c', duskAmt)); }
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    // sun arc across the day
+    const sp = phase === 'open' ? Math.min(1, p) : phase === 'morning' ? 0.05 : 1;
+    const sx = 90 + sp * 620, sy = 250 - Math.sin(Math.PI * (0.15 + sp * 0.8)) * 190;
+    if (!rainy) { ctx.fillStyle = mix('#fff4b0', '#ff6d3a', duskAmt); ctx.beginPath(); ctx.arc(sx, sy, 38, 0, 7); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 10; ctx.beginPath(); ctx.arc(sx, sy, 56 + (reduced.matches ? 0 : Math.sin(now / 400) * 3), 0, 7); ctx.stroke(); }
+    // skyline silhouette (a generic downtown, not any one building)
+    ctx.fillStyle = mix('#e2a877', '#2a1848', duskAmt * 0.8);
+    const blds = [[40, 70], [80, 110], [120, 80], [150, 150], [190, 95], [230, 130], [520, 90], [560, 170], [600, 120], [640, 140], [690, 85], [730, 110]];
+    for (const [x, h] of blds) ctx.fillRect(x, 262 - h, 34, h);
+    if (dusk) { ctx.fillStyle = `rgba(255,220,120,${0.7 * duskAmt})`; for (const [x, h] of blds) for (let yy = 272 - h; yy < 255; yy += 14) for (let xx = x + 5; xx < x + 30; xx += 10) if (((xx * 7 + yy * 3) % 5) < 2) ctx.fillRect(xx, yy, 4, 6); }
+    // ground
+    ctx.fillStyle = rainy ? '#6e8b5a' : mix('#d9b36a', '#5c4a3a', duskAmt * 0.7); ctx.fillRect(0, 262, W, 60);
+    ctx.fillStyle = rainy ? '#77787f' : mix('#c9c1b4', '#4a4455', duskAmt * 0.7); ctx.fillRect(0, 322, W, H - 322);
+    ctx.strokeStyle = 'rgba(255,255,255,.4)'; ctx.lineWidth = 3; ctx.setLineDash([26, 20]); ctx.beginPath(); ctx.moveTo(0, 395); ctx.lineTo(W, 395); ctx.stroke(); ctx.setLineDash([]);
+    // live oak
+    ctx.fillStyle = '#5a3d2b'; ctx.fillRect(116, 200, 16, 90);
+    ctx.fillStyle = mix('#4f8a3a', '#1f3b2a', duskAmt);
+    for (const [cx, cy, r] of [[100, 200, 40], [140, 185, 46], [175, 205, 36], [70, 215, 28]]) { ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.fill(); }
+    // the stand
+    const X = 340, Y = 170;
+    ctx.fillStyle = '#fffaf0'; ctx.strokeStyle = '#2b1238'; ctx.lineWidth = 4;
+    roundRect(X, Y + 40, 170, 130, 10); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#3b1f4d'; roundRect(X + 22, Y + 62, 126, 58, 6); ctx.fill();
+    // counter
+    ctx.fillStyle = '#ffcf3f'; ctx.fillRect(X - 6, Y + 118, 182, 14); ctx.strokeRect(X - 6, Y + 118, 182, 14);
+    // awning stripes use the menu's flavours
+    const menu = FLAVOURS.filter((f) => S.offered.has(f.id));
+    const stripes = menu.length ? menu.map((f) => f.color) : ['#e8304f'];
+    const n = 8, sw = 196 / n;
+    for (let i = 0; i < n; i++) {
+      ctx.fillStyle = i % 2 ? '#fffaf0' : stripes[(i / 2) % stripes.length | 0];
+      ctx.beginPath(); ctx.moveTo(X - 13 + i * sw, Y + 8); ctx.lineTo(X - 13 + (i + 1) * sw, Y + 8); ctx.lineTo(X - 13 + (i + 1) * sw, Y + 46);
+      ctx.arc(X - 13 + i * sw + sw / 2, Y + 46, sw / 2, 0, Math.PI); ctx.closePath(); ctx.fill();
+    }
+    ctx.strokeStyle = '#2b1238'; ctx.lineWidth = 4; ctx.strokeRect(X - 13, Y + 8, 196, 38);
+    // sign
+    ctx.fillStyle = '#2b1238'; roundRect(X + 20, Y - 30, 130, 34, 8); ctx.fill();
+    ctx.fillStyle = '#ffcf3f'; ctx.font = 'bold 17px "Cooper Black", Georgia, serif'; ctx.textAlign = 'center';
+    ctx.fillText(phase === 'open' && p < 1 ? 'OPEN' : phase === 'morning' ? 'SOON' : 'CLOSED', X + 85, Y - 7);
+    ctx.fillStyle = '#fffaf0'; ctx.font = 'bold 15px "Trebuchet MS", sans-serif';
+    ctx.fillText(money(S.price), X + 85, Y + 98);
+    // cooler
+    ctx.fillStyle = '#2f7cf6'; roundRect(X + 190, Y + 120, 60, 50, 6); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#fffaf0'; ctx.fillRect(X + 190, Y + 120, 60, 10); ctx.strokeRect(X + 190, Y + 120, 60, 10);
+    // customers
+    if (phase === 'open' && anim) {
+      for (const e of anim.res.events) {
+        const a = (p - e.t / 9) * 9 / 0.5; // 0..1 lifecycle = half a game hour
+        if (a < 0 || a > 1) continue;
+        const from = e.side < 0 ? -30 : W + 30, stop = X + 85 + e.side * 30;
+        let cx, happy = null;
+        if (a < 0.4) cx = from + (stop - from) * (a / 0.4);
+        else if (a < 0.55) { cx = stop; }
+        else { cx = stop + (from - stop) * ((a - 0.55) / 0.45); happy = e.kind === 'buy'; }
+        person(cx, 348 + (e.look % 3) * 9, LOOKS[e.look], a >= 0.45 ? e : null, happy, now);
+      }
+    }
+    if (rainy && !reduced.matches) { ctx.strokeStyle = 'rgba(230,240,255,.55)'; ctx.lineWidth = 2; for (let i = 0; i < 70; i++) { const rx = (i * 97 + now * 0.35) % W, ry = (i * 53 + now * 0.7) % H; ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx - 5, ry + 14); ctx.stroke(); } }
+    // Congress Avenue bats at dusk
+    if (duskAmt > 0.5 && !rainy) { ctx.fillStyle = '#1a0f26'; for (let i = 0; i < 26; i++) { const t = reduced.matches ? 0 : now / 1000; const bx = (620 + i * 23 + t * (18 + i % 5 * 6)) % 900 - 50, by = 60 + (i * 37 % 90) + Math.sin(t * 3 + i) * 6; ctx.beginPath(); ctx.moveTo(bx - 7, by); ctx.quadraticCurveTo(bx - 3, by - 5, bx, by); ctx.quadraticCurveTo(bx + 3, by - 5, bx + 7, by); ctx.lineTo(bx, by + 2); ctx.fill(); } }
+    // heat shimmer label
+    ctx.textAlign = 'left'; ctx.font = 'bold 15px "Trebuchet MS", sans-serif'; ctx.fillStyle = 'rgba(43,18,56,.8)';
+    const tLabel = phase === 'morning' ? `forecast ${w.center}°F` : S.last ? `${S.last.T}°F${S.last.rain ? ' · storms' : ''}` : '';
+    ctx.fillText(tLabel, 16, H - 14);
+    cv.setAttribute('aria-label', phase === 'morning' ? `The stand before opening, forecast high ${w.center} degrees` : S.last ? `The stand on a ${S.last.T} degree day: ${S.last.sold} cones sold` : 'The snow cone stand');
+  }
+  function person(x, y, col, ev, happy, now) {
+    const bob = reduced.matches ? 0 : Math.sin(now / 90 + x) * 2;
+    ctx.fillStyle = col; ctx.strokeStyle = '#2b1238'; ctx.lineWidth = 3;
+    roundRect(x - 13, y - 34 + bob, 26, 36, 10); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#f2c79b'; ctx.beginPath(); ctx.arc(x, y - 46 + bob, 11, 0, 7); ctx.fill(); ctx.stroke();
+    if (happy && ev) {
+      const f = FLAVOURS.find((q) => q.id === ev.flavour);
+      ctx.fillStyle = '#fffaf0'; ctx.beginPath(); ctx.moveTo(x + 14, y - 20 + bob); ctx.lineTo(x + 26, y - 20 + bob); ctx.lineTo(x + 20, y - 6 + bob); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = f.color; ctx.beginPath(); ctx.arc(x + 20, y - 24 + bob, 8, 0, 7); ctx.fill(); ctx.stroke();
+    } else if (ev && ev.kind !== 'buy') {
+      const txt = ev.kind === 'pricey' ? 'too pricey!' : `out of ${ev.why}!`;
+      ctx.font = 'bold 13px "Trebuchet MS", sans-serif'; const tw = ctx.measureText(txt).width + 14;
+      ctx.fillStyle = '#fffaf0'; roundRect(x - tw / 2, y - 92, tw, 24, 10); ctx.fill(); ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = ev.kind === 'pricey' ? '#2b1238' : '#c62a3f'; ctx.textAlign = 'center'; ctx.fillText(txt, x, y - 75);
+    }
+  }
+  function mix(a, b, t) { const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16); const c = (s) => Math.round(((pa >> s) & 255) * (1 - t) + ((pb >> s) & 255) * t); return `rgb(${c(16)},${c(8)},${c(0)})`; }
+  function sizeCanvas() { const dpr = Math.min(2, window.devicePixelRatio || 1); cv.width = 800 * dpr; cv.height = 420 * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); drawScene(performance.now(), anim ? (performance.now() - anim.t0) / DAY_MS : 0); }
+
+  // idle loop for gentle motion (sun halo, bats) when not animating a day
+  function idle(now) { if (!anim && !document.hidden) drawScene(now, 0); if (!reduced.matches) setTimeout(() => requestAnimationFrame(idle), 120); }
+
+  // ---------- boot ----------
+  S = newState();
+  buildShop();
+  render();
+  sizeCanvas();
+  addEventListener('resize', () => { renderChart(); });
+  requestAnimationFrame(idle);
+
+  // ---------- test hook ----------
+  window.__stand = {
+    get state() { return S; },
+    forecast: (d) => ({ ...S.weather[d ?? S.day] }),
+    order(o) { if (S.phase !== 'morning') return; Object.assign(S.order, { ice: o.ice ?? S.order.ice, cups: o.cups ?? S.order.cups, syrup: { ...S.order.syrup, ...(o.syrup || {}) } }); if (o.flavours) S.offered = new Set(o.flavours); if (o.price != null) S.price = o.price; render(); },
+    open: () => openStand(),
+    close: () => closeDay(),
+    next: () => nextMorning(),
+    simulate: () => simulateDay(S),
+    profit: totalProfit,
+  };
+})();
+</script>
+</body>
+</html>

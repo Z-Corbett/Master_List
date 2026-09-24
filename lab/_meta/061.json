@@ -1,0 +1,34 @@
+{
+  "id": "061",
+  "slug": "061-chapel-candles",
+  "file": "lab/061-chapel-candles.html",
+  "title": "Chapel Candles — a quiet votive stand",
+  "category": "Generative",
+  "tags": ["canvas", "localstorage", "real-time", "privacy", "dialog"],
+  "description": "A quiet virtual votive stand with twenty-one candles on a stepped iron rack beneath a burning sanctuary lamp. You light a candle with an optional private intention, and it burns down by the wall clock over one hour to three days: flickering flame, melt pool, drips that lengthen, a spreading wax puddle. You can extinguish it gently, relight it or set a fresh one. Intentions stay only in this browser's local storage.",
+  "prompt": "Build a quiet, reverent virtual votive stand. I can light a candle with an optional private intention, which is stored only in localStorage and never sent anywhere; make that clear on the page. Candles burn down in real time over a configurable number of hours (use Date so the tests can use page.clock), with realistic flame flicker and wax drip rendering, warm chapel ambience, and a gentle extinguish and relight. Nothing flashy; it should feel like a side chapel at night.",
+  "qa": {
+    "methodology": [
+      "Wall-clock oracle: with page.clock installed and paused, fastForward moves a one-hour candle to exactly 50% at 30 minutes and to 'burned down' after 61 minutes. An eight-hour candle reads 75% after two hours.",
+      "State-machine checks: extinguishing freezes the wax (still 75% five fake hours later), relighting continues from there (62.5% an hour later), and a burned-out candle can be replaced with a fresh one.",
+      "Persistence and privacy: the intention and burn time are read back from localStorage, survive a reload, and 'Forget the intention' and 'Clear everything' remove them from storage. The shared smoke test separately confirms zero network requests.",
+      "Canvas probe: with reduced motion (a still flame) the pixel at a candle's flame point must be bright gold when lit and dark after it is extinguished.",
+      "Keyboard path: Enter on a candle opens the dialog with the textarea focused, Escape cancels without lighting, and focus returns to the candle.",
+      "Accessible labels: each candle's aria-label states its row and its state (unlit, time left, % left, burned down), and the spec asserts those strings."
+    ],
+    "risks": [
+      "Time arithmetic across extinguish/relight cycles; state is stored as (fraction remaining at last change, time lit), not as an accumulated counter.",
+      "A candle that burns out while the tab is closed must show as spent on the next visit; settle() runs on load and every second.",
+      "localStorage can throw (private mode, blocked storage); every access is guarded and the page still works for the visit.",
+      "A once-per-second refresh could make screen readers re-announce the panel; text is written only when it changes."
+    ],
+    "playwright": "page.clock is the main tool here. Install, then pauseAt, then fastForward('30:00') or ('02:00:00'), lets the spec check exact wax percentages and the self-extinguish moment without waiting for real time. The page reads Date.now() for burning and performance.now() only for flicker. emulateMedia({ reducedMotion: 'reduce' }) holds the flame still so a single pixel probe is reliable, and the spec calls __chapel.frame() to repaint while the fake clock is paused. The intention textarea, the native <dialog> with Escape, and focus return are tested through real keyboard input. localStorage is read directly from the page to confirm what is and isn't stored.",
+    "coverage": [
+      "Lighting with an intention, persistence across reload, privacy notice",
+      "One-hour burn to 50% and to self-extinguish, then a fresh candle",
+      "Extinguish freezes wax; relight continues; flame pixel lit and dark",
+      "Keyboard open/cancel with focus return; forget intention; clear device"
+    ]
+  },
+  "a11y": "Each candle is a real button laid over the canvas, with an aria-label giving its row and state (for example 'lit, about 30 min left'). Lighting uses a native modal <dialog> with a labelled textarea and returns focus to the candle. The detail panel and candle count are aria-live but change only when their text changes, and reduced motion stills the flames and turns off the smoke."
+}

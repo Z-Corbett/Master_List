@@ -1,0 +1,35 @@
+{
+  "id": "064",
+  "slug": "064-paper-planes",
+  "file": "lab/064-paper-planes.html",
+  "title": "Paper Planes — design, fold and throw",
+  "category": "Games",
+  "tags": ["canvas", "physics", "seeded-prng", "localstorage", "pointer-events"],
+  "description": "A notebook-paper flight game: design a paper plane (dart, glider or stunt fold, wing span, sweep and 0–3 paper clips on the nose) and throw it across a gym in a 2D side-view sim with a clearly labelled, simplified lift/drag/gravity model. You aim with sliders or by dragging on the field like a slingshot. Seeded gusts, stalls and loops are all in the model. Each throw is scored on distance and hang time, a green ghost replays your best flight, and there are four challenges: the hoop zone, 3.5 s aloft, a loop, and clearing a 2.43 m volleyball net.",
+  "prompt": "Make a paper plane game. I design the plane (wing span, sweep, nose weight in paper clips, fold style) and launch it in a 2D side-view flight sim with a simplified lift, drag and gravity model that's clearly labelled as simplified. Wind, stalls and loops should all be possible. Score distance and hang time, show a ghost replay of my best flight, and add a few target challenges. Make it deterministic with ?seed= and expose window.__planes for tests. It should look like it was drawn in a school notebook.",
+  "qa": {
+    "methodology": [
+      "Determinism oracle: simulate() is a pure fixed-step integrator (1/240 s) seeded by ?seed=, so the same design and throw return identical results, and a different seed changes the wind and the flight.",
+      "Physics sanity properties instead of exact trajectories: a harder throw flies farther, a nose-heavy plane thrown downward lands in under a second, the stunt fold at speed completes a loop, and nothing lands with a maximum height below the 1.8 m release point.",
+      "Derived-geometry oracle: for a 25 cm glider (12 cm chord) the sheet must show 300 cm², aspect ratio 2.1 and 8 g with three clips; adding clips must lower the trim angle and raise stability.",
+      "UI-to-model agreement: a real throw shows exactly the distance, hang time and loop count that simulate() predicts, updates the throw count and best-distance sticky note, keeps the better flight as the ghost, and remembers it across a reload.",
+      "Challenge completion: for each challenge the spec searches the design and throw space with the page's own simulator, performs the throw through the real controls, and asserts the tick persists after reload.",
+      "Time and input: under page.clock, the animated flight is mid-air after 0.5 s and lands at exactly the simulated hang time. A mouse slingshot drag sets the launch angle to atan2(50, 90) and throws."
+    ],
+    "risks": [
+      "Numerical instability in the pitch dynamics (stiff springs at high airspeed); pitch stiffness is capped and damping scales with dynamic pressure.",
+      "Tuning drift: a change to the model can make a challenge impossible; the spec searches for a solution rather than hard-coding one, so it fails only if a challenge truly becomes unreachable.",
+      "The animation and the scoring must agree; the animation replays the recorded path by time, so it can never land somewhere other than the scored distance.",
+      "Pointer capture and touch-action on the canvas; the field uses touch-action: none so drags aim rather than scroll."
+    ],
+    "playwright": "The flight is computed up front, so correctness can be checked through window.__planes.simulate(), and the UI tests only need to show that the screen agrees with it. The most useful technique was searching for a solution rather than hard-coding one: the challenge test searches designs with the page's own simulator, then drives the real buttons and sliders with the throw it found, so model tuning does not make the spec brittle. Reduced motion skips the flight animation for the scoring tests. One test keeps the animation under page.clock.install/pauseAt and runFor to check the in-flight HUD and the landing at the exact hang time. The slingshot aim uses page.mouse down/move/up, which Chromium delivers as pointer events on both the desktop and Pixel 7 projects. Canvas pixels are not compared; the canvas's aria-label mirrors each result.",
+    "coverage": [
+      "Design controls, derived area / aspect ratio / mass, preview drawing and label",
+      "Seeded determinism and physical sanity properties",
+      "Throw scoring, best record, ghost toggle, persistence across reload",
+      "All four challenges through the real controls, persisted",
+      "Animated flight under page.clock and slingshot drag-to-aim"
+    ]
+  },
+  "a11y": "Fold style and clip count are toggle buttons with aria-pressed, and span, sweep, angle and speed are labelled range inputs with live outputs, so the whole game can be played without dragging. The field canvas is focusable (Space throws) and its aria-label reports the last and best throw. Results are an aria-live region, challenges carry a text 'completed' state, and reduced motion lands the plane instantly."
+}

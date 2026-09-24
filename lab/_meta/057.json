@@ -1,0 +1,36 @@
+{
+  "id": "057",
+  "slug": "057-snow-cone-stand",
+  "file": "lab/057-snow-cone-stand.html",
+  "title": "Snow Cone Stand — an Austin summer business sim",
+  "category": "Games",
+  "tags": ["canvas", "simulation", "seeded-prng", "svg-chart", "economics"],
+  "description": "A fourteen-day shaved-ice business sim on an Austin July roadside: each morning you read a seeded forecast with an uncertainty band, buy ice, cups and per-flavour syrup, set a price and a menu, then watch customers walk up, buy, balk at the price or get turned away when you run out. Unsold ice melts overnight, reputation shapes tomorrow's crowd, and an end-of-day ledger plus a running profit chart keep the books honest.",
+  "prompt": "Build me an Austin-summer snow cone stand business sim. 14 days; every morning show a seeded weather forecast with real uncertainty (a likely range, a storm chance and a fuzzier two-day outlook), let me buy ice, syrup and cups, set my price and choose which flavours go on the menu. Then play the day out with animated customers whose demand depends on temperature, price and my reputation, and show an end-of-day ledger with revenue, costs and melt waste, plus a running profit chart. Ice shouldn't keep overnight. Make it deterministic with ?seed= and expose window.__stand so the tests can drive it.",
+  "qa": {
+    "methodology": [
+      "Accounting oracle: after a UI-driven day the spec recomputes revenue as cones × price, profit as revenue minus the supply order, closing cash, leftover cups and syrup, and melt as ice bought minus 0.4 lb per cone sold, and compares each to what the ledger and header show.",
+      "Economic direction checks through the pure simulateDay hook: on identical weather and crowd, a $6 cone sells fewer and loses more walk-aways than a $2 cone, a one-flavour menu draws a smaller crowd than two, and price changes who buys but never who shows up.",
+      "Determinism: the whole season's weather is drawn from ?seed= up front and the customer pool is drawn before the player's choices, so reloading repeats the forecast and identical choices replay byte-identical results.",
+      "Constraint behaviour: offering a flavour with no syrup is refused with a hint, and an order larger than the cash box disables Open.",
+      "Stockout path: a one-bag day runs out of ice, the note says so, and reputation ends below what the well-stocked version of the same day would have earned.",
+      "A full 14-day season via the hook, then a real click on 'Close the season', checks that the final total equals the sum of the daily profits. Screenshots at 1280 and 390 px were reviewed by eye."
+    ],
+    "risks": [
+      "Floating-point money drifting between the ledger, the header and the chart; everything is formatted from one source and compared with toBeCloseTo.",
+      "The animated day (a 12-second requestAnimationFrame replay) racing with state; the simulation resolves instantly and the animation only replays events, so skip and reduced motion close the day the same way.",
+      "Demand tuning: small formula changes can make one strategy dominant or make the grades unreachable; the grade thresholds were set from scripted seasons across several seeds and prices.",
+      "Long flavour names and money strings on 360px screens; rows use minmax(0,1fr) and were checked with wider letter-spacing."
+    ],
+    "playwright": "Randomness is handled by ?seed= plus a crowd pool drawn before any player input, so the same choices always produce the same day and the tests can compare whole result objects with toEqual. The 12-second animated day would be slow and timing-sensitive, so most tests use emulateMedia({ reducedMotion: 'reduce' }), which resolves the day instantly. One test keeps the animation and checks only the tally format and the Skip button. The economics are checked through window.__stand.simulate(), a pure function, so price, menu and stock can be varied on the same day without replaying it. Canvas pixels are not asserted; the canvas's aria-label and the DOM ledger it mirrors are. toHaveScreenshot is avoided because the sun halo and bats animate.",
+    "coverage": [
+      "Seeded forecast, reload determinism and seed change",
+      "Supply steppers, order total, cash cap, syrup-gated flavour toggles, price slider",
+      "One full day through the UI with ledger and carry-over accounting checks",
+      "Animated day with live tally and skip",
+      "Price, menu breadth and stockouts versus demand and reputation; identical replays",
+      "Full 14-day season with final total and grade"
+    ]
+  },
+  "a11y": "All controls are native buttons and a labelled range input. Flavour toggles use aria-pressed, the steppers have descriptive aria-labels, and the tally, hint, ledger and final card are aria-live so each day's results are announced. The canvas has a descriptive aria-label, and the books table gives a text version of the profit chart."
+}

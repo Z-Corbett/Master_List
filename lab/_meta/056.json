@@ -1,0 +1,35 @@
+{
+  "id": "056",
+  "slug": "056-git-graph",
+  "file": "lab/056-git-graph.html",
+  "title": "Git Graph Playground — Visual Git Sandbox",
+  "category": "Tools",
+  "tags": ["git", "svg", "education", "simulation", "undo"],
+  "description": "A visual git sandbox drawn as a transit map: type commit, branch, checkout, switch, merge (fast-forward, --no-ff, ff-only), rebase, cherry-pick, reset --hard and tag — with HEAD~n, ^2 and hash-prefix revisions — or use the buttons, and watch the commit graph, branch signs and HEAD move while orphaned commits fade out. Four guided challenges (first merge, make main linear, move a commit, ship a release) check your result, and every command can be undone.",
+  "prompt": "Build 'Git Graph Playground', a visual sandbox for git. I can type commands — commit, branch, checkout/switch, merge including fast-forward, rebase, cherry-pick, reset --hard, tag — or click buttons, and the commit DAG animates with branch labels and HEAD. Model it properly: real ancestry, detached HEAD, git-like messages and errors, unreachable commits after a rebase or reset. Add a few guided challenges such as 'make main linear' and 'move a commit to another branch' that detect when they're solved, plus undo. Draw it like a transit map: branches as coloured lines, commits as stations.",
+  "qa": {
+    "methodology": [
+      "Model-level assertions through a read-only window.__git.repo snapshot: parent lists of merge commits, branch tips after fast-forward, linear history checks over the whole ancestry of main.",
+      "Git-behaviour oracles taken from real git output: 'Fast-forward', 'Already up to date.', the ort merge message, default merge-commit titles (\"Merge branch 'x'\" vs \"… into y\"), detached-HEAD notes and the 'leaving N commits behind' warning.",
+      "Challenge solutions driven end to end, half through buttons and half through the terminal, asserting the solved state appears only when the goal predicate holds.",
+      "Negative paths: unknown revisions, deleting the checked-out branch, missing arguments, unknown commands and an empty cherry-pick must print an error and leave the repository byte-for-byte unchanged.",
+      "Undo and persistence: undo restores the exact previous graph (the removed commit's node disappears); challenge progress and the repo survive a reload."
+    ],
+    "risks": [
+      "Rebase must replay only commits not reachable from the upstream, skip merges, and leave the originals unreachable rather than deleting them.",
+      "A command that throws half-way could leave a partially mutated repo — each command runs against a snapshot that is restored on error.",
+      "Revision parsing (HEAD~2, main^, ^2, short hashes) and ambiguous prefixes.",
+      "Label stacking and graph width as history grows, especially on a 360 px screen."
+    ],
+    "playwright": "The SVG graph is not asserted by pixels: every station carries data-id, data-msg, data-parents and data-reachable, and every sign a data-testid (ref-main, tag-v1.0.0, ref-HEAD), so the spec checks topology rather than coordinates, locating commits by message because hashes are generated. Commands are typed into the terminal input and submitted with Enter, which also exercises the form. Commit hashes are deterministic per session, and emulateMedia({ reducedMotion: 'reduce' }) turns off the transform transitions and pop animation so clicks never land on a moving node.",
+    "coverage": [
+      "Branch, commit and fast-forward merge from the CLI; already-up-to-date",
+      "Two-parent merge commit, --no-ff, merge titles, undo",
+      "Make-main-linear challenge via buttons: rebase replays 2 commits, originals become unreachable, fast-forward",
+      "Move-a-commit challenge: select, cherry-pick, reset --hard; empty cherry-pick refused",
+      "Detached HEAD, left-behind warning, error handling without mutation, tagging a selected commit, main~1",
+      "Release challenge with --no-ff and tag; persistence of progress"
+    ]
+  },
+  "a11y": "Every station is a focusable SVG button whose label gives the hash, message, branches, HEAD and reachability, selectable with Enter or Space. The terminal is a labelled form with a role=log live output and ↑/↓ history, the buttons mirror each command with a visible CLI equivalent, and challenge status is announced politely."
+}

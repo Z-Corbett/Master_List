@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paper Planes — design, fold and throw</title>
+<meta name="description" content="Design a paper plane (wing span, sweep, paper-clip nose weight and fold style) and throw it in a 2D side-view flight sim with a simplified lift, drag and gravity model. Wind gusts, stalls and loops; distance and hang-time scoring, a ghost of your best flight, and four target challenges.">
+<style>
+  :root {
+    --sky: #e3f1fb;
+    --sky-2: #cfe6f6;
+    --paper: #fffdf7;
+    --graphite: #2e3440;
+    --graphite-2: #5b6474;
+    --rule: #b9d3ea;
+    --margin: #f28b82;
+    --red: #e4572e;
+    --yellow: #ffc857;
+    --green: #3a9d6a;
+    --hand: "Segoe Print", "Bradley Hand", "Comic Neue", "Chalkboard SE", "Marker Felt", cursive;
+    --sans: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    --mono: ui-monospace, Consolas, Menlo, monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { color: var(--graphite); font: 15px/1.5 var(--sans); overflow-x: hidden; background: var(--paper);
+    background-image: linear-gradient(90deg, transparent 54px, var(--margin) 54px 56px, transparent 56px), linear-gradient(var(--rule) 1px, transparent 1px); background-size: 100% 100%, 100% 30px; }
+  :focus-visible { outline: 3px solid var(--red); outline-offset: 2px; }
+  button, input { font: inherit; color: inherit; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 30; font: 700 13px/1 var(--hand); color: var(--graphite); background: var(--yellow); padding: 8px 12px; text-decoration: none; border-radius: 2px;
+    box-shadow: 2px 2px 0 var(--graphite); transform: rotate(-1.5deg); }
+  a.back:hover { background: #ffd98a; }
+
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 60px 18px 40px 72px; }
+  header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 10px 24px; margin-bottom: 14px; }
+  header > * { min-width: 0; }
+  h1 { margin: 0; font: 700 clamp(34px, 6.5vw, 64px)/1.05 var(--hand); transform: rotate(-1deg); }
+  h1 span { color: var(--red); }
+  header p { margin: 6px 0 0; max-width: 58ch; color: var(--graphite-2); }
+  .records { display: flex; gap: 10px; flex-wrap: wrap; }
+  .sticky { background: var(--yellow); padding: 8px 12px; box-shadow: 2px 3px 0 rgba(46,52,64,.25); min-width: 0; transform: rotate(1deg); }
+  .sticky:nth-child(2) { background: #bfe3c9; transform: rotate(-1deg); }
+  .sticky span { display: block; font: 700 11px/1.2 var(--sans); letter-spacing: .1em; text-transform: uppercase; }
+  .sticky b { font: 700 20px/1.2 var(--hand); }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 18px; align-items: start; }
+  .field-card { background: var(--sky); border: 2px solid var(--graphite); border-radius: 6px; overflow: hidden; position: relative; min-width: 0; }
+  #sky { display: block; width: 100%; height: auto; aspect-ratio: 16 / 8; touch-action: none; cursor: crosshair; }
+  .hud { position: absolute; left: 10px; top: 10px; font: 700 13px/1.4 var(--mono); background: rgba(255,253,247,.85); padding: 6px 10px; border: 1.5px solid var(--graphite); border-radius: 4px; }
+  .event { position: absolute; right: 10px; top: 10px; font: 700 16px/1.2 var(--hand); color: var(--red); background: rgba(255,253,247,.9); padding: 4px 10px; border-radius: 4px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 12px; border-top: 2px solid var(--graphite); background: var(--paper); }
+  .bar > * { min-width: 0; }
+  .throw { min-height: 48px; padding: 0 26px; border: 2px solid var(--graphite); background: var(--red); color: #fff; font: 700 20px/1 var(--hand); border-radius: 4px; cursor: pointer; box-shadow: 3px 3px 0 var(--graphite); }
+  .throw:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--graphite); }
+  .throw:disabled { opacity: .5; cursor: not-allowed; }
+  .btn { min-height: 40px; padding: 0 12px; border: 2px solid var(--graphite); background: var(--paper); border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 13.5px; }
+  .btn[aria-pressed="true"] { background: var(--graphite); color: var(--paper); }
+  .aim { flex: 1 1 260px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 14px; }
+  .mini { display: grid; gap: 0; font-size: 12.5px; font-weight: 600; color: var(--graphite-2); min-width: 0; }
+  .mini label { display: flex; justify-content: space-between; gap: 6px; }
+  .mini output { font-family: var(--mono); color: var(--graphite); }
+  input[type=range] { width: 100%; max-width: 100%; accent-color: var(--red); min-height: 26px; }
+
+  .sheet { background: var(--paper); border: 2px solid var(--graphite); border-radius: 6px; padding: 14px 16px; min-width: 0; box-shadow: 4px 4px 0 rgba(46,52,64,.15); }
+  .sheet + .sheet { margin-top: 16px; }
+  .sheet h2 { margin: 0 0 10px; font: 700 22px/1.1 var(--hand); }
+  .styles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-bottom: 10px; }
+  .styles button { border: 2px solid var(--graphite); background: #fff; border-radius: 4px; padding: 6px 2px; cursor: pointer; font: 700 14px/1.1 var(--hand); min-height: 44px; }
+  .styles button small { display: block; font: 500 10.5px/1.2 var(--sans); color: var(--graphite-2); }
+  .styles button[aria-pressed="true"] { background: var(--yellow); }
+  #preview { display: block; width: 100%; height: 130px; margin: 2px 0 8px; }
+  .field { display: grid; gap: 2px; margin-bottom: 8px; min-width: 0; }
+  .field label, .field .lbl { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 600; color: var(--graphite-2); }
+  .field output { font-family: var(--mono); color: var(--graphite); }
+  .clips { display: flex; gap: 6px; }
+  .clips button { flex: 1; min-height: 38px; border: 2px solid var(--graphite); background: #fff; border-radius: 4px; cursor: pointer; font: 700 14px/1 var(--mono); }
+  .clips button[aria-pressed="true"] { background: var(--graphite); color: var(--paper); }
+  .derived { font: 12.5px/1.5 var(--mono); color: var(--graphite-2); margin-top: 6px; }
+
+  .results { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-top: 16px; }
+  .results div { background: #fff; border: 2px solid var(--graphite); border-radius: 4px; padding: 6px 10px; min-width: 0; }
+  .results span { display: block; font: 700 10.5px/1.2 var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--graphite-2); }
+  .results b { font: 700 20px/1.3 var(--mono); overflow-wrap: anywhere; }
+  .challenges { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .challenges li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 8px; align-items: start; font-size: 13.5px; }
+  .challenges .box { width: 24px; height: 24px; border: 2px solid var(--graphite); border-radius: 3px; display: grid; place-items: center; font: 700 17px/1 var(--hand); color: var(--green); background: #fff; }
+  .challenges b { display: block; font: 700 15px/1.2 var(--hand); }
+  .challenges li.done b { text-decoration: line-through; text-decoration-color: var(--green); }
+  .model { margin-top: 18px; font-size: 13.5px; color: var(--graphite-2); border-left: 4px solid var(--yellow); padding: 6px 12px; background: rgba(255,200,87,.12); }
+  .model b { color: var(--graphite); }
+  footer { margin-top: 20px; text-align: center; font-size: 12.5px; color: var(--graphite-2); }
+
+  @media (max-width: 960px) { .layout { grid-template-columns: minmax(0, 1fr); } .results { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (max-width: 560px) {
+    body { background-image: linear-gradient(var(--rule) 1px, transparent 1px); background-size: 100% 30px; }
+    .wrap { padding: 56px 12px 30px; } .results { grid-template-columns: repeat(2, minmax(0, 1fr)); } #sky { aspect-ratio: 4 / 3; }
+    .aim { grid-template-columns: minmax(0, 1fr); flex-basis: 100%; }
+    .event { top: 50px; left: 10px; right: auto; font-size: 14px; max-width: calc(100% - 20px); }
+  }
+  @media (prefers-reduced-motion: reduce) { .throw:active { transform: none; } }
+</style>
+</head>
+<body>
+<a href="../index.html#lab" class="back" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Paper <span>Planes</span></h1>
+      <p>Fold it, weight the nose, pick your launch angle and throw it across the gym. Beat your best distance, then try the challenges.</p>
+    </div>
+    <div class="records">
+      <div class="sticky"><span>Best distance</span><b data-testid="best">—</b></div>
+      <div class="sticky"><span>Throws</span><b data-testid="throws">0</b></div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <div style="min-width:0">
+      <div class="field-card">
+        <canvas id="sky" data-testid="sky" role="img" aria-label="Side view of the gym" tabindex="0"></canvas>
+        <div class="hud" id="hud" data-testid="hud">Ready</div>
+        <div class="event" id="event" data-testid="event" hidden></div>
+        <div class="bar">
+          <button class="throw" id="throw" data-testid="throw">Throw!</button>
+          <div class="aim">
+            <div class="mini"><label for="angle">Launch angle <output id="angle-out" data-testid="angle-out">10°</output></label><input type="range" id="angle" data-testid="angle" min="-10" max="50" step="1" value="10"></div>
+            <div class="mini"><label for="speed">Throw speed <output id="speed-out" data-testid="speed-out">7.0 m/s</output></label><input type="range" id="speed" data-testid="speed" min="3" max="14" step="0.5" value="7"></div>
+          </div>
+          <button class="btn" id="ghost" data-testid="ghost" aria-pressed="true">Ghost</button>
+          <button class="btn" id="instant" data-testid="instant" aria-pressed="false">Instant</button>
+        </div>
+      </div>
+      <section class="results" aria-live="polite" data-testid="results">
+        <div><span>Distance</span><b data-testid="distance">—</b></div>
+        <div><span>Hang time</span><b data-testid="hang">—</b></div>
+        <div><span>Max height</span><b data-testid="height">—</b></div>
+        <div><span>Loops</span><b data-testid="loops">—</b></div>
+        <div><span>Stalls</span><b data-testid="stalls">—</b></div>
+      </section>
+      <div class="model" data-testid="model-note"><b>A simplified flight model.</b> Lift and drag grow with the square of airspeed and follow a basic lift curve that stalls past about 14–18° angle of attack. Gravity pulls the plane down, and the plane pitches toward a trim angle set by fold style and nose weight. It is tuned to feel like a paper plane, not to predict one. Wind is a seeded breeze with gusts.</div>
+    </div>
+
+    <aside>
+      <section class="sheet">
+        <h2>Design</h2>
+        <div class="styles" role="group" aria-label="Fold style">
+          <button type="button" data-style="dart" data-testid="style-dart" aria-pressed="true">Dart<small>fast, straight</small></button>
+          <button type="button" data-style="glider" data-testid="style-glider" aria-pressed="false">Glider<small>gentle throws</small></button>
+          <button type="button" data-style="stunt" data-testid="style-stunt" aria-pressed="false">Stunt<small>flaps up</small></button>
+        </div>
+        <svg id="preview" data-testid="preview" viewBox="0 0 300 130" role="img" aria-label="Top view of the plane"></svg>
+        <div class="field"><label for="span">Wing span <output id="span-out" data-testid="span-out">20 cm</output></label><input type="range" id="span" data-testid="span" min="12" max="30" step="1" value="20"></div>
+        <div class="field"><label for="sweep">Wing sweep <output id="sweep-out" data-testid="sweep-out">20°</output></label><input type="range" id="sweep" data-testid="sweep" min="0" max="45" step="1" value="20"></div>
+        <div class="field"><span class="lbl" id="clip-lbl">Paper clips on the nose</span>
+          <div class="clips" role="group" aria-labelledby="clip-lbl">
+            <button type="button" data-c="0" data-testid="clips-0" aria-pressed="false">0</button><button type="button" data-c="1" data-testid="clips-1" aria-pressed="true">1</button><button type="button" data-c="2" data-testid="clips-2" aria-pressed="false">2</button><button type="button" data-c="3" data-testid="clips-3" aria-pressed="false">3</button>
+          </div>
+        </div>
+        <div class="derived" id="derived" data-testid="derived"></div>
+      </section>
+      <section class="sheet">
+        <h2>Challenges</h2>
+        <ul class="challenges" id="challenges" data-testid="challenges"></ul>
+        <p class="derived" id="wind" data-testid="wind" style="margin:10px 0 0"></p>
+      </section>
+    </aside>
+  </div>
+  <footer>Seed <span data-testid="seed" id="seed"></span> · add <code>?seed=</code> for a different breeze · best flights are kept in this browser only.</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function makeNoise(seed) { const r = mulberry32(seed), T = new Float32Array(256); for (let i = 0; i < 256; i++) T[i] = r() * 2 - 1; return (x) => { const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f); return T[i & 255] + (T[(i + 1) & 255] - T[i & 255]) * u; }; }
+  const qs = new URLSearchParams(location.search);
+  let SEED = parseInt(qs.get('seed'), 10); if (!Number.isFinite(SEED)) SEED = 1 + Math.floor(Math.random() * 9999);
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+  const $ = (id) => document.getElementById(id) || document.querySelector(`[data-testid="${id}"]`);
+  const KEY = `paper-planes-best-v1-${SEED}`;
+
+  // ---------- simplified aerodynamics ----------
+  const RHO = 1.2, G = 9.81, DT = 1 / 240, HAND = 1.8, NET_X = 8, NET_H = 2.43;
+  const STYLES = {
+    dart: { chord: 0.09, cd0: 0.03, stall: 18, trim: 0.05, label: 'Dart' },
+    glider: { chord: 0.12, cd0: 0.04, stall: 14, trim: 0.075, label: 'Glider' },
+    stunt: { chord: 0.11, cd0: 0.06, stall: 16, trim: 0.34, label: 'Stunt' },
+  };
+  const rng = mulberry32(SEED * 911 + 7);
+  const WIND = { base: Math.round((rng() * 2.4 - 1.2) * 10) / 10, gust: 0.4 + rng() * 0.6 };
+  const gustNoise = makeNoise(SEED * 13 + 1);
+
+  function derive(d) {
+    const st = STYLES[d.style], spanM = d.span / 100, A = spanM * st.chord, AR = spanM * spanM / A;
+    const sw = d.sweep * Math.PI / 180;
+    const cla = 2 * Math.PI * AR / (AR + 2) * Math.cos(sw);
+    const k = 1 / (Math.PI * 0.8 * AR);
+    const mass = 0.005 + 0.001 * d.clips;
+    const stab = 0.6 + 0.45 * d.clips + 0.5 * d.sweep / 45 + (d.style === 'glider' ? 0.6 : 0);
+    const trim = st.trim - 0.035 * d.clips + 0.02 * (1 - d.sweep / 45);
+    const stall = st.stall * Math.PI / 180;
+    return { A, AR, cla, k, mass, stab, trim, stall, damp: d.style === 'stunt' ? 7 : 13, cd0: st.cd0 + 0.004 * d.clips, clmax: cla * stall };
+  }
+  function wind(t) { return WIND.base + gustNoise(t * 0.7) * WIND.gust; }
+
+  /** Deterministic flight: returns the path and scoring. */
+  function simulate(design, launch) {
+    const p = derive(design);
+    const a0 = launch.angle * Math.PI / 180;
+    let x = 0.3, y = HAND, vx = launch.speed * Math.cos(a0), vy = launch.speed * Math.sin(a0), th = a0, w = 0, t = 0;
+    let maxY = y, rot = 0, loops = 0, stalls = 0, inStall = false, netOk = null, prevX = x;
+    const path = [{ t: 0, x, y, th }], events = [];
+    while (t < 40) {
+      const ax_ = vx - wind(t), ay_ = vy, V = Math.hypot(ax_, ay_) || 1e-6;
+      const gamma = Math.atan2(ay_, ax_);
+      let alpha = th - gamma; alpha = Math.atan2(Math.sin(alpha), Math.cos(alpha));
+      const q = 0.5 * RHO * V * V;
+      const aa = Math.abs(alpha);
+      let CL, CD;
+      if (aa <= p.stall) { CL = p.cla * alpha; CD = p.cd0 + p.k * CL * CL; }
+      else { const over = Math.min(1, (aa - p.stall) / 0.35); CL = Math.sign(alpha) * p.clmax * (1 - 0.6 * over); CD = p.cd0 + p.k * CL * CL + 1.2 * Math.sin(aa) ** 2; }
+      const stalled = aa > p.stall && V > 1;
+      if (stalled && !inStall) { stalls++; events.push({ t, kind: 'stall' }); }
+      inStall = stalled;
+      const L = q * p.A * CL, D = q * p.A * CD;
+      // lift is perpendicular to the relative wind, drag opposite to it
+      const ux = ax_ / V, uy = ay_ / V;
+      const fx = -D * ux - L * uy, fy = -D * uy + L * ux - p.mass * G;
+      vx += fx / p.mass * DT; vy += fy / p.mass * DT;
+      // pitch: a spring toward the trim angle of attack, stiffer with airspeed, plus damping
+      const qn = Math.min(4, q / (0.5 * RHO * 25));
+      const acc = -60 * p.stab * qn * (alpha - p.trim) - p.damp * Math.sqrt(qn + 0.05) * w;
+      w += acc * DT; const dth = w * DT; th += dth; rot += dth;
+      if (rot >= Math.PI * 2) { loops++; rot -= Math.PI * 2; events.push({ t, kind: 'loop' }); }
+      if (rot < -Math.PI * 2) rot += Math.PI * 2;
+      x += vx * DT; y += vy * DT; t += DT;
+      if (netOk === null && prevX < NET_X && x >= NET_X) netOk = y > NET_H;
+      prevX = x;
+      if (y > maxY) maxY = y;
+      if (Math.round(t / DT) % 8 === 0) path.push({ t, x, y, th });
+      if (y <= 0) { y = 0; break; }
+    }
+    path.push({ t, x, y: Math.max(0, y), th });
+    const distance = Math.max(0, x);
+    return { distance: +distance.toFixed(2), hang: +t.toFixed(2), maxY: +maxY.toFixed(2), loops, stalls, netOk: netOk === true, path, events, design: { ...design }, launch: { ...launch } };
+  }
+
+  // ---------- challenges ----------
+  const CHALLENGES = [
+    { id: 'bullseye', name: 'Bullseye', text: 'Land in the hoop zone between 12 and 14 m.', test: (r) => r.distance >= 12 && r.distance <= 14 },
+    { id: 'hang', name: 'Hang time', text: 'Stay in the air for at least 3.5 seconds.', test: (r) => r.hang >= 3.5 },
+    { id: 'loop', name: 'Loop the loop', text: 'Fly a full loop and still land 3 m or more away.', test: (r) => r.loops >= 1 && r.distance >= 3 },
+    { id: 'net', name: 'Over the net', text: `Clear the ${NET_H} m volleyball net at ${NET_X} m and land past it.`, test: (r) => r.netOk && r.distance > NET_X },
+  ];
+
+  // ---------- state ----------
+  const S = { design: { style: 'dart', span: 20, sweep: 20, clips: 1 }, launch: { angle: 10, speed: 7 }, throws: 0, best: null, last: null, flying: null, ghost: true, instant: false, done: {} };
+  try { const raw = localStorage.getItem(KEY); if (raw) { const b = JSON.parse(raw); if (b && b.best) S.best = b.best; if (b && b.done) S.done = b.done; } } catch (e) { /* storage unavailable */ }
+  function persist() { try { localStorage.setItem(KEY, JSON.stringify({ best: S.best, done: S.done })); } catch (e) { /* ignore */ } }
+
+  // ---------- UI: design ----------
+  function renderPreview() {
+    const d = S.design, cx = 150, nose = 8, len = 80 + (d.style === 'dart' ? 14 : 0), half = d.span * 4.2;
+    const sw = Math.tan(d.sweep * Math.PI / 180), tipY = nose + Math.min(len - 18, 10 + half * sw), tail = nose + len;
+    const tipChord = d.style === 'glider' ? 34 : d.style === 'stunt' ? 26 : 14;
+    const wing = (s) => `M${cx},${nose} L${cx + s * half},${tipY} L${cx + s * half},${Math.min(tail, tipY + tipChord)} L${cx + s * 10},${tail} L${cx},${tail - 4} Z`;
+    let g = `<path d="${wing(-1)}" fill="#fff" stroke="#2e3440" stroke-width="2"/><path d="${wing(1)}" fill="#fff" stroke="#2e3440" stroke-width="2"/>`;
+    g += `<line x1="${cx}" y1="${nose}" x2="${cx}" y2="${tail}" stroke="#2e3440" stroke-width="2"/>`;
+    g += `<line x1="${cx - 5}" y1="${nose + 12}" x2="${cx - half * 0.55}" y2="${tail - 6}" stroke="#9aa3b2" stroke-dasharray="4 3"/><line x1="${cx + 5}" y1="${nose + 12}" x2="${cx + half * 0.55}" y2="${tail - 6}" stroke="#9aa3b2" stroke-dasharray="4 3"/>`;
+    if (d.style === 'stunt') for (const s of [-1, 1]) g += `<rect x="${cx + s * half - (s > 0 ? 16 : 0)}" y="${Math.min(tail, tipY + tipChord) - 8}" width="16" height="8" fill="#ffc857" stroke="#2e3440" stroke-width="1.5"/>`;
+    for (let i = 0; i < d.clips; i++) g += `<rect x="${cx - 4 + (i - (d.clips - 1) / 2) * 9}" y="${nose + 4}" width="7" height="16" rx="3" fill="none" stroke="#e4572e" stroke-width="2"/>`;
+    g += `<text x="8" y="124" font-size="11" fill="#5b6474" font-family="Segoe UI, sans-serif">${d.span} cm span · ${d.sweep}° sweep</text>`;
+    $('preview').innerHTML = g;
+    $('preview').setAttribute('aria-label', `Top view: ${STYLES[d.style].label}, ${d.span} cm span, ${d.sweep} degree sweep, ${d.clips} paper clip${d.clips === 1 ? '' : 's'}`);
+    const p = derive(d);
+    $('derived').innerHTML = `wing area ${(p.A * 1e4).toFixed(0)} cm² · aspect ratio ${p.AR.toFixed(1)}<br>mass ${(p.mass * 1000).toFixed(0)} g · stability ${p.stab.toFixed(2)} · trim ${(p.trim * 180 / Math.PI).toFixed(1)}°`;
+  }
+  function syncDesign() {
+    const d = S.design;
+    document.querySelectorAll('[data-style]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.style === d.style)));
+    document.querySelectorAll('[data-c]').forEach((b) => b.setAttribute('aria-pressed', String(+b.dataset.c === d.clips)));
+    $('span').value = d.span; $('sweep').value = d.sweep; $('span-out').textContent = `${d.span} cm`; $('sweep-out').textContent = `${d.sweep}°`;
+    $('angle').value = S.launch.angle; $('speed').value = S.launch.speed; $('angle-out').textContent = `${S.launch.angle}°`; $('speed-out').textContent = `${S.launch.speed.toFixed(1)} m/s`;
+    renderPreview(); draw(performance.now());
+  }
+  document.querySelectorAll('[data-style]').forEach((b) => b.addEventListener('click', () => { S.design.style = b.dataset.style; syncDesign(); }));
+  document.querySelectorAll('[data-c]').forEach((b) => b.addEventListener('click', () => { S.design.clips = +b.dataset.c; syncDesign(); }));
+  $('span').addEventListener('input', (e) => { S.design.span = +e.target.value; syncDesign(); });
+  $('sweep').addEventListener('input', (e) => { S.design.sweep = +e.target.value; syncDesign(); });
+  $('angle').addEventListener('input', (e) => { S.launch.angle = +e.target.value; syncDesign(); });
+  $('speed').addEventListener('input', (e) => { S.launch.speed = +e.target.value; syncDesign(); });
+  $('ghost').addEventListener('click', () => { S.ghost = !S.ghost; $('ghost').setAttribute('aria-pressed', String(S.ghost)); draw(performance.now()); });
+  $('instant').addEventListener('click', () => { S.instant = !S.instant; $('instant').setAttribute('aria-pressed', String(S.instant)); });
+
+  function renderChallenges() {
+    $('challenges').innerHTML = CHALLENGES.map((c) => `<li class="${S.done[c.id] ? 'done' : ''}" data-testid="ch-${c.id}" data-done="${!!S.done[c.id]}"><span class="box" aria-hidden="true">${S.done[c.id] ? '✓' : ''}</span><div><b>${c.name}</b>${c.text}<span class="sr" style="position:absolute;left:-9999px">${S.done[c.id] ? ' Completed.' : ' Not yet.'}</span></div></li>`).join('');
+    $('wind').textContent = `Today's breeze: ${WIND.base === 0 ? 'calm' : `${Math.abs(WIND.base).toFixed(1)} m/s ${WIND.base > 0 ? 'tailwind' : 'headwind'}`}, gusting ±${WIND.gust.toFixed(1)} m/s.`;
+  }
+
+  // ---------- throwing ----------
+  function throwPlane() {
+    if (S.flying) return null;
+    const r = simulate(S.design, S.launch);
+    S.throws++; $('throws').textContent = String(S.throws);
+    if (S.instant || reduced.matches) { land(r); return r; }
+    S.flying = { r, t0: performance.now() };
+    $('throw').disabled = true; $('hud').textContent = 'Wheee…';
+    requestAnimationFrame(tick);
+    return r;
+  }
+  function land(r) {
+    S.flying = null; S.last = r; $('throw').disabled = false;
+    const newBest = !S.best || r.distance > S.best.distance;
+    if (newBest) S.best = { distance: r.distance, hang: r.hang, path: r.path.filter((_, i) => i % 2 === 0).map((p) => [+p.x.toFixed(3), +p.y.toFixed(3), +p.th.toFixed(3), +p.t.toFixed(3)]), design: r.design, launch: r.launch };
+    const got = [];
+    for (const c of CHALLENGES) if (!S.done[c.id] && c.test(r)) { S.done[c.id] = true; got.push(c.name); }
+    persist();
+    $('distance').textContent = `${r.distance.toFixed(2)} m`;
+    $('hang').textContent = `${r.hang.toFixed(2)} s`;
+    $('height').textContent = `${r.maxY.toFixed(2)} m`;
+    $('loops').textContent = String(r.loops);
+    $('stalls').textContent = String(r.stalls);
+    $('best').textContent = `${S.best.distance.toFixed(2)} m`;
+    $('hud').textContent = `Landed at ${r.distance.toFixed(2)} m after ${r.hang.toFixed(2)} s`;
+    const ev = $('event');
+    const msgs = [];
+    if (newBest) msgs.push('New best!');
+    if (got.length) msgs.push(`Challenge: ${got.join(', ')}!`);
+    ev.textContent = msgs.join(' '); ev.hidden = !msgs.length;
+    renderChallenges(); draw(performance.now());
+    $('sky').setAttribute('aria-label', `Last throw: ${r.distance.toFixed(2)} metres, ${r.hang.toFixed(2)} seconds aloft, ${r.loops} loops, ${r.stalls} stalls. Best ${S.best.distance.toFixed(2)} metres.`);
+  }
+  function tick(now) {
+    if (!S.flying) return;
+    const ft = (now - S.flying.t0) / 1000;
+    draw(now, ft);
+    const r = S.flying.r;
+    const cur = sampleAt(r.path, ft);
+    $('hud').textContent = `${cur.x.toFixed(1)} m · ${cur.y.toFixed(1)} m high · ${ft.toFixed(1)} s`;
+    if (ft >= r.hang) { land(r); return; }
+    requestAnimationFrame(tick);
+  }
+  function sampleAt(path, t) {
+    if (!path.length) return { x: 0, y: 0, th: 0 };
+    let i = 0; while (i < path.length - 1 && path[i + 1].t < t) i++;
+    const a = path[i], b = path[Math.min(path.length - 1, i + 1)], f = b.t > a.t ? Math.min(1, Math.max(0, (t - a.t) / (b.t - a.t))) : 0;
+    return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, th: a.th + (b.th - a.th) * f };
+  }
+  $('throw').addEventListener('click', throwPlane);
+  addEventListener('keydown', (e) => { if (e.code === 'Space' && document.activeElement === $('sky')) { e.preventDefault(); throwPlane(); } });
+
+  // drag on the field to aim: direction sets the angle, length sets the speed
+  let drag = null;
+  $('sky').addEventListener('pointerdown', (e) => { if (S.flying) return; drag = { x: e.clientX, y: e.clientY }; $('sky').setPointerCapture(e.pointerId); });
+  $('sky').addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const dx = drag.x - e.clientX, dy = e.clientY - drag.y; // pull back like a slingshot
+    if (Math.hypot(dx, dy) < 8) return;
+    S.launch.angle = Math.max(-10, Math.min(50, Math.round(Math.atan2(dy, Math.max(1, dx)) * 180 / Math.PI)));
+    S.launch.speed = Math.max(3, Math.min(14, Math.round((3 + Math.hypot(dx, dy) / 18) * 2) / 2));
+    syncDesign();
+  });
+  $('sky').addEventListener('pointerup', (e) => { if (!drag) return; const moved = Math.hypot(drag.x - e.clientX, drag.y - e.clientY) >= 8; drag = null; if (moved) throwPlane(); });
+
+  // ---------- drawing ----------
+  const cv = $('sky'), ctx = cv.getContext('2d');
+  let W = 0, H = 0;
+  function size() { const dpr = Math.min(2, devicePixelRatio || 1), r = cv.getBoundingClientRect(); W = r.width; H = r.height; cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); }
+  function drawPlane(x, y, th, alpha, col = '#fff') {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(-th); ctx.globalAlpha = alpha;
+    ctx.fillStyle = col; ctx.strokeStyle = '#2e3440'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(16, 0); ctx.lineTo(-14, -3); ctx.lineTo(-12, 4); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(-13, -8); ctx.lineTo(-10, -2); ctx.closePath(); ctx.fillStyle = alpha < 1 ? col : '#eef4fb'; ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+  function draw(now, ft) {
+    if (!W) size();
+    const viewM = W < 520 ? 14 : 22, sc = W / viewM, ground = H - 34;
+    let camX;
+    const r = S.flying ? S.flying.r : null;
+    const cur = r ? sampleAt(r.path, ft) : null;
+    camX = -0.8;
+    if (cur) camX = Math.max(-0.8, cur.x - viewM * 0.35);
+    else if (S.last) camX = Math.max(-0.8, Math.min(S.last.distance - viewM * 0.6, S.last.distance - 2));
+    const X = (m) => (m - camX) * sc, Y = (m) => ground - m * sc;
+    // sky & gym wall
+    const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#d6ebfa'); g.addColorStop(1, '#f3f9fd'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = 'rgba(46,52,64,.07)'; ctx.lineWidth = 1;
+    for (let m = Math.floor(camX); m < camX + viewM + 1; m++) { ctx.beginPath(); ctx.moveTo(X(m), 0); ctx.lineTo(X(m), ground); ctx.stroke(); }
+    for (let h = 1; h < 12; h++) { ctx.beginPath(); ctx.moveTo(0, Y(h)); ctx.lineTo(W, Y(h)); ctx.stroke(); }
+    // floor with distance marks
+    ctx.fillStyle = '#e9c98f'; ctx.fillRect(0, ground, W, H - ground);
+    ctx.fillStyle = '#d7b273'; for (let m = Math.floor(camX); m < camX + viewM + 1; m++) ctx.fillRect(X(m), ground, 1, 8);
+    ctx.font = '600 12px Segoe UI, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#6b5530';
+    for (let m = Math.ceil(camX / 5) * 5; m < camX + viewM + 1; m += 5) { ctx.fillRect(X(m) - 1, ground, 2, 14); ctx.fillText(`${m} m`, X(m), ground + 27); }
+    // hoop zone
+    ctx.fillStyle = 'rgba(228,87,46,.18)'; ctx.fillRect(X(12), ground - 3, 2 * sc, 6); ctx.strokeStyle = '#e4572e'; ctx.lineWidth = 2; ctx.strokeRect(X(12), ground - 3, 2 * sc, 6);
+    ctx.fillStyle = '#e4572e'; ctx.font = '700 13px "Segoe Print", cursive'; ctx.fillText('hoop zone', X(13), ground - 10);
+    // net
+    ctx.strokeStyle = '#2e3440'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(X(NET_X), ground); ctx.lineTo(X(NET_X), Y(NET_H)); ctx.stroke();
+    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(46,52,64,.45)';
+    for (let h = NET_H - 0.9; h <= NET_H + 0.01; h += 0.15) { ctx.beginPath(); ctx.moveTo(X(NET_X) - 3, Y(h)); ctx.lineTo(X(NET_X) + 3, Y(h)); ctx.stroke(); }
+    ctx.fillStyle = '#fff'; ctx.fillRect(X(NET_X) - 4, Y(NET_H) - 2, 8, 4);
+    // thrower
+    const tx = X(0.1);
+    ctx.strokeStyle = '#2e3440'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(tx, Y(1.62), 0.12 * sc, 0, 7); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(tx, Y(1.5)); ctx.lineTo(tx, Y(0.9)); ctx.lineTo(tx - 0.2 * sc, ground); ctx.moveTo(tx, Y(0.9)); ctx.lineTo(tx + 0.2 * sc, ground); ctx.moveTo(tx, Y(1.35)); ctx.lineTo(X(0.3), Y(HAND)); ctx.stroke();
+    // aim guide when idle
+    if (!S.flying) {
+      const a = S.launch.angle * Math.PI / 180, len = S.launch.speed * 0.18 * sc;
+      ctx.setLineDash([5, 5]); ctx.strokeStyle = 'rgba(228,87,46,.8)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(X(0.3), Y(HAND)); ctx.lineTo(X(0.3) + Math.cos(a) * len, Y(HAND) - Math.sin(a) * len); ctx.stroke(); ctx.setLineDash([]);
+    }
+    // ghost of the best flight
+    if (S.ghost && S.best && S.best.path) {
+      ctx.strokeStyle = 'rgba(58,157,106,.45)'; ctx.lineWidth = 2; ctx.setLineDash([2, 5]); ctx.beginPath();
+      S.best.path.forEach(([x, y], i) => (i ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y)))); ctx.stroke(); ctx.setLineDash([]);
+      if (S.flying) { const gp = sampleAt(S.best.path.map(([x, y, th, t]) => ({ x, y, th, t })), ft); drawPlane(X(gp.x), Y(gp.y), gp.th, 0.35, '#bfe3c9'); }
+    }
+    // this flight's trail and plane
+    const trail = r ? r.path.filter((p) => p.t <= ft) : S.last ? S.last.path : null;
+    if (trail && trail.length) {
+      ctx.strokeStyle = '#2e3440'; ctx.lineWidth = 1.6; ctx.setLineDash([6, 5]); ctx.beginPath();
+      trail.forEach((p, i) => (i ? ctx.lineTo(X(p.x), Y(p.y)) : ctx.moveTo(X(p.x), Y(p.y)))); ctx.stroke(); ctx.setLineDash([]);
+    }
+    if (cur) drawPlane(X(cur.x), Y(cur.y), cur.th, 1);
+    else if (S.last) { const p = S.last.path[S.last.path.length - 1]; drawPlane(X(p.x), Y(0.05), 0, 1); }
+    else drawPlane(X(0.3), Y(HAND), S.launch.angle * Math.PI / 180, 1);
+    // wind sock
+    const wv = wind(ft || 0), sx = W - 40, sy = ground - 40;
+    ctx.strokeStyle = '#2e3440'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(sx, sy - 18); ctx.lineTo(sx, sy + 26); ctx.stroke();
+    ctx.fillStyle = '#e4572e'; ctx.beginPath(); const dir = Math.sign(wv) || 1, l = 10 + Math.min(30, Math.abs(wv) * 14);
+    ctx.moveTo(sx, sy - 16); ctx.lineTo(sx + dir * l, sy - 12); ctx.lineTo(sx + dir * l, sy - 6); ctx.lineTo(sx, sy - 2); ctx.fill();
+  }
+
+  // ---------- boot ----------
+  $('seed').textContent = '#' + SEED;
+  if (S.best) $('best').textContent = `${S.best.distance.toFixed(2)} m`;
+  size(); syncDesign(); renderChallenges();
+  addEventListener('resize', () => { size(); draw(performance.now(), S.flying ? (performance.now() - S.flying.t0) / 1000 : 0); });
+
+  window.__planes = {
+    get state() { return { design: { ...S.design }, launch: { ...S.launch }, throws: S.throws, best: S.best && { distance: S.best.distance, hang: S.best.hang, points: S.best.path.length }, done: { ...S.done }, flying: !!S.flying, last: S.last && { distance: S.last.distance, hang: S.last.hang, loops: S.last.loops, stalls: S.last.stalls, netOk: S.last.netOk, maxY: S.last.maxY } }; },
+    wind: { ...WIND },
+    simulate: (d, l) => { const r = simulate({ ...S.design, ...d }, { ...S.launch, ...l }); return { distance: r.distance, hang: r.hang, maxY: r.maxY, loops: r.loops, stalls: r.stalls, netOk: r.netOk, points: r.path.length }; },
+    set(d, l) { Object.assign(S.design, d || {}); Object.assign(S.launch, l || {}); syncDesign(); },
+    derive: (d) => derive({ ...S.design, ...d }),
+    challenges: CHALLENGES.map((c) => c.id),
+  };
+})();
+</script>
+</body>
+</html>

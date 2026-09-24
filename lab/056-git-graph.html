@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Git Graph Playground — Visual Git Sandbox</title>
+<meta name="description" content="A visual sandbox for git drawn like a transit map. Type commit, branch, checkout, switch, merge (including fast-forward), rebase, cherry-pick, reset --hard and tag, or use the buttons, and watch the commit graph, branch labels and HEAD move. Guided challenges and unlimited undo.">
+<style>
+  :root {
+    --paper: #f4f1e8;
+    --card: #fffdf7;
+    --ink: #1d1d1b;
+    --ink-2: #55534d;
+    --ink-3: #97948a;
+    --line: #dcd6c6;
+    --sign: #1d1d1b;
+    --l0: #e2231a; --l1: #0072bc; --l2: #00a650; --l3: #f7941d; --l4: #8e44ad; --l5: #00a3ad; --l6: #ec008c; --l7: #6d6e71;
+    --sans: "Helvetica Neue", Helvetica, Arial, "Liberation Sans", sans-serif;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--paper); color: var(--ink); font-family: var(--sans); line-height: 1.45; overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--l1); outline-offset: 2px; }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  input, select, pre { max-width: 100%; }
+  .back { position: fixed; top: 10px; left: 10px; z-index: 40; background: #fff; color: var(--ink); text-decoration: none; font: 700 12.5px/1 var(--sans); padding: 8px 12px; border-radius: 20px; border: 2px solid var(--ink); }
+  .back:hover { background: var(--ink); color: #fff; }
+  .wrap { max-width: 1260px; margin: 0 auto; padding: 60px 18px 60px; }
+
+  header.sign { background: var(--sign); color: #fff; border-radius: 10px; padding: 18px 22px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 24px; align-items: center; margin-bottom: 18px; }
+  h1 { margin: 0; font: 700 clamp(30px, 5vw, 58px)/1 var(--sans); letter-spacing: -.02em; }
+  .lede { margin: 6px 0 0; color: #cfcbc0; max-width: 70ch; font-size: 14.5px; }
+  .lines { display: flex; gap: 6px; }
+  .lines i { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font: 700 12px var(--sans); font-style: normal; color: #fff; }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 330px); gap: 18px; align-items: start; }
+  .panel { background: var(--card); border: 2px solid var(--ink); border-radius: 10px; min-width: 0; }
+  .ph { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 14px; border-bottom: 2px solid var(--ink); }
+  .ph h2 { margin: 0; font: 700 15px var(--sans); letter-spacing: .08em; text-transform: uppercase; }
+  .headpill { font: 700 12.5px var(--mono); background: var(--ink); color: #fff; border-radius: 14px; padding: 3px 10px; overflow-wrap: anywhere; }
+  .map { overflow: auto; max-width: 100%; max-height: 460px; background: linear-gradient(var(--card), var(--card)); }
+  svg#graph { display: block; }
+  .edge { fill: none; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
+  .edge.ghost { stroke-width: 3; stroke-dasharray: 3 6; opacity: .45; }
+  .node { cursor: pointer; transition: transform .35s ease; }
+  .node circle.st { fill: #fff; stroke-width: 5; }
+  .node.head circle.st { stroke-width: 6; }
+  .node.head circle.core { display: block; }
+  .node circle.core { display: none; }
+  .node.ghost { opacity: .35; }
+  .node.sel circle.ring { display: block; }
+  .node circle.ring { display: none; fill: none; stroke: var(--ink); stroke-width: 2; stroke-dasharray: 4 3; }
+  .node:focus { outline: none; }
+  .node:focus-visible circle.ring { display: block; stroke: var(--l1); }
+  .node text.h { font: 600 10px var(--mono); fill: var(--ink-3); text-anchor: middle; }
+  .node.new circle.st { animation: pop .4s ease; }
+  @keyframes pop { from { r: 2; } to { r: 11; } }
+  .ref rect { rx: 11; }
+  .ref text { font: 700 11.5px var(--sans); fill: #fff; dominant-baseline: central; }
+  .ref.tag rect { fill: #fff; stroke: var(--ink); stroke-width: 1.5; }
+  .ref.tag text { fill: var(--ink); }
+  .ref.headref rect { fill: var(--ink); }
+  .ref { transition: transform .35s ease; }
+
+  .actions { padding: 12px 14px; display: grid; gap: 10px; border-top: 2px solid var(--ink); }
+  .arow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .arow label { font: 700 11px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); display: flex; align-items: center; gap: 6px; }
+  .arow input, .arow select { border: 2px solid var(--line); border-radius: 8px; padding: 5px 8px; font: 13px var(--mono); background: #fff; min-width: 0; letter-spacing: 0; text-transform: none; }
+  .arow input { width: 140px; }
+  .arow select { max-width: 160px; }
+  .btn { border: 2px solid var(--ink); background: #fff; border-radius: 18px; padding: 5px 12px; font: 700 13px var(--sans); }
+  .btn:hover:not(:disabled) { background: var(--ink); color: #fff; }
+  .btn:disabled { opacity: .35; cursor: not-allowed; }
+  .btn.pri { background: var(--l0); border-color: var(--l0); color: #fff; }
+  .btn.pri:hover:not(:disabled) { background: var(--ink); border-color: var(--ink); }
+  .seldetail { font: 12.5px var(--mono); color: var(--ink-2); overflow-wrap: anywhere; }
+
+  .term { background: #141413; color: #e9e5da; border-radius: 0 0 8px 8px; font: 12.5px/1.55 var(--mono); }
+  .log { height: 190px; overflow: auto; padding: 10px 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .log .c { color: #7fd1ff; } .log .e { color: #ff8a80; } .log .ok { color: #9be39b; }
+  .prompt { display: flex; align-items: center; gap: 8px; border-top: 1px solid #333; padding: 8px 14px; }
+  .prompt span { color: #9be39b; white-space: nowrap; }
+  .prompt input { flex: 1; min-width: 0; background: transparent; border: 0; color: #fff; font: 13px var(--mono); padding: 4px 0; }
+  .prompt input:focus { outline: none; }
+  .prompt button { background: #333; color: #fff; border: 0; border-radius: 6px; padding: 4px 10px; font: 700 12px var(--sans); }
+
+  .side { display: grid; gap: 14px; min-width: 0; }
+  .ch { list-style: none; margin: 0; padding: 10px 14px; display: grid; gap: 8px; }
+  .ch li { border: 2px solid var(--line); border-radius: 10px; padding: 8px 10px; display: grid; gap: 4px; }
+  .ch li.active { border-color: var(--ink); background: #fff; }
+  .ch li.done { border-color: var(--l2); }
+  .ch .t { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-weight: 700; font-size: 14px; }
+  .ch .t .num { width: 22px; height: 22px; flex: none; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 11px; }
+  .ch p { margin: 0; font-size: 13px; color: var(--ink-2); }
+  .ch .st { font: 700 11px var(--sans); letter-spacing: .08em; text-transform: uppercase; }
+  .ch li.done .st { color: var(--l2); }
+  .goal { padding: 10px 14px; font-size: 13.5px; display: grid; gap: 6px; }
+  .goal .status { font: 700 13px var(--sans); padding: 6px 10px; border-radius: 8px; background: #f0ece0; }
+  .goal .status.solved { background: var(--l2); color: #fff; }
+  .goal details { font-size: 13px; }
+  .goal code, .ch code { font: 12px var(--mono); background: #efeadc; padding: 0 4px; border-radius: 4px; }
+  .legend { padding: 10px 14px; font-size: 12.5px; color: var(--ink-2); display: grid; gap: 4px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  @media (max-width: 980px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 560px) {
+    .wrap { padding-left: 12px; padding-right: 12px; }
+    header.sign { grid-template-columns: minmax(0, 1fr); padding: 14px 16px; }
+    .arow input { width: 110px; }
+    .arow select { max-width: 130px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .node, .ref { transition: none; } .node.new circle.st { animation: none; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="sign">
+    <div>
+      <h1>Git Graph Playground</h1>
+      <p class="lede">Every branch is a line, every commit a station. Type real git commands or press the buttons and watch the network redraw — fast-forwards, merge commits, rebases that copy stations onto a new line, cherry-picks and hard resets. Nothing here touches a real repository; <b>undo</b> is always one click away.</p>
+    </div>
+    <div class="lines" aria-hidden="true"><i style="background:var(--l0)">M</i><i style="background:var(--l1)">F</i><i style="background:var(--l2)">R</i><i style="background:var(--l3)">H</i></div>
+  </header>
+
+  <div class="layout">
+    <div>
+      <section class="panel" aria-labelledby="map-h">
+        <div class="ph">
+          <h2 id="map-h">Network map</h2>
+          <span class="headpill" id="headpill" data-testid="head"></span>
+        </div>
+        <div class="map" id="map" tabindex="-1"><svg id="graph" data-testid="graph" role="group" aria-label="Commit graph"></svg></div>
+        <div class="actions" role="group" aria-label="Actions">
+          <div class="arow">
+            <label>Message <input id="msg" data-testid="msg" placeholder="Add search" autocomplete="off"></label>
+            <button class="btn pri" type="button" id="b-commit" data-testid="btn-commit">Commit</button>
+            <button class="btn" type="button" id="b-undo" data-testid="undo">↶ Undo</button>
+            <button class="btn" type="button" id="b-reset" data-testid="reset-repo">Reset repo</button>
+          </div>
+          <div class="arow">
+            <label>Name <input id="name" data-testid="name" placeholder="feature" autocomplete="off"></label>
+            <button class="btn" type="button" id="b-branch" data-testid="btn-branch">Branch</button>
+            <button class="btn" type="button" id="b-switchc" data-testid="btn-switch-c">Switch -c</button>
+            <button class="btn" type="button" id="b-tag" data-testid="btn-tag">Tag</button>
+          </div>
+          <div class="arow">
+            <label>Branch <select id="target" data-testid="target"></select></label>
+            <button class="btn" type="button" id="b-switch" data-testid="btn-switch">Switch</button>
+            <button class="btn" type="button" id="b-merge" data-testid="btn-merge">Merge</button>
+            <button class="btn" type="button" id="b-rebase" data-testid="btn-rebase">Rebase onto</button>
+          </div>
+          <div class="arow">
+            <span class="seldetail" id="seldetail" data-testid="selected" aria-live="polite">Click a station to select a commit.</span>
+          </div>
+          <div class="arow">
+            <button class="btn" type="button" id="b-pick" data-testid="btn-cherry-pick" disabled>Cherry-pick selected</button>
+            <button class="btn" type="button" id="b-hard" data-testid="btn-reset-hard" disabled>Reset --hard to selected</button>
+            <button class="btn" type="button" id="b-detach" data-testid="btn-checkout-commit" disabled>Checkout selected</button>
+          </div>
+        </div>
+        <div class="term">
+          <div class="log" id="log" data-testid="terminal" aria-live="polite" role="log"></div>
+          <form class="prompt" id="prompt"><span aria-hidden="true">$ git</span><label class="sr" for="cmd">git command</label><input id="cmd" data-testid="cmd" autocomplete="off" spellcheck="false" placeholder="commit -m &quot;Add login&quot;"><button type="submit" data-testid="run">Run</button></form>
+        </div>
+      </section>
+    </div>
+
+    <div class="side">
+      <section class="panel" aria-labelledby="ch-h">
+        <div class="ph"><h2 id="ch-h">Challenges</h2><button class="btn" type="button" id="free" data-testid="free-play">Free play</button></div>
+        <ol class="ch" id="challenges"></ol>
+        <div class="goal" id="goal" data-testid="goal" hidden>
+          <div class="status" id="cstatus" data-testid="challenge-status" aria-live="polite"></div>
+          <details><summary>Hint</summary><p id="hint"></p></details>
+        </div>
+      </section>
+      <section class="panel" aria-labelledby="lg-h">
+        <div class="ph"><h2 id="lg-h">Reading the map</h2></div>
+        <div class="legend">
+          <span>● Filled station = where <b>HEAD</b> is. Black sign = HEAD.</span>
+          <span>Coloured signs = branches · white flags = tags.</span>
+          <span>Faded, dashed stations are no longer reachable from any branch, tag or HEAD — what a rebase or reset leaves behind.</span>
+          <span>Commands: <code>commit [-m "msg"]</code>, <code>branch [-d] name [start]</code>, <code>checkout [-b] name|hash</code>, <code>switch [-c] name</code>, <code>merge [--no-ff] name</code>, <code>rebase name</code>, <code>cherry-pick hash</code>, <code>reset --hard rev</code>, <code>tag name [rev]</code>, <code>log</code>, <code>undo</code>. Revisions accept <code>HEAD~2</code>, <code>main^</code>, <code>^2</code> and hash prefixes.</span>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const LANE_COLORS = ['var(--l0)', 'var(--l1)', 'var(--l2)', 'var(--l3)', 'var(--l4)', 'var(--l5)', 'var(--l6)', 'var(--l7)'];
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  // ---------- repository model ----------
+  function hashFor(n, salt) {
+    let h = (0x9e3779b9 ^ (n * 2654435761) ^ salt) >>> 0;
+    h = Math.imul(h ^ (h >>> 16), 2246822507) >>> 0; h = Math.imul(h ^ (h >>> 13), 3266489909) >>> 0; h = (h ^ (h >>> 16)) >>> 0;
+    return h.toString(16).padStart(8, '0').slice(0, 7);
+  }
+  function emptyRepo() { return { commits: {}, order: [], branches: {}, tags: {}, HEAD: { branch: 'main' }, lanes: { main: 0 }, nextLane: 1, n: 0, salt: 7 }; }
+  let R = emptyRepo();
+  function mk(repo, parents, msg, lane) {
+    let id; do { id = hashFor(repo.n++, repo.salt); } while (repo.commits[id]);
+    repo.commits[id] = { id, parents, msg, lane, n: repo.order.length };
+    repo.order.push(id);
+    return id;
+  }
+  const headId = (repo = R) => (repo.HEAD.branch ? repo.branches[repo.HEAD.branch] : repo.HEAD.detached);
+  function ancestors(id, repo = R) {
+    const seen = new Set(); const st = id ? [id] : [];
+    while (st.length) { const c = st.pop(); if (seen.has(c)) continue; seen.add(c); st.push(...repo.commits[c].parents); }
+    return seen;
+  }
+  const isAnc = (a, b) => ancestors(b).has(a);
+  function reachable() {
+    const s = new Set();
+    [...Object.values(R.branches), ...Object.values(R.tags), headId()].forEach((id) => ancestors(id).forEach((x) => s.add(x)));
+    return s;
+  }
+  function laneOf(name) { if (!(name in R.lanes)) R.lanes[name] = R.nextLane++; return R.lanes[name]; }
+  const short = (id) => `${id} ${R.commits[id].msg}`;
+
+  function resolve(rev) {
+    const m = /^(.+?)((?:[~^]\d*)*)$/.exec(rev.trim());
+    if (!m) throw new Error(`fatal: bad revision '${rev}'`);
+    let base = m[1], id;
+    if (base === 'HEAD' || base === '@') id = headId();
+    else if (R.branches[base]) id = R.branches[base];
+    else if (R.tags[base]) id = R.tags[base];
+    else {
+      const hits = /^[0-9a-f]{4,7}$/.test(base) ? R.order.filter((c) => c.startsWith(base)) : [];
+      if (hits.length === 1) id = hits[0];
+      else if (hits.length > 1) throw new Error(`error: short object ID ${base} is ambiguous`);
+      else throw new Error(`fatal: ambiguous argument '${rev}': unknown revision or path not in the working tree.`);
+    }
+    const ops = m[2].match(/[~^]\d*/g) || [];
+    for (const op of ops) {
+      const k = op.length > 1 ? Number(op.slice(1)) : 1;
+      if (op[0] === '~') { for (let i = 0; i < k; i++) { id = R.commits[id].parents[0]; if (!id) throw new Error(`fatal: '${rev}' goes past the root commit`); } }
+      else { if (k === 0) continue; id = R.commits[id].parents[k - 1]; if (!id) throw new Error(`fatal: '${rev}' has no parent ${k}`); }
+    }
+    return id;
+  }
+  const validName = (n) => /^(?!-)(?!.*\.\.)[A-Za-z0-9._\/-]+$/.test(n) && !n.endsWith('/') && !n.endsWith('.lock') && n !== 'HEAD';
+
+  // ---------- commands ----------
+  function tokens(line) {
+    const out = []; const re = /"([^"]*)"|'([^']*)'|(\S+)/g; let m;
+    while ((m = re.exec(line))) out.push(m[1] ?? m[2] ?? m[3]);
+    return out;
+  }
+  let commitCounter = 1;
+  function currentLane() { return R.HEAD.branch ? laneOf(R.HEAD.branch) : (R.commits[headId()] ? R.commits[headId()].lane : 0); }
+  function moveHead(id) { if (R.HEAD.branch) R.branches[R.HEAD.branch] = id; else R.HEAD.detached = id; }
+  const where = () => (R.HEAD.branch ? R.HEAD.branch : `detached HEAD ${headId()}`);
+
+  const CMDS = {
+    commit(args) {
+      let msg = null;
+      const i = args.findIndex((a) => a === '-m' || a === '--message');
+      if (i >= 0) msg = args[i + 1];
+      if (args.includes('--amend')) throw new Error('--amend is not supported in this playground; try reset --hard HEAD~1 and commit again');
+      if (!msg) msg = `Commit ${commitCounter}`;
+      commitCounter++;
+      const p = headId();
+      const id = mk(R, p ? [p] : [], msg, currentLane());
+      moveHead(id); fresh.add(id);
+      return `[${R.HEAD.branch || 'detached HEAD'} ${id}] ${msg}`;
+    },
+    branch(args) {
+      if (!args.length) return Object.keys(R.branches).map((b) => (b === R.HEAD.branch ? `* ${b}` : `  ${b}`)).join('\n');
+      if (args[0] === '-d' || args[0] === '-D') {
+        const n = args[1];
+        if (!R.branches[n]) throw new Error(`error: branch '${n}' not found.`);
+        if (R.HEAD.branch === n) throw new Error(`error: Cannot delete branch '${n}' checked out`);
+        if (args[0] === '-d' && !isAnc(R.branches[n], headId())) throw new Error(`error: The branch '${n}' is not fully merged.\nIf you are sure you want to delete it, run 'git branch -D ${n}'.`);
+        const id = R.branches[n]; delete R.branches[n];
+        return `Deleted branch ${n} (was ${id}).`;
+      }
+      const [n, start] = args;
+      if (!validName(n)) throw new Error(`fatal: '${n}' is not a valid branch name`);
+      if (R.branches[n]) throw new Error(`fatal: a branch named '${n}' already exists`);
+      R.branches[n] = start ? resolve(start) : headId(); laneOf(n);
+      return '';
+    },
+    checkout(args) {
+      if (args[0] === '-b' || args[0] === '-B') { CMDS.branch([args[1], ...(args[2] ? [args[2]] : [])]); R.HEAD = { branch: args[1] }; return `Switched to a new branch '${args[1]}'`; }
+      const t = args[0];
+      if (!t) throw new Error('fatal: you must specify a branch or commit');
+      if (R.branches[t]) return switchTo(t);
+      const id = resolve(t);
+      const left = leftBehind(id);
+      R.HEAD = { detached: id };
+      return `${left}Note: switching to '${t}'.\nYou are in 'detached HEAD' state.\nHEAD is now at ${short(id)}`;
+    },
+    switch(args) {
+      if (args[0] === '-c' || args[0] === '-C') { CMDS.branch([args[1], ...(args[2] ? [args[2]] : [])]); const l = leftBehind(R.branches[args[1]]); R.HEAD = { branch: args[1] }; return `${l}Switched to a new branch '${args[1]}'`; }
+      if (args[0] === '--detach') { const id = resolve(args[1] || 'HEAD'); R.HEAD = { detached: id }; return `HEAD is now at ${short(id)}`; }
+      if (!R.branches[args[0]]) throw new Error(`fatal: invalid reference: ${args[0]}`);
+      return switchTo(args[0]);
+    },
+    merge(args) {
+      const noff = args.includes('--no-ff'); const ffonly = args.includes('--ff-only');
+      const name = args.filter((a) => !a.startsWith('--'))[0];
+      if (!name) throw new Error('fatal: No remote for the current branch.');
+      const theirs = resolve(name), ours = headId();
+      if (isAnc(theirs, ours)) return 'Already up to date.';
+      if (isAnc(ours, theirs) && !noff) { moveHead(theirs); return `Updating ${ours}..${theirs}\nFast-forward`; }
+      if (ffonly) throw new Error('fatal: Not possible to fast-forward, aborting.');
+      const msg = R.HEAD.branch && !['main', 'master'].includes(R.HEAD.branch) ? `Merge branch '${name}' into ${R.HEAD.branch}` : `Merge branch '${name}'`;
+      const id = mk(R, [ours, theirs], msg, currentLane());
+      moveHead(id); fresh.add(id);
+      return `Merge made by the 'ort' strategy.\n[${id}] ${msg}`;
+    },
+    rebase(args) {
+      const up = args[0];
+      if (!up) throw new Error('fatal: no upstream configured; try git rebase <branch>');
+      const onto = resolve(up), ours = headId();
+      if (isAnc(ours, onto)) { moveHead(onto); return `Successfully rebased and updated ${R.HEAD.branch ? 'refs/heads/' + R.HEAD.branch : 'detached HEAD'} (fast-forward).`; }
+      if (isAnc(onto, ours)) return `Current branch ${R.HEAD.branch || 'HEAD'} is up to date.`;
+      const base = ancestors(onto);
+      const todo = [...ancestors(ours)].filter((c) => !base.has(c) && R.commits[c].parents.length < 2).sort((a, b) => R.commits[a].n - R.commits[b].n);
+      let tip = onto; const lane = currentLane();
+      for (const c of todo) { tip = mk(R, [tip], R.commits[c].msg, lane); fresh.add(tip); }
+      moveHead(tip);
+      return `Successfully rebased and updated ${R.HEAD.branch ? 'refs/heads/' + R.HEAD.branch : 'detached HEAD'}. (${todo.length} commit${todo.length === 1 ? '' : 's'} replayed)`;
+    },
+    'cherry-pick'(args) {
+      if (!args[0]) throw new Error('fatal: empty commit set passed');
+      const src = resolve(args[0]);
+      if (R.commits[src].parents.length > 1) throw new Error(`error: commit ${src} is a merge but no -m option was given.`);
+      if (isAnc(src, headId())) throw new Error('The previous cherry-pick is now empty, possibly due to conflict resolution.');
+      const id = mk(R, [headId()], R.commits[src].msg, currentLane());
+      moveHead(id); fresh.add(id);
+      return `[${R.HEAD.branch || 'detached HEAD'} ${id}] ${R.commits[src].msg}`;
+    },
+    reset(args) {
+      const mode = args.find((a) => a.startsWith('--')) || '--mixed';
+      if (mode !== '--hard') throw new Error(`${mode} needs a working tree and index; this playground only models --hard`);
+      const rev = args.find((a) => !a.startsWith('--')) || 'HEAD';
+      const id = resolve(rev);
+      moveHead(id);
+      return `HEAD is now at ${short(id)}`;
+    },
+    tag(args) {
+      if (!args.length) return Object.keys(R.tags).join('\n');
+      if (args[0] === '-d') { if (!R.tags[args[1]]) throw new Error(`error: tag '${args[1]}' not found.`); const id = R.tags[args[1]]; delete R.tags[args[1]]; return `Deleted tag '${args[1]}' (was ${id})`; }
+      const [n, rev] = args;
+      if (!validName(n)) throw new Error(`fatal: '${n}' is not a valid tag name.`);
+      if (R.tags[n]) throw new Error(`fatal: tag '${n}' already exists`);
+      R.tags[n] = rev ? resolve(rev) : headId();
+      return '';
+    },
+    log() {
+      const out = []; let id = headId(); let k = 0;
+      const all = [...ancestors(id)].sort((a, b) => R.commits[b].n - R.commits[a].n);
+      for (const c of all) { if (k++ > 12) { out.push('…'); break; } const refs = [...Object.entries(R.branches).filter(([, v]) => v === c).map(([b]) => b), ...Object.entries(R.tags).filter(([, v]) => v === c).map(([t]) => 'tag: ' + t)]; out.push(`${c} ${refs.length ? '(' + refs.join(', ') + ') ' : ''}${R.commits[c].msg}`); }
+      return out.join('\n');
+    },
+  };
+  function switchTo(b) {
+    if (R.HEAD.branch === b) return `Already on '${b}'`;
+    const l = leftBehind(R.branches[b]);
+    R.HEAD = { branch: b };
+    return `${l}Switched to branch '${b}'`;
+  }
+  function leftBehind(target) {
+    if (R.HEAD.branch) return '';
+    const cur = R.HEAD.detached;
+    const others = new Set();
+    [...Object.values(R.branches), ...Object.values(R.tags)].forEach((id) => ancestors(id).forEach((x) => others.add(x)));
+    const lost = [...ancestors(cur)].filter((c) => !others.has(c) && !ancestors(target).has(c));
+    return lost.length ? `Warning: you are leaving ${lost.length} commit${lost.length > 1 ? 's' : ''} behind, not connected to any of your branches.\n` : '';
+  }
+
+  // ---------- history / undo ----------
+  const undoStack = [];
+  let fresh = new Set();
+  const snapshot = () => JSON.stringify({ R, commitCounter });
+  function run(line, echo = true) {
+    let s = line.trim();
+    if (!s) return;
+    if (echo) print(`$ git ${s.replace(/^git\s+/, '')}`, 'c');
+    s = s.replace(/^git\s+/, '');
+    const [cmd, ...args] = tokens(s);
+    if (cmd === 'undo') { undo(); return; }
+    if (cmd === 'help') { print('commit, branch, checkout, switch, merge, rebase, cherry-pick, reset --hard, tag, log, undo'); return; }
+    const fn = CMDS[cmd];
+    if (!fn) { print(`git: '${cmd}' is not a git command in this playground. Try 'help'.`, 'e'); return; }
+    const before = snapshot();
+    fresh = new Set();
+    try {
+      const out = fn(args);
+      const changed = snapshot() !== before;
+      if (changed) { undoStack.push(before); if (undoStack.length > 200) undoStack.shift(); }
+      if (out) print(out, 'ok');
+      save(); render(); checkChallenge();
+    } catch (e) {
+      const restored = JSON.parse(before); R = restored.R; commitCounter = restored.commitCounter;
+      print(e.message, 'e');
+      render();
+    }
+  }
+  function undo() {
+    if (!undoStack.length) { print('Nothing to undo.', 'e'); return; }
+    const s = JSON.parse(undoStack.pop()); R = s.R; commitCounter = s.commitCounter; fresh = new Set();
+    print('Undid the last command.', 'ok'); save(); render(); checkChallenge();
+  }
+  function print(text, cls = '') {
+    const d = document.createElement('div'); d.className = cls; d.textContent = text;
+    $('log').appendChild(d); $('log').scrollTop = $('log').scrollHeight;
+  }
+
+  // ---------- challenges ----------
+  function build(steps) { // quick scripted repo
+    R = emptyRepo(); commitCounter = 1; undoStack.length = 0;
+    steps.forEach((s) => { const [c, ...a] = tokens(s); CMDS[c](a); });
+    fresh = new Set();
+  }
+  const msgsOn = (ref) => { try { return [...ancestors(resolve(ref))].map((c) => R.commits[c].msg); } catch (e) { return []; } };
+  const CHALLENGES = [
+    { id: 'merge', title: 'Your first merge', text: 'Create a <code>feature</code> branch, make two commits on it, then bring them into <code>main</code>.',
+      hint: '<code>switch -c feature</code>, <code>commit</code> twice, <code>switch main</code>, <code>merge feature</code>. Because main hasn\'t moved, git just fast-forwards.',
+      setup: ['commit -m "Initial commit"', 'commit -m "Add README"'],
+      check: () => R.branches.feature && [...ancestors(R.branches.feature)].length >= 4 && isAnc(R.branches.feature, R.branches.main) && R.HEAD.branch === 'main' },
+    { id: 'linear', title: 'Make main linear', text: '<code>feature</code> and <code>main</code> have diverged. Get both feature commits onto <code>main</code> without any merge commit in main\'s history.',
+      hint: '<code>switch feature</code>, <code>rebase main</code>, <code>switch main</code>, <code>merge feature</code> (now a fast-forward).',
+      setup: ['commit -m "Initial commit"', 'commit -m "Add catalog page"', 'branch feature', 'switch feature', 'commit -m "Add search box"', 'commit -m "Search suggestions"', 'switch main', 'commit -m "Fix footer links"'],
+      check: () => { const on = msgsOn('main'); const linear = [...ancestors(R.branches.main)].every((c) => R.commits[c].parents.length <= 1); return linear && on.includes('Add search box') && on.includes('Search suggestions') && on.includes('Fix footer links'); } },
+    { id: 'move', title: 'Move a commit', text: '“Add payment form” was committed to <code>main</code> by mistake. Put it on <code>checkout-v2</code> and take it off <code>main</code>.',
+      hint: 'Select the station (or copy its hash), <code>switch checkout-v2</code>, <code>cherry-pick &lt;hash&gt;</code>, <code>switch main</code>, <code>reset --hard HEAD~1</code>.',
+      setup: ['commit -m "Initial commit"', 'commit -m "Add cart"', 'branch checkout-v2', 'switch checkout-v2', 'commit -m "Checkout skeleton"', 'switch main', 'commit -m "Add payment form"'],
+      check: () => R.branches['checkout-v2'] && msgsOn('checkout-v2').includes('Add payment form') && !msgsOn('main').includes('Add payment form') && msgsOn('main').includes('Add cart') },
+    { id: 'release', title: 'Ship a release', text: 'Merge <code>release</code> into <code>main</code> with a real merge commit (no fast-forward) and tag that merge <code>v1.0.0</code>.',
+      hint: '<code>merge --no-ff release</code>, then <code>tag v1.0.0</code>.',
+      setup: ['commit -m "Initial commit"', 'branch release', 'switch release', 'commit -m "Bump version"', 'commit -m "Changelog"', 'switch main'],
+      check: () => { const t = R.tags['v1.0.0']; return !!t && R.commits[t].parents.length === 2 && R.branches.main === t && isAnc(R.branches.release, t); } },
+  ];
+  let active = null; const solved = new Set();
+  function renderChallenges() {
+    $('challenges').innerHTML = CHALLENGES.map((c, i) => `<li class="${active === c.id ? 'active' : ''} ${solved.has(c.id) ? 'done' : ''}" data-testid="ch-${c.id}">
+      <span class="t"><span style="display:flex;gap:8px;align-items:center"><span class="num" style="background:${LANE_COLORS[i]}">${i + 1}</span>${c.title}</span><button class="btn" type="button" data-start="${c.id}" data-testid="start-${c.id}">${active === c.id ? 'Restart' : 'Start'}</button></span>
+      <p>${c.text}</p><span class="st">${solved.has(c.id) ? '✓ solved' : ''}</span></li>`).join('');
+    $('challenges').querySelectorAll('[data-start]').forEach((b) => b.addEventListener('click', () => startChallenge(b.dataset.start)));
+  }
+  function startChallenge(id) {
+    const c = CHALLENGES.find((x) => x.id === id);
+    active = id; build(c.setup);
+    $('log').innerHTML = ''; print(`Challenge: ${c.title}`, 'ok');
+    $('goal').hidden = false; $('hint').innerHTML = c.hint;
+    save(); render(); checkChallenge(); renderChallenges();
+    $('cmd').focus({ preventScroll: true });
+  }
+  function checkChallenge() {
+    if (!active) { $('goal').hidden = true; return; }
+    const c = CHALLENGES.find((x) => x.id === active);
+    const ok = !!c.check();
+    if (ok && !solved.has(c.id)) { solved.add(c.id); print(`✓ Challenge solved: ${c.title}`, 'ok'); renderChallenges(); }
+    $('cstatus').textContent = ok ? `Solved — ${c.title}` : `Goal: ${c.title}`;
+    $('cstatus').className = 'status' + (ok ? ' solved' : '');
+    $('cstatus').dataset.state = ok ? 'solved' : 'open';
+  }
+
+  // ---------- rendering ----------
+  let selected = null;
+  const DX = 64, DY = 58, PX = 44, PY = 80;
+  function render() {
+    const svg = $('graph');
+    const reach = reachable();
+    const order = R.order;
+    const lanesUsed = Math.max(1, ...order.map((id) => R.commits[id].lane + 1), ...Object.keys(R.branches).map((b) => laneOf(b) + 1));
+    const pos = (id) => ({ x: PX + R.commits[id].n * DX, y: PY + R.commits[id].lane * DY });
+    const W = Math.max(PX * 2 + (order.length - 1) * DX + 90, 360), H = PY + (lanesUsed - 1) * DY + 50;
+    svg.setAttribute('width', W); svg.setAttribute('height', H); svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    const color = (lane) => LANE_COLORS[lane % LANE_COLORS.length];
+    let edges = '', nodes = '', refs = '';
+    for (const id of order) {
+      const c = R.commits[id], p = pos(id);
+      c.parents.forEach((pid, k) => {
+        const q = pos(pid);
+        const dy = p.y - q.y, run = Math.abs(dy);
+        const lane = k === 0 && c.lane === R.commits[pid].lane ? c.lane : (k === 0 ? c.lane : R.commits[pid].lane);
+        let d;
+        if (run === 0) d = `M${q.x} ${q.y} H${p.x}`;
+        else if (p.x - q.x >= run) d = k === 0 ? `M${q.x} ${q.y} L${q.x + run} ${p.y} H${p.x}` : `M${q.x} ${q.y} H${p.x - run} L${p.x} ${p.y}`;
+        else d = `M${q.x} ${q.y} L${p.x} ${p.y}`;
+        edges += `<path class="edge${reach.has(id) ? '' : ' ghost'}" d="${d}" stroke="${color(lane)}"/>`;
+      });
+      const isHead = id === headId();
+      const refsHere = Object.entries(R.branches).filter(([, v]) => v === id).map(([b]) => b);
+      const label = `Commit ${id}: ${c.msg}${refsHere.length ? ', branch ' + refsHere.join(', ') : ''}${isHead ? ', HEAD' : ''}${reach.has(id) ? '' : ', unreachable'}`;
+      nodes += `<g class="node${isHead ? ' head' : ''}${reach.has(id) ? '' : ' ghost'}${selected === id ? ' sel' : ''}${fresh.has(id) && !reduce.matches ? ' new' : ''}" style="transform:translate(${p.x}px,${p.y}px)" data-id="${id}" data-testid="c-${id}" data-msg="${esc(c.msg)}" data-parents="${c.parents.join(' ')}" data-reachable="${reach.has(id)}" tabindex="0" role="button" aria-label="${esc(label)}">
+        <circle class="ring" r="17"/><circle class="st" r="11" stroke="${color(c.lane)}"/><circle class="core" r="5" fill="${color(c.lane)}"/><text class="h" y="28">${id.slice(0, 4)}</text><title>${esc(c.msg)}</title></g>`;
+    }
+    // reference signs stacked above their commit
+    const stacks = {};
+    const addRef = (id, text, cls, fill, testid) => {
+      const k = stacks[id] = (stacks[id] || 0) + 1; const p = pos(id);
+      const w = text.length * 7 + 18;
+      refs += `<g class="ref ${cls}" data-testid="${testid}" data-at="${id}" style="transform:translate(${p.x - w / 2}px,${p.y - 26 - k * 24}px)"><rect width="${w}" height="21" ${fill ? `fill="${fill}"` : ''}/><text x="9" y="11">${esc(text)}</text></g>`;
+    };
+    if (!R.HEAD.branch && headId()) addRef(headId(), 'HEAD', 'headref', null, 'ref-HEAD');
+    Object.entries(R.branches).forEach(([b, id]) => addRef(id, (R.HEAD.branch === b ? 'HEAD → ' : '') + b, R.HEAD.branch === b ? 'cur' : '', color(laneOf(b)), `ref-${b}`));
+    Object.entries(R.tags).forEach(([t, id]) => addRef(id, '⚑ ' + t, 'tag', null, `tag-${t}`));
+    svg.innerHTML = `<g>${edges}</g><g>${nodes}</g><g>${refs}</g>`;
+    // top padding for tall stacks
+    const maxStack = Math.max(0, ...Object.values(stacks));
+    if (maxStack > 2) { svg.setAttribute('height', H + (maxStack - 2) * 24); svg.setAttribute('viewBox', `0 ${-(maxStack - 2) * 24} ${W} ${H + (maxStack - 2) * 24}`); }
+    svg.querySelectorAll('.node').forEach((n) => {
+      n.addEventListener('click', () => select(n.dataset.id));
+      n.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(n.dataset.id); } });
+    });
+    svg.dataset.head = headId() || ''; svg.dataset.branch = R.HEAD.branch || '';
+    $('headpill').textContent = R.HEAD.branch ? `HEAD → ${R.HEAD.branch} @ ${headId() || '(no commits)'}` : `HEAD detached @ ${headId()}`;
+    // selects
+    const cur = $('target').value;
+    $('target').innerHTML = Object.keys(R.branches).map((b) => `<option value="${esc(b)}">${esc(b)}</option>`).join('');
+    const firstOther = Object.keys(R.branches).find((b) => b !== R.HEAD.branch);
+    $('target').value = R.branches[cur] && cur !== R.HEAD.branch ? cur : (firstOther || Object.keys(R.branches)[0] || '');
+    if (selected && !R.commits[selected]) selected = null;
+    renderSelected();
+    $('b-undo').disabled = !undoStack.length;
+    if (fresh.size) { const m = $('map'); m.scrollLeft = m.scrollWidth; }
+  }
+  function select(id) {
+    selected = selected === id ? null : id;
+    render();
+    const n = document.querySelector(`[data-testid="c-${id}"]`); if (n) n.focus({ preventScroll: true });
+  }
+  function renderSelected() {
+    const has = !!selected;
+    ['b-pick', 'b-hard', 'b-detach'].forEach((b) => { $(b).disabled = !has; });
+    if (!has) { $('seldetail').textContent = 'Click a station to select a commit.'; return; }
+    const c = R.commits[selected];
+    $('seldetail').textContent = `Selected ${c.id} “${c.msg}” · parents: ${c.parents.join(', ') || 'none (root)'}`;
+  }
+
+  // ---------- UI wiring ----------
+  const LS = 'lab056-git';
+  function save() { try { localStorage.setItem(LS, JSON.stringify({ R, commitCounter, active, solved: [...solved] })); } catch (e) { /* ignore */ } }
+  const hist = []; let hi = 0;
+  $('prompt').addEventListener('submit', (e) => { e.preventDefault(); const v = $('cmd').value; if (!v.trim()) return; hist.push(v); hi = hist.length; $('cmd').value = ''; run(v); });
+  $('cmd').addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowUp' && hist.length) { hi = Math.max(0, hi - 1); $('cmd').value = hist[hi]; e.preventDefault(); }
+    if (e.key === 'ArrowDown' && hist.length) { hi = Math.min(hist.length, hi + 1); $('cmd').value = hist[hi] || ''; e.preventDefault(); }
+  });
+  const q = (s) => (/\s/.test(s) ? `"${s}"` : s);
+  const nameVal = () => $('name').value.trim();
+  $('b-commit').addEventListener('click', () => { const m = $('msg').value.trim(); run(m ? `commit -m ${JSON.stringify(m)}` : 'commit'); $('msg').value = ''; });
+  $('b-branch').addEventListener('click', () => { const n = nameVal(); if (!n) { print('Type a branch name first.', 'e'); $('name').focus(); return; } run(`branch ${n}`); $('name').value = ''; });
+  $('b-switchc').addEventListener('click', () => { const n = nameVal(); if (!n) { print('Type a branch name first.', 'e'); $('name').focus(); return; } run(`switch -c ${n}`); $('name').value = ''; });
+  $('b-tag').addEventListener('click', () => { const n = nameVal(); if (!n) { print('Type a tag name first.', 'e'); $('name').focus(); return; } run(`tag ${n}${selected ? ' ' + selected : ''}`); $('name').value = ''; });
+  $('b-switch').addEventListener('click', () => $('target').value && run(`switch ${$('target').value}`));
+  $('b-merge').addEventListener('click', () => $('target').value && run(`merge ${$('target').value}`));
+  $('b-rebase').addEventListener('click', () => $('target').value && run(`rebase ${$('target').value}`));
+  $('b-pick').addEventListener('click', () => selected && run(`cherry-pick ${selected}`));
+  $('b-hard').addEventListener('click', () => selected && run(`reset --hard ${selected}`));
+  $('b-detach').addEventListener('click', () => selected && run(`checkout ${selected}`));
+  $('b-undo').addEventListener('click', () => { print('$ undo', 'c'); undo(); });
+  $('b-reset').addEventListener('click', () => { if (active) startChallenge(active); else freePlay(); });
+  $('free').addEventListener('click', () => freePlay());
+  function freePlay() {
+    active = null; build(['commit -m "Initial commit"', 'commit -m "Add README"']);
+    $('log').innerHTML = ''; print('Free play: main has two commits. Try: switch -c feature', 'ok');
+    save(); render(); checkChallenge(); renderChallenges();
+  }
+
+  window.__git = { run: (c) => run(c), get repo() { return JSON.parse(JSON.stringify(R)); }, resolve: (r) => resolve(r), head: () => headId() };
+  let restored = false;
+  try {
+    const s = JSON.parse(localStorage.getItem(LS) || 'null');
+    if (s && s.R && s.R.commits) { R = s.R; commitCounter = s.commitCounter || 1; active = s.active || null; (s.solved || []).forEach((x) => solved.add(x)); restored = true; }
+  } catch (e) { /* ignore */ }
+  if (restored) { print('Restored your last session. “Reset repo” starts over.', 'ok'); render(); renderChallenges(); if (active) { $('goal').hidden = false; $('hint').innerHTML = CHALLENGES.find((c) => c.id === active).hint; } checkChallenge(); }
+  else freePlay();
+})();
+</script>
+</body>
+</html>

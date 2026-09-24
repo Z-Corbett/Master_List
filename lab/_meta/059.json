@@ -1,0 +1,36 @@
+{
+  "id": "059",
+  "slug": "059-night-train",
+  "file": "lab/059-night-train.html",
+  "title": "The Night Owl — a sleeper-train landing page",
+  "category": "Landing Pages",
+  "tags": ["canvas", "parallax", "seat-map", "timers", "landing-page"],
+  "description": "A landing page for The Night Owl, an invented overnight sleeper line from Harrowgate Central to Port Aurelia. It opens on a canvas night landscape in which the lit train holds the frame while ridges, pines and telegraph poles slide past. Below that are a cabin comparison, a route timeline with a clock you can drag to follow the train through the night, a seeded berth map with live pricing and a ten-minute hold that counts down and expires, and an FAQ.",
+  "prompt": "Design a luxurious landing page for a fictional overnight sleeper train. Invent the company and a route between fictional-but-plausible stops, and don't make it look like any real operator. I want a cinematic parallax night landscape with a train passing, a cabin class comparison, an interactive route timeline with stops and times, a berth picker seat map where I can select berths, hold them and see a price total, and an FAQ. Art-deco elegance, brass on midnight, and honest about being fictional.",
+  "qa": {
+    "methodology": [
+      "Timetable oracle: the scrubber's position is checked against hand-computed interpolation, e.g. 01:00 is 10 of the 140 minutes between Coldwater Junction (dep 00:50) and Ashby Ridge (arr 03:10), giving 214 + 10/140 × 104 ≈ 221 miles. Dwell time at a station reads 'Standing at …'.",
+      "Pricing oracle: totals are recomputed from the published fares plus the $12 per-berth fee, including a 15% weekend supplement on Friday departures, and selections are cleared when the departure changes.",
+      "Time control: page.clock is installed on a fixed Tuesday so the date list and weekday/weekend fares are deterministic, and fastForward drives the ten-minute hold through 6:00, 0:01 and expiry.",
+      "State-machine checks for the hold: while held, the chosen berths show as held, every other berth and the date select are locked, and releasing or expiring restores everything.",
+      "Seeded availability (?seed=) makes the taken berths repeatable; the spec reads them from window.__owl and asserts they are disabled in the DOM.",
+      "Visual review of the canvas hero at 1280 and 390 px, including the moon placement on narrow screens and a forced headline break."
+    ],
+    "risks": [
+      "The hold countdown uses setInterval and Date.now(); a background tab could skip ticks, so expiry is based on the deadline timestamp, not on counting ticks.",
+      "Timetable times cross midnight; times are converted to minutes since the 20:15 departure to avoid wrap-around bugs.",
+      "The hero's rAF loop costs battery; it stops when the tab is hidden and, under reduced motion, redraws only on scroll or resize.",
+      "Seat-map grids on 360px phones; roomettes drop to four columns and cabins to two."
+    ],
+    "playwright": "page.clock does most of the work: install() plus pauseAt() fixes 'today' so the ten-night date list and the weekend supplement are deterministic, and fastForward('04:00') / ('09:59') / ('00:02') checks the countdown text at exact moments and then the expiry, without any real waiting. Seeded berth availability is read from window.__owl.taken rather than hard-coded, so the test remains valid if the seat layout changes. The canvas hero is decorative and marked aria-hidden, so it is not asserted in the spec; it was reviewed from screenshots. The 'choose a cabin' jump runs under emulateMedia reducedMotion so the focus handoff happens immediately and can be asserted with a :focus locator.",
+    "coverage": [
+      "Cabin fares, feature matrix and the jump to the matching car with focus",
+      "Stop details (dwell times, dimmed-lamps badge) and aria-pressed selection",
+      "Scrubber at departure, dwell, mid-segment, mileage and arrival",
+      "Seeded taken berths, selection, totals, fees, weekend supplement, four-berth cap",
+      "Ten-minute hold: countdown, locking, release and expiry under page.clock",
+      "FAQ disclosure and the fictional-railway disclaimer"
+    ]
+  },
+  "a11y": "Stops and berths are real buttons with aria-pressed. Each berth has a full aria-label giving car, berth, price and state; taken and locked berths are disabled. The scrubber is a labelled range whose position text and the stop details are aria-live, the booking messages are announced, the FAQ uses native details/summary, and the canvas hero is aria-hidden."
+}

@@ -1,0 +1,35 @@
+{
+  "id": "055",
+  "slug": "055-cron-whisperer",
+  "file": "lab/055-cron-whisperer.html",
+  "title": "Cron Whisperer — Cron Builder, Explainer & DST-Aware Scheduler",
+  "category": "Tools",
+  "tags": ["cron", "timezones", "intl", "daylight-saving", "page-clock"],
+  "description": "Type a cron expression or build it field by field — 5 fields or 6 with seconds, ranges, steps, lists, JAN–DEC and SUN–SAT names, macros, and Vixie cron's day-of-month OR day-of-week rule — and read it back in plain English. The next ten runs are computed in any IANA timezone with Intl, with daylight-saving gaps and overlaps handled under a Vixie-cron or pure wall-clock policy and explained run by run, next to a month heatmap of runs per day.",
+  "prompt": "Build 'Cron Whisperer', a cron expression builder and explainer. Support 5 fields and an optional seconds field, ranges, steps, lists, names like JAN and MON, and get the day-of-month / day-of-week OR semantics right. Give a human-readable explanation, the next 10 run times in a chosen IANA timezone using Intl — handle DST gaps and overlaps and explain them — a visual month heatmap of runs, and presets. Tests must pin time with page.clock. Make it feel like a friendly wall clock: sky blue, slab-serif type and a coral hand.",
+  "qa": {
+    "methodology": [
+      "Time is fully controlled: every test installs page.clock at a chosen instant and pauses there before loading, so the next runs, relative times and the heatmap's month are deterministic; fastForward proves the relative times update from the page's own timer.",
+      "DST oracles chosen from the real 2027 US transitions (14 March spring-forward, 7 November fall-back in America/New_York): exact UTC instants are asserted for shifted, skipped and doubled runs under both policies, including the 23- and 25-hour days in the heatmap.",
+      "Semantics cases from Vixie cron's matcher: 1,15 + MON is an OR; */2 + MON is an AND because a field starting with * sets the star flag; 0 and 7 are both Sunday; leap-day schedules jump to 2028 and 2032.",
+      "Explanation text checked verbatim for representative expressions, and the field builder and main input kept in sync both ways.",
+      "Validation: out-of-range values name the field and mark it aria-invalid; six fields without the seconds toggle are rejected with guidance.",
+      "Wider-font and 360 px checks on the timezone select, which is the longest control on the page."
+    ],
+    "risks": [
+      "Converting a wall-clock time to UTC during a transition: a single offset guess silently lands an hour off; the resolver tries the offsets on both sides and verifies each round-trip.",
+      "The Vixie star-flag quirk (*/2 is 'starred') is easy to implement as OR by mistake.",
+      "Timer-driven re-rendering and real time leaking into tests if page.clock is installed without pausing.",
+      "Performance of minute-by-minute resolution on transition days for every-second schedules."
+    ],
+    "playwright": "page.clock does the heavy lifting: install({ time }) followed immediately by pauseAt(time), before goto, so the first render already sees the fixed instant; setFixedTime moves to a new instant mid-test, and fastForward('01:00:00') fires the page's 30-second refresh timer to prove the relative times update. Each run row carries data-local, data-utc and data-note attributes, so DST assertions compare exact instants rather than formatted, locale-dependent strings. The tz is passed with ?tz= so the result doesn't depend on the test machine's own zone. Screenshots are not compared because timezone abbreviations come from the platform's ICU data.",
+    "coverage": [
+      "Explanations, builder ↔ expression sync, validation messages, six-field preset",
+      "OR / AND day semantics and leap-day schedules",
+      "Spring-forward gap under Vixie (shift) and wall-clock (skip) policies, wildcard jobs, 23-hour day",
+      "Fall-back overlap once vs twice with offsets, 25-hour day",
+      "Relative times under fastForward, heatmap month navigation, persistence of expression and timezone"
+    ]
+  },
+  "a11y": "The expression input is described by the live plain-English explanation, every field input is labelled and marked aria-invalid when it causes an error, and the DST policy is a native radio group. Heatmap days carry labels such as “March 14: 23 runs, clocks change”, so the colour scale is never the only signal."
+}

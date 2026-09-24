@@ -1,0 +1,36 @@
+{
+  "id": "050",
+  "slug": "050-test-data-factory",
+  "file": "lab/050-test-data-factory.html",
+  "title": "Test Data Factory — Seeded Fake Data Generator",
+  "category": "QA & Testing",
+  "tags": ["test-data", "seeded-prng", "edge-cases", "csv", "json"],
+  "description": "A seeded generator of fake-but-realistic fixtures — people, addresses, reserved example.* emails, fictional 555-01xx phones, dates, UUIDs and documented sandbox card numbers — built from a schema you edit in place. An edge-case pack mixes in unicode, RTL, emoji, 255-character strings, stray whitespace, quotes, zero-width characters, markup and leap days, and every crate exports to JSON or RFC 4180 CSV with the same seed always giving the same data.",
+  "prompt": "Build 'Test Data Factory', a seeded generator of fake-but-realistic test data. People, addresses, emails, phone numbers, dates and credit-card-shaped numbers — but keep it safe: emails only on the reserved example.com / .org / .net domains, phones only in the fictional 555-0100 to 555-0199 block, and card numbers only from documented test numbers. Add an edge-cases pack with unicode names, RTL text, emoji, very long strings, leading and trailing spaces, quotes and apostrophes like O'Brien, zero-width characters and leap-day dates. Give me a schema builder, a row count, a preview table that makes invisible characters visible, and JSON / CSV export. Same seed, same data — and adding a column shouldn't reshuffle the others. Make it look like a shipping depot: kraft paper, stencil type, labels and a stamp.",
+  "qa": {
+    "methodology": [
+      "Determinism as a property: the same seed reproduces the export exactly (including across a fresh page load via ?seed=), a different seed changes it, and adding a column leaves every existing column's values untouched.",
+      "Safety invariants checked over hundreds of rows: every email matches the reserved example.com/.org/.net pattern and every phone matches +1 (NNN) 555-01NN.",
+      "Independent Luhn oracle and allow-list in the spec for card numbers, plus format checks for CVC length by brand, expiry and v4-shaped UUIDs.",
+      "Edge-case coverage: with the pack on, all ten kinds must appear, a 255-character string, a leap day, zero-width characters and O'Brien must be present in the data.",
+      "Output-encoding tests: markup edge values never become DOM nodes in the preview, and a CSV oracle checks quote doubling, quoting of whitespace-edged and comma values, the header and CRLF line endings.",
+      "Schema builder flow: add, focus management, rename, retype, remove, reorder, reload persistence and a real download with a seed-stamped filename."
+    ],
+    "risks": [
+      "A shared PRNG stream would make every column shift when one is added — mitigated by hashing seed, column key and row into a per-cell generator.",
+      "Rendering edge values with innerHTML would execute the markup sample; the preview builds text nodes only.",
+      "Zero-width highlighting must not break legitimate emoji ZWJ sequences.",
+      "The export pane truncates huge output, so tests must read the generator rather than the visible text for bulk checks."
+    ],
+    "playwright": "Randomness was the main automation hazard, so everything is seeded and ?seed= pins the crate; the spec compares whole exports for equality rather than spot values. Bulk invariants (300 rows of emails and phones, 120 card numbers) are read through a small window.__tdf hook that calls the exact generator the export uses, which avoids parsing a deliberately truncated preview. The CSV encoder is exercised with hand-picked tricky values and compared with an exact expected string. The download is captured with page.waitForEvent('download') and its suggestedFilename asserted. No screenshots are compared, since glyph rendering of RTL and emoji differs across platforms.",
+    "coverage": [
+      "Seed reproducibility and ?seed= handling",
+      "Reserved email domains and 555-01xx phone range over 300 rows",
+      "Test card allow-list, Luhn validity, CVC and expiry formats, UUID shape",
+      "Edge-case pack: all ten kinds, safe markup rendering, zero-width markers",
+      "CSV quoting and CRLF line endings",
+      "Schema builder add / rename / retype / remove / reorder, persistence, download filename"
+    ]
+  },
+  "a11y": "Every schema input and select is labelled with its field number, reorder and remove buttons name the field they act on, and focus moves to the new or neighbouring field after changes. The preview is a real table in a focusable scroll region, edge cells carry a text title, and status messages are announced through a live region."
+}
