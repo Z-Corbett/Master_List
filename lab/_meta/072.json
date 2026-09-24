@@ -1,0 +1,34 @@
+{
+  "id": "072",
+  "slug": "072-http-cache-lab",
+  "file": "lab/072-http-cache-lab.html",
+  "title": "HTTP Cache Lab — A Time-Travel Browser Cache Simulator",
+  "category": "Tools",
+  "tags": ["http", "caching", "rfc-9111", "simulation", "web-performance"],
+  "description": "A browser-cache simulator styled as a library card catalogue. Set Cache-Control (max-age, no-cache, no-store, private, must-revalidate, stale-while-revalidate, immutable), ETag, Last-Modified and Vary for six fictional resources, publish new versions, jump the clock forward, and send normal, reload, hard-reload or offline requests. Every request lands on a timeline as a fresh hit, 304, stale → 200, stale-while-revalidate, bypass or 504, with the exact request and response headers and the RFC 9111 reasoning.",
+  "prompt": "Build 'HTTP Cache Lab', a time-travel simulator of a browser HTTP cache for a few resources. Let me set response headers (Cache-Control max-age, no-cache, no-store, private, must-revalidate, stale-while-revalidate and immutable; ETag; Last-Modified; Vary), then issue requests at chosen times and see the outcome: fresh hit, stale → conditional request → 304 or 200, or bypass. Show a timeline and the exact request and response headers exchanged. Follow RFC 9111 semantics for the directives you implement and document any simplifications, such as heuristic freshness. Make it feel like an old library card catalogue: oak drawers, index cards with red and blue rules, typewriter type.",
+  "qa": {
+    "methodology": [
+      "Scenario tests written as timelines: each directive gets a sequence of clock jumps and requests with the expected outcome at every step (miss → hit → reload → hard reload; no-cache 304 → publish → 200 → offline 504; heuristic 720 s → hit → If-Modified-Since 304).",
+      "Header-exact oracles: conditional requests are checked for the precise If-None-Match ETag and If-Modified-Since HTTP-date, and responses for 304 status and freshened ETags, against a fixed epoch (Thu, 01 Jan 2026 09:00:00 GMT).",
+      "Interaction rules between directives: must-revalidate disables the stale-while-revalidate window and turns offline use into 504, no-cache forbids stale use, and immutable only skips reload revalidation while fresh.",
+      "Cache-key behaviour: Accept-Language variants are stored separately under Vary, Vary: * never matches, and no-store leaves nothing behind.",
+      "A scripted 'sample morning' tour is asserted as a complete 17-step outcome sequence, which works as a regression net for the whole engine."
+    ],
+    "risks": [
+      "Deciding when the stored headers apply versus the newly configured ones: stored responses keep the headers they came with until a 304 freshens them or a 200 replaces them.",
+      "If-None-Match versus If-Modified-Since precedence at the origin (ETag wins when both are sent).",
+      "Heuristic lifetime changing after freshening, because the Date moves while Last-Modified doesn't.",
+      "The long timeline getting unreadable on phones; it scrolls sideways inside its own box instead of widening the page."
+    ],
+    "playwright": "Time is a model variable, not the wall clock, so there is no page.clock: tests advance it with the +1 min and +1 day buttons and read it back from data-t. Each outcome stamp exposes data-outcome and each resource card exposes data-state and data-lifetime, so assertions check semantics, while the header text blocks are matched with toContainText for exact header lines. A small helper sets resource, mode, language and offline state through real form controls before every request, which keeps each test a readable timeline. The timeline SVG is left to manual screenshot review.",
+    "coverage": [
+      "immutable: miss, fresh hit, reload skipped, hard reload, reload revalidation without immutable",
+      "no-cache + ETag: 304, publish → 200, offline 504",
+      "Heuristic freshness, If-Modified-Since, full refetch without validators",
+      "stale-while-revalidate with background refresh, offline stale, must-revalidate interplay",
+      "Vary variants and Vary: *, no-store bypass, the complete tour sequence"
+    ]
+  },
+  "a11y": "Every header setting is a labelled text input, checkbox or select, request modes are a radio group, and outcomes appear in a live region as text stamps. Log rows are keyboard-selectable (Enter or Space) and open the step-by-step exchange, so the timeline graphic is never the only way to read what happened."
+}

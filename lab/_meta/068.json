@@ -1,0 +1,33 @@
+{
+  "id": "068",
+  "slug": "068-mutation-arena",
+  "file": "lab/068-mutation-arena.html",
+  "title": "Mutation Testing Arena — Kill the Mutants",
+  "category": "QA & Testing",
+  "tags": ["mutation-testing", "web-worker", "sandbox", "test-design", "tokenizer"],
+  "description": "Pick one of four small JavaScript functions (leap year, discount, password rules, a digit-sum loop) and breed mutants from its source: arithmetic, relational and logical operator swaps, off-by-one boundary tweaks, return-value flips and forced conditions. Each mutant runs against the test suite in a Blob-built Web Worker with a one-second watchdog. Survivors glow in their petri dishes until you add assertions in the table that kill them, and the mutation score climbs to 100 %.",
+  "prompt": "Build 'Mutation Testing Arena'. Let me pick a small JS function, such as leap year, a discount calculator or password rules, and show its test suite. Generate mutants: arithmetic, relational and logical operator swaps, boundary tweaks, return-value flips and removed conditions. Run the tests against each mutant right in the page, safely: the functions are local text you control, and each runs in a Web Worker from a Blob with a timeout. Show killed and survived with a mutation score, and let me write extra assertions in a simple table to kill the survivors. Give it a specimen-lab feel: violet ink, acid-green survivors, mutants as petri dishes.",
+  "qa": {
+    "methodology": [
+      "Hand-derived oracles for the generator: the exact mutant count and survivor count for each built-in suite (leap year 18 mutants with 8 survivors, 56 %; password 9 with 5, 44 %; discount 13 with 6) are asserted, so any change to the tokenizer or the mutation operators shows up at once.",
+      "Kill-path tests: adding the textbook boundary cases (1900, 2000; 'Secret12', 'Abcdef1', 'secret123') must take the score to 100 %, and the detail panel must name the assertion that killed a given mutant.",
+      "Test-oracle hygiene: assertions are validated against the original function first, so a wrong expectation is flagged with what the original really returns and excluded from the run instead of 'killing' everything.",
+      "Sandbox robustness: the digit-sum loop produces two non-terminating mutants; the watchdog must terminate the worker, count them as killed by timeout and leave the page usable for the next run.",
+      "Input validation on the assertion form (JSON arguments and expected value) with aria-invalid and a message, plus persistence of user assertions through reload."
+    ],
+    "risks": [
+      "Tokenizing regex literals (/[0-9]/) as division operators would produce nonsense mutants; the tokenizer tracks regex context.",
+      "A hung mutant blocking the queue: each run waits on a promise that is resolved by either a message or the 1 s watchdog, and a fresh worker is spawned after termination.",
+      "Stale results racing a function switch mid-run; runs carry a token and are abandoned when superseded.",
+      "Floating-point expectations (200 × 0.9) compared with an epsilon rather than strict equality."
+    ],
+    "playwright": "The awkward part is asynchrony: mutants run one after another in a real Web Worker, so tests wait on a single data-state='done' attribute on the arena instead of sleeping, with an explicit timeout for the run that includes two 1-second hangs. Every petri dish exposes data-id, data-cat and data-status, so assertions such as 'exactly two timeouts' or 'survivors are only Arithmetic and Boundary' are simple locator counts and evaluateAll calls. There is no randomness: mutant IDs follow source order, which is what makes M09 and M15 stable handles. Blob workers count as same-origin, so the site-wide no-external-requests check still holds.",
+    "coverage": [
+      "Baseline run, survivor filter, categories, mutant diff in the source, hint text",
+      "Killing all leap-year mutants, the killer named in the detail, persistence",
+      "Invalid JSON, wrong expectations flagged and excluded, row deletion, killing the password survivors",
+      "Infinite-loop mutants killed by the watchdog; switching functions after a hang"
+    ]
+  },
+  "a11y": "Functions, filters and mutants are real buttons with aria-pressed, and each petri dish has a full label: ID, category, line, the change, and its fate. Counts and form errors are announced in live regions, inputs have visible labels and aria-invalid, and colour is never the only signal because every dish also says 'survived' or 'killed by …' in text."
+}

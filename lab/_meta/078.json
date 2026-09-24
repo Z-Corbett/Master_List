@@ -1,0 +1,33 @@
+{
+  "id": "078",
+  "slug": "078-bell-tower",
+  "file": "lab/078-bell-tower.html",
+  "title": "Bell Tower — an English change-ringing simulator",
+  "category": "Audio",
+  "tags": ["web-audio", "change-ringing", "place-notation", "svg", "rhythm-game"],
+  "description": "A ringing-chamber simulator for five to eight bells. It generates the plain courses of Plain Hunt, Plain Bob Doubles, Minor, Triples and Major, and Grandsire Doubles from place notation, lays the rows out in lead columns with your bell's blue line and the treble's red line, and rings them with synthesised bells at peal speed, including the handstroke gap. Tap-along mode hands you a rope and scores your striking to the millisecond.",
+  "prompt": "Build me an English change-ringing simulator. Let me pick 5 to 8 bells and a method (Plain Hunt, Plain Bob Doubles, Minor, Triples and Major, and Grandsire Doubles), and generate the rows correctly. Prove in the spec that Plain Bob Minor's plain course is 60 rows that come back to rounds with no repeats. Synthesise the bells with Web Audio, starting only after a click, and ring at the right tempo. Draw the blue line of a chosen bell through the rows, and add a tap-along mode that scores my timing on my bell. Make it look like a ringing chamber, with peal boards and sallies.",
+  "qa": {
+    "methodology": [
+      "Truth of the composition: for every method and stage the spec checks the number of changes, return to rounds, that no row repeats, that every row is a permutation of the bells, and that no bell ever moves more than one place.",
+      "Known lead heads as an external oracle: Plain Bob Minor 135264, 156342, 164523, 142635, then rounds; Doubles 13524; Triples 1352746; Major 13527486; Grandsire Doubles 12534. Covering tenors must stay behind in Doubles on six and Triples on eight.",
+      "Method board geometry: the number of lead columns and the blue-line polyline (13 points per Plain Bob Minor lead, 18 px per place). The treble's Plain Hunt path 1,2,3…8,8…1 is checked exactly.",
+      "Timing with a controlled clock: blow times follow (row·n + ⌊row/2⌋ + place)·interval, which is the handstroke gap. After 4 s at 300 ms the struck sequence must be an exact prefix of the rows, and the whole touch must ring through to \"That's all\".",
+      "Tap-along scoring with frame-exact taps: the clock is moved to each of your bell's due times, perfect blows score 0 ms and 100%, a +120 ms blow shifts the mean to 24 ms and 80%, and an untouched blow is counted as missed."
+    ],
+    "risks": [
+      "Place-notation parsing for odd stages (places like 125 and 3) is easy to get wrong; lead heads catch it.",
+      "Off-by-one errors in where the handstroke gap goes (an early version put it before the first backstroke, and the spec caught it).",
+      "Web Audio time runs separately from page time, so strikes are scheduled against the audio clock with a small lookahead while the visuals and scoring use performance.now.",
+      "Space bar handling in tap-along must not also activate a focused button."
+    ],
+    "playwright": "Rhythm features are hard to test in real time, so the spec uses page.clock.install() followed straight away by pauseAt(), then advances with runFor. Because performance.now is faked, blow times, visual strikes and tap scoring are all exact, and a tap 'exactly on time' really measures 0 ms. The sound itself isn't asserted (headless Chromium has no ears); the spec checks that an AudioContext was created after the Play gesture and verifies the schedule that drives it. Method correctness is tested through window.__bells.course() with mathematical invariants and published lead heads rather than screenshots, and the SVG blue line is checked through its points attribute.",
+    "coverage": [
+      "Plain courses for 9 method and stage combinations: length, truth, legality, lead heads, covering tenor",
+      "Method board: lead columns, blue-line geometry, treble path, bells and method selects",
+      "Striking interval, handstroke gap, struck sequence order, ringing to the end",
+      "Tap-along by Space and sally, error, mean, good percentage, misses, stand"
+    ]
+  },
+  "a11y": "Every setting is a labelled native select, slider or checkbox, and Play, Stand and Pull are real buttons (Pull also takes Enter, and Space rings while tap-along is on). Calls, striking feedback and the final score are announced in an aria-live status line (row-by-row updates stay visual so they don't flood a screen reader), and the scrollable method board is focusable and labelled."
+}

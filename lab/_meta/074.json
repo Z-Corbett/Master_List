@@ -1,0 +1,35 @@
+{
+  "id": "074",
+  "slug": "074-quilt-studio",
+  "file": "lab/074-quilt-studio.html",
+  "title": "Quilt Studio — a generative patchwork designer",
+  "category": "Generative",
+  "tags": ["canvas", "procedural-textures", "geometry", "seeded-prng", "png-export"],
+  "description": "A patchwork design table where you choose nine-patch, log cabin, flying geese, HST pinwheel or Ohio star blocks (or a random sampler) and set them straight, with sashing and cornerstones, or on point with setting triangles. You can pick a bundle of procedurally printed calico, gingham and ditsy-floral fabrics, click blocks to turn them or swap their fabrics, add quilting lines, read an approximate yardage estimate and download a PNG.",
+  "prompt": "Build me a generative patchwork quilt designer. I want the classic blocks (nine-patch, log cabin, flying geese, half-square triangles, Ohio star) in a straight set, with sashing, or on point, with optional borders. The fabrics should have subtle printed textures drawn in code, like calico dots, gingham and ditsy florals, grouped into a few palettes. Clicking a block should rotate it or swap its fabrics, and there should be a shuffle-fabrics button. Add a stitched quilting-line overlay, a fabric yardage estimate that says clearly it is approximate, and PNG export. Make it feel like a sewing table with a cutting mat, and deterministic with ?seed=.",
+  "qa": {
+    "methodology": [
+      "Geometry oracle: each block is a list of polygons in a unit square. The spec checks by shoelace area that every pattern covers exactly 1, and that the fabric shares are the known values (nine-patch 4/9 : 4/9 : 1/9, Ohio star 6/9 background and 2/9 points, log cabin 0.44 light and 0.52 dark).",
+      "Layout arithmetic: finished sizes are asserted for straight, sashed and on-point sets with and without borders (for example 66 × 80 in with 2 in sashing, and 12√2 diagonals on point). The per-fabric areas must add up to the whole quilt in every layout.",
+      "Hit-testing: clicks go to computed block centres, including an in-between diamond in the on-point set, and the spec checks which block turned or swapped. Keyboard selection, Enter, R and S go through the same path.",
+      "Seeded fabric order: the spec compares the permutation of every block and a canvas checksum across reloads and after a shuffle, checks that another seed gives a different quilt, and checks that each block draws three distinct accents from a bundle of five.",
+      "Yardage estimate: every amount must be a whole number of eighths, background yardage must grow when setting triangles are added, the binding row must disappear without a border, and the approximate-estimate note must be present."
+    ],
+    "risks": [
+      "On-point hit-testing uses a diamond (L1) test. An off-by-one in the in-between lattice would rotate the wrong block.",
+      "Pattern tiles are cached per fabric and scale; changing the block size changes the pixels per inch, and a stale cache would print at the wrong scale.",
+      "The yardage figures are heuristics (perimeter-based seam allowance plus 15% waste), so the page has to say they are approximate and the tests check invariants rather than exact yards.",
+      "The quilt is re-rendered after every control change; the selection outline must never end up in an exported PNG."
+    ],
+    "playwright": "A quilt is ideal for invariant testing because the geometry is exact. Coverage and fabric-share assertions run against polygon areas exposed by window.__quilt, which catches a wrong triangle far more reliably than a screenshot would. Clicking specific blocks on a scaled canvas is the hard part; the page reports each block's centre in CSS pixels, so the spec uses locator.click({ position }), which works with mouse on desktop and with touch emulation on Pixel 7. Pixel output is checked only through a sampled checksum that must change when quilting or fabrics change, so there are no brittle toHaveScreenshot baselines across font and GPU differences. The export test waits for the download event and checks the PNG magic bytes and the filename.",
+    "coverage": [
+      "Unit-square coverage and fabric shares for all five blocks",
+      "Finished sizes for straight, sashing and on-point, with and without borders",
+      "Area conservation per layout, rows and block-size changes",
+      "Click to turn, swap and stamp; on-point diamond hit-testing",
+      "Keyboard selection with arrows, Enter and S; square-up reset",
+      "Seeded shuffles, palette switch, yardage invariants, quilting overlay, PNG export"
+    ]
+  },
+  "a11y": "Every control is a labelled native select, number input, checkbox or button, and the pressed state of the pattern, palette and tool choices is exposed with aria-pressed. The quilt canvas takes focus: arrows move a visible selection and Enter, R and S act on it. Actions are announced in an aria-live status line, and the canvas aria-label describes the whole design."
+}

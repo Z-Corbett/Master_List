@@ -1,0 +1,34 @@
+{
+  "id": "070",
+  "slug": "070-agent-permissions",
+  "file": "lab/070-agent-permissions.html",
+  "title": "Agent Permission Designer — Least Privilege for Coding Agents",
+  "category": "AI & Agents",
+  "tags": ["agents", "security", "least-privilege", "glob", "policy"],
+  "description": "Write allow, ask and deny rules for a coding agent's Read, Edit, Write, Bash and WebFetch tools, with path globs, word-boundary command prefixes like Bash(npm test:*) and domain patterns. Then test proposed tool calls to see which would run, ask or be blocked, with the deciding rule highlighted. Compound shell commands are judged part by part, and presets from permissive to locked-down move risk and friction meters in opposite directions.",
+  "prompt": "Build 'Agent Permission Designer' for designing least-privilege permissions for a coding agent: allow, ask and deny rules with tool names and argument patterns, like Bash(npm test:*), Read(src/**), or a deny on Edit(**/*.env). Use clear precedence (deny beats ask beats allow) and document the semantics you chose. Then let me test a list of proposed tool calls against the rules and see which run, prompt or get blocked, with the matching rule highlighted. Add presets from permissive to locked-down and a risk meter. Keep it generic, not tied to any one product's exact syntax. It should look like a security console: navy header, green, amber and red traffic-light accents.",
+  "qa": {
+    "methodology": [
+      "Decision-table oracle: the twelve sample calls under the Balanced preset are asserted as an exact list of verdicts and deciding rules, covering glob matches, the .env deny overriding Read(**), prefixes, compound commands, outside-project paths and the default.",
+      "Precedence is tested by mutation: changing the deny to ask and then deleting it moves the same call from block to prompt to run, with data-deciding and data-hit tracking which rules matched.",
+      "Security edge cases get targeted cases: 'npm testify' must not match the npm test prefix, 'git status; git push' is judged part by part, command substitution never auto-runs even when Bash is fully allowed, and ../ paths never match project globs.",
+      "Rule validation: case-sensitive tool names, WebFetch domain syntax and empty patterns produce inline errors with aria-invalid, and invalid rules are provably ignored.",
+      "Metamorphic check on the meters: permissive > balanced ≥ locked for risk and the reverse for friction, with the extremes pinned (permissive friction 0, locked risk 0)."
+    ],
+    "risks": [
+      "Prefix matching done with a naive startsWith lets 'npm testify' through a Bash(npm test:*) allow.",
+      "Splitting shell commands inside quotes: a ';' or '|' inside a quoted string must not split, and quoting rules here are deliberately simple.",
+      "Re-rendering the rule list on every keystroke can lose focus and caret position; the renderer restores both.",
+      "Glob translation edge cases: **/ must also match zero folders so **/.env covers a root .env."
+    ],
+    "playwright": "Rules and calls carry their text and outcome as attributes (data-rule, data-decision, data-deciding, data-hit), so a single evaluateAll captures the whole decision table and compares it with toEqual. Locators filter calls by visible text (getByTestId('call').filter({ hasText })) and address rules by an attribute selector on the rule text. The page has no time or randomness; state lives in localStorage, and one test reloads to prove the locked-down design persists. Selecting options and filling rule inputs exercises the live re-evaluation path the way a user would.",
+    "coverage": [
+      "Full Balanced decision table and tally",
+      "Deny > ask > allow with highlighting; editing and deleting rules",
+      "Compound commands, word-boundary prefixes, command substitution",
+      "Outside-project paths, default modes, domain patterns, invalid rules ignored",
+      "Risk versus friction across presets; persistence"
+    ]
+  },
+  "a11y": "Rules are native selects and text inputs with per-row labels, errors linked through aria-describedby and aria-invalid, and delete buttons named after their rule. Tool calls are focusable role=button rows with aria-pressed that respond to Enter and Space, the default mode is a radio group, and verdicts are written as words (Runs, Asks, Blocked) as well as colours."
+}

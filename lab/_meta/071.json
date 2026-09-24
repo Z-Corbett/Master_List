@@ -1,0 +1,34 @@
+{
+  "id": "071",
+  "slug": "071-json-schema-studio",
+  "file": "lab/071-json-schema-studio.html",
+  "title": "JSON Schema Studio — Live Validation & Example Generation",
+  "category": "Tools",
+  "tags": ["json-schema", "validation", "json-pointer", "generator", "api-design"],
+  "description": "Edit a JSON Schema written in a draft 2020-12 subset (types, properties, required, additionalProperties, items, enum, const, numeric bounds, lengths, patterns, oneOf/anyOf/allOf and recursive $ref into $defs) and watch sample documents validate as you type. Every error carries a JSON Pointer to the failing value and another to the failing keyword. Generate a valid example straight from the schema, and start from Order, Payment, Tree or Config presets.",
+  "prompt": "Build 'JSON Schema Studio'. Let me edit a JSON Schema in a subset of draft 2020-12: type, properties, required, additionalProperties, items, enum, const, min/max, minLength/maxLength, pattern, oneOf/anyOf/allOf, and $ref to $defs. Validate sample JSON documents live, with precise error paths and messages. Generate a valid example document from the schema, and include presets. No libraries: write the validator yourself. Design it like a Swiss poster: off-white, black, one signal red, big numerals.",
+  "qa": {
+    "methodology": [
+      "Golden error lists: each broken preset document is asserted as an ordered list of (instance pointer, failing keyword) pairs, which pins both the validator's semantics and its traversal order.",
+      "Keyword-location precision: full schema pointers through $ref hops (for example #/$ref/properties/children/items/$ref/…/minLength) are asserted for a recursive tree.",
+      "Spec edge cases chosen from draft 2020-12: 1.0 counts as an integer, lengths count code points, patterns are unanchored, oneOf reports 'none' and 'more than one' differently, and unknown keywords are surfaced rather than silently trusted.",
+      "Round-trip property: for every preset, the generated example must validate against its own schema, and loading it into a failing document tab turns that tab valid.",
+      "Resilience: malformed schema or document JSON produces a readable message and aria-invalid instead of an exception; edits persist through reload and Reset restores the preset."
+    ],
+    "risks": [
+      "Infinite recursion through $ref cycles; validation has a depth guard, and generation stops adding optional properties past a depth.",
+      "The pattern-to-string generator only handles simple regexes, so exotic patterns may produce an example that fails; the page then says so rather than claiming success.",
+      "Error ordering changing with object key order, which the golden tests would catch.",
+      "Long pointers and patterns overflowing narrow screens (handled with overflow-wrap:anywhere)."
+    ],
+    "playwright": "The validator's output is mirrored into data-ip and data-kp attributes on each error row, so tests compare exact JSON Pointers instead of parsing prose, and a compact 'pointer keyword' projection keeps the golden lists readable. Textareas are driven with fill(), which fires the same input event as typing, so live validation, persistence and aria-invalid are all exercised. The generator is checked through its own re-validation flag (data-valid) across all four presets in a loop. Nothing is time-based or random, and no screenshots are compared.",
+    "coverage": [
+      "Order preset: nine ordered errors, schema pointer through $ref, minItems",
+      "Live schema and document editing, invalid JSON, unsupported keywords, integer 1.0, persistence and reset",
+      "oneOf: two matches versus none, with the closest branch",
+      "Recursive $ref deep paths; allOf plus anyOf failures",
+      "Generate for all presets and load the example into a failing tab"
+    ]
+  },
+  "a11y": "Both editors are labelled textareas that set aria-invalid on malformed JSON, the verdict and generator result are live regions, and document tabs expose their valid or invalid state as text as well as a coloured dot. Errors are an ordered list, with each JSON Pointer given as text."
+}

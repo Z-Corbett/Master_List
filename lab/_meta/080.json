@@ -1,0 +1,35 @@
+{
+  "id": "080",
+  "slug": "080-scriptorium",
+  "file": "lab/080-scriptorium.html",
+  "title": "Scriptorium — an illuminated-initial generator",
+  "category": "Generative",
+  "tags": ["canvas", "procedural-art", "typography", "seeded-prng", "png-export"],
+  "description": "Type a letter and get a medieval-style illuminated initial on a vellum page. It has a burnished-gold frame that catches a slow sweep of light, a lapis, vermilion or verdigris ground, seeded vines that weave over and under each other and the letter, acanthus leaves and bezants, and drolleries in the margins. The opening of a matching Latin text (Pater Noster, Ave Maria, Magnificat and 17 more) follows in blackletter with a rubricated first word, and the page exports as a PNG.",
+  "prompt": "Make an illuminated-initial generator in the style of medieval manuscripts. I type a letter A–Z and get a large decorated initial with interlaced vines, acanthus leaves, drolleries (small whimsical creatures), burnished gold with a shimmer, and pigment palettes like lapis blue, vermilion and verdigris. Seed the variations, give the page a vellum texture, and set the first words of a chosen public-domain Latin text such as the Pater Noster after the initial. Add PNG export. Every creature and leaf should be drawn in code, not copied from a real manuscript.",
+  "qa": {
+    "methodology": [
+      "Content mapping: typing a letter selects the Latin text that begins with it. Every option in the text list must set the initial it advertises, the rubricated remainder of the first word must lead the first line, a letter with no text shows a clearly labelled specimen, and non-letters are refused with a message.",
+      "Seeded determinism: a full-page pixel checksum of the unshimmered base layer and the drollery list must be identical after a reload with the same seed and letter, and must change after New variation. The seed is also written to the URL.",
+      "Composition invariants over several seeds: two to four distinct drolleries, always in the margins and never over the text block. Every letter tried has at least four vines, more than 20 leaves and some bezants, and vine crossings occur (the interlace code has something to weave).",
+      "Pigment oracles: in every palette, most sampled pixels inside the frame must be close to that palette's ground colour. The gold-on-lapis palette must enlarge the gilded area measured on the gold mask, and the frame pixel must read as warm gold.",
+      "Motion: with page.clock controlling requestAnimationFrame, the displayed canvas takes several different states across a sweep when shimmer is on and exactly one when it is off. Under prefers-reduced-motion the shimmer starts off."
+    ],
+    "risks": [
+      "Font fallback: the blackletter face (Old English Text MT) is not installed everywhere, so layout picks the largest size from 80 to 34 px that fits both vertically and by the widest word, and never overflows the margin.",
+      "The shimmer is a separate composited layer; letting it leak into the export or into the base checksum would make the PNG and the tests nondeterministic.",
+      "An early version gilded the whole initial box in the shimmer mask, so light swept over the pigment field too. The gold-coverage check caught it.",
+      "Latin texts must stay accurate and public domain; they are standard Vulgate and liturgical texts and are credited in the caption."
+    ],
+    "playwright": "Procedural art suits invariant checks better than snapshots. The page exposes a checksum of the static base layer, a gold-mask coverage figure, a ground-colour share, and the list of drolleries with positions, so the spec can assert composition rules instead of comparing pixels that change whenever the art is tuned. The shimmer is tested with page.clock.install(), then pauseAt(), then repeated runFor() calls, which move the requestAnimationFrame timestamps deterministically. The spec samples the displayed-canvas checksum over time instead of waiting on real animation. Export is checked with waitForEvent('download') and the PNG magic bytes, and emulateMedia({ reducedMotion: 'reduce' }) covers the reduced-motion default.",
+    "coverage": [
+      "Letter input to matching text, rubric, specimen letters, rejection of non-letters",
+      "All 20 text options set their initial",
+      "Seeded checksum and drolleries across reloads; New variation; seed in the URL",
+      "Drolleries in the margins; vines, leaves, bezants and crossings",
+      "Palette ground colours, gilded letter, gold frame pixel",
+      "Shimmer on and off over time, the reduced-motion default, PNG export"
+    ]
+  },
+  "a11y": "The letter field, text select, pigment buttons (with aria-pressed) and shimmer checkbox are all labelled native controls. Every change is announced in an aria-live note, and the canvas aria-label describes the letter, palette, vine and leaf counts, the drolleries and the text that follows. The shimmer respects prefers-reduced-motion and can be turned off."
+}

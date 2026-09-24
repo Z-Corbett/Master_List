@@ -1,0 +1,34 @@
+{
+  "id": "077",
+  "slug": "077-cloud-chamber",
+  "file": "lab/077-cloud-chamber.html",
+  "title": "Cloud Chamber — watching radiation leave vapour trails",
+  "category": "Generative",
+  "tags": ["canvas", "simulation", "physics", "seeded-prng", "magnetic-field"],
+  "description": "A seeded simulation of a diffusion cloud chamber, seen through a brass porthole. Alpha particles leave short, thick, beaded tracks, beta electrons thin wandering ones, and cosmic-ray muons long straight lines. Each trail condenses, spreads and evaporates, a magnetic-field dial bends opposite charges opposite ways, and odometer counters tally every type.",
+  "prompt": "Make a generative simulation of a diffusion cloud chamber. Alpha particles should leave short, thick, straight tracks, beta particles thin, wiggly, longer ones, and every so often a muon should cut a long straight line. Tracks should condense and then fade like vapour trails. Add an optional magnetic field that curves charged tracks in opposite directions depending on their sign, counters for each type, and accurate but general notes on what you're seeing. Make it deterministic with ?seed=. Give it the feel of a physics-lab instrument, with brass and dark glass.",
+  "qa": {
+    "methodology": [
+      "Physics-sign oracle: with the field out of the screen, every injected alpha (+2e) must turn clockwise and every electron anticlockwise, and each muon's turn must match the sign of its charge. Flipping the field must flip all of them, and electrons must bend at least 5× more than alphas.",
+      "Shape oracles from track geometry (straightness is end-to-end distance divided by path length): alphas are wide and under 150 px, muons have straightness above 0.99, betas wander (mean straightness below 0.85), and muons average more than twice the alpha length.",
+      "Determinism: with the real-time loop detached and the chamber rewound, 60 simulated seconds give identical tallies for a seed and different ones for another seed.",
+      "Independence: each particle type draws a fixed number of values per frame and each track has its own generator, so hiding muons leaves the alpha and beta tallies exactly unchanged. The spec checks this.",
+      "Lifecycle: an injected track is visible after half a second and gone after its lifetime; Clear removes vapour but keeps the tally; pause freezes simulated time."
+    ],
+    "risks": [
+      "Getting the Lorentz-force direction backwards is easy with canvas's downward y axis; the sign test pins it.",
+      "Tracks that start exactly on the chamber wall are cut to nothing (this first made some muons 4 px long); starts are placed just inside.",
+      "Every value that reaches arc() or lineWidth goes through a finiteness guard, since a frame can draw a track in the same tick it is created.",
+      "Changing one rate or toggle must not reshuffle the rest of a seeded run, or saved seeds stop being reproducible."
+    ],
+    "playwright": "Canvas output is hard to assert pixel by pixel and the trails are deliberately soft, so the page exposes track geometry and physics bookkeeping through window.__chamber: turning caused by the field (kept separate from random scattering), straightness, width, charge and lifetime. The spec detaches requestAnimationFrame with manual(true), rewinds with restart(), and advances simulated seconds directly, which is more precise than page.clock for a fixed-timestep simulation. UI wiring is still exercised through the real controls: filling the field slider, unchecking toggles, and clicking Inject, Clear and Pause. The odometer counters are read through their data-count and aria-label attributes rather than their split digit boxes. No screenshots are compared.",
+    "coverage": [
+      "Seeded tallies are repeatable and differ by seed; counter DOM matches state",
+      "Alpha, beta and muon geometry: width, length, straightness, charge",
+      "Field direction by charge sign, flipping the field, electron versus alpha curvature",
+      "Condense and fade lifecycle; Clear keeps the tally; aria-label summary",
+      "Type toggles don't perturb the other types; radon rate; pause"
+    ]
+  },
+  "a11y": "All controls are labelled native sliders, checkboxes and buttons (pause exposes aria-pressed). The field dial's value is spelled out in words (out of or into the screen), and the chamber canvas has a live aria-label giving visible tracks and tallies. Status messages are announced through an aria-live region."
+}

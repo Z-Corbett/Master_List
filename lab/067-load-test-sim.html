@@ -1,0 +1,655 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Load Test Simulator — Queueing Model of a Fictional Service</title>
+<meta name="description" content="A seeded discrete-event queueing model of a fictional service: set workers, service-time distribution, timeout, queue limit and autoscaling, drive it with ramp-up, steady, spike or soak virtual-user profiles, and watch throughput, active users, p50/p95/p99 latency and error rate live until you find the knee of the curve.">
+<style>
+  :root {
+    --bg: #1c2026;
+    --panel: #262b33;
+    --panel-2: #2e343d;
+    --line: #3b424d;
+    --line-2: #4a525f;
+    --text: #ebe6da;
+    --text-2: #aeb2ba;
+    --text-3: #7c828d;
+    --orange: #ff7a1a;
+    --orange-2: #ffb074;
+    --p50: #4cc9d9;
+    --p95: #f2c14e;
+    --p99: #ff6b6b;
+    --ok: #7bd88f;
+    --err: #ff5a5a;
+    --font: Bahnschrift, "DIN Alternate", "Arial Narrow", "Roboto Condensed", "Segoe UI", sans-serif;
+    --mono: "Cascadia Mono", Consolas, ui-monospace, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); line-height: 1.45; overflow-x: hidden;
+    background-image: linear-gradient(135deg, rgba(255,255,255,.018) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.018) 50%, rgba(255,255,255,.018) 75%, transparent 75%); background-size: 8px 8px; }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  input, select { max-width: 100%; }
+  :focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+  .back { position: fixed; top: 10px; left: 10px; z-index: 50; color: var(--text); text-decoration: none; font: 600 13px/1 var(--font); letter-spacing: .06em;
+    padding: 8px 11px; background: #14171b; border: 1px solid var(--line-2); border-left: 4px solid var(--orange); }
+  .back:hover { color: var(--orange); }
+  .wrap { max-width: 1320px; margin: 0 auto; padding: 58px 16px 50px; }
+
+  .plate { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: end; padding: 18px 22px; background: linear-gradient(#2d333c, #232830); border: 1px solid var(--line-2);
+    border-radius: 6px; position: relative; margin-bottom: 16px; }
+  .plate::before, .plate::after { content: ""; position: absolute; top: 8px; width: 7px; height: 7px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #8b939f, #3a404a); }
+  .plate::before { left: 8px; } .plate::after { right: 8px; }
+  .plate h1 { margin: 0; font-size: clamp(28px, 5vw, 52px); font-weight: 700; letter-spacing: .04em; text-transform: uppercase; line-height: 1; }
+  .plate h1 span { color: var(--orange); }
+  .plate p { margin: 8px 0 0; color: var(--text-2); max-width: 72ch; font-size: 15px; }
+  .badge { font: 600 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: #1c2026; background: repeating-linear-gradient(-45deg, var(--orange) 0 10px, #ffa25e 10px 20px); padding: 8px 12px; border-radius: 3px; text-align: center; }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 16px; align-items: start; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px; min-width: 0; }
+  .panel h2 { margin: 0 0 10px; font-size: 12px; letter-spacing: .2em; text-transform: uppercase; color: var(--orange-2); font-weight: 600; display: flex; justify-content: space-between; gap: 8px; }
+  .ctl { display: grid; gap: 12px; }
+  .field { display: grid; gap: 4px; min-width: 0; }
+  .field label, .field .lab { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--text-2); }
+  .field output { font: 600 13px var(--mono); color: var(--text); }
+  input[type="range"] { width: 100%; accent-color: var(--orange); }
+  select, input[type="number"] { background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 4px; padding: 6px 8px; width: 100%; }
+  .seg { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border: 1px solid var(--line-2); border-radius: 4px; overflow: hidden; }
+  .seg button { border: 0; border-right: 1px solid var(--line-2); background: var(--panel-2); padding: 7px 2px; font-size: 13px; min-width: 0; }
+  .seg button:last-child { border-right: 0; }
+  .seg button[aria-pressed="true"] { background: var(--orange); color: #1c2026; font-weight: 700; }
+  .tog { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+  .tog input { width: 18px; height: 18px; accent-color: var(--orange); }
+  .grp { border-top: 1px dashed var(--line-2); padding-top: 12px; display: grid; gap: 12px; }
+  .grp .gt { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--text-3); margin: 0; }
+  .runbar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .btn { border: 1px solid var(--line-2); background: var(--panel-2); border-radius: 4px; padding: 9px 6px; font-weight: 600; letter-spacing: .04em; }
+  .btn.go { background: var(--orange); border-color: var(--orange); color: #1c2026; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .speed { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--text-2); flex-wrap: wrap; }
+  .speed select { width: auto; }
+  .hint { font-size: 12.5px; color: var(--text-3); margin: 0; }
+
+  .main { display: grid; gap: 16px; min-width: 0; }
+  .clock { display: flex; gap: 14px; flex-wrap: wrap; align-items: baseline; font: 13px var(--mono); color: var(--text-2); }
+  .clock b { color: var(--text); font-size: 20px; }
+  .prog { height: 6px; background: var(--panel-2); border-radius: 3px; overflow: hidden; margin-top: 8px; }
+  .prog i { display: block; height: 100%; background: var(--orange); width: 0; }
+  canvas { display: block; width: 100%; }
+  #flow { height: 190px; }
+  .charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .chart { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px 12px 8px; min-width: 0; }
+  .chart .ch { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+  .chart h3 { margin: 0; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--text-2); font-weight: 600; }
+  .chart .now { font: 600 14px var(--mono); }
+  .chart canvas { height: 150px; }
+  .legend { display: flex; gap: 10px; flex-wrap: wrap; font: 11.5px var(--mono); color: var(--text-2); margin-top: 4px; }
+  .legend i { display: inline-block; width: 10px; height: 3px; vertical-align: middle; margin-right: 4px; }
+
+  .results { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; }
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .stat { background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; min-width: 0; }
+  .stat .k { font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--text-3); }
+  .stat .v { font: 600 18px var(--mono); overflow-wrap: anywhere; }
+  .knee { margin: 12px 0 0; font-size: 14.5px; color: var(--text-2); }
+  .knee b { color: var(--orange-2); }
+  #kneeCv { height: 200px; }
+  .explain { font-size: 14px; color: var(--text-2); margin: 0 0 8px; }
+  .explain code { font: 12.5px var(--mono); color: var(--text); }
+  footer.f { margin-top: 20px; font-size: 13px; color: var(--text-3); max-width: 95ch; }
+
+  @media (max-width: 1000px) {
+    .layout, .results { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 640px) {
+    .charts { grid-template-columns: minmax(0, 1fr); }
+    .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .plate { grid-template-columns: minmax(0, 1fr); padding: 16px 14px; }
+    .wrap { padding: 54px 12px 40px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<a href="../index.html#lab" class="back" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="plate">
+    <div>
+      <h1>Load Test <span>Simulator</span></h1>
+      <p>A queueing model of <em>Parcelhook</em>, a fictional order-tracking service. Virtual users send a request, wait for the answer, think, and go again. Requests queue for a pool of workers. Push the users up and watch the point where extra load stops buying throughput and starts buying latency.</p>
+    </div>
+    <div class="badge">Simulation · not a real service</div>
+  </header>
+
+  <div class="layout">
+    <aside class="panel ctl" aria-label="Simulation settings">
+      <h2>Service</h2>
+      <div class="field"><label for="workers">Workers <output data-testid="workers-out" for="workers">8</output></label><input type="range" id="workers" min="1" max="32" value="8" data-testid="workers"></div>
+      <div class="field"><label for="svc">Mean service time <output data-testid="svc-out" for="svc">100 ms</output></label><input type="range" id="svc" min="20" max="500" step="10" value="100" data-testid="svc"></div>
+      <div class="field"><label for="dist">Service-time distribution</label>
+        <select id="dist" data-testid="dist"><option value="exp">Exponential (memoryless)</option><option value="lognormal">Lognormal (long tail, σ = 0.8)</option><option value="const">Constant</option></select></div>
+      <div class="field"><label for="timeout">Client timeout <output data-testid="timeout-out" for="timeout">1000 ms</output></label><input type="range" id="timeout" min="200" max="5000" step="100" value="1000" data-testid="timeout"></div>
+      <div class="field"><label for="qlimit">Queue limit <output data-testid="qlimit-out" for="qlimit">200</output></label><input type="range" id="qlimit" min="10" max="1000" step="10" value="200" data-testid="qlimit"></div>
+      <label class="tog"><input type="checkbox" id="autoscale" data-testid="autoscale"> Autoscaling (+50 % when busy &gt; 75 %)</label>
+      <label class="tog"><input type="checkbox" id="leak" data-testid="leak"> Slow leak (service time +3 % a minute)</label>
+
+      <div class="grp">
+        <p class="gt">Virtual users</p>
+        <div class="field"><span class="lab" id="profLbl">Profile</span>
+          <div class="seg" role="group" aria-labelledby="profLbl" data-testid="profiles">
+            <button type="button" data-p="ramp" aria-pressed="true" data-testid="profile-ramp">Ramp</button>
+            <button type="button" data-p="steady" aria-pressed="false" data-testid="profile-steady">Steady</button>
+            <button type="button" data-p="spike" aria-pressed="false" data-testid="profile-spike">Spike</button>
+            <button type="button" data-p="soak" aria-pressed="false" data-testid="profile-soak">Soak</button>
+          </div>
+        </div>
+        <p class="hint" data-testid="profile-desc"></p>
+        <div class="field"><label for="peak">Peak users <output data-testid="peak-out" for="peak">150</output></label><input type="range" id="peak" min="10" max="400" step="10" value="150" data-testid="peak"></div>
+        <div class="field"><label for="think">Think time (mean) <output data-testid="think-out" for="think">1000 ms</output></label><input type="range" id="think" min="0" max="5000" step="100" value="1000" data-testid="think"></div>
+        <div class="field"><label for="seed">Seed</label><input type="number" id="seed" value="7" min="0" max="999999" data-testid="seed"></div>
+      </div>
+
+      <div class="grp">
+        <div class="runbar">
+          <button type="button" class="btn go" data-testid="run">▶ Run</button>
+          <button type="button" class="btn" data-testid="finish">⏭ Finish</button>
+          <button type="button" class="btn" data-testid="reset">↺ Reset</button>
+        </div>
+        <div class="speed"><label for="speed">Speed</label><select id="speed" data-testid="speed"><option value="5">5×</option><option value="10" selected>10×</option><option value="30">30×</option></select><span>simulated seconds per real second</span></div>
+      </div>
+    </aside>
+
+    <div class="main">
+      <section class="panel" aria-labelledby="flowH">
+        <h2 id="flowH"><span>Request flow</span><span data-testid="phase">ready</span></h2>
+        <div class="clock" data-testid="clock" aria-live="off"><span>t = <b data-testid="simtime">0</b> s of <span data-testid="duration">150</span> s</span><span data-testid="live-line">0 users · 0 queued · 0/8 busy</span></div>
+        <div class="prog"><i data-testid="progress"></i></div>
+        <canvas id="flow" data-testid="flow" role="img" aria-label="Virtual users, the request queue and the worker pool"></canvas>
+      </section>
+
+      <div class="charts">
+        <div class="chart"><div class="ch"><h3>Throughput</h3><span class="now" data-testid="now-tput" style="color:var(--ok)">– req/s</span></div><canvas id="cTput" role="img" aria-label="Throughput over time"></canvas>
+          <div class="legend"><span><i style="background:var(--ok)"></i>successful req/s (5 s avg)</span><span><i style="background:#8a93a0"></i>capacity c ÷ S</span></div></div>
+        <div class="chart"><div class="ch"><h3>Active users</h3><span class="now" data-testid="now-vus" style="color:var(--orange-2)">0</span></div><canvas id="cVus" role="img" aria-label="Virtual users and busy workers over time"></canvas>
+          <div class="legend"><span><i style="background:var(--orange)"></i>virtual users</span><span><i style="background:#b39ddb"></i>queue length</span><span><i style="background:#8a93a0"></i>workers</span></div></div>
+        <div class="chart"><div class="ch"><h3>Latency</h3><span class="now" data-testid="now-lat">–</span></div><canvas id="cLat" role="img" aria-label="p50, p95 and p99 latency over time"></canvas>
+          <div class="legend"><span><i style="background:var(--p50)"></i>p50</span><span><i style="background:var(--p95)"></i>p95</span><span><i style="background:var(--p99)"></i>p99</span><span>successful responses, 5 s window</span></div></div>
+        <div class="chart"><div class="ch"><h3>Error rate</h3><span class="now" data-testid="now-err" style="color:var(--err)">0 %</span></div><canvas id="cErr" role="img" aria-label="Error rate over time"></canvas>
+          <div class="legend"><span><i style="background:var(--err)"></i>timeouts</span><span><i style="background:#c77dff"></i>rejected (queue full)</span></div></div>
+      </div>
+
+      <div class="results">
+        <section class="panel" aria-labelledby="sumH">
+          <h2 id="sumH">Run summary</h2>
+          <div class="stats" data-testid="summary">
+            <div class="stat"><div class="k">Requests</div><div class="v" data-testid="sum-requests">–</div></div>
+            <div class="stat"><div class="k">Errors</div><div class="v" data-testid="sum-errors">–</div></div>
+            <div class="stat"><div class="k">Error rate</div><div class="v" data-testid="sum-error-rate">–</div></div>
+            <div class="stat"><div class="k">Peak req/s</div><div class="v" data-testid="sum-peak">–</div></div>
+            <div class="stat"><div class="k">p50</div><div class="v" data-testid="sum-p50">–</div></div>
+            <div class="stat"><div class="k">p95</div><div class="v" data-testid="sum-p95">–</div></div>
+            <div class="stat"><div class="k">p99</div><div class="v" data-testid="sum-p99">–</div></div>
+            <div class="stat"><div class="k">Workers at end</div><div class="v" data-testid="sum-workers">–</div></div>
+          </div>
+          <p class="knee" data-testid="nstar"></p>
+          <p class="knee" data-testid="knee" aria-live="polite">Run the simulation to find the knee.</p>
+        </section>
+        <section class="panel" aria-labelledby="kneeH">
+          <h2 id="kneeH">The knee</h2>
+          <p class="explain">Each dot is a 5-second window: users on the x axis, <span style="color:var(--ok)">throughput</span> and <span style="color:var(--p95)">p95</span> on their own scales. Past the knee the green dots flatten while the yellow ones climb.</p>
+          <canvas id="kneeCv" data-testid="knee-chart" role="img" aria-label="Throughput and p95 latency against number of users"></canvas>
+        </section>
+      </div>
+    </div>
+  </div>
+  <footer class="f">How the model works: a closed-loop discrete-event simulation. Each virtual user sends one request, waits for a response or its timeout, then thinks for an exponentially distributed time. Requests are served first come, first served by <code>c</code> workers. A full queue rejects immediately (think HTTP 503). A request that times out while queued is abandoned, but one that times out mid-service keeps its worker busy until it finishes (wasted work). Percentiles use the nearest-rank method over the raw samples, never averages of averages. Randomness comes from a seeded PRNG (mulberry32), so the same seed and settings always give the same run. Try <code>?seed=</code> in the URL.</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const qs = new URLSearchParams(location.search);
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function mulberry32(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+  // ---------- min-heap of events ----------
+  class Heap {
+    constructor() { this.a = []; this.seq = 0; }
+    get size() { return this.a.length; }
+    peek() { return this.a[0]; }
+    less(x, y) { return x.t < y.t || (x.t === y.t && x.s < y.s); }
+    push(e) { e.s = this.seq++; const a = this.a; a.push(e); let i = a.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (this.less(a[i], a[p])) { [a[i], a[p]] = [a[p], a[i]]; i = p; } else break; } }
+    pop() {
+      const a = this.a, top = a[0], last = a.pop();
+      if (a.length) { a[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < a.length && this.less(a[l], a[m])) m = l; if (r < a.length && this.less(a[r], a[m])) m = r; if (m === i) break; [a[i], a[m]] = [a[m], a[i]]; i = m; } }
+      return top;
+    }
+  }
+
+  const PROFILES = {
+    ramp: { dur: 150, desc: 'Ramp-up: 0 → peak users over 120 s, then hold for 30 s. The run for finding the knee.', target: (t, P) => (t < 120 ? Math.round((P * t) / 120) : P) },
+    steady: { dur: 120, desc: 'Steady: quick 10 s ramp, then a constant peak load. Is it sustainable?', target: (t, P) => (t < 10 ? Math.round((P * t) / 10) : P) },
+    spike: { dur: 150, desc: 'Spike: 20 % of peak, a sudden jump to full peak from 50 s to 70 s, then back. Does it recover?', target: (t, P) => { const b = Math.max(1, Math.round(P * 0.2)); return t >= 50 && t < 70 ? P : Math.min(b, Math.round((b * t) / 5)); } },
+    soak: { dur: 900, desc: 'Soak: 60 % of peak for 15 simulated minutes. Pair it with the slow leak and watch it degrade.', target: (t, P) => { const n = Math.max(1, Math.round(P * 0.6)); return t < 30 ? Math.round((n * t) / 30) : n; } },
+  };
+
+  // ---------- the simulation ----------
+  function createSim(cfg) {
+    const rnd = mulberry32(cfg.seed >>> 0);
+    const heap = new Heap();
+    const S = cfg.svc / 1000, Z = cfg.think / 1000, TO = cfg.timeout / 1000;
+    const prof = PROFILES[cfg.profile];
+    const sim = {
+      cfg, t: 0, dur: prof.dur, heap, vus: [], active: 0, queue: [], qh: 0, busy: 0, workers: cfg.workers, pendingAdd: 0,
+      busyInt: 0, lastBusyInt: 0, lastT: 0, inflight: 0, buckets: [], nextVu: 0, reqs: 0, done: false,
+    };
+    function bucket(t) { const i = Math.min(sim.dur - 1, Math.max(0, Math.floor(t))); let b = sim.buckets[i]; if (!b) { b = sim.buckets[i] = { ok: 0, to: 0, rej: 0, lat: [], vus: 0, q: 0, busy: 0, w: sim.workers }; } return b; }
+    function svcTime() {
+      let x;
+      const u = Math.max(1e-12, rnd());
+      if (cfg.dist === 'exp') x = -S * Math.log(u);
+      else if (cfg.dist === 'lognormal') { const sg = 0.8, mu = Math.log(S) - (sg * sg) / 2; const z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd()); x = Math.exp(mu + sg * z); }
+      else x = S;
+      if (cfg.leak) x *= 1 + 0.03 * (sim.t / 60);
+      return x;
+    }
+    function thinkTime() { return Z <= 0 ? 0 : -Z * Math.log(Math.max(1e-12, rnd())); }
+    function advance(t) { sim.busyInt += sim.busy * (t - sim.lastT); sim.lastT = t; sim.t = t; }
+    function qlen() { return sim.queue.length - sim.qh; }
+    function start(r) { sim.busy++; heap.push({ t: sim.t + svcTime(), type: 'done', r }); }
+    function next(vu) { if (vu.retire) { vu.gone = true; return; } heap.push({ t: sim.t + thinkTime(), type: 'send', vu }); }
+    function dequeue() {
+      while (sim.busy < sim.workers && qlen() > 0) {
+        const r = sim.queue[sim.qh++];
+        if (sim.qh > 4096 && sim.qh * 2 > sim.queue.length) { sim.queue = sim.queue.slice(sim.qh); sim.qh = 0; }
+        if (r.timedOut) continue;
+        start(r);
+      }
+    }
+    function spawn(n) {
+      for (let i = 0; i < n; i++) {
+        const vu = { id: sim.nextVu++, retire: false, gone: false, waiting: false };
+        sim.vus.push(vu);
+        heap.push({ t: sim.t + rnd(), type: 'send', vu });
+      }
+    }
+    function handle(e) {
+      if (e.type === 'send') {
+        const vu = e.vu;
+        if (vu.retire) { vu.gone = true; return; }
+        sim.reqs++;
+        const r = { t0: sim.t, vu, done: false, timedOut: false };
+        if (sim.busy < sim.workers) start(r);
+        else if (qlen() < cfg.qlimit) sim.queue.push(r);
+        else { bucket(sim.t).rej++; next(vu); return; }
+        vu.waiting = true; sim.inflight++;
+        heap.push({ t: sim.t + TO, type: 'timeout', r });
+      } else if (e.type === 'done') {
+        sim.busy--;
+        const r = e.r;
+        if (!r.timedOut) {
+          r.done = true;
+          const b = bucket(sim.t); b.ok++; b.lat.push((sim.t - r.t0) * 1000);
+          r.vu.waiting = false; sim.inflight--;
+          next(r.vu);
+        }
+        dequeue();
+      } else if (e.type === 'timeout') {
+        const r = e.r;
+        if (r.done) return;
+        r.timedOut = true;
+        bucket(sim.t).to++;
+        r.vu.waiting = false; sim.inflight--;
+        next(r.vu);
+      } else if (e.type === 'tick') {
+        const sec = Math.round(sim.t);
+        const target = prof.target(sec, cfg.peak);
+        const live = sim.vus.filter((v) => !v.retire && !v.gone);
+        if (target > live.length) spawn(target - live.length);
+        else if (target < live.length) for (let i = live.length - 1; i >= target; i--) live[i].retire = true;
+        if (sim.vus.length > 2000) sim.vus = sim.vus.filter((v) => !v.gone);
+        sim.active = Math.max(target, 0);
+        if (cfg.autoscale && sec > 0 && sec % 15 === 0) {
+          const util = (sim.busyInt - sim.lastBusyInt) / (sim.workers * 15);
+          sim.lastBusyInt = sim.busyInt;
+          if (util > 0.75 && !sim.pendingAdd && sim.workers < 64) {
+            sim.pendingAdd = Math.min(64 - sim.workers, Math.ceil(sim.workers * 0.5));
+            heap.push({ t: sim.t + 20, type: 'scaleup' });
+          } else if (util < 0.3 && !sim.pendingAdd && sim.workers > cfg.workers) {
+            sim.workers = Math.max(cfg.workers, sim.workers - Math.ceil(sim.workers * 0.25));
+          }
+        }
+        if (sec < sim.dur) {
+          const b = bucket(sec); b.vus = sim.active; b.q = qlen(); b.busy = sim.busy; b.w = sim.workers;
+          heap.push({ t: sec + 1, type: 'tick' });
+        }
+      } else if (e.type === 'scaleup') {
+        sim.workers += sim.pendingAdd; sim.pendingAdd = 0; dequeue();
+      }
+    }
+    heap.push({ t: 0, type: 'tick' });
+    sim.step = (until) => {
+      until = Math.min(until, sim.dur);
+      while (heap.size && heap.peek().t <= until) { const e = heap.pop(); advance(e.t); handle(e); }
+      advance(until);
+      if (until >= sim.dur) sim.done = true;
+    };
+    sim.qlen = qlen;
+    return sim;
+  }
+
+  // ---------- statistics ----------
+  function pct(sorted, p) { if (!sorted.length) return NaN; const k = Math.max(0, Math.ceil((p / 100) * sorted.length) - 1); return sorted[k]; }
+  const cache = new Map();
+  function windowStats(sim, s) {
+    // 5-second trailing window ending at second s (inclusive)
+    const key = s;
+    const complete = s < Math.floor(sim.t) || sim.done;
+    if (complete && cache.has(key)) return cache.get(key);
+    let ok = 0, to = 0, rej = 0; const lat = [];
+    for (let i = Math.max(0, s - 4); i <= s; i++) { const b = sim.buckets[i]; if (!b) continue; ok += b.ok; to += b.to; rej += b.rej; for (const x of b.lat) lat.push(x); }
+    lat.sort((a, b) => a - b);
+    const n = Math.min(5, s + 1);
+    const tot = ok + to + rej;
+    const b = sim.buckets[s] || {};
+    const r = { tput: ok / n, p50: pct(lat, 50), p95: pct(lat, 95), p99: pct(lat, 99), errTo: tot ? to / tot : 0, errRej: tot ? rej / tot : 0, n: lat.length, tot, vus: b.vus || 0, q: b.q || 0, w: b.w || 0 };
+    if (complete) cache.set(key, r);
+    return r;
+  }
+  function summary(sim) {
+    let ok = 0, to = 0, rej = 0; const lat = [];
+    for (const b of sim.buckets) { if (!b) continue; ok += b.ok; to += b.to; rej += b.rej; for (const x of b.lat) lat.push(x); }
+    lat.sort((a, b) => a - b);
+    let peak = 0;
+    const last = sim.done ? sim.dur - 1 : Math.floor(sim.t) - 1;
+    for (let s = 4; s <= last; s++) peak = Math.max(peak, windowStats(sim, s).tput);
+    return { total: ok + to + rej, ok, errors: to + rej, to, rej, rate: ok + to + rej ? (to + rej) / (ok + to + rej) : 0, p50: pct(lat, 50), p95: pct(lat, 95), p99: pct(lat, 99), peak };
+  }
+  function findKnee(sim) {
+    const pts = kneePoints(sim);
+    const valid = pts.filter((p) => p.n >= 20 && Number.isFinite(p.p95));
+    if (valid.length < 4) return null;
+    const base = valid.slice(0, 3).map((p) => p.p95).sort((a, b) => a - b)[1];
+    for (const p of valid.slice(3)) if (p.p95 > 2 * base || p.err > 0.01) return { vus: p.vus, p95: p.p95, base, tput: p.tput, reason: p.err > 0.01 ? 'errors' : 'latency' };
+    return null;
+  }
+  function kneePoints(sim) {
+    const out = [];
+    const last = sim.done ? sim.dur - 1 : Math.floor(sim.t) - 1;
+    for (let s = 9; s <= last; s += 5) {
+      const w = windowStats(sim, s);
+      if (w.vus > 0) out.push({ vus: w.vus, tput: w.tput, p95: w.p95, n: w.n, err: w.errTo + w.errRej });
+    }
+    return out;
+  }
+
+  // ---------- charts ----------
+  const fin = (v, d = 0) => (Number.isFinite(v) ? v : d);
+  function prep(cv) {
+    const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    const w = Math.max(10, Math.round(cv.clientWidth)), h = Math.max(10, Math.round(cv.clientHeight));
+    if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    const g = cv.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+    return { g, w, h };
+  }
+  function niceMax(v) { if (!(v > 0) || !Number.isFinite(v)) return 1; const e = Math.pow(10, Math.floor(Math.log10(v))); const m = v / e; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * e; }
+  function axes(g, w, h, L, B, ymax, dur, fmtY) {
+    g.strokeStyle = '#3b424d'; g.lineWidth = 1; g.fillStyle = '#7c828d'; g.font = '10.5px Consolas, monospace';
+    for (let i = 0; i <= 4; i++) {
+      const y = Math.round(fin(8 + ((h - B - 8) * i) / 4)) + 0.5;
+      g.beginPath(); g.moveTo(L, y); g.lineTo(w - 6, y); g.stroke();
+      g.textAlign = 'right'; g.textBaseline = 'middle'; g.fillText(fmtY(ymax * (1 - i / 4)), L - 5, y);
+    }
+    g.textAlign = 'center'; g.textBaseline = 'top';
+    const step = dur > 300 ? 150 : 30;
+    for (let s = 0; s <= dur; s += step) { const x = L + ((w - 6 - L) * s) / dur; g.fillText(s + 's', fin(x), h - B + 4); }
+  }
+  function line(g, pts, color, width = 1.8) {
+    g.strokeStyle = color; g.lineWidth = width; g.lineJoin = 'round'; g.beginPath();
+    let pen = false;
+    for (const [x, y] of pts) { if (!Number.isFinite(x) || !Number.isFinite(y)) { pen = false; continue; } if (!pen) { g.moveTo(x, y); pen = true; } else g.lineTo(x, y); }
+    g.stroke();
+  }
+  function timeChart(cv, sim, series, ymaxIn, fmtY, refLine) {
+    const { g, w, h } = prep(cv);
+    const L = 44, B = 18;
+    const last = sim ? (sim.done ? sim.dur - 1 : Math.floor(sim.t) - 1) : -1;
+    const data = [];
+    for (let s = 0; s <= last; s++) data.push(windowStats(sim, s));
+    let ymax = ymaxIn;
+    if (ymax == null) { let m = 0; for (const d of data) for (const sr of series) m = Math.max(m, fin(sr.get(d))); if (refLine) m = Math.max(m, refLine.v); ymax = niceMax(m * 1.1); }
+    const dur = sim ? sim.dur : 150;
+    axes(g, w, h, L, B, ymax, dur, fmtY);
+    const X = (s) => L + ((w - 6 - L) * s) / dur, Y = (v) => 8 + (h - B - 8) * (1 - Math.min(1, v / ymax));
+    if (refLine && Number.isFinite(refLine.v)) { g.setLineDash([4, 4]); line(g, [[L, Y(refLine.v)], [w - 6, Y(refLine.v)]], '#8a93a0', 1); g.setLineDash([]); }
+    for (const sr of series) line(g, data.map((d, i) => [X(i), Y(sr.get(d))]), sr.color, sr.width || 1.8);
+  }
+
+  function drawFlow(sim) {
+    const cv = $('#flow');
+    const { g, w, h } = prep(cv);
+    const narrow = w < 560;
+    const colW = narrow ? w : w / 3;
+    g.font = '600 11px Bahnschrift, "Arial Narrow", sans-serif'; g.textBaseline = 'top';
+    const vus = sim ? sim.vus.filter((v) => !v.gone && !v.retire) : [];
+    const waiting = vus.filter((v) => v.waiting).length;
+    // users
+    const ux = 10, uy = 22, uw = narrow ? w * 0.42 - 16 : colW - 24, uh = h - 34;
+    g.fillStyle = '#aeb2ba'; g.fillText(`USERS · ${vus.length} (${waiting} waiting)`, ux, 4);
+    const cap = 400, cols = Math.max(1, Math.floor(Math.sqrt((cap * uw) / uh)));
+    const cell = Math.max(3, Math.min(14, uw / cols));
+    vus.slice(0, cap).forEach((v, i) => {
+      const cx = ux + (i % cols) * cell + cell / 2, cy = uy + Math.floor(i / cols) * cell + cell / 2;
+      if (!Number.isFinite(cx) || !Number.isFinite(cy) || cy > h - 4) return;
+      g.fillStyle = v.waiting ? '#ff7a1a' : '#566070';
+      g.beginPath(); g.arc(cx, cy, Math.max(1, cell * 0.34), 0, Math.PI * 2); g.fill();
+    });
+    // queue
+    const q = sim ? sim.qlen() : 0, lim = sim ? sim.cfg.qlimit : 200;
+    const qx = narrow ? w * 0.42 : colW + 8, qw = narrow ? w * 0.26 : colW - 30;
+    g.fillStyle = '#aeb2ba'; g.fillText(`QUEUE · ${q}/${lim}`, qx, 4);
+    g.strokeStyle = '#4a525f'; g.strokeRect(qx + 0.5, 30.5, qw, h - 50);
+    const fill = Math.min(1, q / lim);
+    const grd = g.createLinearGradient(qx, 0, qx + qw, 0);
+    grd.addColorStop(0, '#b39ddb'); grd.addColorStop(1, fill > 0.9 ? '#ff5a5a' : '#7e57c2');
+    g.fillStyle = grd; g.fillRect(qx + 2, fin(30 + (h - 50) * (1 - fill)) + 2, Math.max(0, qw - 3), Math.max(0, (h - 50) * fill - 3));
+    // workers
+    const W = sim ? sim.workers : +$('#workers').value, busy = sim ? Math.min(sim.busy, W) : 0, pend = sim ? sim.pendingAdd : 0;
+    const wx = narrow ? w * 0.7 : colW * 2, ww = narrow ? w * 0.3 - 8 : colW - 10;
+    g.fillStyle = '#aeb2ba'; g.fillText(`WORKERS · ${busy}/${W} busy${pend ? ' +' + pend : ''}`, wx, 4);
+    const tot = W + pend, wc = Math.max(1, Math.ceil(Math.sqrt((tot * ww) / (h - 30)))), ws = Math.max(4, Math.min(34, ww / wc));
+    for (let i = 0; i < tot; i++) {
+      const x = wx + (i % wc) * ws, y = 24 + Math.floor(i / wc) * ws;
+      if (y + ws > h) break;
+      if (i < W) { g.fillStyle = i < busy ? '#ff7a1a' : '#2e343d'; g.fillRect(x + 1, y + 1, ws - 3, ws - 3); g.strokeStyle = '#4a525f'; g.strokeRect(x + 1.5, y + 1.5, ws - 4, ws - 4); }
+      else { g.strokeStyle = '#7bd88f'; g.setLineDash([3, 2]); g.strokeRect(x + 1.5, y + 1.5, ws - 4, ws - 4); g.setLineDash([]); }
+    }
+  }
+
+  function drawKnee(sim) {
+    const cv = $('#kneeCv');
+    const { g, w, h } = prep(cv);
+    const L = 40, R = 46, B = 20, T = 8;
+    const pts = sim ? kneePoints(sim) : [];
+    const xmax = niceMax(Math.max(10, ...pts.map((p) => p.vus), sim ? sim.cfg.peak : 150));
+    const tmax = niceMax(Math.max(1, ...pts.map((p) => fin(p.tput))) * 1.1);
+    const lmax = niceMax(Math.max(1, ...pts.map((p) => fin(p.p95))) * 1.1);
+    g.strokeStyle = '#3b424d'; g.fillStyle = '#7c828d'; g.font = '10.5px Consolas, monospace';
+    for (let i = 0; i <= 4; i++) {
+      const y = T + ((h - B - T) * i) / 4;
+      g.beginPath(); g.moveTo(L, y + 0.5); g.lineTo(w - R, y + 0.5); g.stroke();
+      g.textBaseline = 'middle'; g.textAlign = 'right'; g.fillStyle = '#7bd88f'; g.fillText(String(Math.round(tmax * (1 - i / 4))), L - 4, y);
+      g.textAlign = 'left'; g.fillStyle = '#f2c14e'; g.fillText(Math.round(lmax * (1 - i / 4)) + 'ms', w - R + 4, y);
+    }
+    g.fillStyle = '#7c828d'; g.textAlign = 'center'; g.textBaseline = 'top';
+    for (let i = 0; i <= 4; i++) g.fillText(String(Math.round((xmax * i) / 4)), L + ((w - R - L) * i) / 4, h - B + 4);
+    const X = (v) => L + ((w - R - L) * v) / xmax;
+    const nstar = sim ? theory(sim.cfg).nstar : NaN;
+    if (Number.isFinite(nstar) && nstar <= xmax) { g.setLineDash([4, 4]); line(g, [[X(nstar), T], [X(nstar), h - B]], '#8a93a0', 1); g.setLineDash([]); g.fillStyle = '#aeb2ba'; g.textAlign = 'left'; g.fillText('N*', X(nstar) + 3, T); }
+    const k = sim && sim.done ? findKnee(sim) : null;
+    if (k) { g.strokeStyle = '#ff7a1a'; g.lineWidth = 2; g.beginPath(); g.moveTo(X(k.vus), T); g.lineTo(X(k.vus), h - B); g.stroke(); g.fillStyle = '#ff7a1a'; g.fillText('knee', X(k.vus) + 3, T + 12); }
+    for (const p of pts) {
+      const x = X(p.vus);
+      const yt = T + (h - B - T) * (1 - fin(p.tput) / tmax), yl = T + (h - B - T) * (1 - Math.min(1, fin(p.p95) / lmax));
+      if (!Number.isFinite(x)) continue;
+      g.fillStyle = '#7bd88f'; g.beginPath(); g.arc(x, fin(yt), 3, 0, Math.PI * 2); g.fill();
+      if (Number.isFinite(p.p95)) { g.fillStyle = '#f2c14e'; g.fillRect(x - 2.5, fin(yl) - 2.5, 5, 5); }
+    }
+  }
+
+  // ---------- UI ----------
+  function theory(cfg) {
+    const S = cfg.svc / 1000, Z = cfg.think / 1000;
+    return { cap: cfg.workers / S, nstar: (cfg.workers * (S + Z)) / S };
+  }
+  const fmtMs = (v) => (Number.isFinite(v) ? (v >= 1000 ? (v / 1000).toFixed(2) + ' s' : Math.round(v) + ' ms') : '–');
+  let profile = 'ramp';
+  let sim = null, running = false, lastReal = 0, raf = 0;
+  const seedParam = parseInt(qs.get('seed'), 10);
+  if (Number.isFinite(seedParam)) $('#seed').value = String(seedParam);
+
+  function cfgNow() {
+    return {
+      workers: +$('#workers').value, svc: +$('#svc').value, dist: $('#dist').value, timeout: +$('#timeout').value, qlimit: +$('#qlimit').value,
+      autoscale: $('#autoscale').checked, leak: $('#leak').checked, profile, peak: +$('#peak').value, think: +$('#think').value,
+      seed: Math.max(0, parseInt($('#seed').value, 10) || 0),
+    };
+  }
+  function syncOutputs() {
+    $('[data-testid="workers-out"]').textContent = $('#workers').value;
+    $('[data-testid="svc-out"]').textContent = $('#svc').value + ' ms';
+    $('[data-testid="timeout-out"]').textContent = $('#timeout').value + ' ms';
+    $('[data-testid="qlimit-out"]').textContent = $('#qlimit').value;
+    $('[data-testid="peak-out"]').textContent = $('#peak').value;
+    $('[data-testid="think-out"]').textContent = $('#think').value + ' ms';
+    document.querySelectorAll('[data-testid="profiles"] button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.p === profile)));
+    $('[data-testid="profile-desc"]').textContent = PROFILES[profile].desc;
+    $('[data-testid="duration"]').textContent = PROFILES[profile].dur;
+    const th = theory(cfgNow());
+    $('[data-testid="nstar"]').innerHTML = `Capacity c ÷ S = <b data-testid="capacity">${th.cap.toFixed(0)}</b> req/s. Saturation estimate N* = c·(S + Z) ÷ S = <b data-testid="nstar-val">${Math.round(th.nstar)}</b> users (the classic rule of thumb for a closed system${$('#autoscale').checked ? '; autoscaling moves it' : ''}).`;
+  }
+
+  function reset() {
+    cancelAnimationFrame(raf); running = false; sim = null; cache.clear();
+    $('[data-testid="run"]').textContent = '▶ Run';
+    $('[data-testid="phase"]').textContent = 'ready';
+    ['requests', 'errors', 'error-rate', 'peak', 'p50', 'p95', 'p99', 'workers'].forEach((k) => { $(`[data-testid="sum-${k}"]`).textContent = '–'; });
+    $('[data-testid="summary"]').removeAttribute('data-done');
+    $('[data-testid="knee"]').textContent = 'Run the simulation to find the knee.';
+    $('[data-testid="knee"]').removeAttribute('data-knee');
+    syncOutputs();
+    draw();
+  }
+  function ensureSim() { if (!sim) { cache.clear(); sim = createSim(cfgNow()); } return sim; }
+
+  function draw() {
+    const th = theory(cfgNow());
+    timeChart($('#cTput'), sim, [{ get: (d) => d.tput, color: '#7bd88f', width: 2 }], null, (v) => Math.round(v), { v: sim ? sim.workers / (sim.cfg.svc / 1000) : th.cap });
+    timeChart($('#cVus'), sim, [{ get: (d) => d.w, color: '#8a93a0', width: 1.2 }, { get: (d) => d.q, color: '#b39ddb', width: 1.4 }, { get: (d) => d.vus, color: '#ff7a1a', width: 2 }], null, (v) => Math.round(v));
+    timeChart($('#cLat'), sim, [{ get: (d) => d.p50, color: '#4cc9d9' }, { get: (d) => d.p95, color: '#f2c14e' }, { get: (d) => d.p99, color: '#ff6b6b' }], null, (v) => (v >= 1000 ? (v / 1000).toFixed(1) + 's' : Math.round(v) + ''));
+    timeChart($('#cErr'), sim, [{ get: (d) => (d.errTo + d.errRej) * 100, color: '#ff5a5a', width: 2 }, { get: (d) => d.errRej * 100, color: '#c77dff', width: 1.4 }], 100, (v) => Math.round(v) + '%');
+    drawFlow(sim);
+    drawKnee(sim);
+    if (!sim) {
+      $('[data-testid="simtime"]').textContent = '0';
+      $('[data-testid="progress"]').style.width = '0%';
+      $('[data-testid="live-line"]').textContent = `0 users · 0 queued · 0/${$('#workers').value} busy`;
+      ['tput', 'vus', 'lat', 'err'].forEach((k) => { $(`[data-testid="now-${k}"]`).textContent = k === 'vus' ? '0' : '–'; });
+      return;
+    }
+    const t = sim.t;
+    $('[data-testid="simtime"]').textContent = String(Math.floor(t));
+    $('[data-testid="progress"]').style.width = ((100 * t) / sim.dur).toFixed(1) + '%';
+    const users = sim.vus.filter((v) => !v.gone && !v.retire).length;
+    $('[data-testid="live-line"]').textContent = `${users} users · ${sim.qlen()} queued · ${Math.min(sim.busy, sim.workers)}/${sim.workers} busy`;
+    const s = sim.done ? sim.dur - 1 : Math.floor(t) - 1;
+    if (s >= 0) {
+      const w = windowStats(sim, s);
+      $('[data-testid="now-tput"]').textContent = w.tput.toFixed(1) + ' req/s';
+      $('[data-testid="now-vus"]').textContent = String(w.vus);
+      $('[data-testid="now-lat"]').innerHTML = `<span style="color:var(--p50)">${fmtMs(w.p50)}</span> · <span style="color:var(--p95)">${fmtMs(w.p95)}</span> · <span style="color:var(--p99)">${fmtMs(w.p99)}</span>`;
+      $('[data-testid="now-err"]').textContent = ((w.errTo + w.errRej) * 100).toFixed(1) + ' %';
+    }
+    $('[data-testid="phase"]').textContent = sim.done ? 'finished' : running ? 'running' : 'paused';
+    if (sim.done) finishUI();
+  }
+
+  function finishUI() {
+    const sm = summary(sim);
+    const box = $('[data-testid="summary"]');
+    if (box.dataset.done === '1') return;
+    box.dataset.done = '1';
+    Object.assign(box.dataset, { total: sm.total, errors: sm.errors, p50: fin(sm.p50).toFixed(2), p95: fin(sm.p95).toFixed(2), p99: fin(sm.p99).toFixed(2), peak: sm.peak.toFixed(2), workers: sim.workers, rate: sm.rate.toFixed(5) });
+    $('[data-testid="sum-requests"]').textContent = sm.total.toLocaleString('en-US');
+    $('[data-testid="sum-errors"]').textContent = sm.errors.toLocaleString('en-US');
+    $('[data-testid="sum-error-rate"]').textContent = (sm.rate * 100).toFixed(2) + ' %';
+    $('[data-testid="sum-peak"]').textContent = sm.peak.toFixed(1);
+    $('[data-testid="sum-p50"]').textContent = fmtMs(sm.p50);
+    $('[data-testid="sum-p95"]').textContent = fmtMs(sm.p95);
+    $('[data-testid="sum-p99"]').textContent = fmtMs(sm.p99);
+    $('[data-testid="sum-workers"]').textContent = String(sim.workers);
+    const k = findKnee(sim);
+    const kn = $('[data-testid="knee"]');
+    if (k) {
+      kn.dataset.knee = String(k.vus);
+      kn.innerHTML = `Knee at about <b>${k.vus} users</b>: ${k.reason === 'errors' ? 'errors passed 1 %' : `p95 reached ${fmtMs(k.p95)}, more than twice the ${fmtMs(k.base)} baseline`}, while throughput was ${k.tput.toFixed(0)} req/s. Beyond it, extra users mostly wait in the queue.`;
+    } else {
+      kn.dataset.knee = 'none';
+      kn.textContent = profile === 'ramp' ? 'No knee in this run: the service kept up with every user. Raise the peak or remove workers.' : 'No knee found. The knee is easiest to see in a Ramp run, where load rises steadily.';
+    }
+    running = false;
+    $('[data-testid="run"]').textContent = '▶ Run';
+  }
+
+  function loop() {
+    if (!running) return;
+    const now = performance.now();
+    // reduced motion: update twice a second instead of every frame
+    if (reduced && now - lastReal < 500) { raf = requestAnimationFrame(loop); return; }
+    const dt = Math.min(reduced ? 0.6 : 0.25, Math.max(0, (now - lastReal) / 1000));
+    lastReal = now;
+    sim.step(sim.t + dt * +$('#speed').value);
+    draw();
+    if (sim.done) { running = false; return; }
+    raf = requestAnimationFrame(loop);
+  }
+
+  $('[data-testid="run"]').addEventListener('click', () => {
+    if (sim && sim.done) reset();
+    ensureSim();
+    if (running) { running = false; cancelAnimationFrame(raf); $('[data-testid="run"]').textContent = '▶ Run'; draw(); return; }
+    running = true; lastReal = performance.now();
+    $('[data-testid="run"]').textContent = '❚❚ Pause';
+    raf = requestAnimationFrame(loop);
+    draw();
+  });
+  $('[data-testid="finish"]').addEventListener('click', () => {
+    cancelAnimationFrame(raf); running = false;
+    ensureSim();
+    sim.step(sim.dur);
+    draw();
+  });
+  $('[data-testid="reset"]').addEventListener('click', reset);
+  ['workers', 'svc', 'dist', 'timeout', 'qlimit', 'autoscale', 'leak', 'peak', 'think', 'seed'].forEach((id) => {
+    $('#' + id).addEventListener('input', () => { reset(); });
+    $('#' + id).addEventListener('change', () => { reset(); });
+  });
+  $('[data-testid="profiles"]').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-p]'); if (!b) return;
+    profile = b.dataset.p; reset();
+  });
+  let rt = 0;
+  window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(draw, 80); });
+
+  reset();
+})();
+</script>
+</body>
+</html>

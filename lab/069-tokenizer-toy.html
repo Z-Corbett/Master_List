@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tokenizer Toy — Byte-Pair Encoding, One Merge at a Time</title>
+<meta name="description" content="A toy byte-pair-encoding tokenizer trained right in the page on a short original corpus or your own text. Step through merges one by one with their pair frequencies, watch the vocabulary grow to a target size, then tokenize any input with coloured token boundaries and IDs to see how rare words, numbers and whitespace split.">
+<style>
+  :root {
+    --kraft: #e9dcc2;
+    --kraft-2: #dccbaa;
+    --paper: #f7f0e1;
+    --ink: #2a2320;
+    --ink-2: #5d5147;
+    --ink-3: #8e8173;
+    --red: #c8472d;
+    --blue: #2f5d8a;
+    --t1: #f6c1a8; --t2: #bfe0c7; --t3: #c7d4f2; --t4: #f5e19a; --t5: #e5c4ea; --t6: #a9dfe0;
+    --serif: Rockwell, "Rockwell Nova", "Roboto Slab", "Courier New", serif;
+    --sans: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    --mono: "Courier New", Courier, ui-monospace, monospace;
+    --mono2: Consolas, "Cascadia Mono", ui-monospace, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--kraft); color: var(--ink); font-family: var(--sans); line-height: 1.45; overflow-x: hidden;
+    background-image: radial-gradient(rgba(90,60,20,.07) 1px, transparent 1.4px), radial-gradient(rgba(255,255,255,.18) 1px, transparent 1.4px); background-size: 7px 7px, 11px 11px; background-position: 0 0, 3px 5px; }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  input, textarea, select, pre { max-width: 100%; }
+  :focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+  .back { position: fixed; top: 10px; left: 10px; z-index: 50; background: var(--ink); color: var(--paper); text-decoration: none; font: 700 13px/1 var(--serif); padding: 8px 11px; border-radius: 4px;
+    box-shadow: 0 3px 0 var(--red); }
+  .back:hover { background: var(--red); }
+  .wrap { max-width: 1220px; margin: 0 auto; padding: 60px 18px 50px; }
+
+  header.top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 380px); gap: 20px 30px; align-items: end; margin-bottom: 22px; }
+  .title { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; font: 700 clamp(30px, 6vw, 62px)/1 var(--serif); letter-spacing: -.01em; }
+  .title span { display: inline-block; padding: 4px 10px 8px; border-radius: 8px; border: 2px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); }
+  .title span:nth-child(1) { background: var(--t1); } .title span:nth-child(2) { background: var(--t4); } .title span:nth-child(3) { background: var(--t3); } .title span:nth-child(4) { background: var(--t2); }
+  .lede { margin: 16px 0 0; max-width: 64ch; font-size: 16px; color: var(--ink-2); }
+  .label-note { border: 2px dashed var(--red); color: var(--red); background: rgba(255,255,255,.35); padding: 10px 12px; border-radius: 6px; font-size: 13.5px; }
+  .label-note b { font-family: var(--serif); letter-spacing: .04em; }
+
+  .cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+  .card { background: var(--paper); border: 2px solid var(--ink); border-radius: 10px; padding: 16px; box-shadow: 4px 4px 0 rgba(42,35,32,.85); min-width: 0; }
+  .card h2 { margin: 0 0 10px; font: 700 20px var(--serif); display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .card h2 small { font: 600 12px var(--sans); color: var(--ink-3); letter-spacing: .06em; text-transform: uppercase; }
+  .card p.sub { margin: 0 0 10px; color: var(--ink-2); font-size: 14px; }
+  .seg { display: inline-flex; border: 2px solid var(--ink); border-radius: 6px; overflow: hidden; margin-bottom: 8px; }
+  .seg button { border: 0; background: var(--paper); padding: 6px 12px; font-weight: 600; font-size: 13.5px; }
+  .seg button + button { border-left: 2px solid var(--ink); }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  textarea { width: 100%; border: 1.5px solid var(--ink-3); border-radius: 6px; background: #fffaf0; padding: 10px; font: 13px/1.5 var(--mono2); resize: vertical; }
+  #corpus { min-height: 150px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .btn { border: 2px solid var(--ink); background: #fffaf0; border-radius: 6px; padding: 7px 12px; font-weight: 700; box-shadow: 2px 2px 0 var(--ink); }
+  .btn:active { transform: translate(2px, 2px); box-shadow: none; }
+  .btn.pri { background: var(--red); color: #fff; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .field { display: grid; gap: 4px; margin: 12px 0; }
+  .field label { display: flex; justify-content: space-between; font-size: 13.5px; color: var(--ink-2); font-weight: 600; }
+  .field output { font: 700 14px var(--mono2); color: var(--ink); }
+  input[type="range"] { width: 100%; accent-color: var(--red); }
+  .meter { height: 14px; border: 2px solid var(--ink); border-radius: 999px; background: #fffaf0; overflow: hidden; margin: 6px 0 4px; }
+  .meter i { display: block; height: 100%; width: 0; background: repeating-linear-gradient(-45deg, var(--red) 0 8px, #db6a52 8px 16px); }
+  .meterlbl { font: 13px var(--mono2); color: var(--ink-2); display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .status { font-size: 13.5px; color: var(--ink-2); margin: 8px 0 0; min-height: 1.4em; }
+
+  table.pairs { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.pairs th { text-align: left; font: 600 11px var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); padding: 4px 6px; border-bottom: 2px solid var(--ink); }
+  table.pairs td { padding: 5px 6px; border-bottom: 1px dashed var(--ink-3); }
+  table.pairs tr.win td { background: #fde7c9; font-weight: 700; }
+  .bar { height: 8px; background: var(--blue); border-radius: 4px; min-width: 2px; }
+  .tk { display: inline-block; font: 700 13.5px var(--mono); padding: 1px 5px; border-radius: 4px; border: 1.5px solid var(--ink); background: #fff; white-space: pre; }
+  .plus { color: var(--ink-3); margin: 0 3px; }
+
+  .merges { list-style: none; margin: 0; padding: 0; max-height: 260px; overflow: auto; display: grid; gap: 4px; font-size: 13.5px; }
+  .merges li { display: grid; grid-template-columns: 3.2em minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 3px 6px; border-radius: 4px; }
+  .merges li:first-child { background: #fde7c9; }
+  .merges .rank { font: 12px var(--mono2); color: var(--ink-3); }
+  .merges .cnt { font: 12px var(--mono2); color: var(--ink-2); }
+  .vocab { display: flex; flex-wrap: wrap; gap: 5px; max-height: 260px; overflow: auto; align-content: flex-start; }
+  .vocab .tk { font-size: 12.5px; }
+  .vocab .tk small { font: 10px var(--mono2); color: var(--ink-3); margin-left: 4px; }
+
+  .play { margin-top: 18px; }
+  #input { min-height: 90px; font-size: 15px; }
+  .examples { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
+  .examples button { border: 1.5px solid var(--ink); background: #fffaf0; border-radius: 999px; padding: 4px 11px; font-size: 13px; }
+  .tokens { display: flex; flex-wrap: wrap; gap: 3px 2px; padding: 12px; background: #fffaf0; border: 1.5px solid var(--ink-3); border-radius: 8px; min-height: 64px; align-content: flex-start; }
+  .tok { display: inline-grid; justify-items: center; border-radius: 5px; padding: 2px 3px 1px; border: 1px solid rgba(42,35,32,.35); min-width: 14px; }
+  .tok .s { font: 700 17px/1.25 var(--mono); white-space: pre; }
+  .tok .id { font: 10px/1.2 var(--mono2); color: var(--ink-2); }
+  .tokens.noids .tok .id { display: none; }
+  .tok.c0 { background: var(--t1); } .tok.c1 { background: var(--t2); } .tok.c2 { background: var(--t3); } .tok.c3 { background: var(--t4); } .tok.c4 { background: var(--t5); } .tok.c5 { background: var(--t6); }
+  .tok.unk { background: #2a2320; color: #fff; } .tok.unk .id { color: #d9cdbd; }
+  .tok .ws { color: var(--ink-3); }
+  .brk { flex-basis: 100%; height: 0; }
+  .stats { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; font-size: 14px; color: var(--ink-2); }
+  .stats b { font: 700 18px var(--mono2); color: var(--ink); }
+  .check { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; }
+  .check input { accent-color: var(--red); width: 17px; height: 17px; }
+  .explain { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 18px; }
+  .explain div { background: rgba(255,255,255,.35); border-left: 4px solid var(--ink); padding: 10px 12px; font-size: 14px; color: var(--ink-2); }
+  .explain b { font-family: var(--serif); color: var(--ink); display: block; margin-bottom: 2px; font-size: 16px; }
+  footer.f { margin-top: 20px; font-size: 13px; color: var(--ink-2); max-width: 95ch; }
+
+  @media (max-width: 900px) {
+    header.top, .cols, .explain { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 520px) {
+    .wrap { padding: 56px 12px 40px; }
+    .title span { box-shadow: 2px 2px 0 var(--ink); padding: 3px 7px 6px; }
+    .card { padding: 13px; box-shadow: 3px 3px 0 rgba(42,35,32,.85); }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<a href="../index.html#lab" class="back" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1 class="title" aria-label="Tokenizer Toy"><span aria-hidden="true">Tok</span><span aria-hidden="true">en</span><span aria-hidden="true">izer</span><span aria-hidden="true">·Toy</span></h1>
+      <p class="lede">Language models read text as tokens, not letters. Byte-pair encoding builds a vocabulary by starting from single characters and repeatedly gluing together the most frequent neighbouring pair. Train one here, one merge at a time, then feed it anything.</p>
+    </div>
+    <p class="label-note"><b>A TOY.</b> This is an illustrative character-level BPE trained on a few hundred words in your browser. It is not the tokenizer of any production model. Real ones work on bytes, train on vast corpora, and end up with vocabularies of tens of thousands of tokens.</p>
+  </header>
+
+  <div class="cols">
+    <section class="card" aria-labelledby="trainH">
+      <h2 id="trainH">1 · Train <small data-testid="corpus-stats"></small></h2>
+      <div class="seg" role="group" aria-label="Training text">
+        <button type="button" aria-pressed="true" data-src="builtin" data-testid="src-builtin">Built-in story</button>
+        <button type="button" aria-pressed="false" data-src="custom" data-testid="src-custom">My own text</button>
+      </div>
+      <label for="corpus" class="sr" style="position:absolute;left:-9999px">Training text</label>
+      <textarea id="corpus" data-testid="corpus" spellcheck="false" readonly></textarea>
+      <div class="field">
+        <label for="target">Target vocabulary size <output data-testid="target-out" for="target">200</output></label>
+        <input type="range" id="target" min="110" max="500" step="10" value="200" data-testid="target">
+      </div>
+      <div class="meter" aria-hidden="true"><i data-testid="meter"></i></div>
+      <div class="meterlbl"><span>vocab <b data-testid="vocab-size">98</b></span><span><span data-testid="merge-count">0</span> merges</span><span>97 characters + &lt;unk&gt; + merges</span></div>
+      <div class="row" style="margin-top:12px">
+        <button type="button" class="btn pri" data-testid="step">Merge once</button>
+        <button type="button" class="btn" data-testid="step10">×10</button>
+        <button type="button" class="btn" data-testid="train">Train to target</button>
+        <button type="button" class="btn" data-testid="reset">Reset</button>
+      </div>
+      <p class="status" data-testid="status" aria-live="polite"></p>
+      <h2 style="margin-top:14px">Next merge candidates <small>pair counts across the corpus</small></h2>
+      <table class="pairs" data-testid="pairs"><thead><tr><th>Pair</th><th>Count</th><th style="width:34%"></th></tr></thead><tbody></tbody></table>
+    </section>
+
+    <section class="card" aria-labelledby="vocH">
+      <h2 id="vocH">2 · Watch it grow</h2>
+      <h2 style="font-size:16px">Merges, newest first <small data-testid="merges-count"></small></h2>
+      <ol class="merges" data-testid="merges" reversed></ol>
+      <h2 style="font-size:16px;margin-top:14px">Learned tokens <small>ID after each</small></h2>
+      <div class="vocab" data-testid="vocab"></div>
+    </section>
+  </div>
+
+  <section class="card play" aria-labelledby="playH">
+    <h2 id="playH">3 · Tokenize anything <small>· = space, ↵ = newline, ⇥ = tab</small></h2>
+    <label for="input" style="position:absolute;left:-9999px">Text to tokenize</label>
+    <textarea id="input" data-testid="input" spellcheck="false">The baker bakes bread at the harbour.</textarea>
+    <div class="examples" role="group" aria-label="Examples">
+      <button type="button" data-ex="The harbour bakery sells bread to the fishermen." data-testid="ex-common">Common words</button>
+      <button type="button" data-ex="Floccinaucinihilipilification is unbakeable." data-testid="ex-rare">A rare word</button>
+      <button type="button" data-ex="Order 1234567 costs 42.50, due 2026-09-24." data-testid="ex-numbers">Numbers</button>
+      <button type="button" data-ex="def bake():&#10;    return  &quot;bread&quot;&#10;&#9;# tab" data-testid="ex-space">Whitespace &amp; code</button>
+      <button type="button" data-ex="Café crème, naïve résumé" data-testid="ex-unicode">Accents</button>
+    </div>
+    <div class="tokens" data-testid="tokens" aria-live="polite" aria-label="Tokens"></div>
+    <div class="stats"><span><b data-testid="n-chars">0</b> characters</span><span><b data-testid="n-tokens">0</b> tokens</span><span><b data-testid="ratio">–</b> chars per token</span>
+      <label class="check"><input type="checkbox" checked data-testid="show-ids"> Show IDs</label></div>
+  </section>
+
+  <div class="explain">
+    <div><b>Rare words shatter</b> A word the corpus never saw gets built from whatever pieces were learned, so it costs many tokens. Common words become a single token, often with their leading space attached.</div>
+    <div><b>Numbers are awkward</b> Digits only merge if digit pairs were frequent in training. Here, with almost no numbers in the story, 1234567 comes out one digit at a time. Real tokenizers make deliberate choices about digits.</div>
+    <div><b>Whitespace is text too</b> Spaces, tabs and newlines are symbols like any other. The pre-tokenizer keeps a single space attached to the following word, which is why “ the” and “the” can have different IDs.</div>
+  </div>
+  <footer class="f">How it works: text is first split into chunks (a word with its leading space, a run of digits, a run of punctuation, or whitespace), and merges never cross chunk boundaries. Base symbols are the 95 printable ASCII characters plus newline and tab (IDs 1–97), and ID 0 is &lt;unk&gt; for anything else. Each step counts every adjacent symbol pair, weighted by how often its chunk occurs, and merges the most frequent one; ties go to the pair that sorts first. Encoding applies the learned merges in the order they were learned. The built-in story about Wrenmouth is original and fictional.</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  const STORY = `The harbour town of Wrenmouth wakes before the gulls. At four the baker lights the ovens, and by five the smell of warm bread is drifting down the lanes toward the water. The fishing boats come back at seven, and the fishermen stop at the bakery for bread, for tea, and for the news. Everyone in Wrenmouth knows the baker, and the baker knows everyone.
+
+The bakery sells three kinds of bread: the harbour loaf, the seeded loaf, and the sweet loaf with raisins. On Saturdays there are cinnamon buns, and the queue reaches the corner by eight. The baker says the secret is patience: the dough rests, the dough rises, the dough rests again. Nothing good is rushed.
+
+In the winter the storms come in from the sea, and the boats stay in the harbour for days. On those mornings the baker still bakes, because the town still wakes, and the people still want warm bread when the wind is loud. The lights of the bakery are the first lights on the harbour, and the last lights to go out at night.
+
+Ask anyone in Wrenmouth about the best thing in town and they will tell you: the bread, the boats, and the baker, in that order, most days. Ask the baker and the answer is shorter: the bread is the thing, and the thing is the waiting.`;
+
+  // ---------- base vocabulary ----------
+  const BASE = [];
+  for (let c = 32; c <= 126; c++) BASE.push(String.fromCharCode(c));
+  BASE.push('\n', '\t');
+  const PRE = / ?[A-Za-z]+| ?\d+| ?[^\sA-Za-z\d]+|\s+(?!\S)|\s+/g;
+  const chunks = (text) => text.match(PRE) || [];
+  const show = (s) => s.replace(/ /g, '·').replace(/\n/g, '↵').replace(/\t/g, '⇥');
+
+  // ---------- model ----------
+  let model;
+  function freshModel(text) {
+    const vocab = new Map(); // token -> id
+    vocab.set('<unk>', 0);
+    BASE.forEach((ch, i) => vocab.set(ch, i + 1));
+    const counts = new Map();
+    for (const ch of chunks(text)) counts.set(ch, (counts.get(ch) || 0) + 1);
+    const words = [...counts.entries()].map(([w, n]) => ({ syms: [...w].map((c) => (vocab.has(c) ? c : '<unk>')), n }));
+    return { vocab, merges: [], words, chars: text.length, nChunks: [...counts.values()].reduce((a, b) => a + b, 0), done: false };
+  }
+  function pairCounts(m) {
+    const pc = new Map();
+    for (const w of m.words) {
+      const s = w.syms;
+      for (let i = 0; i < s.length - 1; i++) {
+        if (s[i] === '<unk>' || s[i + 1] === '<unk>') continue;
+        const k = s[i] + '\u0000' + s[i + 1];
+        pc.set(k, (pc.get(k) || 0) + w.n);
+      }
+    }
+    return [...pc.entries()].map(([k, n]) => { const [a, b] = k.split('\u0000'); return { a, b, n }; })
+      .sort((x, y) => y.n - x.n || (x.a + '\u0000' + x.b < y.a + '\u0000' + y.b ? -1 : 1));
+  }
+  function mergeOnce(m) {
+    const pcs = pairCounts(m);
+    const best = pcs[0];
+    if (!best || best.n < 2) { m.done = true; return null; }
+    const tok = best.a + best.b;
+    if (!m.vocab.has(tok)) m.vocab.set(tok, m.vocab.size);
+    m.merges.push({ a: best.a, b: best.b, tok, n: best.n, id: m.vocab.get(tok) });
+    for (const w of m.words) {
+      const s = w.syms, out = [];
+      for (let i = 0; i < s.length; i++) {
+        if (i < s.length - 1 && s[i] === best.a && s[i + 1] === best.b) { out.push(tok); i++; } else out.push(s[i]);
+      }
+      w.syms = out;
+    }
+    return m.merges[m.merges.length - 1];
+  }
+  function encode(m, text) {
+    const rank = new Map(m.merges.map((mg, i) => [mg.a + '\u0000' + mg.b, i]));
+    const out = [];
+    for (const ch of chunks(text)) {
+      let s = [...ch].map((c) => (m.vocab.has(c) ? c : '<unk>'));
+      for (;;) {
+        let bi = -1, br = Infinity;
+        for (let i = 0; i < s.length - 1; i++) { const r = rank.get(s[i] + '\u0000' + s[i + 1]); if (r !== undefined && r < br) { br = r; bi = i; } }
+        if (bi < 0) break;
+        const t = m.merges[br];
+        const ns = [];
+        for (let i = 0; i < s.length; i++) { if (i < s.length - 1 && s[i] === t.a && s[i + 1] === t.b) { ns.push(t.tok); i++; } else ns.push(s[i]); }
+        s = ns;
+      }
+      // keep the original characters for <unk> so the reader can see what was unknown
+      let pos = 0; const chars = [...ch];
+      for (const tkn of s) {
+        const len = tkn === '<unk>' ? 1 : [...tkn].length;
+        out.push({ t: tkn, text: chars.slice(pos, pos + len).join(''), id: m.vocab.get(tkn) });
+        pos += len;
+      }
+    }
+    return out;
+  }
+
+  // ---------- state ----------
+  let source = 'builtin';
+  let custom = 'low low low low low lower lower newest newest newest newest newest newest widest widest widest';
+  try { const c = localStorage.getItem('lab069-custom'); if (typeof c === 'string' && c) custom = c; } catch (e) { /* ignore */ }
+  const target = () => +$('#target').value;
+  const corpusText = () => (source === 'builtin' ? STORY : custom);
+
+  function retrain(keepMerges) {
+    const n = keepMerges ? model.merges.length : 0;
+    model = freshModel(corpusText());
+    for (let i = 0; i < n && !model.done && model.vocab.size < target(); i++) mergeOnce(model);
+  }
+
+  // ---------- render ----------
+  function tokHTML(t) { return `<span class="tk">${esc(show(t))}</span>`; }
+  function render(msg) {
+    const vs = model.vocab.size;
+    $('[data-testid="vocab-size"]').textContent = vs;
+    $('[data-testid="merge-count"]').textContent = model.merges.length;
+    $('[data-testid="meter"]').style.width = Math.min(100, ((vs - 98) / Math.max(1, target() - 98)) * 100).toFixed(1) + '%';
+    $('[data-testid="corpus-stats"]').textContent = `${model.chars.toLocaleString('en-US')} chars · ${model.nChunks.toLocaleString('en-US')} chunks`;
+    const pcs = model.done ? [] : pairCounts(model).slice(0, 8);
+    const max = pcs[0] ? pcs[0].n : 1;
+    $('[data-testid="pairs"] tbody').innerHTML = pcs.length ? pcs.map((p, i) => `<tr class="${i === 0 ? 'win' : ''}" data-testid="pair" data-a="${esc(p.a)}" data-b="${esc(p.b)}" data-count="${p.n}">
+      <td>${tokHTML(p.a)}<span class="plus">+</span>${tokHTML(p.b)}</td><td>${p.n}</td><td><div class="bar" style="width:${((100 * p.n) / max).toFixed(0)}%"></div></td></tr>`).join('')
+      : `<tr><td colspan="3">No pair appears twice any more. The corpus is fully merged.</td></tr>`;
+    const ms = model.merges;
+    $('[data-testid="merges-count"]').textContent = ms.length ? `${ms.length} so far` : 'none yet';
+    $('[data-testid="merges"]').innerHTML = ms.slice(-80).reverse().map((m, k) => `<li data-testid="merge" data-rank="${ms.length - k}" data-token="${esc(m.tok)}"><span class="rank">#${ms.length - k}</span><span>${tokHTML(m.a)}<span class="plus">+</span>${tokHTML(m.b)} <span class="plus">→</span> ${tokHTML(m.tok)}</span><span class="cnt">×${m.n}</span></li>`).join('');
+    $('[data-testid="vocab"]').innerHTML = ms.length ? ms.map((m) => `<span class="tk" data-testid="vocab-token">${esc(show(m.tok))}<small>${m.id}</small></span>`).join('') : '<span style="color:var(--ink-3);font-size:14px">Only the 97 single characters and &lt;unk&gt; so far. Merge to add tokens.</span>';
+    const full = vs >= target();
+    $('[data-testid="step"]').disabled = full || model.done;
+    $('[data-testid="step10"]').disabled = full || model.done;
+    $('[data-testid="train"]').disabled = full || model.done;
+    $('[data-testid="status"]').textContent = msg || (model.done ? 'Training stopped: no pair occurs more than once.' : full ? `Reached the target of ${target()} tokens.` : '');
+    renderTokens();
+  }
+  function renderTokens() {
+    const text = $('#input').value;
+    const toks = encode(model, text);
+    const box = $('[data-testid="tokens"]');
+    box.innerHTML = toks.map((t, i) => {
+      const unk = t.t === '<unk>';
+      const disp = unk ? t.text : show(t.t);
+      const inner = esc(disp).replace(/[·↵⇥]/g, (c) => `<span class="ws">${c}</span>`);
+      return `<span class="tok ${unk ? 'unk' : 'c' + (i % 6)}" data-testid="token" data-id="${t.id}" data-text="${esc(t.text)}" title="ID ${t.id}"><span class="s">${inner}</span><span class="id">${t.id}</span></span>${t.text.includes('\n') ? '<span class="brk"></span>' : ''}`;
+    }).join('');
+    $('[data-testid="n-chars"]').textContent = [...text].length;
+    $('[data-testid="n-tokens"]').textContent = toks.length;
+    $('[data-testid="ratio"]').textContent = toks.length ? ([...text].length / toks.length).toFixed(2) : '–';
+  }
+
+  function setSource(s) {
+    source = s;
+    document.querySelectorAll('[data-src]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.src === s)));
+    const ta = $('#corpus');
+    ta.value = corpusText();
+    ta.readOnly = s === 'builtin';
+    ta.setAttribute('aria-readonly', String(s === 'builtin'));
+    retrain(false);
+    render(s === 'custom' ? 'Type or paste any text, then merge. Training restarts when the text changes.' : '');
+  }
+
+  // ---------- events ----------
+  $('[data-testid="step"]').addEventListener('click', () => {
+    const m = mergeOnce(model);
+    render(m ? `Merge #${model.merges.length}: “${show(m.a)}” + “${show(m.b)}” → “${show(m.tok)}” (seen ${m.n} times). New ID ${m.id}.` : undefined);
+  });
+  $('[data-testid="step10"]').addEventListener('click', () => {
+    let k = 0; while (k < 10 && !model.done && model.vocab.size < target()) { if (mergeOnce(model)) k++; }
+    render(`${k} merges applied.`);
+  });
+  $('[data-testid="train"]').addEventListener('click', () => {
+    let k = 0; while (!model.done && model.vocab.size < target()) { if (mergeOnce(model)) k++; }
+    render(k === 0 ? undefined : `${k} merges applied. Vocabulary is now ${model.vocab.size} tokens.${model.done ? ' Training stopped: no pair occurs more than once.' : ''}`);
+  });
+  $('[data-testid="reset"]').addEventListener('click', () => { retrain(false); render('Back to single characters.'); });
+  $('#target').addEventListener('input', () => {
+    $('[data-testid="target-out"]').textContent = target();
+    if (model.vocab.size > target()) retrain(true);
+    render();
+  });
+  document.querySelector('.seg').addEventListener('click', (e) => { const b = e.target.closest('[data-src]'); if (b) setSource(b.dataset.src); });
+  $('#corpus').addEventListener('input', (e) => {
+    if (source !== 'custom') return;
+    custom = e.target.value;
+    try { localStorage.setItem('lab069-custom', custom); } catch (err) { /* ignore */ }
+    retrain(false); render('Text changed, so training restarted.');
+  });
+  $('#input').addEventListener('input', renderTokens);
+  document.querySelector('.examples').addEventListener('click', (e) => { const b = e.target.closest('[data-ex]'); if (!b) return; $('#input').value = b.dataset.ex; renderTokens(); });
+  $('[data-testid="show-ids"]').addEventListener('change', (e) => $('[data-testid="tokens"]').classList.toggle('noids', !e.target.checked));
+
+  setSource('builtin');
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+{
+  "id": "073",
+  "slug": "073-river-tubing",
+  "file": "lab/073-river-tubing.html",
+  "title": "Float the River — a Texas summer tubing game",
+  "category": "Games",
+  "tags": ["canvas", "arcade", "fixed-timestep", "seeded-prng", "touch"],
+  "description": "A top-down arcade float down the Lazy Oxbow, a fictional jade-green Hill Country river. Kick across a current that runs fastest mid-channel, dodge limestone rocks, cypress knees and low branches (duck under them for a bonus), rescue lost flip-flops, tie on a cooler buddy that takes a hit for you, and ride rapids that speed you up, with three tubes to lose.",
+  "prompt": "Make me a summer Texas river-tubing arcade game on a made-up river. I steer an inner tube down a scrolling river with real currents: faster in the middle, following the bends, with eddies that spin you and rapids that speed you up. Put cypress knees, limestone rocks and low branches in the way, scatter lost flip-flops to collect, and let me grab a cooler buddy. Three lives, distance and score. It has to work with the keyboard and with touch drag, with no tilt controls. Make it deterministic with ?seed= and expose window.__river so the tests can drive it frame by frame. It should look like a 70s summer poster, not a generic canvas demo.",
+  "qa": {
+    "methodology": [
+      "Frame-exact driving: the spec detaches the requestAnimationFrame loop (__river.manual) and steps the fixed 60 Hz simulation with tick(n), so every assertion is about a known number of physics frames, not wall-clock time.",
+      "Paired-run oracle for steering: the same seed is replayed with no input, with ArrowLeft held and with D held, and the final x positions must differ by more than 40 px in the right directions. A bank clamp check confirms the tube never leaves the water.",
+      "Determinism: chunk layouts come from a PRNG keyed on (seed, chunk index), so the hazard list for chunks 1-8 and a 400-frame float must be identical across reloads and different for another seed.",
+      "Scenario tests in a sandbox with generated hazards turned off: rocks, knees, branches, coolers, flip-flops, rapids and eddies are spawned on the tube's line at a set distance ahead, and lives, bonus points, the HUD and the aria-live status are checked after each encounter.",
+      "Touch input is exercised with dispatched pointer events on the canvas (drag toward the right edge), and pause is checked to freeze the simulation even when frames are stepped."
+    ],
+    "risks": [
+      "A frame can render before an entity's first physics update; every per-object field is set at creation and canvas inputs are guarded with Number.isFinite.",
+      "Collision windows are narrow at rapid speeds (about 3 px per frame), so hit radii are generous and the branch check uses a band rather than a line.",
+      "Invulnerability after a hit can hide a second hazard placed too close; the spec waits out the invulnerability window between spawns.",
+      "Chunks are generated lazily and discarded behind the tube; spawning into an unloaded chunk must create it first."
+    ],
+    "playwright": "Real-time games are usually the hardest thing to test with Playwright, so the page exposes a manual mode and a tick(n) stepper, and the spec never waits on animation timing. Because the layout comes from a keyed PRNG, determinism can be asserted by comparing whole hazard lists and final tube positions with toEqual. Encounters are made deterministic by spawning hazards on the tube's line through __river.spawn in a sandbox rather than searching for a seed where a rock happens to line up. Canvas pixels are not screenshot-tested because the water streaks are decorative; the oracles are the simulation state and the DOM HUD, which is checked to mirror that state. Touch drag uses dispatchEvent with pointer events, which behaves the same on the desktop and Pixel 7 projects.",
+    "coverage": [
+      "Push off, downstream drift, HUD distance and score",
+      "Keyboard steering left and right against a no-input replay; bank clamp",
+      "Seeded layout and simulation determinism across reloads and seeds",
+      "Rock hit, cooler buddy absorbing a knee, game over, restart",
+      "Flip-flop pickups, branch hit versus duck with limbo bonus",
+      "Rapids speed-up and clear bonus, eddy slowdown, touch drag, pause"
+    ]
+  },
+  "a11y": "Everything can be played from the keyboard (arrows or WASD, Space to duck, P to pause), and the on-screen Left, Duck, Pause and Right buttons are real buttons that also respond to Enter and Space. Score, lives and events are announced through an aria-live status line, and the canvas aria-label summarises the float."
+}

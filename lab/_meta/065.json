@@ -1,0 +1,35 @@
+{
+  "id": "065",
+  "slug": "065-keyboard-escape",
+  "file": "lab/065-keyboard-escape.html",
+  "title": "Keyboard Escape Room — An Accessibility Puzzle Game",
+  "category": "QA & Testing",
+  "tags": ["accessibility", "wcag", "keyboard", "focus-management", "game"],
+  "description": "Five locked rooms inside a deliberately broken, fictional note app, playable only by keyboard or an on-screen Tab/Shift+Tab/Enter/Space/Esc/arrow pad: a dialog that traps focus, an invisible focus ring, a div pretending to be a button, positive-tabindex chaos and a drawer that steals focus off-screen. Diagnose each flaw, read what it breaks under the WCAG success criterion it fails, switch on the fix and walk out through the Exit door.",
+  "prompt": "Build 'Keyboard Escape Room', an accessibility puzzle game. A deliberately flawed fictional web app has to be navigated with the keyboard only: mouse or touch inside the room should just show a polite note, and touch users get an on-screen Tab, Shift+Tab, Enter, Space, Esc and arrow pad. Each room contains one classic failure: a modal focus trap with no Esc, an invisible focus ring, a div-button that ignores Enter, a skipped tab order and a focused element that's off-screen. The player diagnoses it and toggles the fix to escape. Explanations must cite the right WCAG success criteria by number and level. Make it feel like an after-hours escape room, all aubergine and brass, with the broken app sitting inside it like a prop.",
+  "qa": {
+    "methodology": [
+      "Model-based oracle: focus moves through a model of the page that applies the real sequential-navigation rules (positive tabindex first in ascending order, then tabindex 0 in document order, -1 excluded, inactive regions skipped). Tests assert exact focus sequences through the stage's data-focus attribute.",
+      "Each flaw is proven both ways: the broken behaviour first (Tab wraps inside the dialog, Esc ignored, Enter on the div does nothing, door unreachable, ring hidden or off-screen), then the fixed behaviour after the fix switch, ending with an actual escape by keyboard.",
+      "Keyboard semantics of native controls are checked: links open with Enter but not Space, checkboxes toggle with Space, a radio group is a single tab stop and arrow keys move the selection.",
+      "Screen-reader-facing output: the 'Screen reader hears' readout (role, checked or expanded state) and aria-activedescendant on the application stage, including the no-role announcement for the div button.",
+      "WCAG accuracy: badge numbers and levels (2.1.1 A, 2.1.2 A, 2.4.3 A, 2.4.7 AA, 4.1.2 A, related 2.4.11 AA and 2.4.13 AAA) were checked against WCAG 2.2, and the spec pins the most important ones.",
+      "The touch pad path is exercised on both projects, and progress persistence through reload plus the five-room certificate is covered end to end."
+    ],
+    "risks": [
+      "Toggling a fix that removes or deactivates the focused element (the drawer links becoming inert, 'No thanks' disappearing) can leave focus pointing at nothing; focus is cleared and Tab restarts from the top.",
+      "Capturing Tab inside the stage is itself a potential keyboard trap; the documented Q key (allowed by 2.1.2 when users are told) has to keep working.",
+      "Enter pressed while the escaped overlay is up must advance rooms rather than act on the room behind it.",
+      "Layout of the key pad and the case file at 360 px with wider glyphs."
+    ],
+    "playwright": "Because the game captures Tab itself, page.keyboard.press('Tab') on the focused stage is deterministic: the browser's own focus never leaves the stage, and assertions read the model through data-focus and data-ring attributes instead of guessing from pixels. The same flows run through the on-screen pad with plain .click(), which works for the Pixel 7 touch project without special tap handling. There is no randomness or time dependence, so no seed or clock is needed, and ?room=N drops a test straight into a room. Screenshots were used for manual review only; focus rings are asserted with a .vf class count rather than a pixel diff.",
+    "coverage": [
+      "Room I trap: Tab wraps inside the dialog, Esc ignored, wrong diagnosis hint, WCAG 2.1.2 badge, fix then keyboard escape",
+      "Room III on the pad: pointer note, div ignores Enter, Space toggles checkbox, fixed button escapes",
+      "Room IV exact tab sequence with positive tabindex, door reachable after fix",
+      "Room II invisible ring and arrow-key radio group; Room V off-screen focus, inert drawer after fix, Esc returns focus to Menu",
+      "All five rooms escaped, persisted across reload, certificate, reset"
+    ]
+  },
+  "a11y": "The room is a focusable role=application stage that uses aria-activedescendant to expose the virtual focus, with a live log of every key's effect; Q steps back out, as the page says. The key pad, diagnosis buttons (aria-pressed) and fix switch (role=switch) are native buttons with visible focus."
+}

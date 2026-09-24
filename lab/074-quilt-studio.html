@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quilt Studio — a generative patchwork designer</title>
+<meta name="description" content="Design a patchwork quilt: nine-patch, log cabin, flying geese, half-square-triangle pinwheels and Ohio stars in a straight set, with sashing, or on point, with borders. Procedurally printed calico, gingham and ditsy-floral fabrics, click-to-rotate blocks, quilting-line overlays, an approximate yardage estimate and PNG export.">
+<style>
+  :root {
+    --muslin: #f5eee1;
+    --muslin-2: #ebe0cc;
+    --thread: #b8452f;
+    --indigo: #2c3a66;
+    --ink: #2b2622;
+    --ink-2: #6e6258;
+    --tape: #f2cf4a;
+    --mat: #28493b;
+    --mat-line: rgba(220,240,225,.16);
+    --serif: "Palatino Linotype", "Book Antiqua", Palatino, "URW Palladio L", serif;
+    --sans: "Candara", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { color: var(--ink); font: 15.5px/1.5 var(--sans); background: var(--muslin); overflow-x: hidden;
+    background-image: repeating-linear-gradient(0deg, rgba(120,95,60,.05) 0 1px, transparent 1px 3px), repeating-linear-gradient(90deg, rgba(120,95,60,.04) 0 1px, transparent 1px 3px); }
+  :focus-visible { outline: 3px solid var(--thread); outline-offset: 2px; }
+  button, input, select { font: inherit; color: inherit; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: var(--muslin); background: var(--indigo); text-decoration: none; font: 600 13px/1 var(--sans);
+    padding: 8px 12px; border-radius: 4px; outline: 1.5px dashed rgba(245,238,225,.7); outline-offset: -5px; }
+  a.back:hover { background: var(--thread); }
+  .tape { height: 26px; background-color: var(--tape); border-bottom: 1px solid #c9a52c;
+    background-image: repeating-linear-gradient(90deg, #3a3020 0 1px, transparent 1px 48px), repeating-linear-gradient(90deg, #3a3020 0 1px, transparent 1px 12px);
+    background-size: 100% 13px, 100% 7px; background-repeat: no-repeat; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 44px 18px 40px; }
+  header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 30px; align-items: end; margin-bottom: 22px; }
+  header > * { min-width: 0; }
+  .kicker { margin: 0; font: italic 16px/1.3 var(--serif); color: var(--thread); }
+  h1 { margin: 0; font: 400 clamp(40px, 7.5vw, 76px)/1 var(--serif); letter-spacing: .01em; color: var(--indigo); }
+  h1 em { color: var(--thread); }
+  header p { margin: 8px 0 0; max-width: 62ch; color: var(--ink-2); }
+  .label { border: 1.5px dashed var(--thread); padding: 10px 14px; background: #fffaf1; font: italic 14px/1.4 var(--serif); color: var(--ink-2); transform: rotate(-1.5deg); max-width: 260px; }
+  .label b { display: block; font-style: normal; color: var(--ink); font-size: 16px; }
+
+  .layout { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 22px; align-items: start; }
+  .controls { display: grid; gap: 14px; min-width: 0; }
+  fieldset { margin: 0; border: 0; padding: 14px 16px; background: #fffaf1; border-radius: 6px; min-width: 0; position: relative;
+    box-shadow: 0 1px 0 var(--muslin-2), 0 6px 14px rgba(90,60,30,.08); }
+  fieldset::before { content: ""; position: absolute; inset: 5px; border: 1.5px dashed rgba(184,69,47,.35); border-radius: 4px; pointer-events: none; }
+  legend { float: left; width: 100%; padding: 0; margin: 0 0 8px; font: italic 18px/1.2 var(--serif); color: var(--indigo); }
+  legend + * { clear: both; }
+  .seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .seg button, .pal button, .btn { position: relative; min-height: 40px; border: 1.5px solid #d8c9b0; background: var(--muslin); border-radius: 5px; cursor: pointer; padding: 5px 6px; min-width: 0; font-size: 13.5px; }
+  .seg button[aria-pressed="true"], .pal button[aria-pressed="true"] { border-color: var(--indigo); background: #e6e8f2; box-shadow: inset 0 0 0 1.5px var(--indigo); }
+  .seg button svg { display: block; margin: 0 auto 2px; }
+  .seg.pat button { font-size: 12px; line-height: 1.15; padding: 6px 4px; }
+  .row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+  .row label, .field label { display: block; font-size: 12.5px; color: var(--ink-2); }
+  select, input[type=number] { width: 100%; max-width: 100%; min-height: 38px; border: 1.5px solid #d8c9b0; border-radius: 5px; background: #fff; padding: 4px 6px; }
+  .field { margin-top: 10px; }
+  .check { display: flex; gap: 8px; align-items: center; margin-top: 10px; font-size: 14px; }
+  .check input { width: 18px; height: 18px; accent-color: var(--indigo); }
+  .pal { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .pal button { display: grid; gap: 4px; text-align: left; font-size: 12.5px; }
+  .pal .chips { display: flex; height: 14px; border-radius: 3px; overflow: hidden; }
+  .pal .chips i { flex: 1; }
+  .btn { font-weight: 600; padding: 8px 14px; }
+  .btn.primary { background: var(--indigo); color: #fff; border-color: var(--indigo); }
+  .btn.primary:hover { background: #3a4a80; }
+  .btn.red { background: var(--thread); color: #fff; border-color: var(--thread); }
+  .actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+
+  .mat { position: relative; background-color: var(--mat); border-radius: 10px; padding: 34px 24px 24px 38px; min-width: 0;
+    background-image: linear-gradient(var(--mat-line) 1px, transparent 1px), linear-gradient(90deg, var(--mat-line) 1px, transparent 1px),
+      linear-gradient(rgba(220,240,225,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(220,240,225,.06) 1px, transparent 1px);
+    background-size: 48px 48px, 48px 48px, 12px 12px, 12px 12px; background-position: 14px 10px; box-shadow: inset 0 0 0 3px #1f3a2e; }
+  .mat::before { content: "1   2   3   4   5   6   7   8   9   10   11   12   13"; position: absolute; top: 9px; left: 58px; right: 10px; white-space: pre; overflow: hidden;
+    font: 11px/1 var(--sans); color: rgba(220,240,225,.55); word-spacing: 30px; }
+  .canvas-box { display: grid; place-items: center; min-width: 0; }
+  canvas#quilt { display: block; max-width: 100%; height: auto; box-shadow: 0 10px 26px rgba(0,0,0,.45); cursor: pointer; background: #fff; }
+  .tip { margin: 12px 0 0; color: #d9e8dd; font-size: 13.5px; text-align: center; }
+  .tip kbd { background: rgba(255,255,255,.12); border-radius: 3px; padding: 0 4px; font: inherit; }
+  .below { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; margin-top: 18px; }
+  .card { background: #fffaf1; border-radius: 6px; padding: 16px 18px; min-width: 0; box-shadow: 0 6px 14px rgba(90,60,30,.08); }
+  .card h2 { margin: 0 0 8px; font: italic 20px/1.2 var(--serif); color: var(--indigo); }
+  .status { margin: 0; font-weight: 600; color: var(--thread); }
+  .size { font: 400 26px/1.2 var(--serif); margin: 4px 0; overflow-wrap: anywhere; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; table-layout: fixed; }
+  th, td { text-align: left; padding: 5px 4px; border-bottom: 1px dashed #dccbb0; overflow-wrap: anywhere; }
+  th { font-weight: 600; color: var(--ink-2); font-size: 12.5px; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .sw { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: -2px; margin-right: 6px; border: 1px solid rgba(0,0,0,.2); }
+  .fine { font-size: 12.5px; color: var(--ink-2); margin: 8px 0 0; }
+  footer { margin-top: 26px; text-align: center; color: var(--ink-2); font: italic 14px/1.4 var(--serif); }
+
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: minmax(0, 1fr); }
+    .below { grid-template-columns: minmax(0, 1fr); }
+    header { grid-template-columns: minmax(0, 1fr); }
+    .label { transform: none; max-width: none; }
+    .layout > .work { display: contents; }
+    .work > .mat { order: -1; }
+    .work > .below { order: 1; margin-top: 0; }
+  }
+  @media (max-width: 480px) {
+    .label { display: none; }
+    .mat { padding: 26px 10px 14px 12px; }
+    .mat::before { left: 20px; word-spacing: 18px; }
+    .seg.pat { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="tape" aria-hidden="true"></div>
+<div class="wrap">
+  <header>
+    <div>
+      <p class="kicker">a patchwork design table</p>
+      <h1>Quilt <em>Studio</em></h1>
+      <p>Pick a block, a setting and a bundle of fabrics, then play: click any block to turn it or swap its fabrics, shuffle the whole bundle, and lay quilting lines over the top. The yardage table gives a rough estimate so you know what to buy.</p>
+    </div>
+    <div class="label" aria-hidden="true"><b>Care label</b>Every print here is drawn by code: calico dots, gingham checks and ditsy florals, seeded so a design comes back the same.</div>
+  </header>
+
+  <div class="layout">
+    <div class="controls">
+      <fieldset>
+        <legend>Block</legend>
+        <div class="seg pat" id="patterns" role="group" aria-label="Block pattern"></div>
+      </fieldset>
+      <fieldset>
+        <legend>Setting</legend>
+        <div class="field"><label for="layout">Layout</label>
+          <select id="layout" data-testid="layout">
+            <option value="straight">Straight set</option>
+            <option value="sashing">Straight set with sashing</option>
+            <option value="onpoint">On point, with setting triangles</option>
+          </select></div>
+        <div class="row">
+          <div><label for="rows">Rows</label><input id="rows" data-testid="rows" type="number" min="2" max="8" value="5"></div>
+          <div><label for="cols">Columns</label><input id="cols" data-testid="cols" type="number" min="2" max="8" value="4"></div>
+          <div><label for="blockIn">Block</label><select id="blockIn" data-testid="block-size"><option value="8">8 in</option><option value="10">10 in</option><option value="12" selected>12 in</option></select></div>
+        </div>
+        <label class="check"><input type="checkbox" id="borders" data-testid="borders" checked> Outer border (4 in) and binding</label>
+      </fieldset>
+      <fieldset>
+        <legend>Fabric bundle</legend>
+        <div class="pal" id="palettes" role="group" aria-label="Fabric palette"></div>
+        <div class="actions" style="margin-top:10px">
+          <button class="btn primary" id="shuffle" data-testid="shuffle">Shuffle fabrics</button>
+          <button class="btn" id="resetRot" data-testid="reset-rot">Square up blocks</button>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>Clicking a block will…</legend>
+        <div class="seg" id="tools" role="group" aria-label="Click tool">
+          <button data-tool="rotate" data-testid="tool-rotate" aria-pressed="true">Turn it</button>
+          <button data-tool="swap" data-testid="tool-swap" aria-pressed="false">Swap fabrics</button>
+          <button data-tool="stamp" data-testid="tool-stamp" aria-pressed="false">Stamp block</button>
+        </div>
+        <div class="field"><label for="quilting">Quilting lines</label>
+          <select id="quilting" data-testid="quilting">
+            <option value="none">None (just the top)</option>
+            <option value="ditch">In the ditch (along seams)</option>
+            <option value="cross" selected>Crosshatch, 2 in</option>
+            <option value="meander">Free-motion meander</option>
+          </select></div>
+      </fieldset>
+      <button class="btn red" id="export" data-testid="export">Download PNG</button>
+    </div>
+
+    <div class="work" style="min-width:0">
+      <div class="mat">
+        <div class="canvas-box"><canvas id="quilt" width="600" height="600" tabindex="0" data-testid="quilt" role="img" aria-label="Quilt design"></canvas></div>
+        <p class="tip">Click a block, or focus the quilt and use <kbd>arrows</kbd> then <kbd>Enter</kbd>. <kbd>R</kbd> turns, <kbd>S</kbd> swaps.</p>
+      </div>
+      <div class="below">
+        <section class="card" aria-labelledby="h-size">
+          <h2 id="h-size">Finished size</h2>
+          <p class="size" data-testid="size-out" id="sizeOut">—</p>
+          <p id="blockCount" data-testid="block-count" style="margin:0;color:var(--ink-2)"></p>
+          <p class="status" id="status" data-testid="status" role="status" aria-live="polite" style="margin-top:10px">Ready to piece.</p>
+        </section>
+        <section class="card" aria-labelledby="h-yard">
+          <h2 id="h-yard">Yardage (approximate)</h2>
+          <table data-testid="yardage"><thead><tr><th style="width:46%">Fabric</th><th class="num">Finished</th><th class="num">Buy</th></tr></thead><tbody id="yardBody"></tbody></table>
+          <p class="fine" data-testid="yardage-note">A rough estimate, not a cutting plan. It assumes 40 in of usable width, adds ¼ in seam allowances from each patch's perimeter plus 15% for cutting waste, and rounds up to the next ⅛ yard. Backing allows 4 in extra all round; binding uses 2½ in strips.</p>
+        </section>
+      </div>
+    </div>
+  </div>
+  <footer>Pieced in the browser by Zac Corbett · add <code>?seed=</code> to the address for a repeatable bundle</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const params = new URLSearchParams(location.search);
+  const SEED = (parseInt(params.get('seed'), 10) >>> 0) || 1858;
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  let rng = mulberry32(SEED);
+  const $ = (id) => document.getElementById(id);
+  const fin = (v, d = 0) => Number.isFinite(v) ? v : d;
+
+  // ---------- block patterns (unit square, rotation 0) ----------
+  const sq = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+  function ninePatch() { const p = []; for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) p.push({ pts: sq(c / 3, r / 3, (c + 1) / 3, (r + 1) / 3), role: (r === 1 && c === 1) ? 2 : (r + c) % 2 === 0 ? 1 : 0 }); return p; }
+  function logCabin() {
+    const p = [{ pts: sq(.4, .4, .6, .6), role: 3 }]; let x0 = .4, y0 = .4, x1 = .6, y1 = .6; const w = .1;
+    for (let k = 0; k < 4; k++) {
+      const dark = k % 2 ? 2 : 1;
+      p.push({ pts: sq(x0, y0 - w, x1, y0), role: 0 }); y0 -= w;
+      p.push({ pts: sq(x1, y0, x1 + w, y1), role: 0 }); x1 += w;
+      p.push({ pts: sq(x0, y1, x1, y1 + w), role: dark }); y1 += w;
+      p.push({ pts: sq(x0 - w, y0, x0, y1), role: dark }); x0 -= w;
+    }
+    return p;
+  }
+  function flyingGeese() {
+    const p = [], h = .25;
+    for (let i = 0; i < 4; i++) { const y = i * h;
+      p.push({ pts: [[0, y + h], [1, y + h], [.5, y]], role: i % 2 ? 2 : 1 });
+      p.push({ pts: [[0, y], [.5, y], [0, y + h]], role: 0 });
+      p.push({ pts: [[.5, y], [1, y], [1, y + h]], role: 0 }); }
+    return p;
+  }
+  function pinwheel() {
+    const p = [], quads = [[0, 0, 0], [.5, 0, 1], [.5, .5, 2], [0, .5, 3]];
+    quads.forEach(([qx, qy, rot], i) => {
+      const dark = [[0, 0], [1, 0], [1, 1]], light = [[0, 0], [1, 1], [0, 1]];
+      const tf = (pt) => { let [x, y] = pt; for (let k = 0; k < rot; k++) [x, y] = [1 - y, x]; return [qx + x * .5, qy + y * .5]; };
+      p.push({ pts: dark.map(tf), role: i % 2 ? 2 : 1 }); p.push({ pts: light.map(tf), role: 0 });
+    });
+    return p;
+  }
+  function ohioStar() {
+    const p = [], t = 1 / 3;
+    for (const [r, c] of [[0, 0], [0, 2], [2, 0], [2, 2]]) p.push({ pts: sq(c * t, r * t, (c + 1) * t, (r + 1) * t), role: 0 });
+    p.push({ pts: sq(t, t, 2 * t, 2 * t), role: 2 });
+    // four quarter-square-triangle units: outer triangle background, the two side triangles are star points, inner triangle background
+    const qst = (cx, cy, outer) => { const x0 = cx * t, y0 = cy * t, x1 = x0 + t, y1 = y0 + t, m = [x0 + t / 2, y0 + t / 2];
+      const tris = { top: [[x0, y0], [x1, y0], m], right: [[x1, y0], [x1, y1], m], bottom: [[x1, y1], [x0, y1], m], left: [[x0, y1], [x0, y0], m] };
+      const inner = { top: 'bottom', bottom: 'top', left: 'right', right: 'left' }[outer];
+      for (const k of Object.keys(tris)) p.push({ pts: tris[k], role: k === outer || k === inner ? 0 : 1 }); };
+    qst(1, 0, 'top'); qst(2, 1, 'right'); qst(1, 2, 'bottom'); qst(0, 1, 'left');
+    return p;
+  }
+  const PATTERNS = {
+    nine: { name: 'Nine-patch', patches: ninePatch() },
+    cabin: { name: 'Log cabin', patches: logCabin() },
+    geese: { name: 'Flying geese', patches: flyingGeese() },
+    hst: { name: 'HST pinwheel', patches: pinwheel() },
+    ohio: { name: 'Ohio star', patches: ohioStar() },
+  };
+  const PKEYS = Object.keys(PATTERNS);
+  const polyArea = (pts) => { let a = 0; for (let i = 0; i < pts.length; i++) { const [x1, y1] = pts[i], [x2, y2] = pts[(i + 1) % pts.length]; a += x1 * y2 - x2 * y1; } return Math.abs(a) / 2; };
+  const polyPerim = (pts) => { let s = 0; for (let i = 0; i < pts.length; i++) { const [x1, y1] = pts[i], [x2, y2] = pts[(i + 1) % pts.length]; s += Math.hypot(x2 - x1, y2 - y1); } return s; };
+
+  // ---------- fabrics ----------
+  // each palette: bg, five accents, frame (sashing / border), binding
+  const F = (name, base, print, ink, scale = 1) => ({ name, base, print, ink, scale });
+  const PALETTES = {
+    indigo: { name: 'Indigo & madder', fabrics: [F('Unbleached muslin', '#f1e8d6', 'solid', '#d9ccb2'), F('Indigo calico', '#2c3a66', 'calico', '#c9d2ee'), F('Madder red ditsy', '#a93a2c', 'ditsy', '#f4d9b8'), F('Blue gingham', '#e9eef8', 'gingham', '#3a5aa0'), F('Cheddar dot', '#e0a130', 'calico', '#7a4a10'), F('Shirting', '#f7f4ee', 'ditsy', '#8a93b8', .8), F('Deep indigo', '#1f2a4c', 'calico', '#5a6aa0'), F('Madder solid', '#8f2d22', 'solid', '#6e2018')] },
+    feedsack: { name: 'Feedsack pastels', fabrics: [F('White cotton', '#fbf8f2', 'solid', '#e6e0d2'), F('Mint floral', '#9fd6c0', 'ditsy', '#f7fff9'), F('Pink gingham', '#fbe3e6', 'gingham', '#e0788a'), F('Butter dot', '#f6e29a', 'calico', '#c28f2a'), F('Lilac floral', '#c9b6e4', 'ditsy', '#fff6e9'), F('Sky check', '#e6f1fb', 'gingham', '#6aa5d8'), F('Rosy calico', '#eaa3ad', 'calico', '#fff3f3'), F('Mint solid', '#77bfa4', 'solid', '#5ea68b')] },
+    bluebonnet: { name: 'Bluebonnet Hill', fabrics: [F('Limestone', '#efe9dc', 'solid', '#d8cfbd'), F('Bluebonnet ditsy', '#3a57a8', 'ditsy', '#ffffff'), F('Paintbrush red', '#d1553a', 'calico', '#ffd7b8'), F('Pasture check', '#e3eed5', 'gingham', '#5c8a3c'), F('Prairie gold', '#e6b53a', 'ditsy', '#7a3f10'), F('Sage calico', '#8aa37a', 'calico', '#e8f0de'), F('Twilight', '#27366c', 'calico', '#6f82c4'), F('Cedar', '#6b4a2b', 'solid', '#553a20')] },
+    advent: { name: 'Advent wreath', fabrics: [F('Candle cream', '#f6efdd', 'ditsy', '#d9c9a0', .8), F('Violet calico', '#5b3a7a', 'calico', '#d9c8ee'), F('Gaudete rose', '#d88aa6', 'ditsy', '#fff2f6'), F('Evergreen check', '#e2ecdf', 'gingham', '#2f6a44'), F('Gilt dot', '#c9a13e', 'calico', '#6e5214'), F('Pine ditsy', '#2f5a3e', 'ditsy', '#f3e6b8'), F('Deep purple', '#3e2658', 'calico', '#7a5a9e'), F('Holly', '#24452f', 'solid', '#1a3322')] },
+  };
+  let PAL = 'indigo';
+  const tileCache = new Map();
+  function fabricTile(f, px) {
+    const key = f.name + '|' + px;
+    if (tileCache.has(key)) return tileCache.get(key);
+    const T = Math.max(16, Math.round(px * 2.5 * f.scale));
+    const c = document.createElement('canvas'); c.width = T; c.height = T; const g = c.getContext('2d');
+    const r = mulberry32(hashStr(f.name));
+    g.fillStyle = f.base; g.fillRect(0, 0, T, T);
+    const u = T / 30;
+    if (f.print === 'solid') {
+      g.fillStyle = f.ink; g.globalAlpha = .18;
+      for (let y = 0; y < T; y += Math.max(1, u * .8)) g.fillRect(0, y, T, Math.max(.5, u * .25));
+      g.globalAlpha = .1; for (let x = 0; x < T; x += Math.max(1, u * .8)) g.fillRect(x, 0, Math.max(.5, u * .25), T);
+    } else if (f.print === 'gingham') {
+      const s = T / 4; g.fillStyle = f.ink;
+      g.globalAlpha = .38; for (let i = 0; i < 4; i += 2) g.fillRect(i * s, 0, s, T);
+      g.globalAlpha = .38; for (let i = 0; i < 4; i += 2) g.fillRect(0, i * s, T, s);
+      g.globalAlpha = .08; for (let y = 0; y < T; y += 2) g.fillRect(0, y, T, 1);
+    } else if (f.print === 'calico') {
+      const n = 26;
+      for (let i = 0; i < n; i++) { const x = r() * T, y = r() * T, rr = u * (.6 + r() * .9); g.fillStyle = f.ink; g.globalAlpha = .55 + r() * .4;
+        for (const [dx, dy] of [[0, 0], [T, 0], [-T, 0], [0, T], [0, -T]]) { g.beginPath(); g.arc(x + dx, y + dy, rr, 0, 6.283); g.fill(); }
+        if (r() < .35) { for (let k = 0; k < 3; k++) { const a = k * 2.09 + r(); g.beginPath(); g.arc(x + Math.cos(a) * rr * 2.2, y + Math.sin(a) * rr * 2.2, rr * .45, 0, 6.283); g.fill(); } } }
+    } else if (f.print === 'ditsy') {
+      const n = 11;
+      for (let i = 0; i < n; i++) { const x = r() * T, y = r() * T, rr = u * (1.1 + r() * .8), rot = r() * 6.28;
+        for (const [dx, dy] of [[0, 0], [T, 0], [-T, 0], [0, T], [0, -T], [T, T], [-T, -T], [T, -T], [-T, T]]) {
+          const cx = x + dx, cy = y + dy; if (cx < -rr * 4 || cx > T + rr * 4 || cy < -rr * 4 || cy > T + rr * 4) continue;
+          g.globalAlpha = .7; g.fillStyle = shade(f.base, -40);
+          g.beginPath(); g.ellipse(cx + Math.cos(rot + 2) * rr * 1.8, cy + Math.sin(rot + 2) * rr * 1.8, rr * .9, rr * .4, rot + 2, 0, 6.283); g.fill();
+          g.globalAlpha = .92; g.fillStyle = f.ink;
+          for (let k = 0; k < 5; k++) { const a = rot + k * 1.2566; g.beginPath(); g.arc(cx + Math.cos(a) * rr * .75, cy + Math.sin(a) * rr * .75, rr * .5, 0, 6.283); g.fill(); }
+          g.fillStyle = shade(f.base, 60); g.globalAlpha = 1; g.beginPath(); g.arc(cx, cy, rr * .35, 0, 6.283); g.fill(); } }
+    }
+    g.globalAlpha = 1;
+    tileCache.set(key, c);
+    return c;
+  }
+  function hashStr(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  function shade(hex, amt) { const n = parseInt(hex.slice(1), 16); const cl = (v) => Math.max(0, Math.min(255, v)); const r = cl((n >> 16) + amt), g = cl(((n >> 8) & 255) + amt), b = cl((n & 255) + amt); return `rgb(${r},${g},${b})`; }
+
+  // ---------- design state ----------
+  const S = { rows: 5, cols: 4, blockIn: 12, layout: 'straight', borders: true, pattern: 'cabin', quilting: 'cross', tool: 'rotate', blocks: [], sel: 0, shuffles: 0 };
+  const SASH = 2, BORDER = 4, BIND = 0.5;
+  function newPerm() { const a = [1, 2, 3, 4, 5]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return [0, a[0], a[1], a[2]]; }
+  function blockCount() { return S.layout === 'onpoint' ? S.rows * S.cols + (S.rows - 1) * (S.cols - 1) : S.rows * S.cols; }
+  function syncBlocks() {
+    const n = blockCount();
+    while (S.blocks.length < n) S.blocks.push({ pattern: S.pattern === 'sampler' ? PKEYS[Math.floor(rng() * PKEYS.length)] : S.pattern, rot: 0, perm: newPerm() });
+    S.blocks.length = n; if (S.sel >= n) S.sel = n - 1;
+  }
+  function dims() {
+    const b = S.blockIn, frame = S.borders ? BORDER : 0;
+    let iw, ih;
+    if (S.layout === 'onpoint') { const d = b * Math.SQRT2; iw = S.cols * d; ih = S.rows * d; }
+    else if (S.layout === 'sashing') { iw = S.cols * b + (S.cols + 1) * SASH; ih = S.rows * b + (S.rows + 1) * SASH; }
+    else { iw = S.cols * b; ih = S.rows * b; }
+    return { W: iw + 2 * frame, H: ih + 2 * frame, iw, ih, frame };
+  }
+  // block geometry in inches: centre, size, angle
+  function blockGeom(i) {
+    const b = S.blockIn, { frame } = dims();
+    if (S.layout === 'onpoint') {
+      const d = b * Math.SQRT2, main = S.rows * S.cols;
+      if (i < main) { const r = Math.floor(i / S.cols), c = i % S.cols; return { cx: frame + (c + .5) * d, cy: frame + (r + .5) * d, s: b, ang: Math.PI / 4 }; }
+      const j = i - main, r = Math.floor(j / (S.cols - 1)), c = j % (S.cols - 1); return { cx: frame + (c + 1) * d, cy: frame + (r + 1) * d, s: b, ang: Math.PI / 4 };
+    }
+    const r = Math.floor(i / S.cols), c = i % S.cols, off = S.layout === 'sashing' ? SASH : 0;
+    return { cx: frame + off + c * (b + off) + b / 2, cy: frame + off + r * (b + off) + b / 2, s: b, ang: 0 };
+  }
+  function blockAtInches(x, y) {
+    for (let i = 0; i < S.blocks.length; i++) { const g = blockGeom(i), dx = x - g.cx, dy = y - g.cy;
+      if (g.ang ? Math.abs(dx) + Math.abs(dy) <= g.s * Math.SQRT2 / 2 : Math.abs(dx) <= g.s / 2 && Math.abs(dy) <= g.s / 2) return i; }
+    return -1;
+  }
+  const rotPt = ([x, y], rot) => { for (let k = 0; k < rot; k++) [x, y] = [1 - y, x]; return [x, y]; };
+
+  // ---------- rendering ----------
+  const cv = $('quilt'), ctx = cv.getContext('2d');
+  let PPI = 10;
+  function fabricFill(idx) { const f = PALETTES[PAL].fabrics[idx]; return ctx.createPattern(fabricTile(f, PPI), 'repeat'); }
+  function polyPath(pts) { ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); }
+  function drawBlock(i, g2) {
+    const bl = S.blocks[i], g = blockGeom(i), s = g.s * PPI, pat = PATTERNS[bl.pattern];
+    g2.save(); g2.translate(fin(g.cx * PPI), fin(g.cy * PPI)); g2.rotate(g.ang); g2.translate(-s / 2, -s / 2);
+    for (const p of pat.patches) {
+      const pts = p.pts.map((q) => rotPt(q, bl.rot)).map(([x, y]) => [x * s, y * s]);
+      polyPath(pts); g2.fillStyle = fabricFill(bl.perm[p.role]); g2.fill();
+      g2.strokeStyle = 'rgba(40,25,10,.22)'; g2.lineWidth = Math.max(.6, PPI * .06); g2.stroke();
+    }
+    g2.restore();
+  }
+  function render(forExport) {
+    const { W, H, iw, ih, frame } = dims();
+    PPI = Math.max(4, Math.min(16, Math.floor(1000 / Math.max(W, H))));
+    const w = Math.round(W * PPI), h = Math.round(H * PPI);
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const fabs = PALETTES[PAL].fabrics;
+    // border, then interior
+    ctx.fillStyle = fabricFill(S.borders ? 6 : 0); ctx.fillRect(0, 0, w, h);
+    ctx.save(); ctx.beginPath(); ctx.rect(frame * PPI, frame * PPI, iw * PPI, ih * PPI); ctx.clip();
+    ctx.fillStyle = fabricFill(S.layout === 'sashing' ? 6 : 0); ctx.fillRect(frame * PPI, frame * PPI, iw * PPI, ih * PPI);
+    if (S.layout === 'sashing') {
+      ctx.fillStyle = fabricFill(4);
+      for (let r = 0; r <= S.rows; r++) for (let c = 0; c <= S.cols; c++) ctx.fillRect((frame + c * (S.blockIn + SASH)) * PPI, (frame + r * (S.blockIn + SASH)) * PPI, SASH * PPI, SASH * PPI);
+    }
+    for (let i = 0; i < S.blocks.length; i++) drawBlock(i, ctx);
+    ctx.restore();
+    if (S.borders) { ctx.strokeStyle = 'rgba(40,25,10,.25)'; ctx.lineWidth = 1; ctx.strokeRect(frame * PPI, frame * PPI, iw * PPI, ih * PPI); }
+    drawQuilting(W, H);
+    if (S.borders) { ctx.lineWidth = BIND * PPI; ctx.strokeStyle = fabs[7].base; ctx.strokeRect(BIND * PPI / 2, BIND * PPI / 2, w - BIND * PPI, h - BIND * PPI);
+      ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,.25)'; ctx.strokeRect(BIND * PPI * .3, BIND * PPI * .3, w - BIND * PPI * .6, h - BIND * PPI * .6); }
+    if (!forExport && document.activeElement === cv && S.blocks[S.sel]) {
+      const g = blockGeom(S.sel), s = g.s * PPI;
+      ctx.save(); ctx.translate(g.cx * PPI, g.cy * PPI); ctx.rotate(g.ang);
+      ctx.setLineDash([6, 4]); ctx.lineWidth = 3; ctx.strokeStyle = '#fff'; ctx.strokeRect(-s / 2 + 2, -s / 2 + 2, s - 4, s - 4);
+      ctx.strokeStyle = '#b8452f'; ctx.lineDashOffset = 5; ctx.strokeRect(-s / 2 + 2, -s / 2 + 2, s - 4, s - 4); ctx.restore();
+    }
+    cv.setAttribute('aria-label', describe());
+  }
+  function stitchStyle() { ctx.setLineDash([PPI * .45, PPI * .3]); ctx.lineCap = 'round'; }
+  function strokeStitched(pathFn) {
+    ctx.save(); stitchStyle();
+    ctx.translate(PPI * .08, PPI * .1); ctx.strokeStyle = 'rgba(30,15,5,.28)'; ctx.lineWidth = Math.max(1, PPI * .14); pathFn(); ctx.stroke();
+    ctx.translate(-PPI * .08, -PPI * .1); ctx.strokeStyle = 'rgba(255,250,235,.8)'; ctx.lineWidth = Math.max(.8, PPI * .1); pathFn(); ctx.stroke();
+    ctx.restore();
+  }
+  function drawQuilting(W, H) {
+    const w = W * PPI, h = H * PPI;
+    if (S.quilting === 'cross') {
+      strokeStitched(() => { ctx.beginPath(); const step = 2 * Math.SQRT2 * PPI;
+        for (let k = -h; k < w + h; k += step) { ctx.moveTo(k, 0); ctx.lineTo(k + h, h); ctx.moveTo(k, h); ctx.lineTo(k + h, 0); } });
+    } else if (S.quilting === 'ditch') {
+      strokeStitched(() => { ctx.beginPath();
+        for (let i = 0; i < S.blocks.length; i++) { const bl = S.blocks[i], g = blockGeom(i), s = g.s * PPI, ca = Math.cos(g.ang), sa = Math.sin(g.ang);
+          for (const p of PATTERNS[bl.pattern].patches) { const pts = p.pts.map((q) => rotPt(q, bl.rot)).map(([x, y]) => { const lx = (x - .5) * s, ly = (y - .5) * s; return [g.cx * PPI + lx * ca - ly * sa, g.cy * PPI + lx * sa + ly * ca]; });
+            pts.forEach(([x, y], j) => j ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); } } });
+    } else if (S.quilting === 'meander') {
+      const r = mulberry32(SEED ^ 0xabc);
+      // a serpentine free-motion line: rows 3 in apart, each wandering with two seeded sine waves and the odd loop-de-loop
+      strokeStitched(() => { ctx.beginPath(); const gap = 3, rowsN = Math.ceil(H / gap);
+        for (let k = 0; k < rowsN; k++) {
+          const y0 = (k + .5) * gap, p1 = r() * 6.28, p2 = r() * 6.28, f1 = .35 + r() * .25, f2 = .9 + r() * .5, dir = k % 2 ? -1 : 1;
+          const loops = []; for (let x = 4 + r() * 6; x < W - 3; x += 7 + r() * 9) loops.push(x);
+          let first = true;
+          for (let s = 0; s <= W * 4; s++) {
+            const xi = dir > 0 ? s / 4 : W - s / 4, yi = y0 + Math.sin(xi * f1 + p1) * 1.0 + Math.sin(xi * f2 + p2) * .35;
+            if (first) { ctx[k ? 'lineTo' : 'moveTo'](xi * PPI, yi * PPI); first = false; } else ctx.lineTo(xi * PPI, yi * PPI);
+            const L = loops.find((lx) => Math.abs(lx - xi) < .125);
+            if (L !== undefined) { loops.splice(loops.indexOf(L), 1); const rr = .55; for (let a = 0; a <= 24; a++) { const t = a / 24 * 6.283; ctx.lineTo((xi + dir * Math.sin(t) * rr) * PPI, (yi - rr + Math.cos(t) * rr) * PPI); } }
+          }
+        } });
+    }
+  }
+  function describe() {
+    const { W, H } = dims(), lay = { straight: 'straight set', sashing: 'straight set with sashing', onpoint: 'on point' }[S.layout];
+    return `${S.pattern === 'sampler' ? 'Sampler' : PATTERNS[S.pattern].name} quilt, ${S.blocks.length} blocks ${lay}, ${fmtIn(W)} by ${fmtIn(H)} inches, ${PALETTES[PAL].name} fabrics, ${S.borders ? 'with border' : 'no border'}`;
+  }
+  const fmtIn = (v) => (Math.round(v * 10) / 10).toString();
+
+  // ---------- areas & yardage ----------
+  function areas() {
+    const fabs = PALETTES[PAL].fabrics, fin = fabs.map(() => 0), cut = fabs.map(() => 0), b = S.blockIn;
+    for (const bl of S.blocks) for (const p of PATTERNS[bl.pattern].patches) {
+      const a = polyArea(p.pts) * b * b, per = polyPerim(p.pts) * b, idx = bl.perm[p.role];
+      fin[idx] += a; cut[idx] += a + per * 0.25 + 0.25;
+    }
+    const { W, H, iw, ih } = dims(), blocksArea = S.blocks.length * b * b;
+    if (S.layout === 'sashing') {
+      const corner = (S.rows + 1) * (S.cols + 1) * SASH * SASH, strips = iw * ih - blocksArea - corner;
+      fin[4] += corner; cut[4] += (S.rows + 1) * (S.cols + 1) * (SASH + .5) ** 2;
+      fin[6] += strips; cut[6] += strips + (S.rows * (S.cols + 1) + S.cols * (S.rows + 1)) * (2 * b + 2 * SASH) * .25;
+    } else if (S.layout === 'onpoint') {
+      const setting = iw * ih - blocksArea; fin[0] += setting; cut[0] += setting * 1.25;
+    }
+    if (S.borders) { const bord = W * H - iw * ih; fin[6] += bord; cut[6] += bord + 2 * (W + H) * .5; }
+    return { fin, cut, total: W * H };
+  }
+  const yd8 = (sqin) => Math.max(1, Math.ceil(sqin * 1.15 / (40 * 36) * 8)) / 8;
+  function fmtYd(y) { const whole = Math.floor(y), eighths = Math.round((y - whole) * 8); const fr = ['', '⅛', '¼', '⅜', '½', '⅝', '¾', '⅞'][eighths]; return (whole ? whole + (fr ? ' ' : '') : '') + fr + ' yd'; }
+  function yardage() {
+    const { fin, cut } = areas(), fabs = PALETTES[PAL].fabrics, rows = [];
+    fabs.forEach((f, i) => { if (fin[i] > 0) rows.push({ name: f.name, color: f.base, finished: Math.round(fin[i]), yards: yd8(cut[i]) }); });
+    const { W, H } = dims(), bw = W + 8, bh = H + 8;
+    const panelsA = Math.ceil(bw / 40) * bh, panelsB = Math.ceil(bh / 40) * bw;
+    rows.push({ name: 'Backing', color: '#ddd4c2', finished: null, yards: Math.ceil(Math.min(panelsA, panelsB) / 36 * 8) / 8 });
+    if (S.borders) { const strips = Math.ceil((2 * (W + H) + 12) / 40); rows.push({ name: `Binding (${PALETTES[PAL].fabrics[7].name}), ${strips} strips`, color: fabs[7].base, finished: null, yards: Math.max(.25, Math.ceil(strips * 2.5 / 36 * 8) / 8) }); }
+    return rows;
+  }
+  function renderYardage() {
+    $('yardBody').innerHTML = yardage().map((r) => `<tr><td><span class="sw" style="background:${r.color}"></span>${r.name}</td><td class="num">${r.finished === null ? '—' : r.finished.toLocaleString('en-US') + ' in²'}</td><td class="num">${fmtYd(r.yards)}</td></tr>`).join('');
+  }
+
+  // ---------- UI ----------
+  function say(m) { $('status').textContent = m; }
+  function update(msg) {
+    syncBlocks(); render(false); renderYardage();
+    const { W, H } = dims();
+    $('sizeOut').textContent = `${fmtIn(W)} × ${fmtIn(H)} in (${Math.round(W * 2.54)} × ${Math.round(H * 2.54)} cm)`;
+    const lay = S.layout === 'onpoint' ? ' on point' : '';
+    const pieces = S.blocks.reduce((n, bl) => n + PATTERNS[bl.pattern].patches.length, 0);
+    const seams = S.blocks.reduce((n, bl) => n + PATTERNS[bl.pattern].patches.reduce((m, p) => m + polyPerim(p.pts), 0) / 2, 0) * S.blockIn;
+    $('blockCount').textContent = `${S.blocks.length} blocks${lay}, ${S.blockIn} in finished · ${pieces.toLocaleString('en-US')} patches to cut · roughly ${Math.round(seams / 36)} yd of seams inside the blocks`;
+    if (msg) say(msg);
+    try { localStorage.setItem('lab074-last', JSON.stringify({ PAL, pattern: S.pattern, layout: S.layout })); } catch (e) { /* storage blocked */ }
+  }
+  function patIcon(key) {
+    if (key === 'sampler') return '<svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><rect x="1" y="1" width="15" height="15" fill="#2c3a66"/><rect x="18" y="1" width="15" height="15" fill="#b8452f"/><rect x="1" y="18" width="15" height="15" fill="#e0a130"/><rect x="18" y="18" width="15" height="15" fill="#8aa37a"/></svg>';
+    const cols = ['#efe6d2', '#2c3a66', '#b8452f', '#e0a130'];
+    const polys = PATTERNS[key].patches.map((p) => `<polygon points="${p.pts.map(([x, y]) => `${(1 + x * 32).toFixed(1)},${(1 + y * 32).toFixed(1)}`).join(' ')}" fill="${cols[p.role]}" stroke="#8a7a60" stroke-width=".4"/>`).join('');
+    return `<svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true">${polys}</svg>`;
+  }
+  $('patterns').innerHTML = [...PKEYS, 'sampler'].map((k) => `<button data-pat="${k}" data-testid="pattern-${k}" aria-pressed="${k === S.pattern}">${patIcon(k)}${k === 'sampler' ? 'Sampler' : PATTERNS[k].name}</button>`).join('');
+  $('palettes').innerHTML = Object.entries(PALETTES).map(([k, p]) => `<button data-pal="${k}" data-testid="palette-${k}" aria-pressed="${k === PAL}"><span class="chips" aria-hidden="true">${p.fabrics.slice(0, 7).map((f) => `<i style="background:${f.base}"></i>`).join('')}</span>${p.name}</button>`).join('');
+  $('patterns').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; setPattern(b.dataset.pat); });
+  function setPattern(k) {
+    S.pattern = k;
+    S.blocks.forEach((bl) => { bl.pattern = k === 'sampler' ? PKEYS[Math.floor(rng() * PKEYS.length)] : k; });
+    [...$('patterns').children].forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.pat === k)));
+    update(k === 'sampler' ? 'Sampler: every block drawn at random.' : `All blocks are now ${PATTERNS[k].name.toLowerCase()}.`);
+  }
+  $('palettes').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; PAL = b.dataset.pal; [...$('palettes').children].forEach((x) => x.setAttribute('aria-pressed', String(x === b))); update(`Fabric bundle: ${PALETTES[PAL].name}.`); });
+  $('tools').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; S.tool = b.dataset.tool; [...$('tools').children].forEach((x) => x.setAttribute('aria-pressed', String(x === b))); });
+  $('layout').addEventListener('change', (e) => { S.layout = e.target.value; update(`Layout: ${e.target.selectedOptions[0].textContent}.`); });
+  $('borders').addEventListener('change', (e) => { S.borders = e.target.checked; update(S.borders ? 'Border and binding added.' : 'Border removed.'); });
+  $('blockIn').addEventListener('change', (e) => { S.blockIn = +e.target.value; update(`Blocks are ${S.blockIn} in finished.`); });
+  const numIn = (id, key) => $(id).addEventListener('input', (e) => { const v = Math.round(+e.target.value); if (v >= 2 && v <= 8) { S[key] = v; update(); } });
+  numIn('rows', 'rows'); numIn('cols', 'cols');
+  $('quilting').addEventListener('change', (e) => { S.quilting = e.target.value; update(`Quilting: ${e.target.selectedOptions[0].textContent}.`); });
+  $('shuffle').addEventListener('click', () => { S.shuffles++; S.blocks.forEach((bl) => { bl.perm = newPerm(); }); update(`Fabrics shuffled (${S.shuffles}).`); });
+  $('resetRot').addEventListener('click', () => { S.blocks.forEach((bl) => { bl.rot = 0; }); update('Every block turned square to the top.'); });
+
+  function applyTool(i, tool) {
+    const bl = S.blocks[i]; if (!bl) return;
+    const where = `Block ${i + 1}`;
+    if (tool === 'rotate') { bl.rot = (bl.rot + 1) % 4; update(`${where} turned to ${bl.rot * 90}°.`); }
+    else if (tool === 'swap') { bl.perm = [0, bl.perm[3], bl.perm[1], bl.perm[2]]; update(`${where}: fabrics swapped.`); }
+    else if (tool === 'stamp') { const k = S.pattern === 'sampler' ? PKEYS[(PKEYS.indexOf(bl.pattern) + 1) % PKEYS.length] : S.pattern; bl.pattern = k; update(`${where} is now a ${PATTERNS[k].name.toLowerCase()}.`); }
+  }
+  cv.addEventListener('click', (e) => {
+    const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * cv.width / PPI, y = (e.clientY - r.top) / r.height * cv.height / PPI;
+    const i = blockAtInches(x, y); if (i < 0) return;
+    S.sel = i; applyTool(i, S.tool);
+  });
+  cv.addEventListener('keydown', (e) => {
+    const n = S.blocks.length, k = e.key; let used = true;
+    if (k === 'ArrowRight') S.sel = (S.sel + 1) % n; else if (k === 'ArrowLeft') S.sel = (S.sel - 1 + n) % n;
+    else if (k === 'ArrowDown') S.sel = Math.min(n - 1, S.sel + S.cols); else if (k === 'ArrowUp') S.sel = Math.max(0, S.sel - S.cols);
+    else if (k === 'Enter' || k === ' ') applyTool(S.sel, S.tool);
+    else if (k === 'r' || k === 'R') applyTool(S.sel, 'rotate');
+    else if (k === 's' || k === 'S') applyTool(S.sel, 'swap');
+    else used = false;
+    if (used) { e.preventDefault(); render(false); if (k.startsWith('Arrow')) say(`Block ${S.sel + 1} of ${n} selected (${PATTERNS[S.blocks[S.sel].pattern].name}, turned ${S.blocks[S.sel].rot * 90}°).`); }
+  });
+  cv.addEventListener('focus', () => render(false)); cv.addEventListener('blur', () => render(false));
+  $('export').addEventListener('click', () => {
+    render(true);
+    cv.toBlob((blob) => {
+      render(false); if (!blob) return;
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = `quilt-${S.pattern}-${S.layout}-${SEED}.png`; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      say(`Saved ${a.download} (${cv.width} × ${cv.height} px).`);
+    }, 'image/png');
+  });
+
+  window.__quilt = {
+    get state() { const d = dims(); return { rows: S.rows, cols: S.cols, blockIn: S.blockIn, layout: S.layout, borders: S.borders, pattern: S.pattern, palette: PAL, quilting: S.quilting, tool: S.tool, sel: S.sel,
+      W: d.W, H: d.H, ppi: PPI, blocks: S.blocks.map((b) => ({ pattern: b.pattern, rot: b.rot, perm: b.perm.slice() })) }; },
+    patternCoverage() { const o = {}; for (const k of PKEYS) { const byRole = [0, 0, 0, 0]; for (const p of PATTERNS[k].patches) byRole[p.role] += polyArea(p.pts); o[k] = { total: byRole.reduce((a, b) => a + b, 0), byRole }; } return o; },
+    areas() { const a = areas(); return { finished: a.fin, total: a.total, sum: a.fin.reduce((x, y) => x + y, 0) }; },
+    yardage() { return yardage(); },
+    blockClientPoint(i) { const g = blockGeom(i), r = cv.getBoundingClientRect(); return { x: g.cx * PPI / cv.width * r.width, y: g.cy * PPI / cv.height * r.height }; },
+    pixel(xIn, yIn) { const d = ctx.getImageData(Math.floor(xIn * PPI), Math.floor(yIn * PPI), 1, 1).data; return [d[0], d[1], d[2]]; },
+    signature() { const d = ctx.getImageData(0, 0, cv.width, cv.height).data; let h = 0; for (let i = 0; i < d.length; i += 97) h = (h * 31 + d[i]) >>> 0; return h; },
+  };
+
+  // restore the last bundle/pattern (not the seed-driven fabric order)
+  try { const last = JSON.parse(localStorage.getItem('lab074-last') || 'null'); if (last && !params.has('seed')) { if (PALETTES[last.PAL]) PAL = last.PAL; if (PATTERNS[last.pattern] || last.pattern === 'sampler') S.pattern = last.pattern; if (['straight', 'sashing', 'onpoint'].includes(last.layout)) S.layout = last.layout; } } catch (e) { /* ignore */ }
+  $('layout').value = S.layout;
+  [...$('patterns').children].forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.pat === S.pattern)));
+  [...$('palettes').children].forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.pal === PAL)));
+  syncBlocks();
+  if (S.pattern === 'sampler') S.blocks.forEach((bl) => { bl.pattern = PKEYS[Math.floor(rng() * PKEYS.length)]; });
+  update();
+})();
+</script>
+</body>
+</html>

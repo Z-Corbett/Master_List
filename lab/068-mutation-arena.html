@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mutation Testing Arena — Kill the Mutants</title>
+<meta name="description" content="Pick a small JavaScript function, generate mutants by swapping operators, nudging boundaries, flipping return values and forcing conditions, and run its test suite against each one in a sandboxed Web Worker with a timeout. See which mutants survive, then write extra assertions in a table to kill them and raise the mutation score.">
+<style>
+  :root {
+    --bg: #f3f0f8;
+    --card: #fffdfa;
+    --ink: #2b1a4a;
+    --ink-2: #5b4d77;
+    --ink-3: #8f84a6;
+    --line: #ddd5ea;
+    --violet: #5b2bb5;
+    --violet-2: #3d1d7a;
+    --acid: #a6e22e;
+    --acid-2: #6f9c10;
+    --dead: #b9b1c8;
+    --red: #d6336c;
+    --amber: #e8a317;
+    --font: "Gill Sans", "Gill Sans MT", Calibri, "Trebuchet MS", sans-serif;
+    --mono: "Cascadia Code", Consolas, "SF Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--font); line-height: 1.45; overflow-x: hidden; }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  input, select, pre { max-width: 100%; }
+  :focus-visible { outline: 3px solid var(--acid-2); outline-offset: 2px; }
+  .back { position: fixed; top: 10px; left: 10px; z-index: 50; color: #fff; background: var(--violet-2); text-decoration: none; font: 600 13px/1 var(--font);
+    padding: 8px 12px; border-radius: 999px; border: 1px solid rgba(255,255,255,.35); }
+  .back:hover { background: var(--violet); }
+
+  header.hero { background: var(--violet-2); color: #fff; padding: 62px 20px 28px; position: relative; overflow: hidden; }
+  header.hero::after { content: ""; position: absolute; right: -60px; top: -40px; width: 340px; height: 340px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(166,226,46,.28) 0 2px, transparent 3px) 0 0 / 22px 22px; mask: radial-gradient(circle, #000 40%, transparent 70%); -webkit-mask: radial-gradient(circle, #000 40%, transparent 70%); }
+  .hero-in { max-width: 1240px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: center; position: relative; z-index: 1; }
+  .hero h1 { margin: 0; font-size: clamp(32px, 6vw, 64px); line-height: .95; letter-spacing: -.01em; font-weight: 700; }
+  .hero h1 em { font-style: normal; color: var(--acid); }
+  .hero p { margin: 12px 0 0; max-width: 64ch; color: #d9cff0; font-size: 16.5px; }
+  .gauge { width: 150px; height: 150px; position: relative; }
+  .gauge svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .gauge .num { position: absolute; inset: 0; display: grid; place-items: center; align-content: center; text-align: center; }
+  .gauge .num b { font: 700 34px var(--font); color: var(--acid); line-height: 1; }
+  .gauge .num span { font-size: 10px; letter-spacing: .1em; max-width: 84px; line-height: 1.2; margin-top: 4px; text-transform: uppercase; color: #cfc4e8; }
+
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 22px 18px 50px; }
+  .picker { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
+  .pick { text-align: left; border: 2px solid var(--line); background: var(--card); border-radius: 14px; padding: 12px 14px; display: grid; gap: 2px; min-width: 0; }
+  .pick b { font: 600 14px var(--mono); overflow-wrap: anywhere; }
+  .pick span { font-size: 13px; color: var(--ink-2); }
+  .pick[aria-pressed="true"] { border-color: var(--violet); box-shadow: 0 6px 18px rgba(91,43,181,.18); }
+
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; min-width: 0; }
+  .card h2 { margin: 0 0 10px; font-size: 13px; letter-spacing: .16em; text-transform: uppercase; color: var(--violet); display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .card h2 small { font-size: 12px; letter-spacing: 0; text-transform: none; color: var(--ink-3); }
+  pre.src { margin: 0; font: 13px/1.6 var(--mono); background: #1f1433; color: #e8e0f7; border-radius: 12px; padding: 12px 0; overflow-x: auto; }
+  pre.src .ln { display: block; padding: 0 14px 0 0; white-space: pre; }
+  pre.src .ln::before { content: attr(data-n); display: inline-block; width: 2.6em; padding-right: .9em; text-align: right; color: #6f6390; }
+  pre.src .ln.hl { background: rgba(166,226,46,.13); box-shadow: inset 3px 0 0 var(--acid); }
+  pre.src .kw { color: #c792ea; } pre.src .nu { color: #f78c6c; } pre.src .st { color: #c3e88d; } pre.src .op { color: #89ddff; }
+  pre.src del { background: rgba(214,51,108,.35); color: #ffd1e0; text-decoration: line-through; }
+  pre.src ins { background: var(--acid); color: #1f1433; text-decoration: none; border-radius: 2px; padding: 0 1px; }
+  .diffnote { font-size: 13px; color: var(--ink-2); margin: 8px 0 0; min-height: 1.3em; }
+
+  table.suite { width: 100%; border-collapse: collapse; font-size: 14px; table-layout: fixed; }
+  table.suite th { text-align: left; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+  table.suite td { padding: 6px; border-bottom: 1px solid var(--line); vertical-align: middle; overflow-wrap: anywhere; }
+  table.suite td code { font: 12.5px var(--mono); }
+  table.suite tr.mine td { background: #f6fbe9; }
+  table.suite tr.bad td { background: #fdeef3; }
+  table.suite .st { font-size: 12px; }
+  .st.ok { color: var(--acid-2); } .st.no { color: var(--red); }
+  .x { border: 0; background: none; color: var(--ink-3); font-size: 16px; padding: 2px 6px; border-radius: 6px; }
+  .x:hover { color: var(--red); background: #fdeef3; }
+  .addrow { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto; gap: 8px; margin-top: 12px; align-items: end; }
+  .addrow label { display: grid; gap: 3px; font-size: 12px; color: var(--ink-2); min-width: 0; }
+  .addrow input { border: 1.5px solid var(--line); border-radius: 10px; padding: 8px 10px; font: 13px var(--mono); background: #fff; width: 100%; min-width: 0; }
+  .addrow input[aria-invalid="true"] { border-color: var(--red); }
+  .btn { border: 0; border-radius: 10px; padding: 9px 14px; font-weight: 600; background: var(--ink); color: #fff; }
+  .btn.acid { background: var(--acid); color: #1f1433; }
+  .btn.ghost { background: transparent; color: var(--ink); border: 1.5px solid var(--line); }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .formmsg { font-size: 13px; margin: 6px 0 0; min-height: 1.3em; color: var(--red); }
+  .hint { font-size: 13px; color: var(--ink-3); margin: 8px 0 0; }
+
+  .arena { margin-top: 18px; }
+  .arena-top { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  .arena-top .counts { display: flex; gap: 14px; flex-wrap: wrap; font-size: 14px; color: var(--ink-2); margin-left: auto; }
+  .counts b { font: 700 18px var(--mono); color: var(--ink); }
+  .filter { display: inline-flex; border: 1.5px solid var(--line); border-radius: 999px; overflow: hidden; }
+  .filter button { border: 0; background: #fff; padding: 6px 12px; font-size: 13px; }
+  .filter button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+  .dishes { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  .dish { border: 1.5px solid var(--line); background: #fff; border-radius: 16px; padding: 12px; text-align: left; display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 10px; align-items: center; min-width: 0; position: relative; }
+  .dish[aria-pressed="true"] { border-color: var(--violet); box-shadow: 0 0 0 3px rgba(91,43,181,.15); }
+  .petri { width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--line); background: #faf8fd; position: relative; overflow: hidden; }
+  .petri i { position: absolute; border-radius: 50%; background: var(--ink-3); opacity: .35; }
+  .dish[data-status="survived"] .petri { border-color: var(--acid-2); background: #f1fad9; }
+  .dish[data-status="survived"] .petri i { background: var(--acid-2); opacity: .9; }
+  .dish[data-status="survived"] { border-color: #cfe89a; }
+  .dish[data-status="killed"] .petri::after, .dish[data-status="timeout"] .petri::after { content: ""; position: absolute; inset: 0; background: linear-gradient(45deg, transparent 46%, var(--red) 46% 54%, transparent 54%); }
+  .dish[data-status="killed"], .dish[data-status="timeout"] { background: #faf8fd; }
+  .dish[data-status="killed"] .petri i, .dish[data-status="timeout"] .petri i { background: var(--dead); }
+  .dish[data-status="running"] .petri { border-color: var(--violet); animation: spin 1s linear infinite; border-style: dashed; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .dish .m { font: 600 12px var(--mono); overflow-wrap: anywhere; }
+  .dish .cat { font-size: 10.5px; letter-spacing: .06em; white-space: nowrap; text-transform: uppercase; color: var(--violet); }
+  .dish .res { font-size: 12.5px; color: var(--ink-2); }
+  .dish[data-status="survived"] .res { color: var(--acid-2); font-weight: 600; }
+  .dish[data-status="timeout"] .res { color: var(--amber); }
+  .detail { margin-top: 12px; border-top: 1px dashed var(--line); padding-top: 12px; font-size: 14px; }
+  .detail h3 { margin: 0 0 4px; font-size: 16px; }
+  .note { font-size: 13.5px; color: var(--ink-2); max-width: 90ch; }
+  footer.f { margin-top: 26px; font-size: 13px; color: var(--ink-3); max-width: 95ch; }
+  .celebrate { background: var(--acid); color: #1f1433; border-radius: 12px; padding: 10px 14px; font-weight: 600; margin-top: 12px; }
+
+  @media (max-width: 960px) {
+    .grid { grid-template-columns: minmax(0, 1fr); }
+    .picker { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 560px) {
+    .hero-in { grid-template-columns: minmax(0, 1fr); }
+    .gauge { width: 118px; height: 118px; }
+    .addrow { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .addrow .btn { grid-column: 1 / -1; }
+    .wrap { padding: 18px 12px 40px; }
+    .dishes { grid-template-columns: minmax(0, 1fr); }
+    .arena-top .counts { margin-left: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<a href="../index.html#lab" class="back" data-testid="back-link">← Zac's Lab</a>
+<header class="hero">
+  <div class="hero-in">
+    <div>
+      <h1>Mutation Testing <em>Arena</em></h1>
+      <p>Code coverage tells you which lines your tests ran. Mutation testing tells you whether they would notice if those lines were wrong. Breed small bugs into a function, set its test suite on them, and see which ones get away.</p>
+    </div>
+    <div class="gauge" aria-hidden="true">
+      <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="50" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="12"/><circle id="gArc" cx="60" cy="60" r="50" fill="none" stroke="#a6e22e" stroke-width="12" stroke-linecap="round" stroke-dasharray="0 400"/></svg>
+      <div class="num"><b data-testid="score-big">–</b><span>mutation score</span></div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="picker" role="group" aria-label="Function under test" data-testid="picker"></div>
+
+  <div class="grid">
+    <section class="card" aria-labelledby="srcH">
+      <h2 id="srcH">Source <small data-testid="src-caption">original</small></h2>
+      <pre class="src" data-testid="source" tabindex="0" aria-label="Function source"></pre>
+      <p class="diffnote" data-testid="diffnote"></p>
+    </section>
+
+    <section class="card" aria-labelledby="suiteH">
+      <h2 id="suiteH">Test suite <small data-testid="suite-count"></small></h2>
+      <table class="suite" data-testid="suite">
+        <thead><tr><th style="width:44%">Call</th><th style="width:26%">Expect</th><th>On original</th><th style="width:36px"><span class="vh" style="position:absolute;left:-9999px">Remove</span></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <form class="addrow" data-testid="add-form" novalidate>
+        <label>Arguments (JSON, comma-separated)<input id="argIn" data-testid="arg-input" placeholder='1900' autocomplete="off" spellcheck="false"></label>
+        <label>Expected result (JSON)<input id="expIn" data-testid="expect-input" placeholder="false" autocomplete="off" spellcheck="false"></label>
+        <button type="submit" class="btn" data-testid="add-assert">Add assertion</button>
+      </form>
+      <p class="formmsg" data-testid="form-msg" aria-live="polite"></p>
+      <p class="hint">Grey rows came with the function. Your rows are green. An assertion that fails on the original function is flagged in red and left out of the run: tests have to pass on correct code before they can judge a mutant.</p>
+    </section>
+  </div>
+
+  <section class="card arena" aria-labelledby="arenaH">
+    <div class="arena-top">
+      <h2 id="arenaH" style="margin:0">The arena</h2>
+      <button type="button" class="btn acid" data-testid="run">Release the mutants</button>
+      <div class="filter" role="group" aria-label="Show">
+        <button type="button" aria-pressed="true" data-f="all" data-testid="filter-all">All</button>
+        <button type="button" aria-pressed="false" data-f="survived" data-testid="filter-survived">Survivors</button>
+      </div>
+      <div class="counts" data-testid="counts" aria-live="polite">
+        <span><b data-testid="count-total">0</b> mutants</span>
+        <span><b data-testid="count-killed">0</b> killed</span>
+        <span><b data-testid="count-survived">0</b> survived</span>
+        <span><b data-testid="score">–</b> score</span>
+      </div>
+    </div>
+    <div class="dishes" data-testid="dishes" data-state="idle"></div>
+    <div class="detail" data-testid="detail" hidden></div>
+    <div class="celebrate" data-testid="all-killed" hidden>Every mutant killed. That suite would notice every one of these bugs.</div>
+  </section>
+
+  <footer class="f">How it runs: mutants are generated from a small tokenizer over the function's own source, so strings and regular expressions are never mutated. Each mutant is compiled and tested inside a Web Worker built from a Blob, with a 1-second watchdog: a mutant that loops forever is terminated and counted as killed by timeout, as mutation tools usually do. A mutant stops at the first failing assertion. Some mutants can be <em>equivalent</em> (they behave exactly like the original), and no test can kill those. None of the mutants here are equivalent, so 100 % is reachable.</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s, r = document) => r.querySelector(s);
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  const FUNCS = [
+    {
+      name: 'isLeapYear', blurb: 'Gregorian leap years', ret: 'bool',
+      src: 'function isLeapYear(y) {\n  return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;\n}',
+      tests: [[[2024], true], [[2023], false]],
+    },
+    {
+      name: 'discount', blurb: 'Member & bulk pricing', ret: 'num',
+      src: 'function discount(total, member) {\n  if (total >= 100) {\n    return member ? total * 0.8 : total * 0.9;\n  }\n  return member ? total - 5 : total;\n}',
+      tests: [[[200, false], 180], [[50, false], 50], [[200, true], 160]],
+    },
+    {
+      name: 'passwordOk', blurb: 'Length, digit, capital', ret: 'bool',
+      src: 'function passwordOk(pw) {\n  if (pw.length < 8) return false;\n  const hasDigit = /[0-9]/.test(pw);\n  const hasUpper = /[A-Z]/.test(pw);\n  return hasDigit && hasUpper;\n}',
+      tests: [[['abc'], false], [['Secret123'], true]],
+    },
+    {
+      name: 'digitSum', blurb: 'A loop: watch for hangs', ret: 'num',
+      src: 'function digitSum(n) {\n  let sum = 0;\n  while (n > 0) {\n    sum += n % 10;\n    n = Math.floor(n / 10);\n  }\n  return sum;\n}',
+      tests: [[[123], 6], [[0], 0]],
+    },
+  ];
+
+  // ---------- tokenizer ----------
+  const PUNCT = ['===', '!==', '<=', '>=', '&&', '||', '+=', '-=', '*=', '/=', '==', '!=', '=>', '++', '--', '<', '>', '+', '-', '*', '/', '%', '=', '!', '?', ':', '(', ')', '{', '}', '[', ']', ';', ',', '.'];
+  const KW = new Set(['function', 'return', 'if', 'else', 'const', 'let', 'while', 'true', 'false']);
+  function tokenize(src) {
+    const toks = []; let i = 0; let prev = null;
+    const regexOK = () => !prev || (prev.t === 'p' && !/^[)\]}]$/.test(prev.v)) || (prev.t === 'id' && prev.v === 'return');
+    while (i < src.length) {
+      const c = src[i];
+      let m;
+      if (/\s/.test(c)) { m = /^\s+/.exec(src.slice(i))[0]; toks.push({ t: 'ws', v: m }); i += m.length; continue; }
+      if (/[A-Za-z_$]/.test(c)) { m = /^[A-Za-z_$][\w$]*/.exec(src.slice(i))[0]; prev = { t: 'id', v: m }; toks.push(prev); i += m.length; continue; }
+      if (/[0-9]/.test(c)) { m = /^\d+(\.\d+)?/.exec(src.slice(i))[0]; prev = { t: 'num', v: m }; toks.push(prev); i += m.length; continue; }
+      if (c === '"' || c === "'") { let j = i + 1; while (j < src.length && src[j] !== c) j += src[j] === '\\' ? 2 : 1; m = src.slice(i, j + 1); prev = { t: 'str', v: m }; toks.push(prev); i = j + 1; continue; }
+      if (c === '/' && regexOK()) {
+        let j = i + 1, cls = false;
+        while (j < src.length && (src[j] !== '/' || cls)) { if (src[j] === '\\') j++; else if (src[j] === '[') cls = true; else if (src[j] === ']') cls = false; j++; }
+        j++; while (/[a-z]/.test(src[j] || '')) j++;
+        m = src.slice(i, j); prev = { t: 're', v: m }; toks.push(prev); i = j; continue;
+      }
+      const p = PUNCT.find((x) => src.startsWith(x, i));
+      if (p) { prev = { t: 'p', v: p }; toks.push(prev); i += p.length; continue; }
+      prev = { t: 'p', v: c }; toks.push(prev); i++;
+    }
+    let line = 1;
+    toks.forEach((t) => { t.line = line; line += (t.v.match(/\n/g) || []).length; });
+    return toks;
+  }
+
+  // ---------- mutant generation ----------
+  const SWAPS = {
+    '+': [['-', 'Arithmetic']], '-': [['+', 'Arithmetic']], '*': [['/', 'Arithmetic']], '/': [['*', 'Arithmetic']], '%': [['*', 'Arithmetic']],
+    '+=': [['-=', 'Arithmetic']], '-=': [['+=', 'Arithmetic']],
+    '<': [['<=', 'Boundary'], ['>', 'Relational']], '<=': [['<', 'Boundary'], ['>', 'Relational']],
+    '>': [['>=', 'Boundary'], ['<', 'Relational']], '>=': [['>', 'Boundary'], ['<', 'Relational']],
+    '===': [['!==', 'Relational']], '!==': [['===', 'Relational']],
+    '&&': [['||', 'Logical']], '||': [['&&', 'Logical']],
+  };
+  function generate(fn) {
+    const toks = tokenize(fn.src);
+    const out = [];
+    const join = (arr) => arr.map((t) => t.v).join('');
+    const push = (cat, line, from, to, mut) => out.push({ id: 'M' + String(out.length + 1).padStart(2, '0'), cat, line, from, to, src: join(mut), toks: mut });
+    toks.forEach((t, i) => {
+      if (t.t === 'p' && SWAPS[t.v]) for (const [to, cat] of SWAPS[t.v]) { const m = toks.slice(); m[i] = Object.assign({}, t, { v: to, mut: true }); push(cat, t.line, t.v, to, m); }
+      if (t.t === 'num' && /^\d+$/.test(t.v)) {
+        const n = Number(t.v);
+        for (const d of [1, -1]) { if (n + d < 0) continue; const m = toks.slice(); m[i] = Object.assign({}, t, { v: String(n + d), mut: true }); push('Boundary', t.line, t.v, String(n + d), m); }
+      }
+      if (t.t === 'id' && t.v === 'if') {
+        let j = i + 1; while (toks[j].t === 'ws') j++;
+        let depth = 0, k = j;
+        for (; k < toks.length; k++) { if (toks[k].v === '(') depth++; else if (toks[k].v === ')') { depth--; if (!depth) break; } }
+        const cond = join(toks.slice(j + 1, k));
+        for (const forced of ['true', 'false']) {
+          const m = toks.slice(0, j + 1).concat([{ t: 'id', v: forced, mut: true, line: t.line }], toks.slice(k));
+          push('Condition', t.line, cond, forced, m);
+        }
+      }
+      if (t.t === 'id' && t.v === 'return') {
+        let j = i + 1; while (toks[j].t === 'ws') j++;
+        let k = j; for (; k < toks.length && toks[k].v !== ';'; k++);
+        const expr = join(toks.slice(j, k));
+        const flipped = fn.ret === 'bool' ? `!(${expr})` : `-(${expr})`;
+        const m = toks.slice(0, j).concat([{ t: 'id', v: flipped, mut: true, line: toks[j].line }], toks.slice(k));
+        push('Return flip', toks[j].line, expr, flipped, m);
+      }
+    });
+    return out;
+  }
+
+  // ---------- worker sandbox ----------
+  const WORKER_SRC = `
+    function eq(a, b) {
+      if (typeof a === 'number' && typeof b === 'number') return Math.abs(a - b) < 1e-9 || (Number.isNaN(a) && Number.isNaN(b));
+      return JSON.stringify(a) === JSON.stringify(b);
+    }
+    self.onmessage = function (e) {
+      var d = e.data, fn;
+      try { fn = new Function('"use strict";\\n' + d.src + '\\nreturn ' + d.name + ';')(); }
+      catch (err) { self.postMessage({ id: d.id, compileError: String(err && err.message || err) }); return; }
+      var results = [];
+      for (var i = 0; i < d.tests.length; i++) {
+        var t = d.tests[i], got, threw = null;
+        try { got = fn.apply(null, t.args); } catch (err) { threw = String(err && err.message || err); }
+        var pass = threw === null && eq(got, t.expected);
+        results.push({ i: i, pass: pass, got: threw !== null ? 'threw: ' + threw : (got === undefined ? 'undefined' : JSON.stringify(got)) });
+        if (!pass && !d.all) break;
+      }
+      self.postMessage({ id: d.id, results: results });
+    };`;
+  let blobUrl = null, worker = null, seq = 0;
+  function getWorker() {
+    if (!blobUrl) blobUrl = URL.createObjectURL(new Blob([WORKER_SRC], { type: 'text/javascript' }));
+    if (!worker) worker = new Worker(blobUrl);
+    return worker;
+  }
+  function exec(src, name, tests, all) {
+    return new Promise((resolve) => {
+      const id = ++seq;
+      const w = getWorker();
+      const timer = setTimeout(() => { w.terminate(); if (worker === w) worker = null; resolve({ timeout: true }); }, 1000);
+      w.onmessage = (e) => { if (e.data.id !== id) return; clearTimeout(timer); resolve(e.data); };
+      w.postMessage({ id, src, name, tests, all });
+    });
+  }
+
+  // ---------- state ----------
+  let fi = 0;
+  let mine = FUNCS.map(() => []);
+  try { const raw = JSON.parse(localStorage.getItem('lab068') || 'null'); if (raw && Array.isArray(raw.mine) && raw.mine.length === FUNCS.length) mine = raw.mine.map((a) => (Array.isArray(a) ? a.filter((r) => r && typeof r.args === 'string' && typeof r.exp === 'string') : [])); } catch (e) { /* ignore */ }
+  const saveMine = () => { try { localStorage.setItem('lab068', JSON.stringify({ mine })); } catch (e) { /* ignore */ } };
+  let mutants = [], status = {}, sel = null, filter = 'all', running = false, runToken = 0;
+  const origCheck = {}; // key -> {pass, got}
+
+  function parseArgs(s) { return JSON.parse('[' + s + ']'); }
+  function suiteRows() {
+    const f = FUNCS[fi];
+    const base = f.tests.map(([a, e], i) => ({ key: 'b' + i, builtin: true, args: JSON.stringify(a).slice(1, -1), exp: JSON.stringify(e), argsV: a, expV: e }));
+    const my = mine[fi].map((r, i) => ({ key: 'm' + i + ':' + r.args + '→' + r.exp, builtin: false, idx: i, args: r.args, exp: r.exp, argsV: parseArgs(r.args), expV: JSON.parse(r.exp) }));
+    return base.concat(my);
+  }
+
+  // ---------- rendering ----------
+  function highlight(toks, lineOf) {
+    // returns array of line html
+    const lines = [''];
+    for (const t of toks) {
+      const parts = t.v.split('\n');
+      parts.forEach((p, k) => {
+        if (k > 0) lines.push('');
+        if (!p) return;
+        let cls = t.t === 'num' ? 'nu' : t.t === 'str' || t.t === 're' ? 'st' : t.t === 'id' && KW.has(t.v) ? 'kw' : t.t === 'p' && /[=<>!&|+\-*/%?]/.test(t.v) ? 'op' : '';
+        let h = esc(p);
+        if (cls) h = `<span class="${cls}">${h}</span>`;
+        if (t.mut) h = `<ins>${esc(p)}</ins>`;
+        lines[lines.length - 1] += h;
+      });
+    }
+    return lines;
+  }
+  function renderSource() {
+    const f = FUNCS[fi];
+    const m = sel && mutants.find((x) => x.id === sel);
+    const toks = m ? m.toks : tokenize(f.src);
+    const lines = highlight(toks);
+    $('[data-testid="source"]').innerHTML = lines.map((l, i) => `<span class="ln${m && m.line === i + 1 ? ' hl' : ''}" data-n="${i + 1}">${l || ' '}</span>`).join('');
+    $('[data-testid="src-caption"]').textContent = m ? `mutant ${m.id} · ${m.cat}` : 'original';
+    $('[data-testid="diffnote"]').innerHTML = m ? `Line ${m.line}: <code>${esc(m.from)}</code> → <code>${esc(m.to)}</code>. <button type="button" class="btn ghost" data-testid="show-original" style="padding:3px 10px;font-size:12px">Show original</button>` : 'Select a mutant below to see its change here.';
+  }
+
+  function renderPicker() {
+    $('[data-testid="picker"]').innerHTML = FUNCS.map((f, i) => `<button type="button" class="pick" aria-pressed="${i === fi}" data-i="${i}" data-testid="pick-${f.name}"><b>${f.name}()</b><span>${f.blurb}</span></button>`).join('');
+  }
+
+  function renderSuite() {
+    const rows = suiteRows();
+    const f = FUNCS[fi];
+    $('[data-testid="suite"] tbody').innerHTML = rows.map((r) => {
+      const oc = origCheck[fi + '|' + r.key];
+      const st = !oc ? '<span class="st">…</span>' : oc.pass ? '<span class="st ok">✓ passes</span>' : `<span class="st no">✗ returns ${esc(oc.got)}</span>`;
+      return `<tr class="${r.builtin ? '' : 'mine'}${oc && !oc.pass ? ' bad' : ''}" data-testid="row" data-builtin="${r.builtin}" data-valid="${oc ? oc.pass : ''}">
+        <td><code>${esc(f.name)}(${esc(r.args)})</code></td><td><code>${esc(r.exp)}</code></td><td>${st}</td>
+        <td>${r.builtin ? '' : `<button type="button" class="x" data-del="${r.idx}" aria-label="Remove assertion ${esc(f.name)}(${esc(r.args)})" data-testid="del-row">×</button>`}</td></tr>`;
+    }).join('');
+    const valid = rows.filter((r) => { const oc = origCheck[fi + '|' + r.key]; return !oc || oc.pass; }).length;
+    $('[data-testid="suite-count"]').textContent = `${rows.length} assertion${rows.length === 1 ? '' : 's'} · ${f.tests.length} built in`;
+    return valid;
+  }
+
+  const CAT_HINT = {
+    Arithmetic: 'An operator in a calculation changed. Test a case where that calculation affects the result.',
+    Boundary: 'A limit moved by one. Test the exact boundary value, and the value just past it.',
+    Relational: 'A comparison flipped. Test inputs on both sides of it.',
+    Logical: 'An and/or changed. Test an input where exactly one side of it is true.',
+    Condition: 'A guard was forced. Test an input that should take the other branch.',
+    'Return flip': 'The result was inverted. Any test that reaches this return should notice.',
+  };
+  function dots(id) {
+    let h = 0; for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+    let s = '';
+    for (let k = 0; k < 6; k++) { h = (h * 1103515245 + 12345) >>> 0; const x = 8 + (h % 26), y = 8 + ((h >> 8) % 26), r = 3 + ((h >> 16) % 5); s += `<i style="left:${x}px;top:${y}px;width:${r * 2}px;height:${r * 2}px"></i>`; }
+    return s;
+  }
+  function renderDishes() {
+    const box = $('[data-testid="dishes"]');
+    const list = mutants.filter((m) => filter === 'all' || status[m.id]?.s === 'survived');
+    box.innerHTML = list.map((m) => {
+      const st = status[m.id] || { s: 'pending' };
+      const res = st.s === 'killed' ? `killed by #${st.by + 1}` : st.s === 'timeout' ? 'killed by timeout' : st.s === 'survived' ? 'survived' : st.s === 'running' ? 'testing…' : st.s === 'error' ? 'compile error (killed)' : 'waiting';
+      return `<button type="button" class="dish" data-testid="mutant" data-id="${m.id}" data-cat="${m.cat}" data-status="${st.s === 'error' ? 'killed' : st.s}" aria-pressed="${sel === m.id}"
+        aria-label="Mutant ${m.id}, ${m.cat}, line ${m.line}: ${esc(m.from)} to ${esc(m.to)}, ${res}">
+        <span class="petri" aria-hidden="true">${dots(m.id)}</span>
+        <span><span class="cat">${m.id} · ${m.cat}</span><br><span class="m">${esc(trim(m.from))} → ${esc(trim(m.to))}</span><br><span class="res">${res}</span></span></button>`;
+    }).join('') || `<p class="note">${filter === 'survived' ? 'No survivors to show.' : 'No mutants yet.'}</p>`;
+    const done = mutants.filter((m) => status[m.id] && !['pending', 'running'].includes(status[m.id].s));
+    const killed = done.filter((m) => status[m.id].s !== 'survived').length;
+    const surv = done.length - killed;
+    $('[data-testid="count-total"]').textContent = mutants.length;
+    $('[data-testid="count-killed"]').textContent = killed;
+    $('[data-testid="count-survived"]').textContent = surv;
+    const complete = done.length === mutants.length && mutants.length > 0;
+    const score = complete ? Math.round((100 * killed) / mutants.length) : null;
+    $('[data-testid="score"]').textContent = score == null ? '–' : score + ' %';
+    $('[data-testid="score-big"]').textContent = score == null ? '–' : score + '%';
+    $('#gArc').setAttribute('stroke-dasharray', `${score == null ? 0 : (314.16 * score) / 100} 400`);
+    $('[data-testid="all-killed"]').hidden = !(complete && surv === 0);
+    renderDetail();
+  }
+  const trim = (s) => (s.length > 26 ? s.slice(0, 24) + '…' : s);
+
+  function renderDetail() {
+    const d = $('[data-testid="detail"]');
+    const m = sel && mutants.find((x) => x.id === sel);
+    if (!m) { d.hidden = true; return; }
+    d.hidden = false;
+    const st = status[m.id] || { s: 'pending' };
+    const rows = suiteRows();
+    let body = '';
+    if (st.s === 'killed') body = `Killed by assertion #${st.by + 1}, <code>${esc(FUNCS[fi].name)}(${esc(rows[st.row]?.args ?? '')})</code>: expected <code>${esc(rows[st.row]?.exp ?? '')}</code>, the mutant returned <code>${esc(st.got)}</code>.`;
+    else if (st.s === 'timeout') body = 'The mutant never returned. The watchdog terminated its worker after 1 second, which counts as a kill.';
+    else if (st.s === 'error') body = 'The mutant did not compile, which counts as a kill.';
+    else if (st.s === 'survived') body = `Every assertion passed against this mutant, so the suite can't tell it from the real function. ${CAT_HINT[m.cat]}`;
+    else body = 'Not run yet.';
+    d.innerHTML = `<h3 data-testid="detail-title">${m.id}: ${esc(m.cat)} on line ${m.line}</h3><p data-testid="detail-body">${body}</p>`;
+  }
+
+  // ---------- running ----------
+  async function checkOriginal() {
+    const f = FUNCS[fi], rows = suiteRows();
+    const res = await exec(f.src, f.name, rows.map((r) => ({ args: r.argsV, expected: r.expV })), true);
+    if (res.results) res.results.forEach((x) => { origCheck[fi + '|' + rows[x.i].key] = { pass: x.pass, got: x.got }; });
+    renderSuite();
+  }
+  async function runAll() {
+    if (running) return;
+    const token = ++runToken;
+    running = true;
+    const btn = $('[data-testid="run"]');
+    btn.disabled = true; btn.textContent = 'Running…';
+    const box = $('[data-testid="dishes"]');
+    box.dataset.state = 'running';
+    const f = FUNCS[fi];
+    mutants = generate(f);
+    status = {};
+    if (sel && !mutants.find((m) => m.id === sel)) sel = null;
+    await checkOriginal();
+    if (token !== runToken) return;
+    const rows = suiteRows();
+    const valid = rows.map((r, i) => ({ r, i })).filter(({ r }) => origCheck[fi + '|' + r.key]?.pass);
+    const tests = valid.map(({ r }) => ({ args: r.argsV, expected: r.expV }));
+    renderDishes();
+    for (const m of mutants) {
+      if (token !== runToken) return;
+      status[m.id] = { s: 'running' };
+      renderDishes();
+      const res = await exec(m.src, f.name, tests, false);
+      if (token !== runToken) return;
+      if (res.timeout) status[m.id] = { s: 'timeout' };
+      else if (res.compileError) status[m.id] = { s: 'error' };
+      else {
+        const fail = res.results.find((x) => !x.pass);
+        status[m.id] = fail ? { s: 'killed', by: valid[fail.i].i, row: valid[fail.i].i, got: fail.got } : { s: 'survived' };
+      }
+    }
+    running = false;
+    btn.disabled = false; btn.textContent = 'Run again';
+    box.dataset.state = 'done';
+    renderDishes(); renderSource();
+  }
+  function cancelRun() {
+    runToken++; running = false;
+    const btn = $('[data-testid="run"]'); btn.disabled = false; btn.textContent = 'Release the mutants';
+    $('[data-testid="dishes"]').dataset.state = 'idle';
+  }
+
+  // ---------- events ----------
+  function selectFunc(i) {
+    cancelRun();
+    fi = i; sel = null; mutants = []; status = {};
+    renderPicker(); renderSource(); renderSuite(); renderDishes();
+    checkOriginal();
+  }
+  $('[data-testid="picker"]').addEventListener('click', (e) => { const b = e.target.closest('.pick'); if (b) selectFunc(Number(b.dataset.i)); });
+  $('[data-testid="run"]').addEventListener('click', runAll);
+  $('[data-testid="dishes"]').addEventListener('click', (e) => {
+    const b = e.target.closest('.dish'); if (!b) return;
+    sel = sel === b.dataset.id ? null : b.dataset.id;
+    renderSource(); renderDishes();
+    const again = $(`.dish[data-id="${sel || b.dataset.id}"]`); if (again) again.focus();
+  });
+  $('[data-testid="diffnote"]').addEventListener('click', (e) => { if (e.target.closest('[data-testid="show-original"]')) { sel = null; renderSource(); renderDishes(); } });
+  document.querySelector('.filter').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-f]'); if (!b) return;
+    filter = b.dataset.f;
+    document.querySelectorAll('.filter button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    renderDishes();
+  });
+  $('[data-testid="add-form"]').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const a = $('#argIn'), x = $('#expIn'), msg = $('[data-testid="form-msg"]');
+    a.setAttribute('aria-invalid', 'false'); x.setAttribute('aria-invalid', 'false');
+    const args = a.value.trim(), exp = x.value.trim();
+    try { parseArgs(args); if (!args) throw new Error('empty'); } catch (err) { a.setAttribute('aria-invalid', 'true'); msg.textContent = 'Arguments must be JSON values separated by commas, like 1900 or 100, true or "Secret12".'; a.focus(); return; }
+    try { JSON.parse(exp); } catch (err) { x.setAttribute('aria-invalid', 'true'); msg.textContent = 'Expected result must be one JSON value, like false, 90 or "ok".'; x.focus(); return; }
+    mine[fi].push({ args, exp });
+    saveMine();
+    msg.textContent = '';
+    a.value = ''; x.value = '';
+    renderSuite();
+    checkOriginal();
+    a.focus();
+  });
+  $('[data-testid="suite"]').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-del]'); if (!b) return;
+    mine[fi].splice(Number(b.dataset.del), 1);
+    saveMine(); renderSuite(); checkOriginal();
+  });
+
+  const pre = new URLSearchParams(location.search).get('fn');
+  const start = Math.max(0, FUNCS.findIndex((f) => f.name === pre));
+  selectFunc(start);
+})();
+</script>
+</body>
+</html>

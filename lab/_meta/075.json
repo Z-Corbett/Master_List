@@ -1,0 +1,35 @@
+{
+  "id": "075",
+  "slug": "075-mission-trail",
+  "file": "lab/075-mission-trail.html",
+  "title": "Mission Trail — a self-guided day on the San Antonio Missions",
+  "category": "Landing Pages",
+  "tags": ["svg", "itinerary", "drag-and-drop", "texas", "local-storage"],
+  "description": "A landing page and tour planner for the San Antonio Missions World Heritage Site, with a drawing and short history for each of the five missions from the Alamo to Espada. It includes a stylized river map and an itinerary you can tick, drag or arrow into order, which estimates walking or biking time and a timed schedule, with every assumption stated.",
+  "prompt": "Make an elegant landing page and self-guided tour planner for the San Antonio Missions: the Alamo (Mission San Antonio de Valero), Concepción, San José, San Juan Capistrano and Espada along the San Antonio River, a UNESCO World Heritage Site since 2015. Keep the facts accurate and general, and only give founding years you're sure of (Valero 1718, San José 1720, the other three relocated to San Antonio in 1731). Don't invent hours, prices or phone numbers; link out to the National Park Service with a plain note. I want a stylized SVG river map with the stops, an itinerary builder where I drag stops into order and get walking or biking estimates with the assumptions clearly labelled, and architectural drawings of each church.",
+  "qa": {
+    "methodology": [
+      "Content accuracy as a test: founding lines (1718, 1720, and 'Moved here 1731' for the other three), the 2015 inscription and the NPS link are asserted. A negative regex makes sure no price or phone number ever appears on the page.",
+      "Arithmetic oracle: each leg's minutes must equal round(miles ÷ speed × 60) at 8 mph for biking and 3 mph for walking. Distance and moving-time totals, arrival and departure clock times, and the 'back by' time are recomputed in the spec from the page's own leg list.",
+      "Reordering through all three inputs: the arrow buttons (checking where focus lands and that the ends are disabled), Reverse and North-to-south, and a real pointer drag on the handle. After each, the spec checks the saved order, the badges, the schedule rows and the map route's starting point.",
+      "Map interaction: toggling markers by click and by keyboard (Enter on a focused SVG role=button) keeps aria-pressed, the stop count and the leg list in sync with the checkboxes.",
+      "Persistence: a changed plan survives a reload through localStorage, and Reset restores the defaults."
+    ],
+    "risks": [
+      "Distances are straight-line estimates between approximate coordinates multiplied by 1.25; the page must keep saying so, and the tests pin the formula rather than particular mileages.",
+      "Pointer-drag reordering depends on layout measurements taken at pointerdown; the mobile layout, where the arrow buttons wrap, is the likeliest to break it.",
+      "Re-rendering the list replaces nodes, so keyboard focus has to be put back on the moved control or keyboard users lose their place.",
+      "Factual drift: any added history must stay general (for example, the Alamo is managed by the State of Texas, not the NPS)."
+    ],
+    "playwright": "Most of this page is plain DOM, so role and data-testid locators with toHaveText cover it well, and the schedule assertions are computed from the page's own leg list so they stay correct if coordinates are refined. The drag test uses page.mouse with stepped moves because synthetic pointer events would not exercise the midpoint hit-testing, and it passes on the touch-enabled Pixel 7 project too because the page listens for pointer events. Clicking an SVG marker by its group's bounding box sometimes landed on empty space between the label and the circle, so the spec clicks the circle itself, which is a real lesson about SVG hit areas. Storage is cleared in beforeEach and never in the middle of a test. Screenshots are not compared; the facade drawings are checked by their use/href references.",
+    "coverage": [
+      "Founding dates, World Heritage year, NPS link, no prices or phone numbers",
+      "Leg minutes at bike and walk speeds; distance and moving-time totals",
+      "Start-time, dwell and schedule clock times; 'back by' time",
+      "Arrow reorder with focus, reverse, north-to-south, map route order",
+      "Checkbox and map-marker toggles, including the keyboard",
+      "Pointer drag reorder; localStorage persistence and reset"
+    ]
+  },
+  "a11y": "Every stop has a labelled checkbox and 'Move earlier/later' buttons, so reordering never needs dragging, and focus follows the moved item. Map markers are focusable SVG buttons with aria-pressed and descriptive labels. Changes are announced through a polite live region, and each architectural drawing has an aria-label."
+}

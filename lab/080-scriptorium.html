@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scriptorium — an illuminated-initial generator</title>
+<meta name="description" content="Type a letter and illuminate it in the manner of a medieval manuscript: burnished gold that catches the light, lapis, vermilion and verdigris grounds, interlaced vines with acanthus leaves, small marginal drolleries, all on vellum. The opening words of a public-domain Latin text follow the initial. Every page is seeded, and you can export it as a PNG.">
+<style>
+  :root {
+    --lime: #eee8dc;
+    --lime-2: #e2d9c8;
+    --ink: #231a14;
+    --ink-2: #6a5a4a;
+    --vermilion: #c63b1f;
+    --lapis: #213f93;
+    --verdigris: #3c8a70;
+    --gold: #c9a13b;
+    --black: "Old English Text MT", "Blackadder ITC", "Goudy Old Style", "Palatino Linotype", Georgia, serif;
+    --book: "Goudy Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    --sans: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { color: var(--ink); background: var(--lime); font: 17px/1.55 var(--book); overflow-x: hidden;
+    background-image: radial-gradient(ellipse at 20% 0%, rgba(255,255,255,.7), transparent 60%), repeating-radial-gradient(circle at 70% 30%, rgba(120,100,70,.035) 0 2px, transparent 2px 7px); min-height: 100vh; }
+  :focus-visible { outline: 3px solid var(--lapis); outline-offset: 2px; }
+  button, input, select { font: inherit; color: inherit; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; background: var(--ink); color: #f3e9cf; text-decoration: none; font: 14px/1 var(--book); padding: 8px 12px; border-radius: 3px; border-left: 4px solid var(--vermilion); }
+  a.back:hover { background: var(--vermilion); }
+  .wrap { max-width: 1220px; margin: 0 auto; padding: 60px 18px 40px; }
+  header { text-align: center; margin-bottom: 24px; }
+  h1 { margin: 0; font: 400 clamp(46px, 9vw, 92px)/1 var(--black); color: var(--ink); }
+  h1 b { color: var(--vermilion); font-weight: 400; }
+  header p { margin: 10px auto 0; max-width: 60ch; color: var(--ink-2); font-size: 18px; }
+  .rubric-rule { display: flex; justify-content: center; gap: 8px; margin-top: 12px; }
+  .rubric-rule i { width: 7px; height: 7px; transform: rotate(45deg); background: var(--vermilion); }
+  .rubric-rule i:nth-child(2) { background: var(--gold); } .rubric-rule i:nth-child(3) { background: var(--lapis); }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); gap: 28px; align-items: start; }
+  .desk { background: #3a2a1f; color: #f1e6cc; border-radius: 6px; padding: 18px; min-width: 0; box-shadow: 0 16px 30px rgba(40,25,10,.25); border-top: 5px solid #5a4230;
+    background-image: repeating-linear-gradient(95deg, rgba(0,0,0,.08) 0 3px, transparent 3px 11px); }
+  .desk h2 { margin: 0 0 10px; font: 400 26px/1.1 var(--black); color: #f4d98a; }
+  .fld { margin-bottom: 14px; }
+  .fld label, .lbl { display: block; font: 12px/1.3 var(--sans); letter-spacing: .12em; text-transform: uppercase; color: #cdb993; margin-bottom: 5px; }
+  input#letter { width: 96px; height: 96px; text-align: center; font: 400 64px/1 var(--black); color: var(--vermilion); background: #f6eedb; border: 2px solid #c9a13b; border-radius: 4px; text-transform: uppercase; }
+  .letter-row { display: flex; gap: 12px; align-items: center; }
+  .letter-row p { margin: 0; font-size: 14px; color: #d8c8a8; min-width: 0; }
+  select { width: 100%; max-width: 100%; min-height: 40px; background: #f6eedb; color: var(--ink); border: 1px solid #b89a5f; border-radius: 3px; padding: 6px 8px; }
+  .pal { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .pal button { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: center; text-align: left; padding: 6px 8px; border: 1px solid #6a543e; background: #2c2018; border-radius: 4px; cursor: pointer; font-size: 13.5px; color: #f1e6cc; min-height: 42px; min-width: 0; }
+  .pal button[aria-pressed="true"] { border-color: #f4d98a; box-shadow: inset 0 0 0 1px #f4d98a; background: #45331f; }
+  .pal .sw { display: flex; width: 28px; height: 18px; border-radius: 2px; overflow: hidden; }
+  .pal .sw i { flex: 1; }
+  .btns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .btn { min-height: 44px; padding: 8px 10px; border: 1px solid #c9a13b; background: #f4d98a; color: var(--ink); border-radius: 4px; cursor: pointer; font: 600 15px/1.1 var(--book); min-width: 0; }
+  .btn:hover { background: #ffe7a6; }
+  .btn.dark { background: transparent; color: #f4d98a; }
+  .btn.dark:hover { background: rgba(244,217,138,.12); }
+  .check { display: flex; gap: 8px; align-items: center; font-size: 15px; margin: 4px 0 14px; }
+  .check input { width: 18px; height: 18px; accent-color: #c9a13b; }
+  .seed { font: 13px/1.4 ui-monospace, Consolas, monospace; color: #cdb993; margin: 10px 0 0; overflow-wrap: anywhere; }
+  .note { margin: 12px 0 0; font-size: 14px; color: #f4d98a; min-height: 2.6em; }
+
+  .folio { position: relative; min-width: 0; }
+  .folio canvas { display: block; width: 100%; max-width: 760px; height: auto; margin: 0 auto; aspect-ratio: 900 / 1200; box-shadow: 0 2px 0 #d4c7ad, 0 24px 44px rgba(60,40,20,.28); border-radius: 2px; background: #efe2c4; }
+  .cap { text-align: center; font: italic 15px/1.4 var(--book); color: var(--ink-2); margin: 12px auto 0; max-width: 60ch; }
+  .notes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; margin-top: 34px; }
+  .notes h3 { margin: 0 0 6px; font: 400 24px/1.1 var(--black); color: var(--vermilion); }
+  .notes p { margin: 0; color: #4a3d31; font-size: 16px; }
+  footer { text-align: center; margin-top: 30px; color: var(--ink-2); font: italic 14px var(--book); }
+  @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } .folio { order: -1; } .notes { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <h1><b>S</b>criptorium</h1>
+    <p>Choose a letter and the scribe illuminates it: gold leaf, ground pigments, vines that weave over and under the letter, and a few creatures in the margins, all on vellum.</p>
+    <div class="rubric-rule" aria-hidden="true"><i></i><i></i><i></i></div>
+  </header>
+
+  <div class="layout">
+    <aside class="desk" aria-labelledby="h-desk">
+      <h2 id="h-desk">The scribe's desk</h2>
+      <div class="fld">
+        <label for="letter">Initial (A–Z)</label>
+        <div class="letter-row">
+          <input id="letter" data-testid="letter" maxlength="1" value="P" autocomplete="off" spellcheck="false" aria-describedby="letterHelp" inputmode="text">
+          <p id="letterHelp">Type any letter. If a text in the collection begins with it, that text follows.</p>
+        </div>
+      </div>
+      <div class="fld"><label for="text">Text after the initial</label><select id="text" data-testid="text"></select></div>
+      <div class="fld"><span class="lbl" id="palLab">Pigments</span><div class="pal" id="pal" role="group" aria-labelledby="palLab"></div></div>
+      <label class="check"><input type="checkbox" id="shimmer" data-testid="shimmer" checked> Let the gold catch the light</label>
+      <div class="btns">
+        <button class="btn" id="vary" data-testid="vary">New variation</button>
+        <button class="btn dark" id="export" data-testid="export">Save PNG</button>
+      </div>
+      <p class="seed" id="seedOut" data-testid="seed">seed</p>
+      <p class="note" id="note" data-testid="note" role="status" aria-live="polite"></p>
+    </aside>
+    <div class="folio">
+      <canvas id="page" width="900" height="1200" data-testid="page" role="img" aria-label="Illuminated page"></canvas>
+      <p class="cap" id="cap" data-testid="caption"></p>
+    </div>
+  </div>
+
+  <section class="notes" aria-label="About illumination">
+    <div><h3>Gold and pigment</h3><p>Medieval illuminators laid gold leaf over a raised ground and burnished it until it shone like metal. Their blues came from ground lapis lazuli or azurite, their bright reds from vermilion, and their greens often from verdigris, a copper pigment that could eat into the parchment over the centuries.</p></div>
+    <div><h3>Vines and acanthus</h3><p>Decorated initials often sprout foliage: scrolling vines, curling acanthus leaves and small gold dots called bezants. The stems here are generated as seeded spirals and alternate over and under each other and the letter, the way painted interlace does.</p></div>
+    <div><h3>Drolleries</h3><p>Margins of later medieval manuscripts are full of drolleries: snails, hares, birds and odd hybrid creatures that have little to do with the text. These are drawn in code and perched on the vines. No real manuscript is copied.</p></div>
+  </section>
+  <footer>Illuminated in the browser by Zac Corbett · Latin texts from the Vulgate and the liturgy, all in the public domain</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const PW = 900, PH = 1200;
+  const params = new URLSearchParams(location.search);
+  let SEED = (parseInt(params.get('seed'), 10) >>> 0) || 1455;
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const fin = (v, d = 0) => Number.isFinite(v) ? v : d;
+  const $ = (id) => document.getElementById(id);
+
+  // ---------- texts (Latin, public domain) ----------
+  const TEXTS = [
+    { id: 'pater', name: 'Pater Noster', src: 'the Lord’s Prayer', text: 'Pater noster, qui es in caelis, sanctificetur nomen tuum. Adveniat regnum tuum. Fiat voluntas tua, sicut in caelo et in terra. Panem nostrum quotidianum da nobis hodie, et dimitte nobis debita nostra, sicut et nos dimittimus debitoribus nostris. Et ne nos inducas in tentationem, sed libera nos a malo. Amen.' },
+    { id: 'ave', name: 'Ave Maria', src: 'the Hail Mary', text: 'Ave Maria, gratia plena, Dominus tecum. Benedicta tu in mulieribus, et benedictus fructus ventris tui, Iesus. Sancta Maria, Mater Dei, ora pro nobis peccatoribus, nunc et in hora mortis nostrae. Amen.' },
+    { id: 'benedictus', name: 'Benedictus', src: 'Luke 1:68, Vulgate', text: 'Benedictus Dominus Deus Israel, quia visitavit et fecit redemptionem plebi suae.' },
+    { id: 'credo', name: 'Credo', src: 'the Nicene Creed', text: 'Credo in unum Deum, Patrem omnipotentem, factorem caeli et terrae, visibilium omnium et invisibilium.' },
+    { id: 'dominus', name: 'Dominus regit me', src: 'Psalm 22 (23), Vulgate', text: 'Dominus regit me, et nihil mihi deerit: in loco pascuae ibi me collocavit. Super aquam refectionis educavit me: animam meam convertit.' },
+    { id: 'ecce', name: 'Ecce ancilla Domini', src: 'Luke 1:38, Vulgate', text: 'Ecce ancilla Domini: fiat mihi secundum verbum tuum.' },
+    { id: 'gloria', name: 'Gloria Patri', src: 'the lesser doxology', text: 'Gloria Patri, et Filio, et Spiritui Sancto. Sicut erat in principio, et nunc, et semper, et in saecula saeculorum. Amen.' },
+    { id: 'hodie', name: 'Hodie Christus natus est', src: 'a Christmas antiphon', text: 'Hodie Christus natus est: hodie Salvator apparuit: hodie in terra canunt Angeli, laetantur Archangeli: hodie exsultant iusti, dicentes: Gloria in excelsis Deo, alleluia.' },
+    { id: 'inprincipio', name: 'In principio erat Verbum', src: 'John 1:1, Vulgate', text: 'In principio erat Verbum, et Verbum erat apud Deum, et Deus erat Verbum.' },
+    { id: 'kyrie', name: 'Kyrie', src: 'the Mass (in Greek)', text: 'Kyrie, eleison. Christe, eleison. Kyrie, eleison.' },
+    { id: 'laudate', name: 'Laudate Dominum', src: 'Psalm 116 (117), Vulgate', text: 'Laudate Dominum, omnes gentes; laudate eum, omnes populi.' },
+    { id: 'magnificat', name: 'Magnificat', src: 'Luke 1:46–47, Vulgate', text: 'Magnificat anima mea Dominum, et exsultavit spiritus meus in Deo salutari meo.' },
+    { id: 'nunc', name: 'Nunc dimittis', src: 'Luke 2:29, Vulgate', text: 'Nunc dimittis servum tuum, Domine, secundum verbum tuum in pace.' },
+    { id: 'osalutaris', name: 'O salutaris Hostia', src: 'a hymn of St Thomas Aquinas', text: 'O salutaris Hostia, quae caeli pandis ostium: bella premunt hostilia, da robur, fer auxilium.' },
+    { id: 'qui', name: 'Qui habitat', src: 'Psalm 90 (91), Vulgate', text: 'Qui habitat in adiutorio Altissimi, in protectione Dei caeli commorabitur.' },
+    { id: 'regina', name: 'Regina caeli', src: 'the Easter antiphon', text: 'Regina caeli, laetare, alleluia. Quia quem meruisti portare, alleluia. Resurrexit, sicut dixit, alleluia. Ora pro nobis Deum, alleluia.' },
+    { id: 'salve', name: 'Salve Regina', src: 'the Marian antiphon', text: 'Salve, Regina, Mater misericordiae, vita, dulcedo, et spes nostra, salve.' },
+    { id: 'tedeum', name: 'Te Deum', src: 'the hymn', text: 'Te Deum laudamus: te Dominum confitemur. Te aeternum Patrem omnis terra veneratur.' },
+    { id: 'ubi', name: 'Ubi caritas', src: 'the Maundy Thursday hymn', text: 'Ubi caritas et amor, Deus ibi est. Congregavit nos in unum Christi amor.' },
+    { id: 'veni', name: 'Veni Creator Spiritus', src: 'the Pentecost hymn', text: 'Veni, Creator Spiritus, mentes tuorum visita, imple superna gratia, quae tu creasti pectora.' },
+  ];
+  const PALETTES = {
+    lapis: { name: 'Lapis & vermilion', ground: '#1f3c8f', ground2: '#2d52b3', letter: '#c63b1f', letter2: '#e2603a', vine: '#3c8a70', leaf: ['#c63b1f', '#3c8a70', '#b85a8a'] },
+    vermilion: { name: 'Vermilion ground', ground: '#b5361c', ground2: '#d44d2c', letter: '#213f93', letter2: '#3b62c4', vine: '#3c8a70', leaf: ['#213f93', '#3c8a70', '#e2c35a'] },
+    verdigris: { name: 'Verdigris & rose', ground: '#2f7a62', ground2: '#43987c', letter: '#b8466e', letter2: '#d8698f', vine: '#1f3c8f', leaf: ['#b8466e', '#1f3c8f', '#c63b1f'] },
+    royal: { name: 'Gold on lapis', ground: '#1a2f73', ground2: '#26439c', letter: 'GOLD', letter2: 'GOLD', vine: '#c63b1f', leaf: ['#c63b1f', '#3c8a70', '#e8e1d0'] },
+  };
+  let PAL = 'lapis', TEXT = 'pater', LETTER = 'P', noMatch = false;
+
+  // ---------- canvases ----------
+  const cv = $('page'), ctx = cv.getContext('2d');
+  const base = document.createElement('canvas'); base.width = PW; base.height = PH;
+  const goldMask = document.createElement('canvas'); goldMask.width = PW; goldMask.height = PH;
+  let info = { vines: 0, leaves: 0, drolleries: [], bezants: 0, crossings: 0, textLines: [] };
+  const IX = 90, IY = 110, IS = 330;                       // the initial's box
+  const FRAME = 16;
+
+  function vellum(g, r) {
+    const grd = g.createRadialGradient(PW * .5, PH * .45, 100, PW * .5, PH * .5, PH * .75);
+    grd.addColorStop(0, '#f4e8cc'); grd.addColorStop(.7, '#ecdcb8'); grd.addColorStop(1, '#d9c296');
+    g.fillStyle = grd; g.fillRect(0, 0, PW, PH);
+    for (let i = 0; i < 2600; i++) { g.fillStyle = `rgba(${120 + r() * 60},${90 + r() * 50},${50 + r() * 30},${(r() * .06).toFixed(3)})`; g.fillRect(r() * PW, r() * PH, 1 + r() * 2, 1 + r() * 2); }
+    g.strokeStyle = 'rgba(150,120,80,.08)'; g.lineWidth = .8;
+    for (let i = 0; i < 160; i++) { const x = r() * PW, y = r() * PH, a = r() * 6.28, l = 10 + r() * 40; g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + Math.cos(a) * l * .5 + (r() - .5) * 8, y + Math.sin(a) * l * .5, x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke(); }
+    for (let i = 0; i < 9; i++) { const x = r() * PW, y = r() * PH, rr = 3 + r() * 12; const f = g.createRadialGradient(x, y, 0, x, y, rr); f.addColorStop(0, 'rgba(160,110,50,.18)'); f.addColorStop(1, 'rgba(160,110,50,0)'); g.fillStyle = f; g.beginPath(); g.arc(x, y, rr, 0, 6.283); g.fill(); }
+    // ruling: pricked margins and faint ruled lines
+    g.strokeStyle = 'rgba(170,120,110,.22)'; g.lineWidth = 1;
+    for (let y = IY; y < PH - 150; y += 56) { g.beginPath(); g.moveTo(70, y + 44); g.lineTo(PW - 70, y + 44); g.stroke(); }
+    g.beginPath(); g.moveTo(70, 60); g.lineTo(70, PH - 90); g.moveTo(PW - 70, 60); g.lineTo(PW - 70, PH - 90); g.stroke();
+  }
+  function goldFill(g, x0, y0, x1, y1) { const gg = g.createLinearGradient(x0, y0, x1, y1); gg.addColorStop(0, '#8a6516'); gg.addColorStop(.25, '#e8c867'); gg.addColorStop(.5, '#b8902e'); gg.addColorStop(.75, '#f3dc8a'); gg.addColorStop(1, '#94701f'); return gg; }
+  function markGold(fn) { const m = goldMask.getContext('2d'); m.save(); m.fillStyle = '#000'; m.strokeStyle = '#000'; fn(m); m.restore(); }
+
+  // ---------- vines ----------
+  function growVine(r, x, y, ang, len, curl, bounds) {
+    const pts = [[x, y]]; let a = ang, k = (r() < .5 ? -1 : 1) * (0.004 + r() * 0.01), step = 4;
+    for (let s = 0; s < len; s += step) {
+      const f = s / len; a += k * step * (1 + curl * f * f * 12);
+      x += Math.cos(a) * step; y += Math.sin(a) * step;
+      if (bounds && (x < bounds[0] || y < bounds[1] || x > bounds[2] || y > bounds[3])) { a += Math.PI * .5 * Math.sign(k || 1); x -= Math.cos(a) * step; }
+      pts.push([x, y]);
+    }
+    return pts;
+  }
+  function strokePath(g, pts, w, col, outline) {
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    const path = () => { g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); };
+    if (outline) { path(); g.strokeStyle = outline; g.lineWidth = w + 3; g.stroke(); }
+    path(); g.strokeStyle = col; g.lineWidth = w; g.stroke();
+    path(); g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = Math.max(1, w * .25); g.stroke();
+  }
+  function leaf(g, x, y, ang, size, col, r) {
+    // an acanthus-like lobed leaf with a curled tip and white hatching
+    g.save(); g.translate(x, y); g.rotate(ang);
+    const lobes = 3 + Math.floor(r() * 2);
+    g.beginPath(); g.moveTo(0, 0);
+    for (let i = 1; i <= lobes; i++) { const t = i / lobes, w = Math.sin(t * Math.PI) * size * .42; g.quadraticCurveTo(size * (t - .5 / lobes), -w * 1.5, size * t, -w * .55); }
+    g.quadraticCurveTo(size * 1.15, 0, size * 1.02, size * .14);
+    for (let i = lobes; i >= 1; i--) { const t = i / lobes, w = Math.sin(t * Math.PI) * size * .35; g.quadraticCurveTo(size * (t - .5 / lobes), w * 1.4, size * (t - 1 / lobes), w * .4); }
+    g.closePath(); g.fillStyle = col; g.fill(); g.strokeStyle = '#2a1d14'; g.lineWidth = 1.4; g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 1; g.beginPath(); g.moveTo(size * .1, 0); g.quadraticCurveTo(size * .5, -size * .05, size * .9, size * .02); g.stroke();
+    for (let i = 1; i < lobes; i++) { const t = i / lobes; g.beginPath(); g.moveTo(size * t, -2); g.lineTo(size * (t + .08), -size * .16); g.stroke(); }
+    g.restore();
+  }
+  function flower(g, x, y, rr, col, r) {
+    for (let k = 0; k < 5; k++) { const a = k * 1.2566 + r(); g.fillStyle = col; g.beginPath(); g.ellipse(x + Math.cos(a) * rr * .6, y + Math.sin(a) * rr * .6, rr * .55, rr * .38, a, 0, 6.283); g.fill(); g.strokeStyle = '#2a1d14'; g.lineWidth = 1; g.stroke(); }
+    g.fillStyle = goldFill(g, x - rr, y - rr, x + rr, y + rr); g.beginPath(); g.arc(x, y, rr * .35, 0, 6.283); g.fill();
+    markGold((m) => { m.beginPath(); m.arc(x, y, rr * .35, 0, 6.283); m.fill(); });
+  }
+  function bezant(g, x, y, rr) {
+    g.fillStyle = goldFill(g, x - rr, y - rr, x + rr, y + rr); g.beginPath(); g.arc(x, y, rr, 0, 6.283); g.fill(); g.strokeStyle = '#3a2810'; g.lineWidth = 1.2; g.stroke();
+    for (let k = 0; k < 3; k++) { const a = -Math.PI / 2 + k * 2.094; g.fillStyle = '#2a1d14'; g.beginPath(); g.arc(x + Math.cos(a) * (rr + 4), y + Math.sin(a) * (rr + 4), 1.3, 0, 6.283); g.fill(); }
+    markGold((m) => { m.beginPath(); m.arc(x, y, rr, 0, 6.283); m.fill(); });
+    info.bezants++;
+  }
+
+  // ---------- drolleries ----------
+  const DROLL = {
+    snail(g, x, y, s, r, P) {
+      g.save(); g.translate(x, y); g.scale(s, s); g.lineWidth = 1.6; g.strokeStyle = '#2a1d14';
+      g.fillStyle = '#d9b98a'; g.beginPath(); g.moveTo(-26, 8); g.quadraticCurveTo(0, 12, 26, 6); g.quadraticCurveTo(32, 2, 30, -6); g.quadraticCurveTo(24, -2, 20, 2); g.lineTo(-24, 2); g.closePath(); g.fill(); g.stroke();
+      g.beginPath(); g.moveTo(28, -4); g.lineTo(34, -18); g.moveTo(25, -3); g.lineTo(27, -17); g.stroke(); g.fillStyle = '#2a1d14'; g.beginPath(); g.arc(34, -18, 2, 0, 6.283); g.arc(27, -17, 2, 0, 6.283); g.fill();
+      g.fillStyle = P.leaf[0]; g.beginPath(); g.arc(-2, -12, 16, 0, 6.283); g.fill(); g.stroke();
+      g.strokeStyle = 'rgba(255,255,255,.7)'; g.beginPath(); for (let t = 0; t < 14; t += .2) { const rr = 14 - t; g.lineTo(-2 + Math.cos(t) * rr, -12 + Math.sin(t) * rr); } g.stroke();
+      g.restore();
+    },
+    hare(g, x, y, s, r, P) {
+      g.save(); g.translate(x, y); g.scale(s, s); g.lineWidth = 1.6; g.strokeStyle = '#2a1d14'; g.fillStyle = '#b89a78';
+      g.beginPath(); g.ellipse(0, 0, 24, 14, -.1, 0, 6.283); g.fill(); g.stroke();
+      g.beginPath(); g.ellipse(24, -10, 10, 8, -.3, 0, 6.283); g.fill(); g.stroke();
+      for (const dx of [0, 6]) { g.beginPath(); g.ellipse(20 + dx, -30, 4, 14, -.25 + dx * .03, 0, 6.283); g.fill(); g.stroke(); }
+      g.fillStyle = '#2a1d14'; g.beginPath(); g.arc(28, -12, 1.8, 0, 6.283); g.fill();
+      g.fillStyle = '#fff'; g.beginPath(); g.arc(-24, -4, 5, 0, 6.283); g.fill(); g.stroke();
+      g.strokeStyle = '#2a1d14'; g.beginPath(); g.moveTo(-8, 12); g.lineTo(-12, 22); g.moveTo(12, 12); g.lineTo(16, 22); g.stroke();
+      // the hare plays a little horn: the usual drollery joke
+      g.fillStyle = goldFill(g, 30, -8, 50, 0); g.beginPath(); g.moveTo(32, -6); g.lineTo(52, -12); g.lineTo(52, 0); g.closePath(); g.fill(); g.stroke();
+      g.restore();
+    },
+    bird(g, x, y, s, r, P) {
+      g.save(); g.translate(x, y); g.scale(s, s); g.lineWidth = 1.6; g.strokeStyle = '#2a1d14';
+      g.fillStyle = P.leaf[1]; g.beginPath(); g.ellipse(0, 0, 18, 11, -.2, 0, 6.283); g.fill(); g.stroke();
+      g.fillStyle = P.leaf[0]; g.beginPath(); g.moveTo(-4, -4); g.quadraticCurveTo(-18, -24, -30, -10); g.quadraticCurveTo(-16, -6, -4, 4); g.fill(); g.stroke();
+      g.beginPath(); g.moveTo(-16, 4); g.lineTo(-34, 10); g.lineTo(-30, 0); g.closePath(); g.fill(); g.stroke();
+      g.fillStyle = P.leaf[1]; g.beginPath(); g.arc(18, -8, 8, 0, 6.283); g.fill(); g.stroke();
+      g.fillStyle = '#e8b64a'; g.beginPath(); g.moveTo(25, -9); g.lineTo(34, -6); g.lineTo(25, -5); g.closePath(); g.fill(); g.stroke();
+      g.fillStyle = '#2a1d14'; g.beginPath(); g.arc(20, -10, 1.6, 0, 6.283); g.fill();
+      g.beginPath(); g.moveTo(0, 10); g.lineTo(-2, 20); g.moveTo(6, 10); g.lineTo(8, 20); g.stroke();
+      g.restore();
+    },
+    grotesque(g, x, y, s, r, P) {
+      // a small winged hybrid: lion-ish head on a curling vine-tail
+      g.save(); g.translate(x, y); g.scale(s, s); g.lineWidth = 1.6; g.strokeStyle = '#2a1d14';
+      g.fillStyle = P.vine; g.beginPath(); g.moveTo(-6, 6); g.bezierCurveTo(-30, 20, -40, -10, -22, -14); g.bezierCurveTo(-14, -16, -12, -6, -20, -4); g.lineTo(-6, -2); g.closePath(); g.fill(); g.stroke();
+      g.fillStyle = '#c9a36a'; g.beginPath(); g.ellipse(4, 0, 14, 11, 0, 0, 6.283); g.fill(); g.stroke();
+      g.fillStyle = P.leaf[2] === '#e8e1d0' ? '#e3d6b8' : P.leaf[2]; g.beginPath(); g.moveTo(0, -8); g.quadraticCurveTo(8, -34, 22, -26); g.quadraticCurveTo(12, -18, 10, -8); g.fill(); g.stroke();
+      g.fillStyle = '#d9b27a'; g.beginPath(); g.arc(18, 2, 9, 0, 6.283); g.fill(); g.stroke();
+      g.fillStyle = '#2a1d14'; g.beginPath(); g.arc(21, 0, 1.6, 0, 6.283); g.fill();
+      g.beginPath(); g.moveTo(22, 6); g.quadraticCurveTo(26, 8, 28, 5); g.stroke();
+      g.beginPath(); g.moveTo(0, 10); g.lineTo(-2, 20); g.moveTo(10, 10); g.lineTo(12, 20); g.stroke();
+      g.restore();
+    },
+  };
+  const DKEYS = Object.keys(DROLL);
+
+  // ---------- the page ----------
+  function textFor() { return TEXTS.find((t) => t.id === TEXT); }
+  function render() {
+    const r = mulberry32((SEED * 2654435761 ^ LETTER.charCodeAt(0) * 40503) >>> 0), P = PALETTES[PAL];
+    info = { vines: 0, leaves: 0, drolleries: [], bezants: 0, crossings: 0, textLines: [], seed: SEED };
+    const g = base.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0);
+    goldMask.getContext('2d').clearRect(0, 0, PW, PH);
+    vellum(g, mulberry32(SEED ^ 0x55aa));
+    // ----- the initial's box: gold frame, pigment ground with a diaper pattern
+    const x0 = IX, y0 = IY, x1 = IX + IS, y1 = IY + IS;
+    g.fillStyle = goldFill(g, x0, y0, x1, y1); g.fillRect(x0, y0, IS, IS);
+    markGold((m) => { m.fillRect(x0, y0, IS, IS); m.clearRect(x0 + FRAME, y0 + FRAME, IS - FRAME * 2, IS - FRAME * 2); });  // only the frame ring is gilded
+    g.strokeStyle = '#2a1d14'; g.lineWidth = 2; g.strokeRect(x0, y0, IS, IS);
+    const fx0 = x0 + FRAME, fy0 = y0 + FRAME, fs = IS - FRAME * 2;
+    const gr = g.createLinearGradient(fx0, fy0, fx0 + fs, fy0 + fs); gr.addColorStop(0, P.ground2); gr.addColorStop(1, P.ground);
+    g.fillStyle = gr; g.fillRect(fx0, fy0, fs, fs); g.strokeRect(fx0, fy0, fs, fs);
+    g.save(); g.beginPath(); g.rect(fx0, fy0, fs, fs); g.clip();
+    g.strokeStyle = 'rgba(255,255,255,.22)'; g.lineWidth = 1;
+    for (let yy = fy0 + 10; yy < fy0 + fs; yy += 20) for (let xx = fx0 + 10 + ((yy - fy0) / 20 % 2) * 10; xx < fx0 + fs; xx += 20) { g.beginPath(); g.moveTo(xx - 3, yy); g.lineTo(xx + 3, yy); g.moveTo(xx, yy - 3); g.lineTo(xx, yy + 3); g.stroke(); }
+    // vines inside the field (drawn first: behind the letter)
+    const inner = [fx0 + 10, fy0 + 10, fx0 + fs - 10, fy0 + fs - 10];
+    const nV = 4 + Math.floor(r() * 3), vines = [];
+    for (let i = 0; i < nV; i++) {
+      const side = i % 4, t = .15 + r() * .7;
+      const sx = side === 0 ? fx0 + fs * t : side === 1 ? fx0 + fs - 12 : side === 2 ? fx0 + fs * t : fx0 + 12;
+      const sy = side === 0 ? fy0 + 12 : side === 1 ? fy0 + fs * t : side === 2 ? fy0 + fs - 12 : fy0 + fs * t;
+      const ang = Math.atan2(fy0 + fs / 2 - sy, fx0 + fs / 2 - sx) + (r() - .5) * 1.2;
+      vines.push(growVine(r, sx, sy, ang, 170 + r() * 150, 1 + r(), inner));
+    }
+    info.vines = vines.length;
+    for (const v of vines) { strokePath(g, v, 5, P.vine, '#1d140d'); }
+    // interlace: where two vines cross, the later one goes under at every other crossing
+    let parity = 0;
+    for (let a = 0; a < vines.length; a++) for (let b = a + 1; b < vines.length; b++) {
+      const A = vines[a], B = vines[b];
+      for (let i = 1; i < A.length; i += 1) for (let j = 1; j < B.length; j += 1) {
+        if (segX(A[i - 1], A[i], B[j - 1], B[j])) { info.crossings++; if (parity++ % 2 === 0) strokePath(g, A.slice(Math.max(0, i - 4), i + 4), 5, P.vine, '#1d140d'); }
+      }
+    }
+    // leaves, flowers and bezants along the vines
+    for (const v of vines) {
+      for (let i = 12; i < v.length - 6; i += 11 + Math.floor(r() * 6)) { const [x, y] = v[i], [px, py] = v[i - 1], a = Math.atan2(y - py, x - px) + (i % 2 ? 1.1 : -1.1); leaf(g, x, y, a, 18 + r() * 12, P.leaf[Math.floor(r() * 3)], r); info.leaves++; }
+      const [ex, ey] = v[v.length - 1]; if (r() < .5) flower(g, ex, ey, 11, P.leaf[Math.floor(r() * 2)], r); else bezant(g, ex, ey, 5);
+    }
+    g.restore();
+    // ----- the letter
+    const L = document.createElement('canvas'); L.width = PW; L.height = PH; const lg = L.getContext('2d');
+    lg.font = `700 ${Math.round(fs * 1.08)}px "Goudy Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif`; lg.textAlign = 'center'; lg.textBaseline = 'alphabetic';
+    const mt = lg.measureText(LETTER), asc = fin(mt.actualBoundingBoxAscent, fs * .6), desc = fin(mt.actualBoundingBoxDescent, 0);
+    const lx = fx0 + fs / 2 + fin((mt.actualBoundingBoxLeft - mt.actualBoundingBoxRight) / 2, 0), ly = fy0 + fs / 2 + (asc - desc) / 2;
+    lg.fillStyle = '#000'; lg.fillText(LETTER, lx, ly);
+    const mask = lg.getImageData(0, 0, PW, PH).data;
+    const inLetter = (x, y) => { x = Math.round(x); y = Math.round(y); return x >= 0 && y >= 0 && x < PW && y < PH && mask[(y * PW + x) * 4 + 3] > 128; };
+    // shadow, body, highlight, outline
+    g.save(); g.globalAlpha = .35; g.filter = 'blur(2px)'; g.drawImage(L, 4, 5); g.restore();
+    const body = document.createElement('canvas'); body.width = PW; body.height = PH; const bg = body.getContext('2d');
+    bg.drawImage(L, 0, 0); bg.globalCompositeOperation = 'source-in';
+    if (P.letter === 'GOLD') { bg.fillStyle = goldFill(bg, fx0, fy0, fx0 + fs, fy0 + fs); markGold((m) => m.drawImage(L, 0, 0)); }
+    else { const lgd = bg.createLinearGradient(fx0, fy0, fx0 + fs, fy0 + fs); lgd.addColorStop(0, P.letter2); lgd.addColorStop(1, P.letter); bg.fillStyle = lgd; }
+    bg.fillRect(0, 0, PW, PH);
+    // white penwork: a highlight line offset inside the strokes, and dots
+    bg.globalCompositeOperation = 'source-atop';
+    bg.strokeStyle = 'rgba(255,255,255,.75)'; bg.lineWidth = 2.2; bg.font = lg.font; bg.textAlign = 'center';
+    bg.strokeText(LETTER, lx + 5, ly + 5);
+    bg.fillStyle = 'rgba(255,255,255,.85)';
+    for (let i = 0; i < 70; i++) { const x = fx0 + r() * fs, y = fy0 + r() * fs; if (inLetter(x, y) && inLetter(x + 6, y + 6) && inLetter(x - 6, y - 6)) { for (let k = 0; k < 3; k++) { bg.beginPath(); bg.arc(x + Math.cos(k * 2.09) * 3, y + Math.sin(k * 2.09) * 3, 1.3, 0, 6.283); bg.fill(); } } }
+    g.drawImage(body, 0, 0);
+    g.save(); g.font = lg.font; g.textAlign = 'center'; g.strokeStyle = '#1d140d'; g.lineWidth = 3; g.strokeText(LETTER, lx, ly); g.restore();
+    // vines that pass over the letter: alternate over/under at each entry into the letter
+    for (const v of vines) {
+      let inside = false, run = [], count = 0;
+      for (const p of v) { const now = inLetter(p[0], p[1]); if (now && !inside) { run = []; count++; } if (now && count % 2 === 1) run.push(p); if (!now && inside && run.length > 1) { strokePath(g, run, 5, P.vine, '#1d140d'); run = []; } inside = now; }
+      if (run.length > 1) strokePath(g, run, 5, P.vine, '#1d140d');
+    }
+    // ----- border bar down the left margin with vines, bezants and drolleries
+    const barX = 58;
+    const ph1 = r() * 6.28, ph2 = r() * 6.28, bar = [];
+    for (let y = y1 + 4; y <= PH - 112; y += 4) bar.push([barX + 7 * Math.sin((y - y1) / 46 + ph1), y]);
+    strokePath(g, bar, 5, P.vine, '#1d140d');
+    for (let i = 18; i < bar.length - 4; i += 16) { const [x, y] = bar[i]; leaf(g, x, y, (i % 32 ? -.4 : Math.PI + .4), 20 + r() * 8, P.leaf[Math.floor(r() * 3)], r); info.leaves++; if (i % 48 === 2) bezant(g, x + 14, y + 6, 5); }
+    const sprig = [], sx0 = bar[bar.length - 1][0];
+    for (let x = sx0; x <= PW - 130; x += 4) sprig.push([x, PH - 112 + 9 * Math.sin((x - sx0) / 52 + ph2) * Math.min(1, (x - sx0) / 60)]);
+    for (let t = 0; t < 9.5; t += .25) { const rr = 26 - t * 2.4, [ex, ey] = sprig[sprig.length - 1]; sprig.push([ex + Math.cos(t * .9) * .9 * Math.max(2, rr) * .25, ey - Math.sin(t * .9) * Math.max(2, rr) * .25]); }  // a final curl
+    strokePath(g, sprig, 4, P.vine, '#1d140d');
+    for (let i = 20; i < sprig.length - 4; i += 18) { const [x, y] = sprig[i]; leaf(g, x, y, i % 36 ? -1.2 : 1.9, 18 + r() * 8, P.leaf[Math.floor(r() * 3)], r); info.leaves++; }
+    bezant(g, ...sprig[sprig.length - 1], 6);
+    // drolleries: one or two in the bottom margin, one on the bar, sometimes one by the initial
+    const nD = 2 + Math.floor(r() * 3), used = new Set(), spots = [];
+    const spotList = [[sprig[Math.floor(sprig.length * .35)], 'bottom'], [sprig[Math.floor(sprig.length * .75)], 'bottom'], [bar[Math.floor(bar.length * .55)], 'margin'], [[x1 + 60, y0 - 34], 'top']];
+    for (let i = 0; i < nD && i < spotList.length; i++) {
+      let k; do { k = DKEYS[Math.floor(r() * DKEYS.length)]; } while (used.has(k) && used.size < DKEYS.length); used.add(k);
+      const [[sx, sy], where] = spotList[i], s = where === 'margin' ? .7 : .9 + r() * .35;
+      const x = where === 'margin' ? sx + 6 : sx, y = where === 'margin' ? sy : sy - 22;
+      DROLL[k](g, fin(x, 100), fin(y, 1000), s, r, P);
+      spots.push({ kind: k, where, x: Math.round(x), y: Math.round(y) });
+    }
+    info.drolleries = spots;
+    // ----- the text: rubricated opening, then the rest in black
+    setText(g, P);
+    frameNo = 0; compose(0);
+    cv.setAttribute('aria-label', `Illuminated initial ${LETTER} on a ${PALETTES[PAL].name.toLowerCase()} palette with ${info.vines} interlaced vines, ${info.leaves} leaves and drolleries: ${info.drolleries.map((d) => d.kind).join(', ')}. ${noMatch ? 'Shown as a specimen.' : `Followed by ${textFor().name}.`}`);
+  }
+  function segX(p1, p2, p3, p4) {
+    const d = (a, b, c) => (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+    const d1 = d(p3, p4, p1), d2 = d(p3, p4, p2), d3 = d(p1, p2, p3), d4 = d(p1, p2, p4);
+    return ((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0));
+  }
+  function setText(g, P) {
+    const t = textFor();
+    const words = noMatch ? ['Littera', LETTER + '.', 'Specimen', 'litterae', 'illuminatae.'] : t.text.split(' ');
+    const first = noMatch ? null : words.shift();
+    const FAM = '"Old English Text MT", "Goudy Old Style", "Palatino Linotype", Georgia, serif';
+    g.textBaseline = 'alphabetic'; g.textAlign = 'left';
+    const right = PW - 90, limit = PH - 190;
+    // lay the text out at the largest size (80 to 34 px) that still fits above the bottom border
+    function layout(size) {
+      const lh = Math.round(size * 1.4), lines = []; let y = IY + Math.round(size * 1.05), x = IX + IS + 26, cur = [];
+      const startX = () => (y - size < IY + IS + 6 ? IX + IS + 26 : 92);
+      const push = (w, style) => {
+        g.font = `${style === 'rubric' ? Math.round(size * .94) : size}px ${FAM}`;
+        const ww = g.measureText(w + ' ').width;
+        if (x + ww > right && cur.length) { lines.push(cur); cur = []; y += lh; x = startX(); }
+        if (x + g.measureText(w).width > right) overflow = true;   // a single word wider than the column
+        cur.push({ w, x, y, style, size }); x += ww;
+      };
+      let overflow = false;
+      if (first) push(first.slice(1).toUpperCase(), 'rubric');
+      for (const w of words) push(w, 'text');
+      if (cur.length) lines.push(cur);
+      return { lines, bottom: y, overflow };
+    }
+    let L = null;
+    for (let size = 80; size >= 34; size -= 2) { L = layout(size); if (L.bottom <= limit && !L.overflow) break; }
+    for (const line of L.lines) for (const it of line) {
+      if (it.y > limit + 4) continue;
+      g.font = `${it.style === 'rubric' ? Math.round(it.size * .94) : it.size}px ${FAM}`;
+      g.fillStyle = it.style === 'rubric' ? '#b5361c' : '#1f1611'; g.fillText(it.w, it.x, it.y);
+    }
+    // a red paraph mark after the last word
+    const lastLine = L.lines[L.lines.length - 1], lastIt = lastLine[lastLine.length - 1];
+    g.font = `${lastIt.size}px ${FAM}`; const px = lastIt.x + g.measureText(lastIt.w + ' ').width;
+    if (px < right - 10 && lastIt.y <= limit + 4) { g.fillStyle = '#b5361c'; g.fillText('¶', px, lastIt.y); }
+    info.textLines = L.lines.filter((l) => l[0].y <= limit + 4).map((l) => l.map((i) => i.w).join(' '));
+    info.textSize = L.lines[0][0].size;
+  }
+  // ---------- shimmer compositing ----------
+  let frameNo = 0, shimmerOn = !reduced;
+  const tmp = document.createElement('canvas'); tmp.width = PW; tmp.height = PH;
+  function compose(t) {
+    ctx.setTransform(cv.width / PW, 0, 0, cv.height / PH, 0, 0);
+    ctx.drawImage(base, 0, 0);
+    if (!shimmerOn) return;
+    const tg = tmp.getContext('2d'); tg.globalCompositeOperation = 'source-over'; tg.clearRect(0, 0, PW, PH);
+    tg.drawImage(goldMask, 0, 0); tg.globalCompositeOperation = 'source-in';
+    const phase = (t / 3200) % 1, cx = -250 + phase * 1700;   // a slow sweep of light across the gilding
+    const gl = tg.createLinearGradient(cx - 160, 0, cx + 160, 160); gl.addColorStop(0, 'rgba(255,250,220,0)'); gl.addColorStop(.5, 'rgba(255,250,220,.55)'); gl.addColorStop(1, 'rgba(255,250,220,0)');
+    tg.fillStyle = gl; tg.fillRect(0, 0, PW, PH);
+    ctx.globalCompositeOperation = 'lighter'; ctx.drawImage(tmp, 0, 0); ctx.globalCompositeOperation = 'source-over';
+  }
+  function loop(t) { if (shimmerOn) compose(t); requestAnimationFrame(loop); }
+
+  // ---------- UI ----------
+  $('text').innerHTML = TEXTS.map((t) => `<option value="${t.id}">${t.text[0]} · ${t.name} (${t.src})</option>`).join('');
+  $('pal').innerHTML = Object.entries(PALETTES).map(([k, p]) => `<button data-pal="${k}" data-testid="palette-${k}" aria-pressed="${k === PAL}"><span class="sw" aria-hidden="true"><i style="background:${p.ground}"></i><i style="background:${p.letter === 'GOLD' ? '#d9b44a' : p.letter}"></i><i style="background:${p.vine}"></i></span>${p.name}</button>`).join('');
+  function sync(msg) {
+    $('letter').value = LETTER; $('text').value = TEXT;
+    [...$('pal').children].forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.pal === PAL)));
+    $('seedOut').textContent = `seed ${SEED} · letter ${LETTER}`;
+    const t = textFor();
+    $('cap').textContent = noMatch ? `The letter ${LETTER}, shown as a specimen: no text in this small collection begins with it.` : `${t.name}, from ${t.src}.`;
+    if (msg !== undefined) $('note').textContent = msg;
+    try { history.replaceState(null, '', `?seed=${SEED}&letter=${LETTER}`); } catch (e) { /* file:// or sandboxed */ }
+  }
+  function setLetter(ch) {
+    const L = (ch || '').toUpperCase();
+    if (!/^[A-Z]$/.test(L)) { $('letter').value = LETTER; $('note').textContent = 'Only the letters A to Z can be illuminated here.'; return false; }
+    LETTER = L;
+    const t = TEXTS.find((x) => x.text[0].toUpperCase() === L);
+    if (t) { TEXT = t.id; noMatch = false; } else noMatch = true;
+    render(); sync(t ? `${L}: ${t.name} follows the initial.` : `No text in the collection begins with ${L}; the initial is shown as a specimen.`);
+    return true;
+  }
+  $('letter').addEventListener('input', (e) => { const v = e.target.value.slice(-1); if (v) setLetter(v); });
+  $('letter').addEventListener('focus', (e) => e.target.select());
+  $('text').addEventListener('change', (e) => { TEXT = e.target.value; LETTER = textFor().text[0].toUpperCase(); noMatch = false; render(); sync(`${textFor().name}: the initial is ${LETTER}.`); });
+  $('pal').addEventListener('click', (e) => { const b = e.target.closest('[data-pal]'); if (!b) return; PAL = b.dataset.pal; render(); sync(`Pigments: ${PALETTES[PAL].name}.`); });
+  $('vary').addEventListener('click', () => { SEED = (Math.imul(SEED, 1103515245) + 12345) >>> 0 || 1; render(); sync(`A new variation of ${LETTER} (seed ${SEED}).`); });
+  $('shimmer').checked = shimmerOn;
+  $('shimmer').addEventListener('change', (e) => { shimmerOn = e.target.checked; if (!shimmerOn) compose(0); $('note').textContent = shimmerOn ? 'The burnished gold catches the light.' : 'The gold is still.'; });
+  $('export').addEventListener('click', () => {
+    const out = document.createElement('canvas'); out.width = PW; out.height = PH; out.getContext('2d').drawImage(base, 0, 0);
+    out.toBlob((blob) => { if (!blob) return; const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `initial-${LETTER}-${SEED}.png`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); $('note').textContent = `Saved ${a.download}.`; }, 'image/png');
+  });
+  function resize() { const d = Math.min(2, devicePixelRatio || 1), w = Math.round(Math.min(PW, (cv.clientWidth || PW) * d)); if (w > 50 && cv.width !== w) { cv.width = w; cv.height = Math.round(w * PH / PW); compose(performance.now()); } }
+  addEventListener('resize', resize);
+
+  window.__scriptorium = {
+    get state() { return { letter: LETTER, text: TEXT, palette: PAL, seed: SEED, noMatch, shimmer: shimmerOn, vines: info.vines, leaves: info.leaves, crossings: info.crossings, bezants: info.bezants, drolleries: info.drolleries.map((d) => ({ ...d })), textLines: info.textLines.slice() }; },
+    basePixel(x, y) { const d = base.getContext('2d').getImageData(x, y, 1, 1).data; return [d[0], d[1], d[2]]; },
+    baseSignature() { const d = base.getContext('2d').getImageData(0, 0, PW, PH).data; let h = 2166136261; for (let i = 0; i < d.length; i += 53) { h ^= d[i]; h = Math.imul(h, 16777619); } return h >>> 0; },
+    shownSignature() { const d = ctx.getImageData(0, 0, cv.width, cv.height).data; let h = 2166136261; for (let i = 0; i < d.length; i += 97) { h ^= d[i]; h = Math.imul(h, 16777619); } return h >>> 0; },
+    goldCoverage() { const d = goldMask.getContext('2d').getImageData(0, 0, PW, PH).data; let n = 0; for (let i = 3; i < d.length; i += 16) if (d[i] > 128) n++; return n / (d.length / 16); },
+    groundShare() { const P = PALETTES[PAL], hx = (h) => [1, 3, 5].map((i) => parseInt(h.substr(i, 2), 16)), G1 = hx(P.ground), G2 = hx(P.ground2); const g = base.getContext('2d'); const x0 = IX + FRAME, y0 = IY + FRAME, s = IS - FRAME * 2; const d = g.getImageData(x0, y0, s, s).data; let n = 0, m = 0; for (let i = 0; i < d.length; i += 4 * 7) { m++; const c = [d[i], d[i + 1], d[i + 2]]; const near = (G) => Math.hypot(c[0] - G[0], c[1] - G[1], c[2] - G[2]) < 60; if (near(G1) || near(G2)) n++; } return n / m; },
+    box: { x: IX, y: IY, size: IS, frame: FRAME },
+  };
+  const qLetter = (params.get('letter') || '').toUpperCase();
+  if (/^[A-Z]$/.test(qLetter)) setLetter(qLetter); else { render(); sync(''); }
+  resize();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

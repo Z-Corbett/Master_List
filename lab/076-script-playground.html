@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bitcoin Script Playground — a stack machine you can step through</title>
+<meta name="description" content="A teaching interpreter for a subset of Bitcoin Script. You can step through unlocking and locking scripts and watch the stack change, try a simulated P2PKH spend, a hash puzzle and IF/ELSE branches, and check the built-in SHA-256 and RIPEMD-160 against published test vectors. OP_CHECKSIG is clearly simulated; there is no real ECDSA.">
+<style>
+  :root {
+    --paper: #f4f1e8;
+    --paper-2: #e9e4d6;
+    --grid: rgba(40,60,90,.07);
+    --ink: #1c1b19;
+    --ink-2: #5c5850;
+    --orange: #f7931a;
+    --orange-2: #c46f06;
+    --slate: #22303f;
+    --slate-2: #33475b;
+    --ok: #1d7a55;
+    --bad: #c23a2b;
+    --skip: #a39e92;
+    --slab: "Rockwell", "Rockwell Nova", "Roboto Slab", "Courier New", serif;
+    --mono: "Cascadia Mono", "JetBrains Mono", ui-monospace, Consolas, Menlo, monospace;
+    --sans: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { color: var(--ink); font: 15px/1.5 var(--sans); background: var(--paper); overflow-x: hidden;
+    background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 22px 22px; }
+  :focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; background: var(--slate); color: #f4f1e8; text-decoration: none; font: 600 13px/1 var(--mono);
+    padding: 8px 12px; border-radius: 3px; border-left: 4px solid var(--orange); }
+  a.back:hover { background: var(--slate-2); }
+  .wrap { max-width: 1260px; margin: 0 auto; padding: 56px 18px 40px; }
+  header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 10px 24px; border-bottom: 3px double var(--ink); padding-bottom: 14px; margin-bottom: 18px; }
+  header > * { min-width: 0; }
+  .kicker { margin: 0; font: 600 12px/1.3 var(--mono); letter-spacing: .18em; text-transform: uppercase; color: var(--orange-2); }
+  h1 { margin: 4px 0 0; font: 700 clamp(34px, 6.4vw, 64px)/1 var(--slab); letter-spacing: -.01em; }
+  h1 .b { display: inline-grid; place-items: center; width: 1.05em; height: 1.05em; border-radius: 50%; background: var(--orange); color: #fff; font-size: .72em; transform: rotate(14deg); vertical-align: .08em; margin-right: .12em; }
+  header p { margin: 8px 0 0; color: var(--ink-2); max-width: 70ch; }
+  .selftest { font: 600 13px/1.3 var(--mono); padding: 8px 12px; border: 2px solid var(--ok); color: var(--ok); background: #eef7f1; border-radius: 3px; white-space: nowrap; }
+  .selftest.bad { border-color: var(--bad); color: var(--bad); background: #fbeeee; }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 1fr); gap: 18px; align-items: start; }
+  .card { background: #fffdf7; border: 1.5px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); padding: 14px 16px; min-width: 0; border-radius: 2px; }
+  .card h2 { margin: 0 0 10px; font: 700 18px/1.2 var(--slab); display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .card h2 small { font: 500 12px/1 var(--mono); color: var(--ink-2); }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .chip { border: 1.5px solid var(--ink); background: var(--paper); border-radius: 999px; padding: 5px 11px; font: 600 12.5px/1.2 var(--mono); cursor: pointer; min-height: 34px; max-width: 100%; }
+  .chip[aria-pressed="true"] { background: var(--slate); color: #fff; }
+  label.lab { display: flex; justify-content: space-between; gap: 8px; font: 600 12px/1.3 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); margin: 10px 0 4px; }
+  label.lab span { text-transform: none; letter-spacing: 0; font-weight: 400; }
+  textarea { width: 100%; max-width: 100%; min-height: 64px; resize: vertical; border: 1.5px solid var(--ink-2); border-radius: 2px; background: #fff; padding: 8px 10px; font: 13.5px/1.5 var(--mono); overflow-wrap: anywhere; }
+  textarea#lock { min-height: 86px; }
+  .parse { margin: 6px 0 0; font: 12.5px/1.4 var(--mono); color: var(--bad); min-height: 1.4em; overflow-wrap: anywhere; }
+  .controls { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+  .btn { min-height: 42px; border: 1.5px solid var(--ink); background: var(--paper); cursor: pointer; font: 700 13.5px/1 var(--mono); border-radius: 2px; padding: 6px 8px; min-width: 0; }
+  .btn:hover:not(:disabled) { background: var(--paper-2); }
+  .btn:disabled { opacity: .4; cursor: default; }
+  .btn.go { background: var(--orange); border-color: var(--orange-2); color: #fff; }
+  .btn.go:hover:not(:disabled) { background: var(--orange-2); }
+  .sim { margin: 12px 0 0; padding: 10px 12px; border: 2px dashed var(--orange-2); background: #fff6e8; font-size: 13.5px; }
+  .sim b { font-family: var(--mono); color: var(--orange-2); }
+  .sim code { font: 12px var(--mono); overflow-wrap: anywhere; }
+
+  .machine { display: grid; gap: 18px; min-width: 0; }
+  .tape { display: grid; gap: 8px; }
+  .tape-row { display: grid; grid-template-columns: 94px minmax(0, 1fr); gap: 8px; align-items: start; }
+  .tape-row > span { font: 600 11px/1.3 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); padding-top: 6px; }
+  .toks { display: flex; flex-wrap: wrap; gap: 5px; min-width: 0; }
+  .tok { font: 600 12.5px/1.2 var(--mono); padding: 5px 8px; border: 1.5px solid var(--slate-2); border-radius: 2px; background: #fff; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tok.push { border-style: dashed; color: var(--slate-2); }
+  .tok.flow { border-color: #7a4ab0; color: #5a2f8e; }
+  .tok.done { background: #e8ecef; color: #6a7580; border-color: #9aa7b3; }
+  .tok.skip { background: repeating-linear-gradient(135deg, #eee9dd 0 4px, #f7f3ea 4px 8px); color: var(--skip); border-color: var(--skip); text-decoration: line-through; }
+  .tok.pc { background: var(--orange); color: #fff; border-color: var(--orange-2); box-shadow: 0 0 0 3px rgba(247,147,26,.3); }
+  .tok.fail { background: var(--bad); color: #fff; border-color: var(--bad); }
+  .split { display: grid; grid-template-columns: minmax(0, 330px) minmax(0, 1fr); gap: 18px; }
+  .tube { position: relative; min-height: 340px; border: 2px solid var(--slate); border-top: 0; border-radius: 0 0 14px 14px; padding: 10px 10px 12px;
+    background: linear-gradient(90deg, rgba(34,48,63,.06), transparent 18%, transparent 82%, rgba(34,48,63,.06)); display: flex; flex-direction: column-reverse; gap: 6px; }
+  .tube::before { content: "top ▲"; position: absolute; top: -20px; right: 4px; font: 600 11px/1 var(--mono); color: var(--ink-2); }
+  .tube .empty { margin: auto; color: var(--ink-2); font: 13px var(--mono); text-align: center; }
+  .item { background: var(--slate); color: #eef2f5; border-radius: 4px; padding: 7px 10px; font: 12.5px/1.35 var(--mono); border-left: 5px solid #5b7a98; min-width: 0; }
+  .item b { display: block; font-size: 12px; color: #ffd7a0; font-weight: 600; overflow-wrap: anywhere; }
+  .item code { display: block; overflow-wrap: anywhere; color: #c9d6e2; }
+  .item.top { border-left-color: var(--orange); box-shadow: 0 0 0 2px var(--orange); }
+  .item.t { border-left-color: #3fb683; }
+  .item.f { border-left-color: #e0655a; }
+  .item.new { animation: drop .32s cubic-bezier(.2,.9,.3,1.3); }
+  @keyframes drop { from { transform: translateY(-26px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .item.new { animation: none; } }
+  .alt { margin-top: 10px; font: 12px/1.4 var(--mono); color: var(--ink-2); }
+  .result { padding: 12px 14px; font: 700 16px/1.35 var(--mono); border: 2px solid var(--ink-2); background: #fff; border-radius: 2px; overflow-wrap: anywhere; }
+  .result.ok { border-color: var(--ok); color: var(--ok); background: #eef7f1; }
+  .result.bad { border-color: var(--bad); color: var(--bad); background: #fbeeee; }
+  ol.log { margin: 10px 0 0; padding: 0 0 0 26px; max-height: 250px; overflow: auto; font: 12.5px/1.5 var(--mono); color: var(--ink-2); }
+  ol.log li { overflow-wrap: anywhere; }
+  ol.log li:last-child { color: var(--ink); font-weight: 600; }
+  .bottom { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; margin-top: 18px; }
+  .hashlab input { width: 100%; max-width: 100%; border: 1.5px solid var(--ink-2); border-radius: 2px; padding: 8px 10px; font: 14px var(--mono); background: #fff; }
+  dl.digests { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 12px; margin: 12px 0 0; font: 12.5px/1.4 var(--mono); }
+  dl.digests dt { font-weight: 700; }
+  dl.digests dd { margin: 0; overflow-wrap: anywhere; color: var(--slate-2); }
+  table.vec { width: 100%; border-collapse: collapse; margin-top: 12px; font: 12px/1.35 var(--mono); table-layout: fixed; }
+  .vec td, .vec th { border-bottom: 1px dashed #cfc8b6; padding: 4px 4px; text-align: left; overflow-wrap: anywhere; vertical-align: top; }
+  .vec th { font-size: 11px; color: var(--ink-2); text-transform: uppercase; letter-spacing: .06em; }
+  .vec .pass { color: var(--ok); font-weight: 700; } .vec .fail { color: var(--bad); font-weight: 700; }
+  table.ops { width: 100%; border-collapse: collapse; font-size: 13.5px; table-layout: fixed; }
+  .ops td, .ops th { padding: 5px 4px; border-bottom: 1px solid var(--paper-2); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+  .ops td:first-child { font: 600 12.5px var(--mono); width: 38%; }
+  .ops th { font: 600 11px var(--mono); text-transform: uppercase; color: var(--ink-2); }
+  footer { margin-top: 24px; text-align: center; font: 12.5px var(--mono); color: var(--ink-2); }
+
+  @media (max-width: 1000px) { .layout { grid-template-columns: minmax(0, 1fr); } .bottom { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 640px) {
+    header { grid-template-columns: minmax(0, 1fr); }
+    .split { grid-template-columns: minmax(0, 1fr); }
+    .tube { min-height: 180px; }
+    .tape-row { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+    .tape-row > span { padding-top: 0; }
+    .selftest { white-space: normal; }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <div>
+      <p class="kicker">stack machine · teaching subset</p>
+      <h1><span class="b" aria-hidden="true">₿</span>Script Playground</h1>
+      <p>Bitcoin decides whether coins can move by running two small programs back to back: the spender's unlocking script, then the coin's locking script. Step through them one opcode at a time and watch the stack. The hashes are real; the signatures are not.</p>
+    </div>
+    <div class="selftest" id="selftest" data-testid="selftest" role="status">running self-test…</div>
+  </header>
+
+  <div class="layout">
+    <div class="card">
+      <h2>Scripts <small>edit freely</small></h2>
+      <div class="presets" id="presets" role="group" aria-label="Preset scripts"></div>
+      <label class="lab" for="unlock">Unlocking script <span>scriptSig · runs first</span></label>
+      <textarea id="unlock" data-testid="unlock" spellcheck="false" autocomplete="off"></textarea>
+      <label class="lab" for="lock">Locking script <span>scriptPubKey · runs second</span></label>
+      <textarea id="lock" data-testid="lock" spellcheck="false" autocomplete="off"></textarea>
+      <p class="parse" id="parse" data-testid="parse-error" aria-live="polite"></p>
+      <div class="controls">
+        <button class="btn" id="back" data-testid="step-back" aria-label="Step back">◀ Back</button>
+        <button class="btn" id="step" data-testid="step">Step ▶</button>
+        <button class="btn go" id="run" data-testid="run">Run ▶▶</button>
+        <button class="btn" id="reset" data-testid="reset">Reset</button>
+      </div>
+      <div class="sim" data-testid="sim-note">
+        <b>OP_CHECKSIG is SIMULATED.</b> There is no ECDSA here. Keys and signatures are stand-ins: a "pubkey" is <code>02 ‖ SHA256("pubkey:" ‖ name)</code>, and a "signature" is valid when it equals <code>30 ‖ SHA256("sim-sig:" ‖ pubkey)</code>. Write them as <code>&lt;pub:alice&gt;</code> and <code>&lt;sig:alice&gt;</code>. Real signatures commit to the spending transaction; these do not.
+      </div>
+    </div>
+
+    <div class="machine">
+      <div class="card">
+        <h2>Program tape <small id="pcInfo" data-testid="pc">step 0</small></h2>
+        <div class="tape" id="tape" data-testid="tape"></div>
+      </div>
+      <div class="split">
+        <div class="card">
+          <h2>Stack <small id="depth" data-testid="depth">0 items</small></h2>
+          <div style="padding-top:18px"><div class="tube" id="stack" data-testid="stack" role="list" aria-label="Main stack, top first when read aloud"></div></div>
+          <p class="alt" id="execInfo" data-testid="exec">Branch stack: (none)</p>
+        </div>
+        <div class="card">
+          <h2>Verdict</h2>
+          <div class="result" id="result" data-testid="result" role="status" aria-live="polite">Ready. Press Step or Run.</div>
+          <ol class="log" id="log" data-testid="log" aria-label="Execution log"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom">
+    <section class="card hashlab" aria-labelledby="h-hash">
+      <h2 id="h-hash">Hash lab <small>pure JavaScript, checked against test vectors</small></h2>
+      <label class="lab" for="hashIn">Text (UTF-8) <span>or hex with a 0x prefix</span></label>
+      <input id="hashIn" data-testid="hash-input" value="abc" spellcheck="false" autocomplete="off">
+      <dl class="digests">
+        <dt>SHA-256</dt><dd data-testid="sha-out" id="shaOut"></dd>
+        <dt>RIPEMD-160</dt><dd data-testid="ripemd-out" id="ripOut"></dd>
+        <dt>HASH160</dt><dd data-testid="h160-out" id="h160Out"></dd>
+      </dl>
+      <table class="vec" data-testid="vectors"><thead><tr><th style="width:28%">Input</th><th style="width:18%">Algo</th><th>Expected (published)</th><th style="width:12%">Result</th></tr></thead><tbody id="vecBody"></tbody></table>
+    </section>
+    <section class="card" aria-labelledby="h-ops">
+      <h2 id="h-ops">Opcodes in this subset</h2>
+      <table class="ops"><thead><tr><th>Opcode</th><th>Effect</th></tr></thead><tbody>
+        <tr><td>&lt;hex&gt; · 0x.. · "text" · 17</td><td>Push data. Small numbers use OP_0 … OP_16 and OP_1NEGATE, larger ones minimal script-number encoding.</td></tr>
+        <tr><td>OP_DUP / OP_DROP / OP_SWAP</td><td>Copy the top item / discard it / swap the top two.</td></tr>
+        <tr><td>OP_ADD / OP_SUB</td><td>Pop two script numbers (4 bytes at most) and push a+b or a−b.</td></tr>
+        <tr><td>OP_EQUAL</td><td>Pop two items and push 1 if the bytes match, otherwise an empty array (false).</td></tr>
+        <tr><td>OP_VERIFY / OP_EQUALVERIFY</td><td>Fail the script unless the top is true (OP_EQUALVERIFY runs OP_EQUAL first).</td></tr>
+        <tr><td>OP_IF / OP_ELSE / OP_ENDIF</td><td>Branch on the popped top item; skipped opcodes are struck through on the tape.</td></tr>
+        <tr><td>OP_SHA256 / OP_HASH160</td><td>Replace the top with SHA-256(x), or RIPEMD-160(SHA-256(x)).</td></tr>
+        <tr><td>OP_CHECKSIG</td><td><b>Simulated</b>: pop pubkey and signature and push 1 if the stand-in signature matches.</td></tr>
+      </tbody></table>
+      <p class="alt">A script succeeds when nothing fails and the top item left at the end is true (not empty, not all zero bytes). As in Bitcoin, an IF that opens in the unlocking script cannot close in the locking script.</p>
+    </section>
+  </div>
+  <footer>Built by Zac Corbett · a teaching toy, not a wallet: never paste real keys anywhere</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  // ---------- SHA-256 (FIPS 180-4) ----------
+  const SHA_K = (() => { const k = [], primes = []; for (let n = 2; primes.length < 64; n++) if (primes.every((p) => n % p)) primes.push(n);
+    for (const p of primes) k.push((Math.cbrt(p) % 1) * 4294967296 >>> 0); return { k, h: primes.slice(0, 8).map((p) => (Math.sqrt(p) % 1) * 4294967296 >>> 0) }; })();
+  const rotr = (x, n) => (x >>> n) | (x << (32 - n));
+  function sha256(bytes) {
+    const l = bytes.length, total = ((l + 9 + 63) >> 6) << 6, m = new Uint8Array(total);
+    m.set(bytes); m[l] = 0x80;
+    const dv = new DataView(m.buffer);
+    dv.setUint32(total - 4, (l * 8) >>> 0); dv.setUint32(total - 8, Math.floor(l / 0x20000000));
+    const H = SHA_K.h.slice(), W = new Uint32Array(64), K = SHA_K.k;
+    for (let off = 0; off < total; off += 64) {
+      for (let t = 0; t < 16; t++) W[t] = dv.getUint32(off + t * 4);
+      for (let t = 16; t < 64; t++) { const a = W[t - 15], b = W[t - 2];
+        W[t] = (W[t - 16] + (rotr(a, 7) ^ rotr(a, 18) ^ (a >>> 3)) + W[t - 7] + (rotr(b, 17) ^ rotr(b, 19) ^ (b >>> 10))) | 0; }
+      let [a, b, c, d, e, f, g, h] = H;
+      for (let t = 0; t < 64; t++) {
+        const t1 = (h + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) + ((e & f) ^ (~e & g)) + K[t] + W[t]) | 0;
+        const t2 = ((rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) | 0;
+        h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+      }
+      H[0] = (H[0] + a) | 0; H[1] = (H[1] + b) | 0; H[2] = (H[2] + c) | 0; H[3] = (H[3] + d) | 0;
+      H[4] = (H[4] + e) | 0; H[5] = (H[5] + f) | 0; H[6] = (H[6] + g) | 0; H[7] = (H[7] + h) | 0;
+    }
+    const out = new Uint8Array(32), odv = new DataView(out.buffer); H.forEach((v, i) => odv.setUint32(i * 4, v >>> 0)); return out;
+  }
+  // ---------- RIPEMD-160 (Dobbertin, Bosselaers, Preneel) ----------
+  const RL = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15, 7,4,13,1,10,6,15,3,12,0,9,5,2,14,11,8, 3,10,14,4,9,15,8,1,2,7,0,6,13,11,5,12, 1,9,11,10,0,8,12,4,13,3,7,15,14,5,6,2, 4,0,5,9,7,12,2,10,14,1,3,8,11,6,15,13];
+  const RR = [5,14,7,0,9,2,11,4,13,6,15,8,1,10,3,12, 6,11,3,7,0,13,5,10,14,15,8,12,4,9,1,2, 15,5,1,3,7,14,6,9,11,8,12,2,10,0,4,13, 8,6,4,1,3,11,15,0,5,12,2,13,9,7,10,14, 12,15,10,4,1,5,8,7,6,2,13,14,0,3,9,11];
+  const SL = [11,14,15,12,5,8,7,9,11,13,14,15,6,7,9,8, 7,6,8,13,11,9,7,15,7,12,15,9,11,7,13,12, 11,13,6,7,14,9,13,15,14,8,13,6,5,12,7,5, 11,12,14,15,14,15,9,8,9,14,5,6,8,6,5,12, 9,15,5,11,6,8,13,12,5,12,13,14,11,8,5,6];
+  const SR = [8,9,9,11,13,15,15,5,7,7,8,11,14,14,12,6, 9,13,15,7,12,8,9,11,7,7,12,7,6,15,13,11, 9,7,15,11,8,6,6,14,12,13,5,14,13,13,7,5, 15,5,8,11,14,14,6,14,6,9,12,9,12,5,15,8, 8,5,12,9,12,5,14,6,8,13,6,5,15,13,11,11];
+  const KL = [0x00000000, 0x5a827999, 0x6ed9eba1, 0x8f1bbcdc, 0xa953fd4e], KR = [0x50a28be6, 0x5c4dd124, 0x6d703ef3, 0x7a6d76e9, 0x00000000];
+  const rol = (x, n) => (x << n) | (x >>> (32 - n));
+  function rf(j, x, y, z) { return j < 16 ? x ^ y ^ z : j < 32 ? (x & y) | (~x & z) : j < 48 ? (x | ~y) ^ z : j < 64 ? (x & z) | (y & ~z) : x ^ (y | ~z); }
+  function ripemd160(bytes) {
+    const l = bytes.length, total = ((l + 9 + 63) >> 6) << 6, m = new Uint8Array(total);
+    m.set(bytes); m[l] = 0x80;
+    const dv = new DataView(m.buffer);
+    dv.setUint32(total - 8, (l * 8) >>> 0, true); dv.setUint32(total - 4, Math.floor(l / 0x20000000), true);
+    let h0 = 0x67452301, h1 = 0xefcdab89, h2 = 0x98badcfe, h3 = 0x10325476, h4 = 0xc3d2e1f0;
+    const X = new Int32Array(16);
+    for (let off = 0; off < total; off += 64) {
+      for (let i = 0; i < 16; i++) X[i] = dv.getInt32(off + i * 4, true);
+      let al = h0, bl = h1, cl = h2, dl = h3, el = h4, ar = h0, br = h1, cr = h2, dr = h3, er = h4;
+      for (let j = 0; j < 80; j++) {
+        const r = j >> 4;
+        let t = (rol((al + rf(j, bl, cl, dl) + X[RL[j]] + KL[r]) | 0, SL[j]) + el) | 0;
+        al = el; el = dl; dl = rol(cl, 10); cl = bl; bl = t;
+        t = (rol((ar + rf(79 - j, br, cr, dr) + X[RR[j]] + KR[r]) | 0, SR[j]) + er) | 0;
+        ar = er; er = dr; dr = rol(cr, 10); cr = br; br = t;
+      }
+      const t = (h1 + cl + dr) | 0;
+      h1 = (h2 + dl + er) | 0; h2 = (h3 + el + ar) | 0; h3 = (h4 + al + br) | 0; h4 = (h0 + bl + cr) | 0; h0 = t;
+    }
+    const out = new Uint8Array(20), odv = new DataView(out.buffer); [h0, h1, h2, h3, h4].forEach((v, i) => odv.setUint32(i * 4, v >>> 0, true)); return out;
+  }
+
+  // ---------- bytes helpers ----------
+  const enc = new TextEncoder();
+  const utf8 = (s) => enc.encode(s);
+  const hex = (b) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+  const unhex = (h) => { if (h.length % 2 || /[^0-9a-f]/i.test(h)) throw new Error(`"${h}" is not even-length hex`); const o = new Uint8Array(h.length / 2); for (let i = 0; i < o.length; i++) o[i] = parseInt(h.substr(i * 2, 2), 16); return o; };
+  const concat = (...a) => { const o = new Uint8Array(a.reduce((n, x) => n + x.length, 0)); let p = 0; for (const x of a) { o.set(x, p); p += x.length; } return o; };
+  const eq = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+  const hash160 = (b) => ripemd160(sha256(b));
+
+  // ---------- self-test against published vectors ----------
+  const VECTORS = [
+    ['""', 'SHA-256', utf8(''), sha256, 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'],
+    ['"abc"', 'SHA-256', utf8('abc'), sha256, 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'],
+    ['"abcdbcde…nopq" (448 bits)', 'SHA-256', utf8('abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq'), sha256, '248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1'],
+    ['""', 'RIPEMD-160', utf8(''), ripemd160, '9c1185a5c5e9fc54612808977ee8f548b2258d31'],
+    ['"abc"', 'RIPEMD-160', utf8('abc'), ripemd160, '8eb208f7e05d987a9b044a8e98c6b087f15a0bfc'],
+    ['"message digest"', 'RIPEMD-160', utf8('message digest'), ripemd160, '5d0689ef49d2fae572b881b123a85ffa21595f36'],
+    ['"1234567890" × 8', 'RIPEMD-160', utf8('1234567890'.repeat(8)), ripemd160, '9b752e45573d4b39f4dbd3323cab82bf63326bfb'],
+    ['pubkey of secret key 1 (0279be…1798)', 'HASH160', unhex('0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798'), hash160, '751e76e8199196d454941c45d1b3a323f1433bd6'],
+  ];
+  const vecResults = VECTORS.map(([label, algo, input, fn, want]) => ({ label, algo, want, got: hex(fn(input)) }));
+  const passCount = vecResults.filter((v) => v.got === v.want).length;
+  document.getElementById('vecBody').innerHTML = vecResults.map((v) => `<tr><td>${v.label}</td><td>${v.algo}</td><td>${v.want}</td><td class="${v.got === v.want ? 'pass' : 'fail'}">${v.got === v.want ? 'pass' : 'FAIL'}</td></tr>`).join('');
+  const st = document.getElementById('selftest');
+  st.textContent = `self-test: ${passCount}/${VECTORS.length} hash vectors pass`;
+  st.classList.toggle('bad', passCount !== VECTORS.length);
+
+  // ---------- simulated keys ----------
+  const simPub = (name) => concat(new Uint8Array([0x02]), sha256(utf8('pubkey:' + name.toLowerCase())));
+  const simSig = (pub) => concat(new Uint8Array([0x30]), sha256(concat(utf8('sim-sig:'), pub)));
+  const KNOWN = new Map();
+  for (const n of ['alice', 'bob', 'carol']) { const p = simPub(n); KNOWN.set(hex(p), `${cap(n)}'s pubkey (simulated)`); KNOWN.set(hex(simSig(p)), `${cap(n)}'s signature (simulated)`); }
+  function cap(s) { return s[0].toUpperCase() + s.slice(1); }
+
+  // ---------- script numbers ----------
+  function encNum(n) {
+    if (n === 0) return new Uint8Array(0);
+    const neg = n < 0; let a = Math.abs(n); const out = [];
+    while (a > 0) { out.push(a & 0xff); a = Math.floor(a / 256); }
+    if (out[out.length - 1] & 0x80) out.push(neg ? 0x80 : 0); else if (neg) out[out.length - 1] |= 0x80;
+    return new Uint8Array(out);
+  }
+  function decNum(b) {
+    if (b.length > 4) throw new Error(`number is ${b.length} bytes; arithmetic takes at most 4`);
+    if (!b.length) return 0;
+    let v = 0; for (let i = b.length - 1; i >= 0; i--) v = v * 256 + (i === b.length - 1 ? b[i] & 0x7f : b[i]);
+    return b[b.length - 1] & 0x80 ? -v : v;
+  }
+  const castBool = (b) => { for (let i = 0; i < b.length; i++) if (b[i]) return !(i === b.length - 1 && b[i] === 0x80); return false; };
+
+  // ---------- tokenizer ----------
+  const OPS = ['OP_DUP', 'OP_DROP', 'OP_SWAP', 'OP_ADD', 'OP_SUB', 'OP_EQUAL', 'OP_EQUALVERIFY', 'OP_VERIFY', 'OP_IF', 'OP_ELSE', 'OP_ENDIF', 'OP_SHA256', 'OP_HASH160', 'OP_CHECKSIG'];
+  function tokenize(src, seg) {
+    const out = [], re = /"([^"]*)"|(\S+)/g; let m;
+    while ((m = re.exec(src))) {
+      if (m[1] !== undefined) { out.push({ kind: 'push', text: `"${m[1]}"`, data: utf8(m[1]), seg }); continue; }
+      const raw = m[2], up = raw.toUpperCase();
+      let t;
+      if (/^<(sig|pub):([a-z]+)>$/i.test(raw)) { const [, k, n] = raw.match(/^<(sig|pub):([a-z]+)>$/i); const pub = simPub(n); t = { kind: 'push', data: k.toLowerCase() === 'pub' ? pub : simSig(pub) }; }
+      else if (/^<[0-9a-f]*>$/i.test(raw)) t = { kind: 'push', data: unhex(raw.slice(1, -1)) };
+      else if (/^0x[0-9a-f]+$/i.test(raw)) t = { kind: 'push', data: unhex(raw.slice(2)) };
+      else if (/^-?\d+$/.test(raw)) { const n = parseInt(raw, 10); if (Math.abs(n) > 2147483647) throw new Error(`${raw} is outside the 4-byte number range`); t = { kind: 'push', data: encNum(n), num: n }; }
+      else if (['OP_0', 'OP_FALSE', '0'].includes(up)) t = { kind: 'push', data: new Uint8Array(0) };
+      else if (up === 'OP_TRUE') t = { kind: 'push', data: encNum(1) };
+      else if (up === 'OP_1NEGATE') t = { kind: 'push', data: encNum(-1) };
+      else if (/^OP_([1-9]|1[0-6])$/.test(up)) t = { kind: 'push', data: encNum(+up.slice(3)) };
+      else { const op = up.startsWith('OP_') ? up : 'OP_' + up; if (!OPS.includes(op)) throw new Error(`unknown token "${raw}" (this playground supports ${OPS.length} opcodes plus pushes)`); t = { kind: 'op', op }; }
+      t.text = raw; t.seg = seg; out.push(t);
+    }
+    return out;
+  }
+
+  // ---------- interpreter ----------
+  function newMachine(unlockSrc, lockSrc) {
+    const toks = [...tokenize(unlockSrc, 'unlock'), ...tokenize(lockSrc, 'lock')];
+    return { toks, pc: 0, stack: [], exec: [], execOuter: [], status: toks.length ? 'ready' : 'empty', error: '', failAt: -1, marks: toks.map(() => ''), log: [] };
+  }
+  const clone = (M) => ({ ...M, stack: M.stack.slice(), exec: M.exec.slice(), execOuter: (M.execOuter || []).slice(), marks: M.marks.slice(), log: M.log.slice() });
+  function fail(M, msg) { M.status = 'fail'; M.error = msg; M.failAt = M.pc; M.marks[M.pc] = 'fail'; M.log.push(`✗ ${msg}`); }
+  function need(M, n, op) { if (M.stack.length < n) { fail(M, `${op} needs ${n} item${n > 1 ? 's' : ''} but the stack has ${M.stack.length}`); return false; } return true; }
+  function step(M) {
+    if (M.status === 'fail' || M.status === 'ok' || M.status === 'false' || M.status === 'empty') return M;
+    const t = M.toks[M.pc], executing = M.exec.every(Boolean);
+    const isFlow = t.kind === 'op' && (t.op === 'OP_IF' || t.op === 'OP_ELSE' || t.op === 'OP_ENDIF');
+    M.status = 'running';
+    if (!executing && !isFlow) { M.marks[M.pc] = 'skip'; M.log.push(`${t.text}: skipped (inside a branch not taken)`); return advance(M); }
+    const S = M.stack, show = (b) => b.length ? (b.length > 12 ? hex(b.slice(0, 6)) + '…' : hex(b)) : '(empty)';
+    try {
+      if (t.kind === 'push') { S.push(t.data); M.log.push(`push ${show(t.data)}${t.text.startsWith('"') ? ' ' + t.text : ''}`); }
+      else switch (t.op) {
+        case 'OP_DUP': if (!need(M, 1, t.op)) return M; S.push(S[S.length - 1]); M.log.push('OP_DUP: copied the top item'); break;
+        case 'OP_DROP': if (!need(M, 1, t.op)) return M; S.pop(); M.log.push('OP_DROP: discarded the top item'); break;
+        case 'OP_SWAP': { if (!need(M, 2, t.op)) return M; const a = S.pop(), b = S.pop(); S.push(a, b); M.log.push('OP_SWAP: swapped the top two'); break; }
+        case 'OP_ADD': case 'OP_SUB': { if (!need(M, 2, t.op)) return M; const b = decNum(S.pop()), a = decNum(S.pop()), r = t.op === 'OP_ADD' ? a + b : a - b; S.push(encNum(r)); M.log.push(`${t.op}: ${a} ${t.op === 'OP_ADD' ? '+' : '−'} ${b} = ${r}`); break; }
+        case 'OP_EQUAL': case 'OP_EQUALVERIFY': { if (!need(M, 2, t.op)) return M; const b = S.pop(), a = S.pop(), same = eq(a, b);
+          if (t.op === 'OP_EQUAL') { S.push(same ? encNum(1) : new Uint8Array(0)); M.log.push(`OP_EQUAL: ${same ? 'equal → 1' : 'different → false'}`); }
+          else { if (!same) { fail(M, `OP_EQUALVERIFY failed: ${show(a)} ≠ ${show(b)}`); return M; } M.log.push('OP_EQUALVERIFY: equal, continue'); } break; }
+        case 'OP_VERIFY': { if (!need(M, 1, t.op)) return M; const v = S.pop(); if (!castBool(v)) { fail(M, 'OP_VERIFY failed: top item was false'); return M; } M.log.push('OP_VERIFY: true, continue'); break; }
+        case 'OP_IF': { let v = false; if (executing) { if (!need(M, 1, t.op)) return M; v = castBool(S.pop()); M.log.push(`OP_IF: condition ${v ? 'true → run the IF branch' : 'false → skip to ELSE'}`); } else M.log.push('OP_IF: nested in a skipped branch'); M.exec.push(executing ? v : false); M.execOuter = M.execOuter || []; M.execOuter.push(executing); break; }
+        case 'OP_ELSE': { if (!M.exec.length) { fail(M, 'OP_ELSE without OP_IF'); return M; } const outer = (M.execOuter || [])[M.exec.length - 1]; if (outer !== false) M.exec[M.exec.length - 1] = !M.exec[M.exec.length - 1]; M.log.push('OP_ELSE: switch branches'); break; }
+        case 'OP_ENDIF': { if (!M.exec.length) { fail(M, 'OP_ENDIF without OP_IF'); return M; } M.exec.pop(); (M.execOuter || []).pop(); M.log.push('OP_ENDIF: branch closed'); break; }
+        case 'OP_SHA256': { if (!need(M, 1, t.op)) return M; const x = S.pop(), h = sha256(x); S.push(h); M.log.push(`OP_SHA256 → ${show(h)}`); break; }
+        case 'OP_HASH160': { if (!need(M, 1, t.op)) return M; const x = S.pop(), h = hash160(x); S.push(h); M.log.push(`OP_HASH160 → ${hex(h)}`); break; }
+        case 'OP_CHECKSIG': { if (!need(M, 2, t.op)) return M; const pub = S.pop(), sig = S.pop(); const ok = sig.length === 33 && sig[0] === 0x30 && eq(sig, simSig(pub));
+          S.push(ok ? encNum(1) : new Uint8Array(0)); M.log.push(`OP_CHECKSIG (simulated): ${ok ? 'signature matches this pubkey → 1' : 'signature does not match → false'}`); break; }
+      }
+    } catch (e) { fail(M, `${t.text}: ${e.message}`); return M; }
+    M.marks[M.pc] = 'done';
+    return advance(M);
+  }
+  function advance(M) {
+    M.pc++;
+    const t = M.toks[M.pc - 1];
+    if (t.seg === 'unlock' && (M.pc === M.toks.length || M.toks[M.pc].seg === 'lock') && M.exec.length) { M.pc--; fail(M, 'unbalanced OP_IF in the unlocking script (it must close before the locking script runs)'); return M; }
+    if (M.pc >= M.toks.length) {
+      if (M.exec.length) { M.pc--; fail(M, 'OP_IF without a matching OP_ENDIF'); return M; }
+      if (!M.stack.length) { M.status = 'false'; M.error = 'script ended with an empty stack'; }
+      else if (!castBool(M.stack[M.stack.length - 1])) { M.status = 'false'; M.error = 'script ended with false on top of the stack'; }
+      else M.status = 'ok';
+      M.log.push(M.status === 'ok' ? '✓ top of stack is true: the spend is valid' : `✗ ${M.error}`);
+    }
+    return M;
+  }
+  function runAll(unlock, lock) { const M = newMachine(unlock, lock); let guard = 0; while (!['ok', 'fail', 'false', 'empty'].includes(M.status) && guard++ < 10000) step(M); return M; }
+
+  // ---------- presets ----------
+  const ALICE_H160 = hex(hash160(simPub('alice')));
+  const PRESETS = [
+    { id: 'p2pkh', name: 'P2PKH spend', unlock: '<sig:alice> <pub:alice>', lock: `OP_DUP OP_HASH160 <${ALICE_H160}> OP_EQUALVERIFY OP_CHECKSIG`, note: 'Alice spends a coin locked to the HASH160 of her (simulated) key.' },
+    { id: 'thief', name: 'Wrong key', unlock: '<sig:bob> <pub:bob>', lock: `OP_DUP OP_HASH160 <${ALICE_H160}> OP_EQUALVERIFY OP_CHECKSIG`, note: "Bob tries to spend Alice's coin with his own key." },
+    { id: 'puzzle', name: 'Hash puzzle', unlock: '"fiat lux"', lock: `OP_SHA256 <${hex(sha256(utf8('fiat lux')))}> OP_EQUAL`, note: 'Anyone who knows the preimage can spend it (so in real life, anyone watching the mempool can too).' },
+    { id: 'branch', name: 'IF / ELSE', unlock: '<sig:bob> 0', lock: 'OP_IF <pub:alice> OP_ELSE <pub:bob> OP_ENDIF OP_CHECKSIG', note: 'Either key can spend; the unlocking script picks the branch with 1 or 0.' },
+    { id: 'math', name: 'Arithmetic', unlock: '7 5', lock: 'OP_SWAP OP_SUB -2 OP_EQUALVERIFY 100 27 OP_ADD 127 OP_EQUAL', note: 'SWAP then SUB gives 5 − 7 = −2; then 100 + 27 = 127.' },
+  ];
+
+  // ---------- UI ----------
+  const $ = (id) => document.getElementById(id);
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let M = null, history = [], timer = null, prevStack = [], current = 'p2pkh';
+  $('presets').innerHTML = PRESETS.map((p) => `<button class="chip" data-p="${p.id}" data-testid="preset-${p.id}" aria-pressed="false" title="${p.note}">${p.name}</button>`).join('');
+  $('presets').addEventListener('click', (e) => { const b = e.target.closest('[data-p]'); if (b) loadPreset(b.dataset.p); });
+  function loadPreset(id) {
+    const p = PRESETS.find((x) => x.id === id); current = id;
+    $('unlock').value = p.unlock; $('lock').value = p.lock;
+    [...$('presets').children].forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.p === id)));
+    rebuild(`Loaded "${p.name}". ${p.note}`);
+  }
+  function rebuild(msg) {
+    stop();
+    try { M = newMachine($('unlock').value, $('lock').value); $('parse').textContent = ''; }
+    catch (e) { M = null; $('parse').textContent = 'Parse error: ' + e.message; }
+    history = []; prevStack = [];
+    render(msg || 'Ready. Press Step or Run.');
+  }
+  function label(b) {
+    if (!b.length) return 'empty · false / 0';
+    const k = KNOWN.get(hex(b)); if (k) return k;
+    const parts = [];
+    if (b.length <= 4) parts.push(`number ${decNum(b)}`);
+    if (b.length === 32) parts.push('32 bytes · SHA-256 size'); else if (b.length === 20) parts.push('20 bytes · HASH160 size');
+    if (b.length > 1 && b.every((c) => c >= 32 && c < 127)) parts.push(`"${new TextDecoder().decode(b)}"`);
+    parts.push(castBool(b) ? 'true' : 'false');
+    return parts.join(' · ');
+  }
+  function render(msg) {
+    const tape = $('tape');
+    if (!M) { tape.innerHTML = '<p class="alt">Fix the script to see the tape.</p>'; $('stack').innerHTML = '<p class="empty">—</p>'; setResult('bad', 'Cannot run: the script does not parse.'); ['step', 'run', 'back'].forEach((id) => { $(id).disabled = true; }); return; }
+    const chip = (t, i) => { const cls = ['tok', t.kind === 'push' ? 'push' : (['OP_IF', 'OP_ELSE', 'OP_ENDIF'].includes(t.op) ? 'flow' : ''), M.marks[i], i === M.pc && !['ok', 'false', 'fail'].includes(M.status) ? 'pc' : ''].filter(Boolean).join(' ');
+      return `<span class="${cls}" data-i="${i}" title="${t.text.replace(/"/g, '&quot;')}">${t.text.length > 22 ? t.text.slice(0, 10) + '…' + t.text.slice(-8) : t.text.replace(/</g, '&lt;')}</span>`; };
+    const row = (seg, name) => `<div class="tape-row"><span>${name}</span><div class="toks" data-testid="tape-${seg}">${M.toks.map((t, i) => t.seg === seg ? chip(t, i) : '').join('') || '<span class="alt">(empty)</span>'}</div></div>`;
+    tape.innerHTML = row('unlock', 'unlocking') + row('lock', 'locking');
+    $('pcInfo').textContent = `step ${history.length} of ${M.toks.length}`;
+    // stack: items that were not there before are animated in
+    let common = 0; while (common < prevStack.length && common < M.stack.length && prevStack[common] === M.stack[common]) common++;
+    $('stack').innerHTML = M.stack.length ? M.stack.map((b, i) => { const top = i === M.stack.length - 1; return `<div class="item ${top ? 'top' : ''} ${castBool(b) ? 't' : 'f'} ${i >= common ? 'new' : ''}" role="listitem" data-testid="stack-item"><b>${label(b)}</b><code>${b.length ? hex(b) : '∅'}</code></div>`; }).join('')
+      : '<p class="empty">stack is empty</p>';
+    prevStack = M.stack.slice();
+    $('depth').textContent = `${M.stack.length} item${M.stack.length === 1 ? '' : 's'}`;
+    $('execInfo').textContent = M.exec.length ? `Branch stack: ${M.exec.map((v) => v ? 'running' : 'skipping').join(' › ')}` : 'Branch stack: (none)';
+    $('log').innerHTML = M.log.map((l) => `<li>${l.replace(/</g, '&lt;')}</li>`).join('');
+    $('log').scrollTop = $('log').scrollHeight;
+    if (M.status === 'ok') setResult('ok', '✓ VALID: the spend would be accepted');
+    else if (M.status === 'false') setResult('bad', `✗ INVALID: ${M.error}`);
+    else if (M.status === 'fail') setResult('bad', `✗ FAILED at step ${M.failAt + 1}: ${M.error}`);
+    else if (M.status === 'empty') setResult('', 'Both scripts are empty.');
+    else setResult('', msg || `Running… next: ${M.toks[M.pc].text}`);
+    const done = ['ok', 'false', 'fail', 'empty'].includes(M.status);
+    $('step').disabled = done; $('run').disabled = done && !timer; $('back').disabled = !history.length;
+    $('run').textContent = timer ? 'Pause ❚❚' : 'Run ▶▶';
+  }
+  function setResult(cls, text) { const r = $('result'); r.className = 'result ' + cls; r.textContent = text; }
+  function doStep() { if (!M) return; history.push(clone(M)); step(M); render(); }
+  function stop() { if (timer) { clearInterval(timer); timer = null; } }
+  $('step').addEventListener('click', () => { stop(); doStep(); });
+  $('back').addEventListener('click', () => { stop(); if (history.length) { M = history.pop(); prevStack = M.stack.slice(); render('Stepped back.'); } });
+  $('reset').addEventListener('click', () => rebuild('Reset to the start.'));
+  $('run').addEventListener('click', () => {
+    if (timer) { stop(); render('Paused.'); return; }
+    timer = setInterval(() => { doStep(); if (['ok', 'false', 'fail', 'empty'].includes(M.status)) { stop(); render(); } }, reduced ? 40 : 320);
+    render();
+  });
+  let editT = null;
+  ['unlock', 'lock'].forEach((id) => $(id).addEventListener('input', () => { [...$('presets').children].forEach((b) => b.setAttribute('aria-pressed', 'false')); clearTimeout(editT); editT = setTimeout(() => rebuild('Script edited.'), 120); }));
+
+  // hash lab
+  function hashLab() {
+    const v = $('hashIn').value; let bytes;
+    try { bytes = /^0x[0-9a-f]*$/i.test(v) ? unhex(v.slice(2)) : utf8(v); } catch (e) { $('shaOut').textContent = e.message; $('ripOut').textContent = '—'; $('h160Out').textContent = '—'; return; }
+    $('shaOut').textContent = hex(sha256(bytes)); $('ripOut').textContent = hex(ripemd160(bytes)); $('h160Out').textContent = hex(hash160(bytes));
+  }
+  $('hashIn').addEventListener('input', hashLab); hashLab();
+
+  window.__script = {
+    sha256: (s) => hex(sha256(typeof s === 'string' ? utf8(s) : new Uint8Array(s))),
+    sha256Hex: (h) => hex(sha256(unhex(h))),
+    ripemd160: (s) => hex(ripemd160(typeof s === 'string' ? utf8(s) : new Uint8Array(s))),
+    hash160Hex: (h) => hex(hash160(unhex(h))),
+    run(unlock, lock) { const R = runAll(unlock, lock); return { status: R.status, error: R.error, failAt: R.failAt, stack: R.stack.map(hex), steps: R.log.length }; },
+    encNum: (n) => hex(encNum(n)), decNum: (h) => decNum(unhex(h)),
+    simPub: (n) => hex(simPub(n)),
+    get state() { return M ? { pc: M.pc, status: M.status, error: M.error, stack: M.stack.map(hex), exec: M.exec.slice(), marks: M.marks.slice(), tokens: M.toks.map((t) => t.text) } : null; },
+    selfTest: { pass: passCount, total: VECTORS.length },
+  };
+  loadPreset('p2pkh');
+})();
+</script>
+</body>
+</html>

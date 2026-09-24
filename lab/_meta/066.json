@@ -1,0 +1,34 @@
+{
+  "id": "066",
+  "slug": "066-contract-lab",
+  "file": "lab/066-contract-lab.html",
+  "title": "Contract Test Lab — Consumer-Driven Contract Testing",
+  "category": "QA & Testing",
+  "tags": ["contract-testing", "json-schema", "api", "compatibility", "semver"],
+  "description": "Three releases of a fictional grocery app write down what they expect from a fictional API as a small JSON Schema, and the provider ships v1 to v4 with an added field, a rename, a widened enum, a number-to-string type change and a request field made required. The page runs every contract against every version, lists each failure by exact JSON path, highlights it in the provider's example, classifies the provider's own diff as breaking or safe, and answers 'can I deploy?' for the consumers in production.",
+  "prompt": "Build 'Contract Test Lab' to explain consumer-driven contract testing. A fictional consumer app declares its expectations as a small JSON Schema subset that you implement yourself: type, required, properties, items, enum, and format for email and date-time. A provider produces responses across versions v1 to v4 with realistic changes: an added field, a renamed field, a type change, and an optional field becoming required. Run the contract checks on the page, highlight breaking versus non-breaking changes with JSON paths, and show a compatibility matrix. Style it like a signed legal document: cream paper, navy ink, red rubber stamps.",
+  "qa": {
+    "methodology": [
+      "Oracle for the whole matrix: each of the 12 consumer × provider cells was worked out by hand from the fixtures (4 verified, 8 broken), and one test asserts all twelve data-result attributes at once, so any validator regression shows up as a changed cell.",
+      "Path-exact error assertions: the verdict lists issues with data-path and data-kind, and the spec checks the full ordered list for the worst pair (a missing required field, three type errors, an enum miss and a missing request field).",
+      "Diff classification rules are tested per direction: added response fields and a response field made required are safe; a rename, a widened response enum, a type change and a request field made required are breaking.",
+      "Behaviour switches: strict-reader mode turns every added field into an 'unexpected' failure; live schema edits re-run the matrix; malformed JSON is flagged with aria-invalid and fails the cell rather than throwing.",
+      "Persistence of edited contracts and production toggles through reload, plus restoring the original contract."
+    ],
+    "risks": [
+      "Rename detection is heuristic (a removed and an added property with the same type and the same required status); a different pairing could mislabel changes.",
+      "Integer versus number: JSON has one number type, so 8 must count as an integer and 23.5 must not.",
+      "Error order and path formatting ($.items[2].status) are part of the UI contract, and changing either breaks the page and the tests together.",
+      "A five-column table at 360 px with rotated stamps and wider glyphs."
+    ],
+    "playwright": "This page is pure logic, which makes it pleasant to automate. Every cell, issue and change carries data-result, data-path, data-kind or data-breaking attributes, so assertions compare exact semantic values instead of scraping stamp text. evaluateAll collects the ordered issue paths in one call and compares them to a hand-derived oracle. The schema textarea is driven with fill(), which fires a single input event per edit and so exercises the live re-validation path. No clock or seed is needed; the only state is localStorage, and each test gets a fresh context.",
+    "coverage": [
+      "Full 3 × 4 compatibility matrix and summary count",
+      "Ordered JSON-path issues for Larder 1.0 × v4 and highlighted paths in the example",
+      "Provider diff: safe v2, rename and enum in v3, type change and optional → required in v4",
+      "Strict reader: unexpected fields and the deploy verdict",
+      "Live editing, invalid JSON, persistence, restore original"
+    ]
+  },
+  "a11y": "Consumer releases are a tablist, interactions and versions are aria-pressed buttons, and every matrix cell is a button whose label reads out the pair and its issue count. Verdicts, diffs and parse errors are announced through aria-live regions, and the schema editor sets aria-invalid when its JSON is malformed."
+}

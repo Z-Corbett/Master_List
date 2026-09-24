@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cloud Chamber — watching radiation leave vapour trails</title>
+<meta name="description" content="A generative simulation of a diffusion cloud chamber. Alpha particles leave short, thick, straight tracks, beta particles thin wiggly ones, and cosmic-ray muons long straight lines. Tracks condense and fade like vapour trails, an optional magnetic field curves charges in opposite directions, and counters tally each type. Seeded for repeatable runs.">
+<style>
+  :root {
+    --night: #0b0d10;
+    --panel: #15181c;
+    --panel-2: #1d2126;
+    --brass: #b8914a;
+    --brass-2: #e3c27d;
+    --brass-3: #7a5c26;
+    --cream: #efe6d2;
+    --muted: #9c9483;
+    --alpha: #ffd9a0;
+    --beta: #a8d8ff;
+    --muon: #d6b3ff;
+    --oxblood: #8e2a2a;
+    --display: "Bodoni MT", Didot, "Bodoni 72", "Book Antiqua", Georgia, serif;
+    --label: "Copperplate Gothic Light", "Copperplate", "Trajan Pro", "Segoe UI", sans-serif;
+    --body: Georgia, "Iowan Old Style", "Times New Roman", serif;
+    --mono: ui-monospace, Consolas, Menlo, monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--night); color: var(--cream); font: 16px/1.6 var(--body); overflow-x: hidden;
+    background-image: radial-gradient(ellipse at 30% -10%, rgba(184,145,74,.16), transparent 55%), radial-gradient(ellipse at 100% 100%, rgba(80,110,150,.10), transparent 50%); min-height: 100vh; }
+  :focus-visible { outline: 2px solid var(--brass-2); outline-offset: 3px; }
+  button, input { font: inherit; color: inherit; }
+  a.back { position: fixed; top: 12px; left: 12px; z-index: 40; color: var(--brass-2); text-decoration: none; font: 13px/1 var(--label); letter-spacing: .08em;
+    padding: 8px 12px; border: 1px solid var(--brass-3); border-radius: 3px; background: rgba(11,13,16,.85); }
+  a.back:hover { border-color: var(--brass-2); }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 60px 18px 40px; }
+  header { text-align: center; margin-bottom: 26px; }
+  .over { font: 13px/1.3 var(--label); letter-spacing: .3em; color: var(--brass); margin: 0; }
+  h1 { font: 400 clamp(46px, 9vw, 96px)/.95 var(--display); margin: 6px 0 0; letter-spacing: .01em; }
+  h1 i { color: var(--brass-2); }
+  header p { max-width: 58ch; margin: 14px auto 0; color: #cfc6b2; }
+  .rule { width: 160px; height: 1px; margin: 18px auto 0; background: linear-gradient(90deg, transparent, var(--brass), transparent); }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 360px); gap: 30px; align-items: start; }
+  .port { position: relative; width: 100%; max-width: 660px; margin: 0 auto; aspect-ratio: 1; border-radius: 50%; padding: 18px; min-width: 0;
+    background: conic-gradient(from 200deg, #6d5122, #e9cf8f, #9b7636, #f3dca0, #7a5c26, #caa55e, #6d5122);
+    box-shadow: 0 0 0 2px #2b2113, 0 30px 60px rgba(0,0,0,.6), inset 0 0 0 2px rgba(255,240,200,.3); }
+  .port::before { content: ""; position: absolute; inset: 9px; border-radius: 50%; border: 1px dashed rgba(60,40,10,.55); pointer-events: none; }
+  .bolt { position: absolute; width: 12px; height: 12px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff3cf, #8b6a2e 70%); box-shadow: 0 1px 2px rgba(0,0,0,.6); }
+  canvas#ch { display: block; width: 100%; height: 100%; border-radius: 50%; background: #050608; box-shadow: inset 0 0 40px rgba(0,0,0,.9); }
+  .cap { text-align: center; font: 12px/1.4 var(--label); letter-spacing: .14em; color: var(--muted); margin: 12px 0 0; }
+
+  .panel { background: linear-gradient(180deg, var(--panel-2), var(--panel)); border: 1px solid #2c2f35; border-radius: 10px; padding: 18px; min-width: 0;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 18px 40px rgba(0,0,0,.4); }
+  .panel h2 { margin: 0 0 12px; font: 15px/1.2 var(--label); letter-spacing: .2em; color: var(--brass-2); }
+  .counters { display: grid; gap: 10px; }
+  .ctr { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+  .ctr svg { display: block; }
+  .ctr .nm { min-width: 0; }
+  .ctr .nm b { display: block; font: 17px/1.1 var(--display); }
+  .ctr .nm span { font: 12px/1.3 var(--mono); color: var(--muted); }
+  .odo { display: flex; gap: 2px; font: 700 20px/1 var(--mono); }
+  .odo i { font-style: normal; display: grid; place-items: center; width: 19px; height: 30px; background: linear-gradient(180deg, #0a0a0a, #262626 48%, #0a0a0a 52%, #1a1a1a); color: #f5ecd6; border-radius: 2px; box-shadow: inset 0 0 0 1px #3a3a3a; }
+  .sep { height: 1px; background: #2c2f35; margin: 16px 0; }
+  .field { display: grid; gap: 6px; }
+  .field label, .lab { font: 12.5px/1.3 var(--label); letter-spacing: .14em; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+  .field output { font: 13px var(--mono); color: var(--cream); letter-spacing: 0; }
+  input[type=range] { width: 100%; max-width: 100%; accent-color: var(--brass); }
+  .dial { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: center; }
+  .dial svg { width: 58px; height: 58px; }
+  .toggles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+  .tg { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid #34383f; border-radius: 6px; font: 13px/1.2 var(--body); cursor: pointer; min-width: 0; }
+  .field .tg { justify-content: flex-start; font: 14px/1.2 var(--body); letter-spacing: 0; color: var(--cream); }
+  .tg input { accent-color: var(--brass); width: 16px; height: 16px; margin: 0; flex: 0 0 auto; }
+  .btns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+  .btn { min-height: 42px; border: 1px solid var(--brass-3); background: #1a1712; color: var(--brass-2); border-radius: 6px; cursor: pointer; font: 13px/1.1 var(--label); letter-spacing: .1em; padding: 6px 8px; min-width: 0; }
+  .btn:hover { background: #2a2418; }
+  .btn.inj { font: 13px/1.1 var(--body); letter-spacing: 0; color: var(--cream); }
+  .status { margin: 12px 0 0; font: 13px/1.4 var(--mono); color: #bdb4a0; min-height: 2.8em; overflow-wrap: anywhere; }
+
+  .notes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 26px; margin-top: 44px; }
+  .notes article { min-width: 0; }
+  .notes h3 { font: 400 26px/1.15 var(--display); margin: 0 0 8px; color: var(--brass-2); }
+  .notes p { margin: 0 0 10px; color: #d8cfbc; font-size: 15.5px; }
+  .notes .sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+  footer { text-align: center; margin-top: 36px; font: 12px/1.5 var(--label); letter-spacing: .12em; color: var(--muted); }
+
+  @media (max-width: 980px) { .layout { grid-template-columns: minmax(0, 1fr); } .notes { grid-template-columns: minmax(0, 1fr); gap: 10px; } }
+  @media (max-width: 420px) { .port { padding: 11px; } .toggles { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .odo i { width: 16px; height: 26px; font-size: 17px; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <p class="over">A diffusion chamber, simulated</p>
+    <h1>Cloud <i>Chamber</i></h1>
+    <p>Supersaturated alcohol vapour hangs over a cold plate. When a charged particle passes through, it leaves a line of ions, and droplets condense along it for a moment. Watch the trails appear, spread and fade.</p>
+    <div class="rule"></div>
+  </header>
+
+  <div class="layout">
+    <div style="min-width:0">
+      <div class="port" id="port">
+        <canvas id="ch" width="720" height="720" data-testid="chamber" role="img" aria-label="Cloud chamber view"></canvas>
+      </div>
+      <p class="cap" id="cap" data-testid="caption">seed · field off</p>
+    </div>
+
+    <aside class="panel" aria-labelledby="h-count">
+      <h2 id="h-count">Tally</h2>
+      <div class="counters">
+        <div class="ctr"><svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><path d="M5 20 20 7" stroke="#ffd9a0" stroke-width="5" stroke-linecap="round"/></svg>
+          <div class="nm"><b>Alpha</b><span id="rateA">0 / min</span></div><div class="odo" data-testid="count-alpha" id="cA" aria-label="alpha count 0"></div></div>
+        <div class="ctr"><svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><path d="M3 18C7 14 6 10 10 12S14 6 17 8 20 4 23 5" stroke="#a8d8ff" stroke-width="1.5" fill="none"/></svg>
+          <div class="nm"><b>Beta</b><span id="rateB">0 / min</span></div><div class="odo" data-testid="count-beta" id="cB" aria-label="beta count 0"></div></div>
+        <div class="ctr"><svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><path d="M2 24 24 2" stroke="#d6b3ff" stroke-width="1.5"/></svg>
+          <div class="nm"><b>Muon</b><span id="rateM">0 / min</span></div><div class="odo" data-testid="count-muon" id="cM" aria-label="muon count 0"></div></div>
+      </div>
+      <div class="sep"></div>
+      <div class="field">
+        <label for="field">Magnetic field <output id="fieldOut" data-testid="field-out">off</output></label>
+        <div class="dial">
+          <svg viewBox="0 0 58 58" aria-hidden="true"><circle cx="29" cy="29" r="26" fill="#0e0f11" stroke="#7a5c26" stroke-width="2"/><g id="dialMarks"></g><line id="needle" x1="29" y1="29" x2="29" y2="8" stroke="#e3c27d" stroke-width="2.5" stroke-linecap="round"/><circle cx="29" cy="29" r="3.5" fill="#e3c27d"/></svg>
+          <input type="range" id="field" min="-100" max="100" step="5" value="0" data-testid="field" aria-describedby="fieldHelp">
+        </div>
+        <p id="fieldHelp" class="lab" style="letter-spacing:.04em;font-size:11.5px;margin:0">Positive points out of the screen: positive charges then curl clockwise.</p>
+      </div>
+      <div class="sep"></div>
+      <div class="field">
+        <label for="radon">Radon in the air <output id="radonOut">1.0×</output></label>
+        <input type="range" id="radon" min="0" max="30" step="1" value="10" data-testid="radon">
+        <span class="lab" id="showLab">Show</span>
+        <div class="toggles" role="group" aria-labelledby="showLab">
+          <label class="tg"><input type="checkbox" checked data-type="alpha" data-testid="show-alpha"> α alpha</label>
+          <label class="tg"><input type="checkbox" checked data-type="beta" data-testid="show-beta"> β beta</label>
+          <label class="tg"><input type="checkbox" checked data-type="muon" data-testid="show-muon"> μ muon</label>
+        </div>
+      </div>
+      <div class="btns">
+        <button class="btn inj" data-inject="alpha" data-testid="inject-alpha">+ one alpha</button>
+        <button class="btn inj" data-inject="beta" data-testid="inject-beta">+ one beta</button>
+        <button class="btn inj" data-inject="muon" data-testid="inject-muon">+ one muon</button>
+        <button class="btn" id="clear" data-testid="clear">Clear vapour</button>
+        <button class="btn" id="pause" data-testid="pause" aria-pressed="false">Pause</button>
+        <button class="btn" id="reseed" data-testid="reseed">New seed</button>
+      </div>
+      <p class="status" id="status" data-testid="status" role="status" aria-live="polite">Cooling the plate…</p>
+    </aside>
+  </div>
+
+  <section class="notes" aria-label="Notes">
+    <article>
+      <h3>How it works</h3>
+      <p>In a diffusion cloud chamber, alcohol evaporates from a warm felt at the top and sinks toward a plate cooled well below freezing, often with dry ice. Just above the plate the vapour is supersaturated: it is ready to condense but has nothing to condense on.</p>
+      <p>A fast charged particle knocks electrons off air molecules as it passes. The ions it leaves act as seeds, and a thin line of droplets forms along its path. The droplets then drift and evaporate, so each track lasts only a second or two.</p>
+    </article>
+    <article>
+      <h3>Reading the tracks</h3>
+      <p><span class="sw" style="background:var(--alpha)"></span><b>Alpha</b> particles are helium nuclei with charge +2. They ionise heavily and stop within a few centimetres of air, so their tracks are short, thick and straight. Many come from radon and its decay products in ordinary room air.</p>
+      <p><span class="sw" style="background:var(--beta)"></span><b>Beta</b> particles are electrons (or, rarely, positrons). They are light and easily knocked off course, so they leave thin, faint, wandering tracks.</p>
+      <p><span class="sw" style="background:var(--muon)"></span><b>Muons</b> come from cosmic-ray showers high in the atmosphere. They are very energetic and ionise lightly, so they cut long, thin, almost perfectly straight lines. At sea level, roughly one crosses each square centimetre every minute.</p>
+    </article>
+    <article>
+      <h3>About this simulation</h3>
+      <p>A magnetic field pushes a moving charge sideways (F = qv × B), so positive and negative particles curve in opposite directions. The radius r = p / (|q|B) is smaller for lower momentum, which is why slowing electrons spiral.</p>
+      <p>This is an illustration, not a physics engine. Rates, lengths and the field strength (in arbitrary units) are chosen to be visible, and the field is exaggerated: real alpha tracks barely bend in bench-top magnets. The same <code>?seed=</code> always gives the same run.</p>
+    </article>
+  </section>
+  <footer>Made by Zac Corbett · canvas, a seeded PRNG and a lot of fading droplets</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const W = 720, R = 352, CX = 360, CY = 360, DT = 1 / 60;
+  const params = new URLSearchParams(location.search);
+  let SEED = (parseInt(params.get('seed'), 10) >>> 0) || 1912; // 1912: Victor Hess's balloon flights found cosmic rays
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const fin = (v, d = 0) => Number.isFinite(v) ? v : d;
+  const $ = (id) => document.getElementById(id);
+  const cv = $('ch'), ctx = cv.getContext('2d');
+
+  // ---------- state ----------
+  let rng, vrng, S;
+  const RATES = { alpha: 0.55, beta: 0.45, muon: 0.28 };  // tracks per second at 1.0× radon
+  const COLORS = { alpha: [255, 226, 180], beta: [190, 225, 255], muon: [226, 205, 255] };
+  function reset(seed) {
+    SEED = seed >>> 0; rng = mulberry32(SEED); vrng = mulberry32(SEED ^ 0x9e3779b9);
+    S = { t: 0, tracks: [], counts: { alpha: 0, beta: 0, muon: 0 }, field: S ? S.field : 0, radon: S ? S.radon : 1, show: S ? S.show : { alpha: true, beta: true, muon: true }, paused: false, nextId: 1, drizzle: [] };
+    for (let i = 0; i < 160; i++) S.drizzle.push({ x: vrng() * W, y: vrng() * W, ph: vrng() * 6.28, sp: .3 + vrng() * .6 });
+  }
+
+  // ---------- track generation ----------
+  function gauss(r) { let u = 0; for (let i = 0; i < 6; i++) u += r(); return (u - 3) * 1.4142; }  // approx. unit normal (sum of 6 uniforms has variance 1/2)
+  const inside = (x, y, m = 0) => (x - CX) ** 2 + (y - CY) ** 2 < (R - m) ** 2;
+  function makeTrack(type, r) {
+    const B = S.field;
+    let x, y, th, q, len, ds = 3, width, pts = [], fieldTurn = 0, scatterTurn = 0;
+    if (type === 'muon') {
+      const phi = r() * 6.283, d = (r() * 1.8 - .9) * R, half = Math.sqrt(Math.max(0, R * R - d * d));
+      th = phi; q = r() < 0.55 ? 1 : -1;  // cosmic-ray muons are somewhat more often positive
+      x = CX - Math.sin(phi) * d - Math.cos(phi) * half * .97; y = CY + Math.cos(phi) * d - Math.sin(phi) * half * .97;
+      len = 2 * half * (0.35 + r() * 0.65); width = 1.3 + r() * .5; ds = 4;
+    } else {
+      const a = r() * 6.283, rr = Math.sqrt(r()) * R * .86; x = CX + Math.cos(a) * rr; y = CY + Math.sin(a) * rr; th = r() * 6.283;
+      if (type === 'alpha') { q = 2; len = 70 + r() * 75; width = 4.2 + r() * 1.8; ds = 2.5; }
+      else { q = -1; len = 150 + r() * 260; width = 1.1 + r() * .5; ds = 3; }
+    }
+    const jit = type === 'alpha' ? 1.3 : type === 'beta' ? .7 : .45;
+    let s = 0;
+    pts.push([x, y, 0]);
+    while (s < len) {
+      const f = s / len;
+      let k = 0, scat = 0;
+      if (type === 'alpha') k = 0.0011 * (1 + 2.5 * f * f);                              // heavy: barely bends until it slows
+      else if (type === 'beta') { const p = 1 - 0.8 * f; k = 0.0065 / p; scat = gauss(r) * 0.12 / p; }
+      else k = 0.0006;                                                                   // muons: very high momentum
+      const dth = q * B * k * ds;                                                        // B > 0 (out of the screen): F = qv x B turns a positive charge clockwise as seen by the viewer (screen y points down, so +theta is clockwise)
+      th += dth; fieldTurn += dth; th += scat; scatterTurn += scat;
+      x += Math.cos(th) * ds; y += Math.sin(th) * ds; s += ds;
+      if (!inside(x, y, 2)) break;
+      pts.push([x + gauss(r) * jit * .25, y + gauss(r) * jit * .25, s]);
+    }
+    const id = S.nextId++;
+    return { id, type, q, pts, born: S.t, width, len: s, fieldTurn, scatterTurn, life: type === 'alpha' ? 3.2 + r() : type === 'beta' ? 2.4 + r() * .8 : 2.2 + r() * .8, drift: [(r() - .5) * 6, 4 + r() * 5] };
+  }
+  function spawn(type, r = rng) {
+    const tr = makeTrack(type, r);
+    if (tr.pts.length < 2) tr.pts.push([tr.pts[0][0] + 1, tr.pts[0][1], 1]);
+    S.tracks.push(tr); S.counts[type]++;
+    return tr;
+  }
+
+  // ---------- simulation ----------
+  function step() {
+    if (S.paused) return;
+    S.t += DT;
+    for (const type of ['alpha', 'beta', 'muon']) {
+      const rate = RATES[type] * (type === 'alpha' ? S.radon : 1);
+      const roll = rng(), sub = (rng() * 4294967296) >>> 0;   // always two draws per type per frame, and each track gets its own generator, so toggles don't reshuffle the other types
+      if (S.show[type] && roll < rate * DT) spawn(type, mulberry32(sub));
+    }
+    S.tracks = S.tracks.filter((t) => S.t - t.born < t.life);
+  }
+
+  // ---------- rendering ----------
+  function drawTrack(t, now) {
+    const age = now - t.born; if (!(age >= 0)) return;
+    const cond = Math.min(1, age / 0.28), fade = Math.max(0, 1 - Math.max(0, age - t.life * .35) / (t.life * .65));
+    const a = cond * fade; if (!(a > 0.01)) return;
+    const [cr, cg, cb] = COLORS[t.type];
+    const spread = 1 + age * (t.type === 'alpha' ? 1.1 : 1.6);
+    const dx = t.drift[0] * age, dy = t.drift[1] * age;
+    // how far along the track droplets have formed (the particle is effectively instant; condensation sweeps quickly)
+    const shown = Math.max(2, Math.floor(t.pts.length * Math.min(1, age / 0.12)));
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const path = () => { ctx.beginPath(); for (let i = 0; i < shown; i++) { const p = t.pts[i]; const w = Math.sin(i * 0.23 + t.id) * age * 1.6; i ? ctx.lineTo(p[0] + dx + w, p[1] + dy) : ctx.moveTo(p[0] + dx + w, p[1] + dy); } };
+    path(); ctx.strokeStyle = `rgba(${cr},${cg},${cb},${(0.11 * a).toFixed(3)})`; ctx.lineWidth = fin(t.width * 2.3 * spread, 4); ctx.stroke();
+    path(); ctx.strokeStyle = `rgba(${cr},${cg},${cb},${(0.55 * a).toFixed(3)})`; ctx.lineWidth = fin(t.width * spread * .9, 1); ctx.stroke();
+    path(); ctx.strokeStyle = `rgba(255,255,255,${(0.75 * a * (1 - Math.min(1, age / 1.2))).toFixed(3)})`; ctx.lineWidth = fin(Math.max(.6, t.width * .45), 1); ctx.stroke();
+    if (t.type === 'alpha') {  // droplet beads along the thick core
+      ctx.fillStyle = `rgba(255,245,225,${(0.5 * a).toFixed(3)})`;
+      for (let i = 0; i < shown; i += 2) { const p = t.pts[i]; const rr = fin(1 + ((i * 7 + t.id) % 5) * .35 * spread, 1); ctx.beginPath(); ctx.arc(p[0] + dx + ((i * 13) % 5 - 2) * .6 * spread, p[1] + dy + ((i * 11) % 5 - 2) * .6 * spread, rr, 0, 6.283); ctx.fill(); }
+    }
+  }
+  function draw(now) {
+    ctx.setTransform(cv.width / W, 0, 0, cv.height / W, 0, 0);
+    const g = ctx.createRadialGradient(CX, CY, 40, CX, CY, R + 10); g.addColorStop(0, '#0d1014'); g.addColorStop(1, '#030405');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, W);
+    // sheet of light from the left
+    const lg = ctx.createLinearGradient(0, 0, W, 0); lg.addColorStop(0, 'rgba(160,190,220,.10)'); lg.addColorStop(.5, 'rgba(160,190,220,.02)'); lg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = lg; ctx.fillRect(0, 0, W, W);
+    // background drizzle of droplets
+    ctx.fillStyle = 'rgba(200,215,230,.35)';
+    for (const d of S.drizzle) { const tw = .5 + .5 * Math.sin(d.ph + S.t * 3 * d.sp); if (tw < .55) continue; const y = (d.y + (reduced ? 0 : S.t * 14 * d.sp)) % W; ctx.globalAlpha = (tw - .55) * 1.6; ctx.fillRect(d.x, y, 1.2, 1.2); }
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'lighter';
+    for (const t of S.tracks) drawTrack(t, S.t);
+    ctx.globalCompositeOperation = 'source-over';
+    // field indicator dots / crosses
+    if (S.field !== 0) {
+      ctx.fillStyle = ctx.strokeStyle = `rgba(227,194,125,${Math.min(.35, Math.abs(S.field) * .35).toFixed(3)})`; ctx.lineWidth = 1.2;
+      for (let gx = 60; gx < W; gx += 80) for (let gy = 60; gy < W; gy += 80) { if (!inside(gx, gy, 20)) continue;
+        if (S.field > 0) { ctx.beginPath(); ctx.arc(gx, gy, 2, 0, 6.283); ctx.fill(); } else { ctx.beginPath(); ctx.moveTo(gx - 3, gy - 3); ctx.lineTo(gx + 3, gy + 3); ctx.moveTo(gx + 3, gy - 3); ctx.lineTo(gx - 3, gy + 3); ctx.stroke(); } }
+    }
+    // vignette
+    const vg = ctx.createRadialGradient(CX, CY, R * .7, CX, CY, R); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.7)');
+    ctx.fillStyle = vg; ctx.fillRect(0, 0, W, W);
+  }
+
+  // ---------- HUD ----------
+  function odo(el, n, label) { const s = String(n).padStart(4, '0'); if (el.dataset.v !== s) { el.dataset.v = s; el.innerHTML = [...s].map((c) => `<i>${c}</i>`).join(''); el.setAttribute('aria-label', `${label} count ${n}`); el.dataset.count = String(n); } }
+  function hud() {
+    odo($('cA'), S.counts.alpha, 'alpha'); odo($('cB'), S.counts.beta, 'beta'); odo($('cM'), S.counts.muon, 'muon');
+    const mins = Math.max(S.t / 60, 1 / 60);
+    $('rateA').textContent = `${(S.counts.alpha / mins).toFixed(0)} / min`; $('rateB').textContent = `${(S.counts.beta / mins).toFixed(0)} / min`; $('rateM').textContent = `${(S.counts.muon / mins).toFixed(0)} / min`;
+    const fl = S.field === 0 ? 'field off' : `field ${S.field > 0 ? '+' : '−'}${Math.abs(S.field).toFixed(2)}`;
+    $('cap').textContent = `seed ${SEED} · ${fl} · ${S.t.toFixed(0)} s`;
+    cv.setAttribute('aria-label', `Cloud chamber, ${S.tracks.length} tracks visible: ${S.counts.alpha} alpha, ${S.counts.beta} beta and ${S.counts.muon} muon tracks counted so far, ${fl}`);
+  }
+  function say(m) { $('status').textContent = m; }
+
+  // ---------- controls ----------
+  (function marks() { let s = ''; for (let i = -4; i <= 4; i++) { const a = (i / 4) * 2.2; s += `<line x1="${29 + Math.sin(a) * 20}" y1="${29 - Math.cos(a) * 20}" x2="${29 + Math.sin(a) * 25}" y2="${29 - Math.cos(a) * 25}" stroke="#b8914a" stroke-width="${i === 0 ? 2 : 1}"/>`; } $('dialMarks').innerHTML = s; })();
+  function setField(v) {
+    S.field = Math.max(-1, Math.min(1, v));
+    $('field').value = String(Math.round(S.field * 100));
+    $('fieldOut').textContent = S.field === 0 ? 'off' : `${S.field > 0 ? '+' : '−'}${Math.abs(S.field).toFixed(2)} (${S.field > 0 ? 'out of screen' : 'into screen'})`;
+    $('needle').setAttribute('transform', `rotate(${S.field * 126} 29 29)`);
+    hud();
+  }
+  $('field').addEventListener('input', (e) => { setField(+e.target.value / 100); say(S.field === 0 ? 'Magnet off: tracks run straight (apart from scattering).' : `Field ${S.field > 0 ? 'out of' : 'into'} the screen: alphas and μ⁺ curl ${S.field > 0 ? 'clockwise' : 'anticlockwise'}, electrons the other way.`); });
+  $('radon').addEventListener('input', (e) => { S.radon = +e.target.value / 10; $('radonOut').textContent = `${S.radon.toFixed(1)}×`; });
+  document.querySelectorAll('[data-type]').forEach((cb) => cb.addEventListener('change', () => { S.show[cb.dataset.type] = cb.checked; say(`${cb.dataset.type[0].toUpperCase() + cb.dataset.type.slice(1)} tracks ${cb.checked ? 'shown' : 'hidden'}.`); }));
+  document.querySelectorAll('[data-inject]').forEach((b) => b.addEventListener('click', () => {
+    const type = b.dataset.inject; const tr = spawn(type, mulberry32((SEED ^ (S.nextId * 7919)) >>> 0));
+    say(`Injected one ${type} track, ${Math.round(tr.len)} px long${S.field ? `, turned ${Math.abs(tr.fieldTurn * 57.3).toFixed(0)}° by the field` : ''}.`); hud();
+  }));
+  $('clear').addEventListener('click', () => { S.tracks = []; say('Vapour cleared: a quick sweep of the clearing field.'); hud(); });
+  $('pause').addEventListener('click', () => { S.paused = !S.paused; $('pause').setAttribute('aria-pressed', String(S.paused)); $('pause').textContent = S.paused ? 'Resume' : 'Pause'; say(S.paused ? 'Paused: the chamber is frozen mid-condensation.' : 'Running.'); });
+  $('reseed').addEventListener('click', () => { const s = (SEED * 1103515245 + 12345) >>> 0 || 7; reset(s); setField(S.field); hud(); say(`New seed ${SEED}.`); });
+
+  // ---------- loop ----------
+  let manual = false, last = 0, acc = 0, hudT = 0;
+  function frame(now) {
+    const dt = Math.min(0.1, Math.max(0, (now - last) / 1000 || 0)); last = now;
+    if (!manual) { acc += dt; let n = 0; while (acc >= DT && n < 6) { step(); acc -= DT; n++; } if (n === 6) acc = 0; }
+    draw(now); hudT += dt; if (hudT > .2) { hudT = 0; hud(); }
+    requestAnimationFrame(frame);
+  }
+  function resize() { const d = Math.min(2, devicePixelRatio || 1), px = Math.round(Math.min(720, cv.clientWidth || 720) * d); if (px > 50 && cv.width !== px) { cv.width = px; cv.height = px; } }
+  addEventListener('resize', resize);
+  // bolts round the porthole
+  for (let i = 0; i < 8; i++) { const b = document.createElement('span'); b.className = 'bolt'; const a = i / 8 * 6.283 + .39; b.style.left = `calc(50% + ${Math.cos(a) * 49.1}% - 6px)`; b.style.top = `calc(50% + ${Math.sin(a) * 49.1}% - 6px)`; b.setAttribute('aria-hidden', 'true'); $('port').appendChild(b); }
+
+  window.__chamber = {
+    get state() { return { t: S.t, seed: SEED, counts: { ...S.counts }, visible: S.tracks.length, field: S.field, radon: S.radon, paused: S.paused, show: { ...S.show } }; },
+    manual(on) { manual = on !== false; return manual; },
+    advance(seconds) { const n = Math.round(seconds / DT); for (let i = 0; i < n; i++) step(); hud(); return this.state; },
+    tracks() { return S.tracks.map((t) => ({ id: t.id, type: t.type, q: t.q, len: t.len, width: t.width, points: t.pts.length, fieldTurn: t.fieldTurn, scatterTurn: t.scatterTurn, born: t.born, life: t.life,
+      straightness: Math.hypot(t.pts[t.pts.length - 1][0] - t.pts[0][0], t.pts[t.pts.length - 1][1] - t.pts[0][1]) / Math.max(1, t.len) })); },
+    inject(type) { const tr = spawn(type, mulberry32((SEED ^ (S.nextId * 7919)) >>> 0)); hud(); return { id: tr.id, type: tr.type, q: tr.q, len: tr.len, fieldTurn: tr.fieldTurn }; },
+    setField(v) { setField(v); return S.field; },
+    clear() { S.tracks = []; },
+    restart() { reset(SEED); hud(); return this.state; },
+  };
+  reset(SEED); setField(0); resize(); hud();
+  say(`Plate cold, vapour settling. Seed ${SEED}.`);
+  requestAnimationFrame((n) => { last = n; frame(n); });
+})();
+</script>
+</body>
+</html>

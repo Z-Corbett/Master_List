@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bell Tower — an English change-ringing simulator</title>
+<meta name="description" content="Ring English changes on five to eight bells: Plain Hunt, Plain Bob Doubles, Minor, Triples and Major, and Grandsire Doubles. Rows are generated from place notation, bells are synthesised with Web Audio at peal speed with the handstroke gap, the blue line of any bell is drawn through the rows, and a tap-along mode scores your striking.">
+<style>
+  :root {
+    --oak: #3a2717;
+    --oak-2: #52381f;
+    --board: #151210;
+    --board-2: #1f1a16;
+    --gilt: #d8b453;
+    --gilt-2: #f1dc9a;
+    --cream: #f3ead6;
+    --muted: #a99a80;
+    --red: #c8322f;
+    --blue: #3f74d8;
+    --sally-r: #b8262a;
+    --sally-w: #f4efe4;
+    --sally-b: #25408f;
+    --serif: "Goudy Old Style", "Perpetua", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    --sans: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    --mono: "Lucida Console", ui-monospace, Consolas, Menlo, monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { color: var(--cream); font: 16px/1.55 var(--serif); overflow-x: hidden; background: var(--oak);
+    background-image: repeating-linear-gradient(90deg, rgba(0,0,0,.12) 0 2px, transparent 2px 9px, rgba(255,220,170,.03) 9px 11px, transparent 11px 23px), linear-gradient(180deg, var(--oak-2), var(--oak)); min-height: 100vh; }
+  :focus-visible { outline: 2px solid var(--gilt-2); outline-offset: 3px; }
+  button, input, select { font: inherit; color: inherit; }
+  a.back { position: fixed; top: 12px; left: 12px; z-index: 40; color: var(--gilt-2); background: var(--board); border: 1px solid var(--gilt); text-decoration: none; font: 14px/1 var(--serif); padding: 8px 12px; border-radius: 2px; }
+  a.back:hover { background: #2a221b; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 60px 18px 40px; }
+  header.board { background: var(--board); border: 3px solid var(--gilt); outline: 6px solid var(--board); box-shadow: 0 0 0 9px var(--oak-2), 0 18px 40px rgba(0,0,0,.5); padding: 22px 20px 20px; text-align: center; margin: 8px 8px 30px; }
+  header.board .soc { margin: 0; font: italic 16px/1.3 var(--serif); color: var(--gilt); letter-spacing: .06em; }
+  h1 { margin: 4px 0 2px; font: 400 clamp(40px, 8vw, 84px)/1 var(--serif); color: var(--gilt-2); letter-spacing: .08em; text-transform: uppercase; }
+  header.board p { margin: 6px auto 0; max-width: 62ch; color: #d9ccb1; }
+  .orn { color: var(--gilt); letter-spacing: .6em; font-size: 14px; margin-top: 6px; }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 330px) minmax(0, 1fr); gap: 22px; align-items: start; }
+  .panel { background: var(--board-2); border: 1px solid #4a3a28; border-radius: 4px; padding: 16px 18px; min-width: 0; box-shadow: inset 0 0 0 1px rgba(216,180,83,.12); }
+  .panel h2 { margin: 0 0 10px; font: 400 20px/1.2 var(--serif); color: var(--gilt-2); letter-spacing: .06em; }
+  .fld { display: grid; gap: 4px; margin-bottom: 12px; }
+  .fld label, .lbl { font: 12.5px/1.3 var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+  .fld output { color: var(--cream); letter-spacing: 0; text-transform: none; }
+  select { width: 100%; max-width: 100%; min-height: 40px; background: #0f0d0b; border: 1px solid #5a4630; border-radius: 3px; padding: 6px 8px; color: var(--cream); }
+  input[type=range] { width: 100%; max-width: 100%; accent-color: var(--gilt); }
+  .row2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .btn { min-height: 44px; border: 1px solid var(--gilt); background: #231c15; color: var(--gilt-2); border-radius: 3px; cursor: pointer; padding: 8px 12px; font: 16px/1.1 var(--serif); min-width: 0; }
+  .btn:hover { background: #33291e; }
+  .btn.main { background: var(--gilt); color: var(--board); font-weight: 700; }
+  .btn.main:hover { background: var(--gilt-2); }
+  .btn[aria-pressed="true"] { background: var(--blue); border-color: #8fb0ee; color: #fff; }
+  .check { display: flex; gap: 8px; align-items: center; font: 15px/1.3 var(--serif); margin: 4px 0 10px; }
+  .check input { width: 18px; height: 18px; accent-color: var(--gilt); }
+  .pull { width: 100%; min-height: 72px; margin-top: 6px; border: 0; border-radius: 6px; cursor: pointer; color: #fff; font: 700 20px/1.1 var(--serif); letter-spacing: .08em; touch-action: manipulation;
+    background: repeating-linear-gradient(135deg, var(--sally-r) 0 14px, var(--sally-w) 14px 20px, var(--sally-b) 20px 34px, var(--sally-w) 34px 40px); text-shadow: 0 1px 3px rgba(0,0,0,.8); box-shadow: 0 5px 0 #0b0908; }
+  .pull:active { transform: translateY(4px); box-shadow: 0 1px 0 #0b0908; }
+  .pull:disabled { filter: grayscale(.8) brightness(.6); cursor: default; }
+  .score { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+  .score div { background: #0f0d0b; border: 1px solid #3c2f22; border-radius: 3px; padding: 6px 8px; min-width: 0; }
+  .score span { display: block; font: 11px/1.2 var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .score b { font: 400 20px/1.2 var(--serif); color: var(--gilt-2); overflow-wrap: anywhere; }
+  .status { margin: 10px 0 0; font: italic 15px/1.4 var(--serif); color: #e6d7b8; min-height: 2.8em; }
+
+  .tower { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; min-width: 0; }
+  .ropes { display: flex; justify-content: center; gap: clamp(6px, 2vw, 22px); padding: 6px 4px 0; min-height: 190px; overflow: hidden; }
+  .rope { position: relative; width: 44px; display: flex; flex-direction: column; align-items: center; min-width: 0; flex: 0 1 44px; }
+  .rope .bell { width: 40px; height: 40px; transform-origin: 50% 8%; transition: transform .18s ease-out; }
+  .rope.hand .bell { transform: rotate(-14deg); }
+  .rope.back .bell { transform: rotate(14deg); }
+  .rope .line { width: 2px; height: 70px; background: #cbb89a; transition: height .18s; }
+  .rope .sally { width: 14px; height: 34px; border-radius: 7px; background: repeating-linear-gradient(180deg, var(--sally-r) 0 6px, var(--sally-w) 6px 9px, var(--sally-b) 9px 15px, var(--sally-w) 15px 18px); transition: transform .18s; }
+  .rope.back .sally { transform: translateY(-26px); }
+  .rope .num { font: 700 18px/1.2 var(--serif); color: var(--cream); margin-top: 4px; }
+  .rope.mine .num { color: #9fc0ff; }
+  .rope.flash .bell circle { fill: var(--gilt-2); }
+  @media (prefers-reduced-motion: reduce) { .rope .bell, .rope .sally, .rope .line { transition: none; } .rope.hand .bell, .rope.back .bell { transform: none; } .rope.back .sally { transform: none; } }
+  .now { text-align: center; font: 26px/1.2 var(--mono); letter-spacing: .3em; color: var(--gilt-2); margin: 0; overflow-wrap: anywhere; }
+  .now small { display: block; font: italic 14px/1.3 var(--serif); letter-spacing: 0; color: var(--muted); }
+
+  .method { overflow-x: auto; padding-bottom: 6px; }
+  .leads { display: flex; gap: 22px; width: max-content; margin: 0 auto; padding: 4px; }
+  .lead { position: relative; font: 15px/20px var(--mono); }
+  .lead .r { display: flex; height: 20px; position: relative; z-index: 1; }
+  .lead .r span { width: 18px; text-align: center; color: #c9bba0; }
+  .lead .r span.hide { color: transparent; }
+  .lead .r.cur { background: rgba(216,180,83,.22); border-radius: 2px; }
+  .lead .r.lh { border-bottom: 1px solid rgba(216,180,83,.45); }
+  .lead svg { position: absolute; left: 4px; top: 4px; pointer-events: none; z-index: 2; overflow: visible; }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px 20px; font: 14px/1.4 var(--sans); color: var(--muted); margin: 0 0 10px; }
+  .meta b { color: var(--cream); font-weight: 600; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font: 13px var(--sans); color: var(--muted); margin-top: 8px; }
+  .legend i { display: inline-block; width: 22px; height: 3px; vertical-align: 4px; margin-right: 6px; }
+  .notes { margin-top: 22px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+  .notes p { margin: 0; color: #dccfb4; font-size: 15.5px; }
+  .notes h3 { margin: 0 0 6px; font: 400 20px/1.2 var(--serif); color: var(--gilt-2); }
+  footer { text-align: center; margin-top: 30px; color: var(--muted); font: italic 14px var(--serif); }
+
+  @media (max-width: 980px) { .layout { grid-template-columns: minmax(0, 1fr); } .notes { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 480px) { .rope { flex-basis: 32px; } .rope .bell { width: 30px; height: 30px; } .now { font-size: 20px; letter-spacing: .18em; } header.board { margin: 8px 4px 24px; padding: 18px 12px; } h1 { letter-spacing: .03em; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="board">
+    <p class="soc">The Ringing Chamber</p>
+    <h1>Bell Tower</h1>
+    <p>English change ringing: every bell strikes once in each row, and from one row to the next bells may only swap with a neighbour. Choose a method, listen to it rung at peal speed, follow your bell's blue line, then take a rope and ring along.</p>
+    <div class="orn" aria-hidden="true">✦ ✦ ✦</div>
+  </header>
+
+  <div class="layout">
+    <aside class="panel" aria-labelledby="h-ctl">
+      <h2 id="h-ctl">The band</h2>
+      <div class="row2">
+        <div class="fld"><label for="bells">Bells</label>
+          <select id="bells" data-testid="bells"><option value="5">5</option><option value="6" selected>6</option><option value="7">7</option><option value="8">8</option></select></div>
+        <div class="fld"><label for="mine">Your bell</label><select id="mine" data-testid="mine"></select></div>
+      </div>
+      <div class="fld"><label for="method">Method</label><select id="method" data-testid="method"></select></div>
+      <div class="fld"><label for="speed">Striking interval <output id="speedOut" data-testid="speed-out">250 ms</output></label>
+        <input type="range" id="speed" min="180" max="420" step="10" value="250" data-testid="speed"></div>
+      <label class="check"><input type="checkbox" id="tapMode" data-testid="tap-mode"> Ring my bell myself (tap-along)</label>
+      <div class="row2">
+        <button class="btn main" id="play" data-testid="play">Look to… ring!</button>
+        <button class="btn" id="stop" data-testid="stop" disabled>Stand</button>
+      </div>
+      <button class="pull" id="pull" data-testid="pull" disabled aria-describedby="pullHelp">Pull</button>
+      <p id="pullHelp" style="margin:6px 0 0;font:13px/1.4 var(--sans);color:var(--muted)">Tap-along: press <b>Space</b> or the sally when your bell should strike.</p>
+      <div class="score" aria-live="off">
+        <div><span>Blows</span><b data-testid="taps" id="taps">0</b></div>
+        <div><span>Mean error</span><b data-testid="mean-err" id="meanErr">—</b></div>
+        <div><span>Good</span><b data-testid="good" id="good">—</b></div>
+      </div>
+      <p class="status" id="status" data-testid="status" role="status" aria-live="polite">The band is standing. Choose a method and ring.</p>
+    </aside>
+
+    <div class="tower">
+      <section class="panel" aria-labelledby="h-ropes">
+        <h2 id="h-ropes">The ropes</h2>
+        <div class="ropes" id="ropes" data-testid="ropes" aria-hidden="true"></div>
+        <p class="now" id="now" data-testid="row-now">123456<small>rounds</small></p>
+      </section>
+      <section class="panel" aria-labelledby="h-method">
+        <h2 id="h-method">The method</h2>
+        <p class="meta" id="meta" data-testid="meta"></p>
+        <div class="method" id="methodBox" tabindex="0" aria-label="Rows of the plain course, in lead columns"><div class="leads" id="leads" data-testid="rows"></div></div>
+        <div class="legend"><span><i style="background:var(--blue)"></i>blue line: your bell</span><span><i style="background:var(--red)"></i>red line: the treble</span></div>
+      </section>
+    </div>
+  </div>
+
+  <section class="notes" aria-label="About change ringing">
+    <div><h3>Rows and changes</h3><p>With n bells, a row is an ordering of all n. Ringers move only one place at a time, so a change swaps adjacent pairs. Place notation lists the places where bells stay put ("x" means every pair swaps), and a method is its place notation repeated lead after lead until rounds come back.</p></div>
+    <div><h3>Handstroke and backstroke</h3><p>Each bell swings a full circle and back, so rows alternate between handstroke (pulling the sally) and backstroke (the tail end of the rope). A small pause, the handstroke gap, comes before every handstroke. At peal speed a band strikes about four blows a second.</p></div>
+    <div><h3>The blue line</h3><p>Ringers learn a method by the path their bell traces through the rows, traditionally drawn in blue with the treble in red. In Plain Bob the treble plain-hunts while the other bells dodge and make places, and the plain course visits every lead once.</p></div>
+  </section>
+  <footer>Rung in the browser by Zac Corbett · synthesised bells, no recordings · rows generated from place notation</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  // ---------- methods (place notation) ----------
+  const METHODS = {
+    ph5: { name: 'Plain Hunt Doubles', stage: 5, pn: '5.1.5.1.5.1.5.1.5.1' },
+    ph6: { name: 'Plain Hunt Minor', stage: 6, pn: 'x.16.x.16.x.16.x.16.x.16.x.16' },
+    ph7: { name: 'Plain Hunt Triples', stage: 7, pn: '7.1.7.1.7.1.7.1.7.1.7.1.7.1' },
+    ph8: { name: 'Plain Hunt Major', stage: 8, pn: 'x.18.x.18.x.18.x.18.x.18.x.18.x.18.x.18' },
+    pbd: { name: 'Plain Bob Doubles', stage: 5, pn: '5.1.5.1.5.1.5.1.5.125' },
+    pbm: { name: 'Plain Bob Minor', stage: 6, pn: 'x.16.x.16.x.16.x.16.x.16.x.12' },
+    pbt: { name: 'Plain Bob Triples', stage: 7, pn: '7.1.7.1.7.1.7.1.7.1.7.1.7.127' },
+    pbj: { name: 'Plain Bob Major', stage: 8, pn: 'x.18.x.18.x.18.x.18.x.18.x.18.x.18.x.12' },
+    gd: { name: 'Grandsire Doubles', stage: 5, pn: '3.1.5.1.5.1.5.1.5.1' },
+  };
+  const FOR_BELLS = { 5: ['ph5', 'pbd', 'gd'], 6: ['ph6', 'pbm', 'pbd', 'gd'], 7: ['ph7', 'pbt'], 8: ['ph8', 'pbj', 'pbt'] };
+  const parsePN = (pn) => pn.split('.').map((c) => c === 'x' ? [] : c.split('').map((d) => parseInt(d, 10)));
+  function applyChange(row, places, stage) {
+    const r = row.slice(); let i = 0;
+    while (i < stage) { if (places.includes(i + 1)) { i++; continue; } if (i + 1 < stage && !places.includes(i + 2)) { [r[i], r[i + 1]] = [r[i + 1], r[i]]; i += 2; } else i++; }
+    return r;
+  }
+  function plainCourse(key, n) {
+    const m = METHODS[key], lead = parsePN(m.pn), rounds = Array.from({ length: n }, (_, i) => i + 1);
+    const rows = [rounds]; let row = rounds;
+    for (let g = 0; g < 40; g++) { for (const ch of lead) { row = applyChange(row, ch, m.stage); rows.push(row); } if (row.join() === rounds.join()) break; }
+    return { rows, leadLen: lead.length, cover: n > m.stage };
+  }
+
+  // ---------- audio ----------
+  let actx = null, master = null, muted = false;
+  const SCALE = [1, 9 / 8, 5 / 4, 4 / 3, 3 / 2, 5 / 3, 15 / 8, 2];
+  const TONIC = 293.66; // D4: the tenor's strike note
+  const freqOf = (bell, n) => TONIC * SCALE[n - bell];
+  function ensureAudio() {
+    if (actx) { if (actx.state === 'suspended') actx.resume(); return; }
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    actx = new AC();
+    const comp = actx.createDynamicsCompressor(); comp.threshold.value = -18; comp.ratio.value = 4;
+    master = actx.createGain(); master.gain.value = 0.5; master.connect(comp); comp.connect(actx.destination);
+  }
+  // Church-bell partials relative to the nominal (strike) note: hum, prime, tierce, quint, nominal, superquint, octave nominal
+  const PARTIALS = [[0.25, 0.35, 3.6], [0.5, 0.45, 2.4], [0.6, 0.35, 1.8], [0.75, 0.15, 1.4], [1, 0.8, 1.6], [1.5, 0.3, 0.9], [2, 0.18, 0.6]];
+  function ring(bell, n, when) {
+    if (!actx || muted) return;
+    const f = freqOf(bell, n), t = Math.max(actx.currentTime, when), out = actx.createGain(); out.gain.value = 0.9 / Math.sqrt(n); out.connect(master);
+    for (const [ratio, amp, decay] of PARTIALS) {
+      const o = actx.createOscillator(), g = actx.createGain(); o.type = 'sine'; o.frequency.value = f * ratio * (ratio === 0.6 ? 1.0 : 1) ;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(amp, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+      o.connect(g); g.connect(out); o.start(t); o.stop(t + decay + 0.05);
+    }
+  }
+
+  // ---------- state ----------
+  const S = { n: 6, method: 'pbm', mine: 2, interval: 250, tap: false, course: null, seq: [], playing: false, t0: 0, next: 0, scheduled: 0, struck: [], taps: [], missed: 0, curRow: -1 };
+  function buildSequence() {
+    const c = S.course, rounds = c.rows[0], seq = [rounds, rounds, ...c.rows.slice(1), rounds];
+    // blow times: row j, place i strikes at (j·n + floor(j/2) + i) · interval: one blow of silence (the handstroke gap) precedes every handstroke row after the first
+    const blows = [];
+    seq.forEach((row, j) => row.forEach((bell, i) => blows.push({ j, i, bell, t: (j * S.n + Math.floor(j / 2) + i) * S.interval, hand: j % 2 === 0, courseRow: j < 2 ? -1 : j - 1 })));
+    S.seq = seq; S.blows = blows;
+  }
+  function setup() {
+    stop(true);
+    S.course = plainCourse(S.method, S.n);
+    if (S.mine > S.n) S.mine = S.n;
+    buildSequence();
+    renderRopes(); renderRows(); renderMeta();
+    $('now').innerHTML = `${S.course.rows[0].join('')}<small>rounds</small>`;
+  }
+
+  // ---------- UI: selects ----------
+  function fillSelects() {
+    $('method').innerHTML = FOR_BELLS[S.n].map((k) => `<option value="${k}">${METHODS[k].name}${METHODS[k].stage < S.n ? ' (tenor covering)' : ''}</option>`).join('');
+    if (!FOR_BELLS[S.n].includes(S.method)) S.method = FOR_BELLS[S.n][1] || FOR_BELLS[S.n][0];
+    $('method').value = S.method;
+    $('mine').innerHTML = Array.from({ length: S.n }, (_, i) => `<option value="${i + 1}">${i + 1}${i === 0 ? ' (treble)' : i === S.n - 1 ? ' (tenor)' : ''}</option>`).join('');
+    if (S.mine > S.n) S.mine = 2; $('mine').value = String(S.mine);
+  }
+  $('bells').addEventListener('change', (e) => { S.n = +e.target.value; fillSelects(); setup(); say(`${S.n} bells: ${METHODS[S.method].name} selected.`); });
+  $('method').addEventListener('change', (e) => { S.method = e.target.value; setup(); say(`${METHODS[S.method].name}: ${S.course.rows.length - 1} changes in the plain course.`); });
+  $('mine').addEventListener('change', (e) => { S.mine = +e.target.value; renderRopes(); renderRows(); say(`You have bell ${S.mine}. Its blue line is drawn through the rows.`); });
+  $('speed').addEventListener('input', (e) => { S.interval = +e.target.value; $('speedOut').textContent = `${S.interval} ms`; if (!S.playing) buildSequence(); renderMeta(); });
+  $('tapMode').addEventListener('change', (e) => { S.tap = e.target.checked; say(S.tap ? `Tap-along on: bell ${S.mine} is yours. The rest of the band rings the others.` : 'Tap-along off: the band rings every bell.'); });
+
+  // ---------- UI: ropes & rows ----------
+  const BELL_SVG = '<svg class="bell" viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3c-7 0-10 7-10 15 0 6-3 9-6 12h32c-3-3-6-6-6-12 0-8-3-15-10-15z" fill="#b8913f" stroke="#6b5220" stroke-width="1.5"/><circle cx="20" cy="33" r="3.5" fill="#6b5220"/></svg>';
+  function renderRopes() {
+    $('ropes').innerHTML = Array.from({ length: S.n }, (_, i) => `<div class="rope ${i + 1 === S.mine ? 'mine' : ''}" data-bell="${i + 1}" data-testid="rope-${i + 1}">${BELL_SVG}<div class="line"></div><div class="sally"></div><div class="num">${i + 1}</div></div>`).join('');
+  }
+  const CW = 18, RH = 20;
+  function renderRows() {
+    const { rows, leadLen } = S.course, leads = [];
+    for (let s = 0; s < rows.length - 1; s += leadLen) leads.push(rows.slice(s, Math.min(rows.length, s + leadLen + 1)).map((r, k) => ({ r, idx: s + k })));
+    $('leads').innerHTML = leads.map((lead, li) => {
+      const line = (bell) => lead.map(({ r }, k) => `${(r.indexOf(bell) * CW + CW / 2 - 4).toFixed(1)},${(k * RH + RH / 2 - 4).toFixed(1)}`).join(' ');
+      const w = S.n * CW, h = lead.length * RH;
+      return `<div class="lead" data-lead="${li}"><svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">
+          ${S.mine !== 1 ? `<polyline points="${line(1)}" fill="none" stroke="#c8322f" stroke-width="2" stroke-linejoin="round" opacity=".9"/>` : ''}
+          <polyline points="${line(S.mine)}" fill="none" stroke="#3f74d8" stroke-width="3" stroke-linejoin="round" data-testid="blue-line"/></svg>
+        ${lead.map(({ r, idx }, k) => `<div class="r ${k === lead.length - 1 && li < leads.length ? 'lh' : ''}" data-row="${idx}">${r.map((b) => `<span class="${b === S.mine || (b === 1 && S.mine !== 1) ? 'hide' : ''}">${b}</span>`).join('')}</div>`).join('')}</div>`;
+    }).join('');
+  }
+  function renderMeta() {
+    const c = S.course, m = METHODS[S.method], changes = c.rows.length - 1, leads = changes / c.leadLen;
+    const blowsPerPull = 2 * S.n + 1, secs = (changes / 2) * blowsPerPull * S.interval / 1000;
+    $('meta').innerHTML = `<span><b>${m.name}</b> on ${S.n} bells</span><span data-testid="changes"><b>${changes}</b> changes</span><span><b>${leads}</b> lead${leads > 1 ? 's' : ''} of ${c.leadLen}</span><span>place notation <b>${m.pn.replace(/\./g, '.')}</b></span><span>about <b>${Math.round(secs)} s</b> at this speed</span>`;
+  }
+  function say(m) { $('status').textContent = m; }
+
+  // ---------- playback ----------
+  let timer = null;
+  const nowMs = () => performance.now();
+  function play() {
+    ensureAudio();
+    if (S.playing) return;
+    buildSequence();
+    S.playing = true; S.t0 = nowMs() + 400; S.next = 0; S.scheduled = 0; S.struck = []; S.taps = []; S.missed = 0; S.curRow = -1;
+    $('play').disabled = true; $('stop').disabled = false; $('pull').disabled = !S.tap; $('bells').disabled = $('method').disabled = true;
+    updateScore();
+    say(S.tap ? `Look to! Treble's going… she's gone. You're ringing bell ${S.mine}.` : 'Look to! Treble’s going… she’s gone.');
+    timer = setInterval(tick, 15); tick();
+  }
+  function stop(silent) {
+    if (timer) clearInterval(timer); timer = null;
+    const was = S.playing; S.playing = false;
+    $('play').disabled = false; $('stop').disabled = true; $('pull').disabled = true; $('bells').disabled = $('method').disabled = false;
+    document.querySelectorAll('.rope').forEach((r) => r.classList.remove('hand', 'back', 'flash'));
+    document.querySelectorAll('.r.cur').forEach((r) => r.classList.remove('cur'));
+    if (was && !silent) say('Stand! The band sets their bells.');
+  }
+  function tick() {
+    const t = nowMs() - S.t0, look = 120;
+    // schedule audio slightly ahead for accurate striking
+    while (S.scheduled < S.blows.length && S.blows[S.scheduled].t <= t + look) {
+      const b = S.blows[S.scheduled];
+      if (!(S.tap && b.bell === S.mine) && actx) ring(b.bell, S.n, actx.currentTime + Math.max(0, (b.t - t) / 1000));
+      S.scheduled++;
+    }
+    while (S.next < S.blows.length && S.blows[S.next].t <= t) { strikeVisual(S.blows[S.next]); S.next++; }
+    // blows of my bell that passed the scoring window unanswered are misses
+    if (S.tap) for (const b of S.blows) if (b.bell === S.mine && !b.scored && b.t < t - S.interval * 1.5) { b.scored = 'miss'; S.missed++; updateScore(); }
+    if (S.next >= S.blows.length && t > S.blows[S.blows.length - 1].t + 1200) { stop(true); say(`That's all. ${METHODS[S.method].name} rung${S.tap ? `: ${summary()}` : '.'}`); }
+  }
+  function strikeVisual(b) {
+    S.struck.push(b.bell);
+    const rope = document.querySelector(`.rope[data-bell="${b.bell}"]`);
+    if (rope) { rope.classList.toggle('hand', b.hand); rope.classList.toggle('back', !b.hand); rope.classList.add('flash'); setTimeout(() => rope.classList.remove('flash'), 120); }
+    if (b.i === 0 && b.j !== S.curRow) {
+      S.curRow = b.j;
+      const label = b.j < 2 ? 'rounds' : b.j === S.seq.length - 1 ? 'rounds · that’s all' : `change ${b.j - 1} of ${S.course.rows.length - 1} · ${b.hand ? 'handstroke' : 'backstroke'}`;
+      $('now').innerHTML = `${S.seq[b.j].join('')}<small>${label}</small>`;
+      document.querySelectorAll('.r.cur').forEach((r) => r.classList.remove('cur'));
+      if (b.courseRow >= 0) {
+        const els = document.querySelectorAll(`.r[data-row="${b.courseRow}"]`);
+        const el = els[0] && b.courseRow > 0 && els.length > 1 ? els[1] : els[0];  // a lead-head row appears at the foot of one column and the head of the next
+        if (el) { el.classList.add('cur'); const box = $('methodBox'); const lx = el.parentElement.offsetLeft; if (lx < box.scrollLeft || lx > box.scrollLeft + box.clientWidth - 150) box.scrollLeft = Math.max(0, lx - 20); }
+      }
+    }
+  }
+  function pull() {
+    if (!S.playing || !S.tap) return;
+    const t = nowMs() - S.t0;
+    ensureAudio(); if (actx) ring(S.mine, S.n, actx.currentTime);
+    let best = null;
+    for (const b of S.blows) if (b.bell === S.mine && !b.scored && Math.abs(b.t - t) <= S.interval * 1.5 && (!best || Math.abs(b.t - t) < Math.abs(best.t - t))) best = b;
+    if (!best) { say('Clash! Nothing of yours was due then.'); S.taps.push({ err: null }); updateScore(); return; }
+    best.scored = 'hit'; const err = Math.round(t - best.t);
+    S.taps.push({ err, row: best.j });
+    const rope = document.querySelector(`.rope[data-bell="${S.mine}"]`); if (rope) { rope.classList.toggle('hand', best.hand); rope.classList.toggle('back', !best.hand); }
+    say(Math.abs(err) <= 40 ? `Good striking (${fmtErr(err)}).` : err < 0 ? `Quick: ${fmtErr(err)}. Hold up a touch.` : `Late: ${fmtErr(err)}. Pull in sooner.`);
+    updateScore();
+  }
+  const fmtErr = (e) => `${e > 0 ? '+' : e < 0 ? '−' : '±'}${Math.abs(e)} ms`;
+  function stats() {
+    const hits = S.taps.filter((x) => x.err !== null), n = hits.length;
+    const mean = n ? Math.round(hits.reduce((s, x) => s + Math.abs(x.err), 0) / n) : null;
+    const good = n ? hits.filter((x) => Math.abs(x.err) <= 40).length : 0;
+    return { taps: S.taps.length, hits: n, mean, good, missed: S.missed, clashes: S.taps.length - n };
+  }
+  function summary() { const s = stats(); return `${s.hits} blows, mean error ${s.mean ?? '—'} ms, ${s.good} good, ${s.missed} missed`; }
+  function updateScore() { const s = stats(); $('taps').textContent = String(s.hits); $('meanErr').textContent = s.mean === null ? '—' : `${s.mean} ms`; $('good').textContent = s.hits ? `${Math.round(100 * s.good / s.hits)}%` : '—'; }
+  $('play').addEventListener('click', play);
+  $('stop').addEventListener('click', () => stop(false));
+  $('pull').addEventListener('pointerdown', (e) => { e.preventDefault(); pull(); });
+  $('pull').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); pull(); } });
+  window.addEventListener('keydown', (e) => { if ((e.key === ' ' || e.code === 'Space') && S.playing && S.tap) { const tag = e.target.tagName; if (tag === 'SELECT' || tag === 'INPUT' && e.target.type !== 'checkbox') return; e.preventDefault(); pull(); } });
+  window.addEventListener('keyup', (e) => { if ((e.key === ' ' || e.code === 'Space') && S.playing && S.tap && e.target.tagName === 'BUTTON') e.preventDefault(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && S.playing) stop(false); });
+
+  window.__bells = {
+    course(key, n) { return plainCourse(key, n).rows.map((r) => r.join('')); },
+    methods: Object.fromEntries(Object.entries(METHODS).map(([k, m]) => [k, { name: m.name, stage: m.stage, pn: m.pn }])),
+    get state() { return { n: S.n, method: S.method, mine: S.mine, interval: S.interval, tap: S.tap, playing: S.playing, struck: S.struck.slice(), next: S.next, curRow: S.curRow, stats: stats(), audio: !!actx }; },
+    blowTimes(bell) { return S.blows.filter((b) => b.bell === bell).map((b) => b.t); },
+    sequence() { return S.seq.map((r) => r.join('')); },
+    get t() { return S.playing ? nowMs() - S.t0 : null; },
+    get t0() { return S.t0; },
+  };
+  fillSelects(); setup();
+})();
+</script>
+</body>
+</html>

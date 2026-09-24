@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JSON Schema Studio — Live Validation &amp; Example Generation</title>
+<meta name="description" content="Edit a JSON Schema (a draft 2020-12 subset: type, properties, required, additionalProperties, items, enum, const, bounds, lengths, pattern, oneOf/anyOf/allOf and $ref into $defs) and validate sample documents live, with JSON Pointer instance and schema paths for every error. Generate a valid example from the schema and start from presets.">
+<style>
+  :root {
+    --paper: #f6f5f0;
+    --white: #ffffff;
+    --ink: #111111;
+    --ink-2: #4a4a4a;
+    --ink-3: #8a8a85;
+    --rule: #d8d6ce;
+    --red: #e8322b;
+    --red-bg: #fde9e7;
+    --ok: #13875a;
+    --ok-bg: #e3f4ec;
+    --font: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --mono: "SF Mono", Consolas, "Cascadia Mono", ui-monospace, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--paper); color: var(--ink); font-family: var(--font); line-height: 1.4; overflow-x: hidden; }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  textarea, input, select, pre { max-width: 100%; }
+  code { overflow-wrap: anywhere; }
+  :focus-visible { outline: 3px solid var(--red); outline-offset: 2px; }
+  .back { position: fixed; top: 10px; left: 10px; z-index: 50; color: var(--white); background: var(--ink); text-decoration: none; font: 700 12.5px/1 var(--font); padding: 8px 11px; letter-spacing: .02em; }
+  .back:hover { background: var(--red); }
+
+  header.poster { max-width: 1320px; margin: 0 auto; padding: 60px 20px 18px; display: grid; grid-template-columns: 120px minmax(0, 1fr) minmax(0, 360px); gap: 22px; align-items: end; border-bottom: 6px solid var(--ink); }
+  .sq { width: 120px; height: 120px; background: var(--red); position: relative; }
+  .sq::after { content: "{ }"; position: absolute; right: 10px; bottom: 6px; font: 700 34px var(--mono); color: var(--white); }
+  h1 { margin: 0; font-size: clamp(34px, 6.4vw, 78px); line-height: .9; font-weight: 700; letter-spacing: -.035em; }
+  header .lede { margin: 0; font-size: 15px; color: var(--ink-2); }
+
+  .wrap { max-width: 1320px; margin: 0 auto; padding: 18px 20px 50px; }
+  .presets { display: flex; flex-wrap: wrap; gap: 0; border: 2px solid var(--ink); width: fit-content; max-width: 100%; margin-bottom: 18px; }
+  .presets button { border: 0; border-right: 2px solid var(--ink); background: var(--white); padding: 9px 14px; font-weight: 700; font-size: 14px; }
+  .presets button:last-child { border-right: 0; }
+  .presets button[aria-pressed="true"] { background: var(--ink); color: var(--white); }
+
+  .grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr) minmax(0, .9fr); gap: 0; border-top: 2px solid var(--ink); }
+  .col { padding: 14px 16px 18px; border-right: 1px solid var(--rule); min-width: 0; }
+  .col:first-child { padding-left: 0; }
+  .col:last-child { border-right: 0; padding-right: 0; }
+  .num { font: 700 44px/1 var(--font); color: var(--red); letter-spacing: -.04em; }
+  .col h2 { margin: 4px 0 10px; font-size: 22px; letter-spacing: -.02em; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .col h2 small { font: 600 12px var(--font); color: var(--ink-3); letter-spacing: .02em; }
+  textarea { width: 100%; border: 2px solid var(--ink); background: var(--white); padding: 10px 12px; font: 12.5px/1.55 var(--mono); resize: vertical; border-radius: 0; tab-size: 2; }
+  #schema { min-height: 520px; }
+  #doc { min-height: 250px; }
+  textarea[aria-invalid="true"] { border-color: var(--red); }
+  .msg { font-size: 13px; margin: 6px 0 0; min-height: 1.3em; }
+  .msg.bad { color: var(--red); font-weight: 700; }
+  .msg.ok { color: var(--ok); }
+  .unsup { font-size: 12.5px; color: var(--ink-3); margin: 4px 0 0; }
+  .doctabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  .doctabs button { border: 2px solid var(--ink); background: var(--white); padding: 5px 10px; font-weight: 700; font-size: 13px; display: inline-flex; gap: 6px; align-items: center; }
+  .doctabs button[aria-selected="true"] { background: var(--ink); color: var(--white); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ink-3); display: inline-block; }
+  .dot.ok { background: var(--ok); } .dot.bad { background: var(--red); }
+  .verdict { margin: 12px 0 8px; padding: 10px 12px; font-weight: 700; font-size: 16px; display: flex; gap: 10px; align-items: center; }
+  .verdict.ok { background: var(--ok-bg); color: var(--ok); }
+  .verdict.bad { background: var(--red-bg); color: var(--red); }
+  .verdict.na { background: #eceae3; color: var(--ink-2); }
+  .verdict .big { font-size: 26px; line-height: 1; }
+  ol.errors { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; counter-reset: e; }
+  ol.errors li { counter-increment: e; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 8px; padding: 8px 0; border-top: 1px solid var(--rule); font-size: 14px; }
+  ol.errors li::before { content: counter(e); font: 700 13px var(--mono); color: var(--red); }
+  ol.errors li.sub { padding-left: 22px; font-size: 13px; color: var(--ink-2); }
+  ol.errors .ip { font: 700 13px var(--mono); background: var(--ink); color: var(--white); padding: 1px 5px; overflow-wrap: anywhere; }
+  ol.errors .kp { display: block; font: 11.5px var(--mono); color: var(--ink-3); margin-top: 3px; overflow-wrap: anywhere; }
+  .btn { border: 2px solid var(--ink); background: var(--white); padding: 8px 12px; font-weight: 700; font-size: 13.5px; }
+  .btn.red { background: var(--red); border-color: var(--red); color: var(--white); }
+  .btn:hover { background: var(--ink); color: var(--white); border-color: var(--ink); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+  pre.gen { margin: 10px 0 0; background: var(--white); border: 2px solid var(--ink); padding: 10px 12px; font: 12.5px/1.55 var(--mono); overflow: auto; min-height: 120px; max-height: 520px; white-space: pre; }
+  .genv { font-size: 13.5px; margin: 8px 0 0; font-weight: 700; }
+  .genv.ok { color: var(--ok); } .genv.bad { color: var(--red); }
+  .kw { margin-top: 18px; border-top: 2px solid var(--ink); padding-top: 10px; }
+  .kw h3 { margin: 0 0 6px; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; }
+  .kw p { margin: 0; font-size: 13px; color: var(--ink-2); }
+  .kw code { font: 12px var(--mono); background: #eceae3; padding: 0 3px; }
+  footer.f { margin-top: 24px; font-size: 12.5px; color: var(--ink-3); max-width: 100ch; }
+
+  @media (max-width: 1080px) {
+    .grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .col:nth-child(2) { border-right: 0; padding-right: 0; }
+    .col:last-child { grid-column: 1 / -1; padding-left: 0; border-top: 1px solid var(--rule); }
+    header.poster { grid-template-columns: 90px minmax(0, 1fr); }
+    header .lede { grid-column: 1 / -1; }
+    .sq { width: 90px; height: 90px; }
+    .sq::after { font-size: 26px; }
+  }
+  @media (max-width: 680px) {
+    .grid { grid-template-columns: minmax(0, 1fr); }
+    .col { padding: 14px 0 16px; border-right: 0; border-top: 1px solid var(--rule); }
+    .col:first-child { border-top: 0; }
+    #schema { min-height: 340px; }
+    header.poster { grid-template-columns: 56px minmax(0, 1fr); padding: 56px 14px 14px; gap: 14px; }
+    .sq { width: 56px; height: 56px; }
+    .sq::after { font-size: 16px; right: 6px; bottom: 4px; }
+    .wrap { padding: 16px 14px 40px; }
+    .presets { width: 100%; }
+    .presets button { flex: 1 1 45%; border-bottom: 2px solid var(--ink); }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<a href="../index.html#lab" class="back" data-testid="back-link">← Zac's Lab</a>
+<header class="poster">
+  <div class="sq" aria-hidden="true"></div>
+  <h1>JSON Schema<br>Studio</h1>
+  <p class="lede">Write a schema on the left. Every sample document is validated as you type, and each error comes with two JSON Pointers: where it is in the document, and which schema keyword failed. Then let the studio write a valid example for you.</p>
+</header>
+
+<div class="wrap">
+  <div class="presets" role="group" aria-label="Presets" data-testid="presets"></div>
+
+  <div class="grid">
+    <section class="col" aria-labelledby="sH">
+      <div class="num" aria-hidden="true">01</div>
+      <h2 id="sH">Schema <small>draft 2020-12 subset</small></h2>
+      <label for="schema" style="position:absolute;left:-9999px">Schema JSON</label>
+      <textarea id="schema" data-testid="schema" spellcheck="false" aria-describedby="schemaMsg"></textarea>
+      <p class="msg" id="schemaMsg" data-testid="schema-msg" aria-live="polite"></p>
+      <p class="unsup" data-testid="unsupported"></p>
+      <div class="row"><button type="button" class="btn" data-testid="format">Format JSON</button><button type="button" class="btn" data-testid="reset">Reset preset</button></div>
+    </section>
+
+    <section class="col" aria-labelledby="dH">
+      <div class="num" aria-hidden="true">02</div>
+      <h2 id="dH">Documents</h2>
+      <div class="doctabs" role="tablist" aria-label="Sample documents" data-testid="doctabs"></div>
+      <label for="doc" style="position:absolute;left:-9999px">Document JSON</label>
+      <textarea id="doc" data-testid="doc" spellcheck="false"></textarea>
+      <div class="verdict na" data-testid="verdict" aria-live="polite"></div>
+      <ol class="errors" data-testid="errors"></ol>
+    </section>
+
+    <section class="col" aria-labelledby="gH">
+      <div class="num" aria-hidden="true">03</div>
+      <h2 id="gH">Generate</h2>
+      <p style="margin:0;font-size:14px;color:var(--ink-2)">Builds the smallest sensible document that satisfies the schema: required and listed properties, the first enum value or const, lengths and bounds respected, simple patterns solved. The result is validated again, to be sure.</p>
+      <div class="row"><button type="button" class="btn red" data-testid="generate">Generate example</button><button type="button" class="btn" data-testid="use-generated" disabled>Load into document</button></div>
+      <pre class="gen" data-testid="generated" tabindex="0" aria-label="Generated example"></pre>
+      <p class="genv" data-testid="gen-verdict" aria-live="polite"></p>
+      <div class="kw">
+        <h3>Supported keywords</h3>
+        <p><code>type</code> <code>properties</code> <code>required</code> <code>additionalProperties</code> <code>items</code> <code>minItems</code> <code>maxItems</code> <code>enum</code> <code>const</code> <code>minimum</code> <code>maximum</code> <code>exclusiveMinimum</code> <code>exclusiveMaximum</code> <code>minLength</code> <code>maxLength</code> <code>pattern</code> <code>oneOf</code> <code>anyOf</code> <code>allOf</code> <code>$ref</code> <code>$defs</code>, plus boolean schemas. Anything else is ignored, and listed under the schema so you know.</p>
+      </div>
+    </section>
+  </div>
+
+  <footer class="f">Semantics follow JSON Schema draft 2020-12 for the keywords above. <code>pattern</code> is an unanchored ECMA-262 regular expression with the u flag, lengths count Unicode code points, <code>integer</code> accepts any number with no fractional part (so 1.0 counts), <code>items</code> applies to every element (<code>prefixItems</code> is not supported), and <code>$ref</code> resolves JSON Pointers inside this document only (<code>#</code>, <code>#/$defs/…</code>). Error messages are this page's own wording, and paths are JSON Pointers (RFC 6901).</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const J = (v) => JSON.stringify(v, null, 2);
+
+  // ---------- presets ----------
+  const PRESETS = [
+    {
+      key: 'order', label: 'Order',
+      schema: {
+        $schema: 'https://json-schema.org/draft/2020-12/schema', title: 'Order', type: 'object',
+        required: ['id', 'email', 'items', 'status'], additionalProperties: false,
+        properties: {
+          id: { type: 'string', pattern: '^ORD-[0-9]{4}$' },
+          email: { type: 'string', pattern: '^[^@\\s]+@[^@\\s]+\\.[a-z]{2,}$', maxLength: 80 },
+          status: { enum: ['pending', 'paid', 'shipped'] },
+          items: { type: 'array', minItems: 1, maxItems: 20, items: { $ref: '#/$defs/lineItem' } },
+          note: { type: ['string', 'null'], maxLength: 140 },
+        },
+        $defs: {
+          lineItem: {
+            type: 'object', required: ['sku', 'qty', 'price'], additionalProperties: false,
+            properties: { sku: { type: 'string', pattern: '^[A-Z]{3}-[0-9]{3}$' }, qty: { type: 'integer', minimum: 1, maximum: 99 }, price: { type: 'number', exclusiveMinimum: 0 } },
+          },
+        },
+      },
+      docs: [
+        ['Valid order', { id: 'ORD-0042', email: 'mira@larder.test', status: 'paid', items: [{ sku: 'OAT-001', qty: 2, price: 3.5 }, { sku: 'TEA-017', qty: 1, price: 4 }], note: null }],
+        ['Broken order', { id: 'ORD-42', status: 'refunded', items: [{ sku: 'OAT-001', qty: 0, price: 3.5 }, { sku: 'tea-17', qty: 1.5, price: 0, gift: true }], coupon: 'SAVE10' }],
+        ['Empty cart', { id: 'ORD-0043', email: 'sam@example.org', status: 'pending', items: [] }],
+      ],
+    },
+    {
+      key: 'payment', label: 'Payment (oneOf)',
+      schema: {
+        $schema: 'https://json-schema.org/draft/2020-12/schema', title: 'Payment method',
+        oneOf: [{ $ref: '#/$defs/card' }, { $ref: '#/$defs/bank' }, { $ref: '#/$defs/voucher' }],
+        $defs: {
+          card: { type: 'object', required: ['type', 'last4', 'expMonth'], properties: { type: { const: 'card' }, last4: { type: 'string', pattern: '^[0-9]{4}$' }, expMonth: { type: 'integer', minimum: 1, maximum: 12 } } },
+          bank: { type: 'object', required: ['type', 'iban'], properties: { type: { const: 'bank' }, iban: { type: 'string', minLength: 15, maxLength: 34 } } },
+          voucher: { type: 'object', required: ['code'], properties: { code: { type: 'string', minLength: 6 } } },
+        },
+      },
+      docs: [
+        ['Card', { type: 'card', last4: '4242', expMonth: 9 }],
+        ['Two matches', { type: 'card', last4: '4242', expMonth: 9, code: 'WELCOME10' }],
+        ['No match', { type: 'cheque', number: 17 }],
+      ],
+    },
+    {
+      key: 'tree', label: 'Tree ($ref)',
+      schema: {
+        $schema: 'https://json-schema.org/draft/2020-12/schema', title: 'Folder tree', $ref: '#/$defs/node',
+        $defs: {
+          node: { type: 'object', required: ['name'], properties: { name: { type: 'string', minLength: 1, maxLength: 32 }, children: { type: 'array', items: { $ref: '#/$defs/node' } } }, additionalProperties: false },
+        },
+      },
+      docs: [
+        ['Valid tree', { name: 'src', children: [{ name: 'lib', children: [{ name: 'util.js' }] }, { name: 'index.js' }] }],
+        ['Deep error', { name: 'src', children: [{ name: 'lib', children: [{ name: 'a.js' }, { name: '' }] }, { name: 'b.js', size: 12 }] }],
+      ],
+    },
+    {
+      key: 'config', label: 'Config (allOf/anyOf)',
+      schema: {
+        $schema: 'https://json-schema.org/draft/2020-12/schema', title: 'Service config',
+        allOf: [
+          { type: 'object', required: ['name', 'replicas'], properties: { name: { type: 'string', pattern: '^[a-z][a-z0-9-]*$' }, replicas: { type: 'integer', minimum: 1, maximum: 10 } } },
+          { anyOf: [{ required: ['port'] }, { required: ['socket'] }] },
+        ],
+        properties: { port: { type: 'integer', minimum: 1024, maximum: 65535 }, socket: { type: 'string', pattern: '^/' }, mode: { const: 'production' } },
+      },
+      docs: [
+        ['Port', { name: 'api-gateway', replicas: 3, port: 8080, mode: 'production' }],
+        ['Neither', { name: 'Worker', replicas: 0, mode: 'dev' }],
+        ['Socket', { name: 'cache', replicas: 1, socket: '/var/run/cache.sock' }],
+      ],
+    },
+  ];
+
+  // ---------- state ----------
+  let pi = 0, di = 0;
+  const texts = PRESETS.map((p) => ({ schema: J(p.schema), docs: p.docs.map((d) => J(d[1])) }));
+  try {
+    const raw = JSON.parse(localStorage.getItem('lab071') || 'null');
+    if (raw && Array.isArray(raw.texts)) raw.texts.forEach((t, i) => { if (texts[i] && t && typeof t.schema === 'string' && Array.isArray(t.docs)) { texts[i].schema = t.schema; t.docs.forEach((d, j) => { if (typeof d === 'string' && j < texts[i].docs.length) texts[i].docs[j] = d; }); } });
+    if (raw && Number.isInteger(raw.pi) && PRESETS[raw.pi]) pi = raw.pi;
+  } catch (e) { /* ignore */ }
+  const save = () => { try { localStorage.setItem('lab071', JSON.stringify({ texts, pi })); } catch (e) { /* ignore */ } };
+
+  // ---------- validator ----------
+  const KNOWN = new Set(['$schema', '$id', 'title', 'description', '$comment', 'examples', 'default', '$defs', 'type', 'properties', 'required', 'additionalProperties', 'items', 'minItems', 'maxItems', 'enum', 'const', 'minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'minLength', 'maxLength', 'pattern', 'oneOf', 'anyOf', 'allOf', '$ref']);
+  const ptr = (s) => String(s).replace(/~/g, '~0').replace(/\//g, '~1');
+  function typeOf(v) { if (v === null) return 'null'; if (Array.isArray(v)) return 'array'; if (typeof v === 'number') return Number.isInteger(v) ? 'integer' : 'number'; return typeof v; }
+  function typeOk(v, t) { const a = typeOf(v); return t === 'number' ? a === 'number' || a === 'integer' : a === t; }
+  function deepEq(a, b) {
+    if (a === b) return true;
+    if (typeof a !== typeof b || a === null || b === null || typeof a !== 'object') return false;
+    if (Array.isArray(a) !== Array.isArray(b)) return false;
+    if (Array.isArray(a)) return a.length === b.length && a.every((x, i) => deepEq(x, b[i]));
+    const ka = Object.keys(a), kb = Object.keys(b);
+    return ka.length === kb.length && ka.every((k) => Object.prototype.hasOwnProperty.call(b, k) && deepEq(a[k], b[k]));
+  }
+  const show = (v) => { const s = JSON.stringify(v); return s.length > 40 ? s.slice(0, 38) + '…' : s; };
+  function resolve(root, ref) {
+    if (ref === '#') return root;
+    if (!ref.startsWith('#/')) return undefined;
+    let cur = root;
+    for (const raw of ref.slice(2).split('/')) {
+      const k = decodeURIComponent(raw).replace(/~1/g, '/').replace(/~0/g, '~');
+      if (cur === null || typeof cur !== 'object' || !(k in cur)) return undefined;
+      cur = cur[k];
+    }
+    return cur;
+  }
+  const reCache = new Map();
+  function re(p) { if (!reCache.has(p)) { try { reCache.set(p, new RegExp(p, 'u')); } catch (e) { reCache.set(p, e); } } return reCache.get(p); }
+
+  function validate(root, schema, inst, ip, kp, errs, depth = 0) {
+    if (depth > 60) { errs.push({ ip, kp, msg: 'schema recursion is too deep ($ref loop?)' }); return errs; }
+    if (schema === true) return errs;
+    if (schema === false) { errs.push({ ip, kp, msg: 'is not allowed here (schema is false)' }); return errs; }
+    if (!schema || typeof schema !== 'object') return errs;
+    const E = (key, msg, extra) => errs.push(Object.assign({ ip, kp: kp + '/' + key, msg }, extra || {}));
+    if (typeof schema.$ref === 'string') {
+      const target = resolve(root, schema.$ref);
+      if (target === undefined) E('$ref', `can't resolve reference ${schema.$ref}`);
+      else validate(root, target, inst, ip, kp + '/$ref', errs, depth + 1);
+    }
+    if (schema.type !== undefined) {
+      const ts = Array.isArray(schema.type) ? schema.type : [schema.type];
+      if (!ts.some((t) => typeOk(inst, t))) { E('type', `must be ${ts.join(' or ')}, got ${typeOf(inst) === 'integer' ? 'number' : typeOf(inst)}`); }
+    }
+    if (Array.isArray(schema.enum) && !schema.enum.some((e) => deepEq(e, inst))) E('enum', `must be one of ${schema.enum.map(show).join(', ')}`);
+    if ('const' in schema && !deepEq(schema.const, inst)) E('const', `must equal ${show(schema.const)}`);
+    if (typeof inst === 'number') {
+      if (typeof schema.minimum === 'number' && inst < schema.minimum) E('minimum', `must be ≥ ${schema.minimum}`);
+      if (typeof schema.maximum === 'number' && inst > schema.maximum) E('maximum', `must be ≤ ${schema.maximum}`);
+      if (typeof schema.exclusiveMinimum === 'number' && inst <= schema.exclusiveMinimum) E('exclusiveMinimum', `must be > ${schema.exclusiveMinimum}`);
+      if (typeof schema.exclusiveMaximum === 'number' && inst >= schema.exclusiveMaximum) E('exclusiveMaximum', `must be < ${schema.exclusiveMaximum}`);
+    }
+    if (typeof inst === 'string') {
+      const len = [...inst].length;
+      if (typeof schema.minLength === 'number' && len < schema.minLength) E('minLength', `must be at least ${schema.minLength} character${schema.minLength === 1 ? '' : 's'} long (is ${len})`);
+      if (typeof schema.maxLength === 'number' && len > schema.maxLength) E('maxLength', `must be at most ${schema.maxLength} characters long (is ${len})`);
+      if (typeof schema.pattern === 'string') {
+        const r = re(schema.pattern);
+        if (r instanceof Error) E('pattern', `invalid pattern in schema: ${r.message}`);
+        else if (!r.test(inst)) E('pattern', `must match pattern ${schema.pattern}`);
+      }
+    }
+    if (Array.isArray(inst)) {
+      if (typeof schema.minItems === 'number' && inst.length < schema.minItems) E('minItems', `must have at least ${schema.minItems} item${schema.minItems === 1 ? '' : 's'}`);
+      if (typeof schema.maxItems === 'number' && inst.length > schema.maxItems) E('maxItems', `must have at most ${schema.maxItems} items`);
+      if (schema.items !== undefined && (typeof schema.items === 'object' || typeof schema.items === 'boolean')) inst.forEach((v, i) => validate(root, schema.items, v, ip + '/' + i, kp + '/items', errs, depth + 1));
+    }
+    if (inst && typeof inst === 'object' && !Array.isArray(inst)) {
+      const props = schema.properties && typeof schema.properties === 'object' ? schema.properties : {};
+      if (Array.isArray(schema.required)) for (const r of schema.required) if (!Object.prototype.hasOwnProperty.call(inst, r)) E('required', `must have required property "${r}"`);
+      for (const k of Object.keys(inst)) {
+        if (Object.prototype.hasOwnProperty.call(props, k)) validate(root, props[k], inst[k], ip + '/' + ptr(k), kp + '/properties/' + ptr(k), errs, depth + 1);
+        else if (schema.additionalProperties !== undefined) {
+          if (schema.additionalProperties === false) errs.push({ ip: ip + '/' + ptr(k), kp: kp + '/additionalProperties', msg: `is not allowed: additional property "${k}"` });
+          else validate(root, schema.additionalProperties, inst[k], ip + '/' + ptr(k), kp + '/additionalProperties', errs, depth + 1);
+        }
+      }
+    }
+    if (Array.isArray(schema.allOf)) schema.allOf.forEach((s, i) => validate(root, s, inst, ip, kp + '/allOf/' + i, errs, depth + 1));
+    const branches = (key) => schema[key].map((s, i) => ({ i, errs: validate(root, s, inst, ip, kp + '/' + key + '/' + i, [], depth + 1) }));
+    if (Array.isArray(schema.anyOf)) {
+      const b = branches('anyOf');
+      if (!b.some((x) => !x.errs.length)) {
+        const best = b.reduce((a, c) => (c.errs.length < a.errs.length ? c : a));
+        E('anyOf', `must match at least one schema in anyOf (none of ${b.length} did)`, { sub: best.errs, subNote: `closest was branch ${best.i}` });
+      }
+    }
+    if (Array.isArray(schema.oneOf)) {
+      const b = branches('oneOf');
+      const ok = b.filter((x) => !x.errs.length);
+      if (ok.length === 0) {
+        const best = b.reduce((a, c) => (c.errs.length < a.errs.length ? c : a));
+        E('oneOf', `must match exactly one schema in oneOf (matched none of ${b.length})`, { sub: best.errs, subNote: `closest was branch ${best.i}` });
+      } else if (ok.length > 1) E('oneOf', `must match exactly one schema in oneOf (matched ${ok.length}: branches ${ok.map((x) => x.i).join(' and ')})`);
+    }
+    return errs;
+  }
+  function unknownKeywords(schema, path, out, seen = new Set()) {
+    if (!schema || typeof schema !== 'object' || seen.has(schema)) return out;
+    seen.add(schema);
+    if (Array.isArray(schema)) { schema.forEach((s, i) => unknownKeywords(s, path + '/' + i, out, seen)); return out; }
+    for (const k of Object.keys(schema)) {
+      if (!KNOWN.has(k)) out.add(k);
+      if (['properties', '$defs'].includes(k) && schema[k] && typeof schema[k] === 'object') for (const [n, s] of Object.entries(schema[k])) unknownKeywords(s, path, out, seen);
+      else if (['items', 'additionalProperties'].includes(k)) unknownKeywords(schema[k], path, out, seen);
+      else if (['oneOf', 'anyOf', 'allOf'].includes(k) && Array.isArray(schema[k])) schema[k].forEach((s) => unknownKeywords(s, path, out, seen));
+    }
+    return out;
+  }
+
+  // ---------- generator ----------
+  function genFromPattern(p) {
+    // a tiny generator for simple regexes: literals, escapes, classes, groups (first alternative), quantifiers
+    let i = 0;
+    const src = p.replace(/^\^/, '').replace(/\$$/, '');
+    function atom() {
+      const c = src[i];
+      if (c === '\\') { const n = src[i + 1]; i += 2; return { d: '5', w: 'a', s: ' ', D: 'x', W: '-', S: 'x' }[n] ?? n; }
+      if (c === '[') {
+        let j = i + 1; const neg = src[j] === '^'; if (neg) j++;
+        let body = ''; while (j < src.length && src[j] !== ']') { if (src[j] === '\\') { body += src[j] + src[j + 1]; j += 2; } else body += src[j++]; }
+        i = j + 1;
+        if (neg) { const banned = body; return ['a', 'x', '1', 'Q'].find((ch) => !banned.includes(ch)) || 'z'; }
+        if (body[0] === '\\') return { d: '5', w: 'a', s: ' ' }[body[1]] ?? body[1];
+        return body[0];
+      }
+      if (c === '(') {
+        let depth = 1, j = i + 1; while (j < src.length && depth) { if (src[j] === '\\') j++; else if (src[j] === '(') depth++; else if (src[j] === ')') depth--; j++; }
+        let inner = src.slice(i + 1, j - 1).replace(/^\?:/, '');
+        let d = 0, cut = inner.length; for (let k = 0; k < inner.length; k++) { if (inner[k] === '\\') k++; else if (inner[k] === '(') d++; else if (inner[k] === ')') d--; else if (inner[k] === '|' && !d) { cut = k; break; } }
+        i = j; return genFromPattern(inner.slice(0, cut));
+      }
+      if (c === '.') { i++; return 'x'; }
+      i++; return c;
+    }
+    let out = '';
+    while (i < src.length) {
+      if (src[i] === '|') break;
+      const a = atom();
+      let n = 1;
+      const q = src[i];
+      if (q === '+') { n = 1; i++; } else if (q === '*' || q === '?') { n = q === '*' ? 0 : 1; i++; if (q === '?') n = 0; }
+      else if (q === '{') { const m = /^\{(\d+)(?:,(\d*))?\}/.exec(src.slice(i)); if (m) { n = Number(m[1]); i += m[0].length; } }
+      if (src[i] === '?') i++;
+      out += a.repeat(n);
+    }
+    return out;
+  }
+  function gen(root, schema, depth = 0) {
+    if (schema === true || schema === undefined) return null;
+    if (schema === false || !schema || typeof schema !== 'object' || depth > 12) return null;
+    if (typeof schema.$ref === 'string') { const t = resolve(root, schema.$ref); if (t !== undefined) { const base = gen(root, t, depth + 1); const rest = Object.assign({}, schema); delete rest.$ref; return Object.keys(rest).some((k) => KNOWN.has(k) && !['$schema', 'title', 'description', '$defs', '$id', '$comment'].includes(k)) ? merge(base, gen(root, rest, depth + 1)) : base; } }
+    if ('const' in schema) return JSON.parse(JSON.stringify(schema.const));
+    if (Array.isArray(schema.enum) && schema.enum.length) return JSON.parse(JSON.stringify(schema.enum[0]));
+    if (Array.isArray(schema.oneOf) && schema.oneOf.length) {
+      for (const s of schema.oneOf) { const v = gen(root, mergeSchema(schema, s, 'oneOf'), depth + 1); if (!validate(root, schema, v, '', '#', []).length) return v; }
+      return gen(root, mergeSchema(schema, schema.oneOf[0], 'oneOf'), depth + 1);
+    }
+    if (Array.isArray(schema.anyOf) && schema.anyOf.length) {
+      for (const s of schema.anyOf) { const v = gen(root, mergeSchema(schema, s, 'anyOf'), depth + 1); if (!validate(root, schema, v, '', '#', []).length) return v; }
+    }
+    if (Array.isArray(schema.allOf) && schema.allOf.length) {
+      let merged = Object.assign({}, schema); delete merged.allOf;
+      for (const s of schema.allOf) merged = mergeSchema(merged, s.$ref ? resolve(root, s.$ref) || {} : s, null);
+      return gen(root, merged, depth + 1);
+    }
+    let t = schema.type;
+    if (Array.isArray(t)) t = t.find((x) => x !== 'null') || t[0];
+    if (!t) t = schema.properties || schema.required ? 'object' : schema.items ? 'array' : schema.pattern || schema.minLength !== undefined ? 'string' : schema.minimum !== undefined || schema.maximum !== undefined ? 'number' : null;
+    if (t === 'object') {
+      const o = {};
+      const props = schema.properties || {};
+      const req = Array.isArray(schema.required) ? schema.required : [];
+      const keys = [...new Set([...req, ...Object.keys(props)])];
+      for (const k of keys) {
+        if (!req.includes(k) && depth > 3) continue; // stop optional recursion
+        o[k] = props[k] !== undefined ? gen(root, props[k], depth + 1) : 'value';
+      }
+      return o;
+    }
+    if (t === 'array') {
+      const n = Math.max(schema.minItems || 0, Math.min(1, schema.maxItems ?? 1), depth > 3 ? 0 : 0);
+      const count = Math.max(n, schema.minItems || 0);
+      return Array.from({ length: count || (depth > 3 ? 0 : 1) }, () => gen(root, schema.items, depth + 1));
+    }
+    if (t === 'string') {
+      let s = typeof schema.pattern === 'string' ? genFromPattern(schema.pattern) : 'example';
+      const min = schema.minLength || 0, max = schema.maxLength ?? Infinity;
+      if (!schema.pattern) { while ([...s].length < min) s += 'x'; if ([...s].length > max) s = [...s].slice(0, Math.max(max, 0)).join(''); }
+      else { while ([...s].length < min) s += 'x'; }
+      return s;
+    }
+    if (t === 'integer' || t === 'number') {
+      let v = 0;
+      if (typeof schema.minimum === 'number') v = schema.minimum;
+      if (typeof schema.exclusiveMinimum === 'number') v = t === 'integer' ? Math.floor(schema.exclusiveMinimum) + 1 : schema.exclusiveMinimum + 1;
+      if (typeof schema.maximum === 'number' && v > schema.maximum) v = schema.maximum;
+      if (typeof schema.exclusiveMaximum === 'number' && v >= schema.exclusiveMaximum) v = t === 'integer' ? Math.ceil(schema.exclusiveMaximum) - 1 : schema.exclusiveMaximum - 0.5;
+      return t === 'integer' ? Math.ceil(v) : v;
+    }
+    if (t === 'boolean') return true;
+    if (t === 'null') return null;
+    return null;
+  }
+  function mergeSchema(a, b, drop) {
+    const m = Object.assign({}, a);
+    if (drop) delete m[drop];
+    for (const [k, v] of Object.entries(b || {})) {
+      if (k === 'properties') m.properties = Object.assign({}, m.properties || {}, v);
+      else if (k === 'required') m.required = [...new Set([...(m.required || []), ...v])];
+      else m[k] = v;
+    }
+    return m;
+  }
+  function merge(a, b) { return a && b && typeof a === 'object' && typeof b === 'object' && !Array.isArray(a) ? Object.assign({}, a, b) : b ?? a; }
+
+  // ---------- UI ----------
+  let lastGen = null;
+  function parse(text) { try { return { ok: true, v: JSON.parse(text) }; } catch (e) { return { ok: false, e: e.message }; } }
+  function schemaState() {
+    const p = parse(texts[pi].schema);
+    if (!p.ok) return { ok: false, msg: 'Schema is not valid JSON: ' + p.e };
+    if (typeof p.v !== 'boolean' && (p.v === null || typeof p.v !== 'object' || Array.isArray(p.v))) return { ok: false, msg: 'A schema must be an object or a boolean.' };
+    return { ok: true, schema: p.v };
+  }
+  function docResult(j) {
+    const s = schemaState();
+    const d = parse(texts[pi].docs[j]);
+    if (!s.ok) return { state: 'na', msg: 'Fix the schema first.' };
+    if (!d.ok) return { state: 'na', msg: 'Document is not valid JSON: ' + d.e };
+    const errs = validate(s.schema, s.schema, d.v, '', '#', []);
+    return { state: errs.length ? 'bad' : 'ok', errs };
+  }
+  function renderPresets() {
+    $('[data-testid="presets"]').innerHTML = PRESETS.map((p, i) => `<button type="button" aria-pressed="${i === pi}" data-i="${i}" data-testid="preset-${p.key}">${esc(p.label)}</button>`).join('');
+  }
+  function renderSchemaMsg() {
+    const s = schemaState();
+    const m = $('[data-testid="schema-msg"]');
+    $('#schema').setAttribute('aria-invalid', String(!s.ok));
+    m.className = 'msg ' + (s.ok ? 'ok' : 'bad');
+    m.textContent = s.ok ? '✓ Schema parsed.' : '✗ ' + s.msg;
+    const unk = s.ok ? [...unknownKeywords(s.schema, '#', new Set())] : [];
+    $('[data-testid="unsupported"]').textContent = unk.length ? `Ignored (not supported here): ${unk.join(', ')}` : '';
+  }
+  function renderDocs() {
+    const tabs = $('[data-testid="doctabs"]');
+    tabs.innerHTML = PRESETS[pi].docs.map((d, j) => {
+      const r = docResult(j);
+      return `<button type="button" role="tab" aria-selected="${j === di}" data-j="${j}" data-testid="doc-tab-${j}" data-state="${r.state}"><span class="dot ${r.state}" aria-hidden="true"></span>${esc(d[0])}<span style="position:absolute;left:-9999px">${r.state === 'ok' ? ' (valid)' : r.state === 'bad' ? ' (invalid)' : ''}</span></button>`;
+    }).join('');
+    const ta = $('#doc');
+    if (ta.value !== texts[pi].docs[di]) ta.value = texts[pi].docs[di];
+    const r = docResult(di);
+    const v = $('[data-testid="verdict"]');
+    v.className = 'verdict ' + r.state;
+    v.dataset.valid = r.state === 'ok' ? 'true' : r.state === 'bad' ? 'false' : '';
+    v.innerHTML = r.state === 'ok' ? '<span class="big">✓</span> Valid' : r.state === 'bad' ? `<span class="big">✗</span> ${r.errs.length} error${r.errs.length === 1 ? '' : 's'}` : esc(r.msg);
+    ta.setAttribute('aria-invalid', String(r.state === 'na' && schemaState().ok));
+    const ol = $('[data-testid="errors"]');
+    ol.innerHTML = r.state === 'bad' ? r.errs.map((e) => `<li data-testid="error" data-ip="${esc(e.ip)}" data-kp="${esc(e.kp)}"><span><span class="ip">${esc(e.ip || '/')}</span> ${esc(e.msg)}<span class="kp">${esc(e.kp)}</span>${e.sub ? `<span class="kp">${esc(e.subNote)}: ${e.sub.map((s) => `${s.ip || '/'} ${s.msg}`).map(esc).join('; ')}</span>` : ''}</span></li>`).join('') : '';
+  }
+  function renderAll() { renderPresets(); const s = $('#schema'); if (s.value !== texts[pi].schema) s.value = texts[pi].schema; renderSchemaMsg(); renderDocs(); }
+
+  $('[data-testid="presets"]').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-i]'); if (!b) return;
+    pi = Number(b.dataset.i); di = 0; lastGen = null;
+    $('[data-testid="generated"]').textContent = ''; $('[data-testid="gen-verdict"]').textContent = ''; $('[data-testid="use-generated"]').disabled = true;
+    save(); renderAll();
+  });
+  $('#schema').addEventListener('input', (e) => { texts[pi].schema = e.target.value; save(); renderSchemaMsg(); renderDocs(); });
+  $('#doc').addEventListener('input', (e) => { texts[pi].docs[di] = e.target.value; save(); renderDocs(); });
+  $('[data-testid="doctabs"]').addEventListener('click', (e) => { const b = e.target.closest('[data-j]'); if (!b) return; di = Number(b.dataset.j); renderDocs(); $(`[data-testid="doc-tab-${di}"]`).focus(); });
+  $('[data-testid="format"]').addEventListener('click', () => { const p = parse(texts[pi].schema); if (p.ok) { texts[pi].schema = J(p.v); save(); renderAll(); } });
+  $('[data-testid="reset"]').addEventListener('click', () => { const p = PRESETS[pi]; texts[pi] = { schema: J(p.schema), docs: p.docs.map((d) => J(d[1])) }; save(); renderAll(); });
+  $('[data-testid="generate"]').addEventListener('click', () => {
+    const s = schemaState();
+    const out = $('[data-testid="generated"]'), gv = $('[data-testid="gen-verdict"]');
+    if (!s.ok) { out.textContent = ''; gv.className = 'genv bad'; gv.textContent = 'Fix the schema first.'; return; }
+    lastGen = gen(s.schema, s.schema);
+    out.textContent = J(lastGen);
+    const errs = validate(s.schema, s.schema, lastGen, '', '#', []);
+    gv.className = 'genv ' + (errs.length ? 'bad' : 'ok');
+    gv.dataset.valid = String(!errs.length);
+    gv.textContent = errs.length ? `✗ The generator couldn't satisfy everything (${errs.length} error${errs.length === 1 ? '' : 's'}, first: ${errs[0].ip || '/'} ${errs[0].msg}).` : '✓ Validates against the schema.';
+    $('[data-testid="use-generated"]').disabled = false;
+  });
+  $('[data-testid="use-generated"]').addEventListener('click', () => { if (lastGen === null && !$('[data-testid="generated"]').textContent) return; texts[pi].docs[di] = J(lastGen); save(); renderDocs(); });
+
+  renderAll();
+})();
+</script>
+</body>
+</html>

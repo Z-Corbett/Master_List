@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mission Trail — a self-guided day on the San Antonio Missions</title>
+<meta name="description" content="A self-guided tour planner for the San Antonio Missions, a UNESCO World Heritage Site since 2015: the Alamo, Concepción, San José, San Juan Capistrano and Espada along the San Antonio River. It has a stylized river map, a drag-to-order itinerary with walking and biking estimates (assumptions stated), and drawings of each church.">
+<style>
+  :root {
+    --lime: #f4ecdd;
+    --lime-2: #e9dcc3;
+    --stone: #d9c7a4;
+    --terra: #b5532e;
+    --terra-2: #8f3c1d;
+    --river: #2f6f73;
+    --river-2: #1d4c50;
+    --talavera: #1f4a8a;
+    --ochre: #d59a2c;
+    --ink: #2a211b;
+    --ink-2: #6b5b4c;
+    --serif: Garamond, "EB Garamond", "Cormorant Garamond", Cambria, "Times New Roman", serif;
+    --sans: "Gill Sans", "Gill Sans MT", Calibri, "Segoe UI", system-ui, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before { transition: none !important; animation: none !important; } }
+  html, body { margin: 0; }
+  body { color: var(--ink); background: var(--lime); font: 17px/1.6 var(--serif); overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--talavera); outline-offset: 3px; }
+  button, input, select { font: inherit; color: inherit; }
+  a { color: var(--terra-2); }
+  a.back { position: fixed; top: 12px; left: 12px; z-index: 40; background: rgba(42,33,27,.82); color: var(--lime); text-decoration: none; font: 600 13px/1 var(--sans); letter-spacing: .06em;
+    padding: 8px 13px; border-radius: 999px; backdrop-filter: blur(4px); }
+  a.back:hover { background: var(--terra); }
+
+  .tiles { height: 18px; background:
+    radial-gradient(circle at 50% 50%, var(--ochre) 0 3px, transparent 3.5px) 0 0 / 18px 18px,
+    conic-gradient(from 45deg, var(--talavera) 0 25%, #f7f1e4 0 50%, var(--talavera) 0 75%, #f7f1e4 0) 0 0 / 18px 18px; }
+
+  .hero { position: relative; background: linear-gradient(180deg, #f1c98f 0%, #efb77f 28%, #e7d3b2 70%, var(--lime) 100%); overflow: hidden; }
+  .hero::after { content: ""; position: absolute; inset: auto 0 0 0; height: 90px; background: linear-gradient(180deg, transparent, var(--lime)); pointer-events: none; }
+  .hero-in { position: relative; z-index: 1; max-width: 1180px; margin: 0 auto; padding: 78px 20px 40px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 30px; align-items: center; }
+  .hero-in > * { min-width: 0; }
+  .eyebrow { font: 600 13px/1.3 var(--sans); letter-spacing: .28em; text-transform: uppercase; color: var(--terra-2); margin: 0 0 10px; }
+  h1 { font: 500 clamp(52px, 10vw, 118px)/.88 var(--serif); margin: 0; letter-spacing: -.01em; color: var(--ink); }
+  h1 span { display: block; font-style: italic; color: var(--terra); font-size: .62em; margin-top: .12em; }
+  .lede { font-size: 20px; max-width: 34em; color: #4a3c30; margin: 20px 0 24px; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; padding: 8px 22px; border-radius: 999px; border: 1.5px solid var(--ink); background: transparent; cursor: pointer;
+    font: 600 15px/1 var(--sans); letter-spacing: .05em; text-decoration: none; color: var(--ink); max-width: 100%; }
+  .btn.solid { background: var(--terra); border-color: var(--terra); color: #fff8ee; }
+  .btn.solid:hover { background: var(--terra-2); }
+  .btn:hover { background: rgba(42,33,27,.08); }
+  .hero-art { position: relative; }
+  .hero-art svg { width: 100%; height: auto; display: block; filter: drop-shadow(0 18px 24px rgba(90,50,20,.25)); }
+  .facts { display: flex; flex-wrap: wrap; gap: 10px 26px; margin-top: 26px; font: 14px/1.3 var(--sans); color: var(--ink-2); }
+  .facts b { display: block; font: 600 26px/1.1 var(--serif); color: var(--ink); }
+
+  section { max-width: 1180px; margin: 0 auto; padding: 56px 20px; }
+  h2 { font: 500 clamp(32px, 5vw, 50px)/1.05 var(--serif); margin: 0 0 8px; }
+  h2 em { color: var(--terra); }
+  .sub { color: var(--ink-2); max-width: 44em; margin: 0 0 28px; font-size: 18px; }
+
+  .missions { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
+  .m-card { background: #fbf6ec; border: 1px solid var(--lime-2); border-radius: 160px 160px 10px 10px; padding: 24px 16px 18px; text-align: center; min-width: 0;
+    box-shadow: 0 10px 24px rgba(110,80,40,.08); display: flex; flex-direction: column; }
+  .m-card svg { width: 100%; height: auto; max-width: 200px; margin: 0 auto; display: block; }
+  .m-card h3 { font: 600 21px/1.15 var(--serif); margin: 10px 0 2px; }
+  .m-card .yr { font: 600 12px/1.3 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--terra); margin: 0 0 8px; }
+  .m-card p { font-size: 15.5px; line-height: 1.5; color: #4a3c30; margin: 0; text-align: left; }
+  .m-card .num { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--river); color: #fff; font: 600 14px/1 var(--sans); margin: 0 auto 6px; }
+
+  .planner { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 26px; align-items: start; }
+  .map-wrap { background: #efe3cb; border-radius: 16px; padding: 10px; border: 1px solid var(--stone); min-width: 0; position: relative; }
+  .map-wrap svg { width: 100%; height: auto; display: block; }
+  .map-note { font: 12.5px/1.4 var(--sans); color: var(--ink-2); margin: 6px 6px 2px; }
+  .stop-dot { cursor: pointer; }
+  .stop-dot circle.ring { transition: r .2s; }
+  .stop-dot:focus-visible { outline: none; }
+  .stop-dot:focus-visible circle.ring { stroke: var(--talavera); stroke-width: 4; }
+  .panel { background: #fbf6ec; border-radius: 16px; padding: 18px 20px; border: 1px solid var(--lime-2); min-width: 0; }
+  .controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
+  .controls > div { min-width: 0; }
+  .controls label, .lab { display: block; font: 600 12px/1.3 var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-2); margin-bottom: 4px; }
+  .seg { display: inline-flex; border: 1.5px solid var(--ink); border-radius: 999px; overflow: hidden; max-width: 100%; }
+  .seg button { border: 0; background: transparent; padding: 8px 14px; min-height: 40px; cursor: pointer; font: 600 14px/1 var(--sans); min-width: 0; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--lime); }
+  input[type=time], input[type=range] { width: 100%; max-width: 100%; }
+  input[type=time] { min-height: 40px; border: 1.5px solid var(--stone); border-radius: 8px; padding: 4px 8px; background: #fff; }
+  input[type=range] { accent-color: var(--terra); }
+  ol.itin { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+  .itin li { display: grid; grid-template-columns: 28px 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 8px; background: #fff; border: 1px solid var(--lime-2); border-radius: 12px; margin: 0; position: relative; min-width: 0; }
+  .itin li + li { margin-top: 30px; }
+  .itin li + li::before { content: attr(data-leg); position: absolute; top: -26px; left: 50px; right: 8px; font: 13px/1.3 var(--sans); color: var(--river-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .itin li + li::after { content: ""; position: absolute; top: -30px; left: 52px; height: 28px; border-left: 2px dotted var(--river); display: none; }
+  .itin li.dragging { opacity: .85; box-shadow: 0 12px 26px rgba(0,0,0,.18); z-index: 3; border-color: var(--terra); }
+  .itin li.off { opacity: .5; }
+  .grip { cursor: grab; width: 28px; height: 36px; border: 0; background: transparent; display: grid; place-items: center; padding: 0; color: var(--ink-2); touch-action: none; }
+  .grip:active { cursor: grabbing; }
+  .badge { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--river); color: #fff; font: 600 13px/1 var(--sans); }
+  .it-name { min-width: 0; }
+  .it-name b { display: block; font: 600 17px/1.2 var(--serif); overflow-wrap: anywhere; }
+  .it-name span { font: 13px/1.3 var(--sans); color: var(--ink-2); }
+  .it-act { display: flex; gap: 4px; }
+  .it-act button { width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--stone); background: var(--lime); cursor: pointer; font: 600 14px/1 var(--sans); padding: 0; }
+  .it-act button:disabled { opacity: .35; cursor: default; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; }
+  .toolbar .btn { min-height: 38px; padding: 6px 14px; font-size: 13.5px; }
+  .summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 18px 0 12px; }
+  .summary div { background: var(--lime); border-radius: 10px; padding: 8px 10px; min-width: 0; }
+  .summary span { display: block; font: 600 11px/1.3 var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-2); }
+  .summary b { font: 600 22px/1.2 var(--serif); overflow-wrap: anywhere; }
+  table.sched { width: 100%; border-collapse: collapse; font: 14.5px/1.4 var(--sans); table-layout: fixed; }
+  .sched th, .sched td { text-align: left; padding: 6px 6px; border-bottom: 1px solid var(--lime-2); overflow-wrap: anywhere; }
+  .sched th { font-weight: 600; color: var(--ink-2); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+  .assume { margin: 14px 0 0; padding: 12px 14px; border-left: 4px solid var(--ochre); background: #fff8e8; font: 14px/1.5 var(--sans); color: #54463a; border-radius: 0 10px 10px 0; }
+  .assume b { color: var(--ink); }
+  .visit { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+  .visit article { background: #fbf6ec; border-radius: 14px; padding: 20px; border-top: 4px solid var(--river); min-width: 0; }
+  .visit article:nth-child(2) { border-top-color: var(--terra); }
+  .visit article:nth-child(3) { border-top-color: var(--ochre); }
+  .visit h3 { font: 600 22px/1.2 var(--serif); margin: 0 0 6px; }
+  .visit p { margin: 0 0 8px; font-size: 16px; color: #4a3c30; }
+  footer { background: var(--ink); color: #d9ccb8; text-align: center; padding: 28px 20px 34px; font: 14px/1.6 var(--sans); }
+  footer a { color: #f1c98f; }
+  .status-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+  @media (max-width: 1020px) {
+    .missions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .planner { grid-template-columns: minmax(0, 1fr); }
+    .map-wrap { max-width: 460px; width: 100%; margin: 0 auto; }
+  }
+  @media (max-width: 760px) {
+    .hero-in { grid-template-columns: minmax(0, 1fr); padding-top: 64px; }
+    .hero-art { max-width: 420px; margin: 0 auto; width: 100%; }
+    .missions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .visit { grid-template-columns: minmax(0, 1fr); }
+    .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .controls { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .controls > div:first-child { grid-column: 1 / -1; }
+  }
+  @media (max-width: 460px) {
+    .missions { grid-template-columns: minmax(0, 1fr); }
+    .m-card { border-radius: 130px 130px 10px 10px; }
+    .itin li { grid-template-columns: 20px 26px minmax(0, 1fr) auto; gap: 6px; padding: 8px 6px; }
+    .it-act button { width: 30px; }
+    .badge { width: 26px; height: 26px; }
+
+    .panel { padding: 16px 12px; }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="lsG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f1e6cf"/><stop offset="1" stop-color="#d9c29a"/></linearGradient>
+    <linearGradient id="lsD" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#dcc8a3"/><stop offset="1" stop-color="#bda079"/></linearGradient>
+    <pattern id="blocks" width="14" height="8" patternUnits="userSpaceOnUse"><path d="M0 8H14M7 0V4M0 4H14M0 0V4M14 4V8" stroke="rgba(120,90,50,.18)" stroke-width=".7" fill="none"/></pattern>
+    <symbol id="ill-valero" viewBox="0 0 200 150">
+      <path d="M22 142H178" stroke="#b79a70" stroke-width="3"/>
+      <path d="M34 142V64H62C72 64 78 44 100 36C122 44 128 64 138 64H166V142Z" fill="url(#lsG)" stroke="#9c7f58" stroke-width="1.5"/>
+      <path d="M34 142V64H62C72 64 78 44 100 36C122 44 128 64 138 64H166V142Z" fill="url(#blocks)"/>
+      <path d="M52 142V74M148 142V74M72 142V78M128 142V78" stroke="#b79a70" stroke-width="3"/>
+      <path d="M86 142V108A14 14 0 0 1 114 108V142Z" fill="#5a3f28"/>
+      <path d="M90 142V110A10 10 0 0 1 110 110V142" fill="none" stroke="#8a6a44" stroke-width="1.2"/>
+      <path d="M56 106V96A6 6 0 0 1 68 96V106ZM132 106V96A6 6 0 0 1 144 96V106Z" fill="#9c7f58"/>
+      <path d="M92 84V76A8 8 0 0 1 108 76V84Z" fill="#6f5436"/>
+      <path d="M34 66H166" stroke="#9c7f58" stroke-width="1"/>
+    </symbol>
+    <symbol id="ill-concepcion" viewBox="0 0 200 150">
+      <path d="M22 142H178" stroke="#b79a70" stroke-width="3"/>
+      <ellipse cx="100" cy="58" rx="20" ry="16" fill="url(#lsD)" stroke="#9c7f58" stroke-width="1.2"/><path d="M100 42V32M96 36H104" stroke="#6f5436" stroke-width="2"/>
+      <path d="M58 142V72H142V142Z" fill="url(#lsG)" stroke="#9c7f58" stroke-width="1.5"/>
+      <path d="M72 72L100 52L128 72Z" fill="url(#lsD)" stroke="#9c7f58" stroke-width="1.2"/>
+      <path d="M30 142V58H60V142ZM140 142V58H170V142Z" fill="url(#lsG)" stroke="#9c7f58" stroke-width="1.5"/>
+      <path d="M30 142V58H60V142ZM140 142V58H170V142ZM58 142V72H142V142Z" fill="url(#blocks)"/>
+      <path d="M30 58L45 40L60 58ZM140 58L155 40L170 58Z" fill="url(#lsD)" stroke="#9c7f58" stroke-width="1.2"/>
+      <path d="M39 78V70A6 6 0 0 1 51 70V78ZM149 78V70A6 6 0 0 1 161 70V78Z" fill="#5a3f28"/>
+      <path d="M86 142V112A14 14 0 0 1 114 112V142Z" fill="#5a3f28"/>
+      <path d="M80 142V106A20 20 0 0 1 120 106V142" fill="none" stroke="#9c7f58" stroke-width="1.5"/>
+      <circle cx="100" cy="86" r="5" fill="#6f5436"/>
+    </symbol>
+    <symbol id="ill-sanjose" viewBox="0 0 200 150">
+      <path d="M22 142H178" stroke="#b79a70" stroke-width="3"/>
+      <path d="M118 70A26 22 0 0 1 170 70Z" fill="url(#lsD)" stroke="#9c7f58" stroke-width="1.2"/><path d="M144 48V38M140 42H148" stroke="#6f5436" stroke-width="2"/>
+      <path d="M112 142V70H176V142Z" fill="url(#lsG)" stroke="#9c7f58" stroke-width="1.5"/>
+      <path d="M58 142V64H116V142Z" fill="url(#lsG)" stroke="#9c7f58" stroke-width="1.5"/>
+      <path d="M58 64L87 50L116 64Z" fill="url(#lsD)" stroke="#9c7f58" stroke-width="1.2"/>
+      <path d="M24 142V44H56V142Z" fill="url(#lsG)" stroke="#9c7f58" stroke-width="1.5"/>
+      <path d="M24 44A16 12 0 0 1 56 44Z" fill="url(#lsD)" stroke="#9c7f58" stroke-width="1.2"/>
+      <path d="M24 142V44H56V142ZM58 142V64H116V142ZM112 142V70H176V142Z" fill="url(#blocks)"/>
+      <path d="M34 66V58A6 6 0 0 1 46 58V66Z" fill="#5a3f28"/>
+      <path d="M72 142V110A15 15 0 0 1 102 110V142Z" fill="#5a3f28"/>
+      <path d="M66 142V104C66 90 108 90 108 104V142" fill="none" stroke="#b5532e" stroke-width="2" stroke-dasharray="3 2"/>
+      <path d="M80 92C80 80 94 80 94 92" fill="none" stroke="#9c7f58" stroke-width="1.5"/><circle cx="87" cy="78" r="4" fill="#9c7f58"/>
+      <g transform="translate(144 100)"><circle r="12" fill="#5a3f28"/><path d="M0-15C6-9 6 9 0 15C-6 9-6-9 0-15ZM-15 0C-9-6 9-6 15 0C9 6-9 6-15 0Z" fill="none" stroke="#b5532e" stroke-width="2"/><circle r="4" fill="#d59a2c"/></g>
+    </symbol>
+    <symbol id="ill-sanjuan" viewBox="0 0 200 150">
+      <path d="M22 142H178" stroke="#b79a70" stroke-width="3"/>
+      <path d="M26 142V92H174V142Z" fill="url(#lsG)" stroke="#9c7f58" stroke-width="1.5"/>
+      <path d="M96 92V56H154V92Z" fill="url(#lsG)" stroke="#9c7f58" stroke-width="1.5"/>
+      <path d="M112 56V40C112 32 138 32 138 40V56Z" fill="url(#lsG)" stroke="#9c7f58" stroke-width="1.5"/>
+      <path d="M26 142V92H174V142ZM96 92V56H154V92Z" fill="url(#blocks)"/>
+      <path d="M104 84V72A7 7 0 0 1 118 72V84ZM132 84V72A7 7 0 0 1 146 72V84ZM119 54V46A6 6 0 0 1 131 46V54Z" fill="#4a3322"/>
+      <path d="M108 80A3.5 4 0 0 1 114 80ZM136 80A3.5 4 0 0 1 142 80ZM122 52A3 3.5 0 0 1 128 52Z" fill="#c9a24a"/>
+      <path d="M44 142V116A10 10 0 0 1 64 116V142ZM136 142V116A10 10 0 0 1 156 116V142Z" fill="#5a3f28"/>
+      <path d="M78 122V112A5 5 0 0 1 88 112V122Z" fill="#6f5436"/>
+      <path d="M122 32V24M118 27H126" stroke="#6f5436" stroke-width="2" transform="translate(3 0)"/>
+    </symbol>
+    <symbol id="ill-espada" viewBox="0 0 200 150">
+      <path d="M22 142H178" stroke="#b79a70" stroke-width="3"/>
+      <path d="M46 142V72H154V142Z" fill="url(#lsG)" stroke="#9c7f58" stroke-width="1.5"/>
+      <path d="M70 72V40L100 26L130 40V72Z" fill="url(#lsG)" stroke="#9c7f58" stroke-width="1.5"/>
+      <path d="M46 142V72H154V142ZM70 72V40L100 26L130 40V72Z" fill="url(#blocks)"/>
+      <path d="M77 66V56A6 6 0 0 1 89 56V66ZM111 66V56A6 6 0 0 1 123 56V66ZM94 46V38A6 6 0 0 1 106 38V46Z" fill="#4a3322"/>
+      <path d="M80 63A3 3.5 0 0 1 86 63ZM114 63A3 3.5 0 0 1 120 63ZM97 44A3 3.5 0 0 1 103 44Z" fill="#c9a24a"/>
+      <path d="M84 142V112C84 102 90 100 94 104C96 96 104 96 106 104C110 100 116 102 116 112V142Z" fill="#5a3f28"/>
+      <path d="M80 142V110C80 96 90 94 94 100C97 90 103 90 106 100C110 94 120 96 120 110V142" fill="none" stroke="#9c7f58" stroke-width="1.5"/>
+      <path d="M100 24V14M96 18H104" stroke="#6f5436" stroke-width="2"/>
+    </symbol>
+  </defs>
+</svg>
+
+<header class="hero">
+  <div class="hero-in">
+    <div>
+      <p class="eyebrow">San Antonio, Texas · UNESCO World Heritage Site</p>
+      <h1>Mission Trail<span>five missions, one river</span></h1>
+      <p class="lede">A self-guided day along the San Antonio River, from the Alamo downtown to Mission Espada in the south. Plan your stops, see roughly how long the walk or ride will take, and meet each church before you arrive.</p>
+      <div class="cta">
+        <a class="btn solid" href="#plan" data-testid="cta-plan">Plan your day</a>
+        <a class="btn" href="#missions">Meet the missions</a>
+      </div>
+      <div class="facts" data-testid="facts">
+        <div><b>5</b>Spanish colonial missions</div>
+        <div><b>1718</b>Mission San Antonio de Valero founded</div>
+        <div><b>2015</b>Inscribed as a World Heritage Site</div>
+      </div>
+    </div>
+    <div class="hero-art" aria-hidden="true">
+      <svg viewBox="0 0 420 320">
+        <defs><linearGradient id="sun" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe2a6"/><stop offset="1" stop-color="#f3a765"/></linearGradient></defs>
+        <circle cx="300" cy="96" r="70" fill="url(#sun)" opacity=".9"/>
+        <path d="M0 238C80 226 150 246 230 236S360 222 420 232V320H0Z" fill="#9aa56a" opacity=".55"/>
+        <use href="#ill-sanjose" x="40" y="40" width="330" height="248"/>
+        <path d="M0 290C70 276 140 300 210 288S350 272 420 284V320H0Z" fill="#2f6f73"/>
+        <path d="M30 300C70 296 100 302 140 298M230 296C270 292 300 298 340 294" stroke="#cfe6e0" stroke-width="2" opacity=".6" fill="none"/>
+      </svg>
+    </div>
+  </div>
+</header>
+<div class="tiles" aria-hidden="true"></div>
+
+<main>
+  <section id="missions" aria-labelledby="h-missions">
+    <h2 id="h-missions">The <em>five</em> missions</h2>
+    <p class="sub">Founded by Franciscan missionaries in the 18th century, the missions were communities where Indigenous people, many of them Coahuiltecan, lived, farmed and worshipped. Their acequias, the irrigation ditches that watered the mission fields, are part of what the World Heritage listing recognises.</p>
+    <div class="missions" id="missionCards"></div>
+  </section>
+
+  <div class="tiles" aria-hidden="true"></div>
+
+  <section id="plan" aria-labelledby="h-plan">
+    <h2 id="h-plan">Plan your <em>day</em></h2>
+    <p class="sub">Tick the missions you want, drag them into order (or use the arrows), then choose walking or biking. The planner adds up rough travel and visiting time. Treat it as a sketch, not a schedule.</p>
+    <div class="planner">
+      <div class="map-wrap">
+        <svg id="map" viewBox="0 0 400 700" role="img" aria-labelledby="mapTitle" data-testid="map">
+          <title id="mapTitle">Stylized map of the San Antonio River running south from downtown past the five missions</title>
+          <rect width="400" height="700" fill="#efe3cb"/>
+          <g stroke="#e2d2b2" stroke-width="1">
+            <path d="M0 120H400M0 240H400M0 360H400M0 480H400M0 600H400M100 0V700M200 0V700M300 0V700"/>
+          </g>
+          <path id="riverPath" d="" fill="none" stroke="#7fb3b0" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+          <path id="riverPath2" d="" fill="none" stroke="#2f6f73" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+          <path id="routePath" d="" fill="none" stroke="#b5532e" stroke-width="3" stroke-dasharray="7 6" stroke-linecap="round" data-testid="route"/>
+          <g id="stops"></g>
+          <g font-family="Gill Sans, Calibri, sans-serif" font-size="12" fill="#6b5b4c">
+            <text x="22" y="40" font-size="13" font-weight="600" fill="#2a211b">Downtown</text>
+            <text x="30" y="684">South</text>
+            <g transform="translate(352 44)"><circle r="16" fill="none" stroke="#6b5b4c"/><path d="M0-13L5 4H-5Z" fill="#b5532e"/><text y="-20" text-anchor="middle" font-weight="600">N</text></g>
+            <g transform="translate(30 646)"><path d="M0 0H72" stroke="#2a211b" stroke-width="2"/><path d="M0-4V4M72-4V4" stroke="#2a211b" stroke-width="2"/><text x="36" y="-7" text-anchor="middle">about 1 mile</text></g>
+            <text x="30" y="470" font-style="italic" fill="#2f6f73">San Antonio River</text>
+          </g>
+        </svg>
+        <p class="map-note">Stylized and approximate: positions are simplified and this is not a navigation map. Tap a marker to add or remove a stop.</p>
+      </div>
+
+      <div class="panel">
+        <div class="controls">
+          <div><span class="lab" id="modeLab">Getting around</span>
+            <div class="seg" role="group" aria-labelledby="modeLab">
+              <button data-mode="walk" data-testid="mode-walk" aria-pressed="false">Walk</button>
+              <button data-mode="bike" data-testid="mode-bike" aria-pressed="true">Bike</button>
+            </div></div>
+          <div><label for="start">Start at</label><input type="time" id="start" value="09:00" step="300" data-testid="start"></div>
+          <div><label for="dwell">At each mission: <span id="dwellOut" data-testid="dwell-out">45 min</span></label><input type="range" id="dwell" min="15" max="120" step="5" value="45" data-testid="dwell"></div>
+        </div>
+        <ol class="itin" id="itin" data-testid="itinerary" aria-label="Itinerary, in visiting order"></ol>
+        <div class="toolbar">
+          <button class="btn" id="reverse" data-testid="reverse">Reverse order</button>
+          <button class="btn" id="southward" data-testid="southward">North to south</button>
+          <button class="btn" id="resetPlan" data-testid="reset-plan">Reset</button>
+        </div>
+        <div class="summary">
+          <div><span>Stops</span><b data-testid="sum-stops" id="sumStops">5</b></div>
+          <div><span>Distance</span><b data-testid="sum-dist" id="sumDist">—</b></div>
+          <div><span>On the move</span><b data-testid="sum-move" id="sumMove">—</b></div>
+          <div><span>Back by</span><b data-testid="sum-end" id="sumEnd">—</b></div>
+        </div>
+        <table class="sched" data-testid="schedule"><thead><tr><th style="width:44%">Stop</th><th>Arrive</th><th>Leave</th></tr></thead><tbody id="schedBody"></tbody></table>
+        <p class="assume" data-testid="assumptions"><b>Assumptions:</b> distances are straight lines between approximate mission locations, multiplied by 1.25 to allow for the winding river trail and rounded to a tenth of a mile. Walking is at <b>3 mph</b> and biking at a relaxed <b>8 mph</b>, with no stops for water, shade or lunch. Real routes, detours and closures vary, so check a current trail map.</p>
+        <p class="status-live" role="status" aria-live="polite" id="live" data-testid="live"></p>
+      </div>
+    </div>
+  </section>
+
+  <div class="tiles" aria-hidden="true"></div>
+
+  <section id="visit" aria-labelledby="h-visit">
+    <h2 id="h-visit">Before you <em>go</em></h2>
+    <div class="visit">
+      <article>
+        <h3>Current visitor information</h3>
+        <p data-testid="nps-note">Hours, closures and programs change, so this page doesn't list any. Check the National Park Service before you go.</p>
+        <p><a href="https://www.nps.gov/saan/" data-testid="nps-link" rel="noopener">San Antonio Missions National Historical Park (nps.gov)</a></p>
+      </article>
+      <article>
+        <h3>Who looks after what</h3>
+        <p>Concepción, San José, San Juan and Espada make up San Antonio Missions National Historical Park. The Alamo, which was Mission San Antonio de Valero, is managed separately by the State of Texas.</p>
+      </article>
+      <article>
+        <h3>Living churches</h3>
+        <p>The four southern mission churches are still active Catholic parishes, so you may arrive during a Mass, a wedding or a funeral. Visit quietly, and check with the parish before planning around a service.</p>
+      </article>
+    </div>
+  </section>
+</main>
+<footer>Designed by Zac Corbett as an independent planning sketch. It is not affiliated with the National Park Service, the State of Texas or the parishes. Bring water; South Texas sun is no joke.</footer>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  // Approximate locations (for rough distance estimates only).
+  const MISSIONS = [
+    { id: 'valero', short: 'The Alamo', name: 'Mission San Antonio de Valero', aka: 'The Alamo', year: 'Founded 1718', lat: 29.4260, lon: -98.4861,
+      text: 'The first of the five missions, downtown. It is best known as the site of the 1836 battle during the Texas Revolution; its curved stone parapet is one of the most recognisable outlines in Texas.' },
+    { id: 'concepcion', short: 'Concepción', name: 'Mission Concepción', aka: 'Nuestra Señora de la Purísima Concepción', year: 'Moved here 1731', lat: 29.3906, lon: -98.4917,
+      text: 'Relocated from East Texas in 1731. Its twin-towered stone church still stands largely as built, and traces of the original painted decoration survive inside.' },
+    { id: 'sanjose', short: 'San José', name: 'Mission San José', aka: 'San José y San Miguel de Aguayo', year: 'Founded 1720', lat: 29.3617, lon: -98.4800,
+      text: 'The largest of the missions, often called the "Queen of the Missions". Walk the walled compound and find the carved Rose Window on the church’s south wall.' },
+    { id: 'sanjuan', short: 'San Juan', name: 'Mission San Juan Capistrano', aka: 'San Juan Capistrano', year: 'Moved here 1731', lat: 29.3319, lon: -98.4553,
+      text: 'Relocated from East Texas in 1731. It has a simple chapel with bells set into an open bell wall, surrounded by the fields and orchards that once fed the community.' },
+    { id: 'espada', short: 'Espada', name: 'Mission Espada', aka: 'San Francisco de la Espada', year: 'Moved here 1731', lat: 29.3179, lon: -98.4623,
+      text: 'Relocated from East Texas in 1731, the southernmost mission. Its small church has an unusual doorway arch, and the nearby Espada Aqueduct still carries acequia water over Piedras Creek.' },
+  ];
+  const BY = Object.fromEntries(MISSIONS.map((m) => [m.id, m]));
+  const SPEED = { walk: 3, bike: 8 }, ROUTE_FACTOR = 1.25;
+
+  // ---------- geometry ----------
+  function haversineMi(a, b) {
+    const R = 3958.8, toR = Math.PI / 180, dLat = (b.lat - a.lat) * toR, dLon = (b.lon - a.lon) * toR;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * toR) * Math.cos(b.lat * toR) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+  const legMi = (a, b) => Math.round(haversineMi(BY[a], BY[b]) * ROUTE_FACTOR * 10) / 10;
+  // map projection: 1 mile ≈ 72 px vertically
+  const LAT0 = 29.4330, LON0 = -98.5250, PX_PER_DEG_LAT = 69.0 * 72, PX_PER_DEG_LON = 69.0 * Math.cos(29.37 * Math.PI / 180) * 72;
+  const proj = (m) => ({ x: 62 + (m.lon - LON0) * PX_PER_DEG_LON, y: 40 + (LAT0 - m.lat) * PX_PER_DEG_LAT });
+
+  // ---------- cards ----------
+  $('missionCards').innerHTML = MISSIONS.map((m, i) => `<article class="m-card" data-testid="mission-${m.id}">
+      <div class="num" aria-hidden="true">${i + 1}</div>
+      <svg viewBox="0 0 200 150" role="img" aria-label="Drawing of ${m.name}"><use href="#ill-${m.id}"/></svg>
+      <h3>${m.aka === 'The Alamo' ? 'The Alamo' : m.name}</h3>
+      <p class="yr" data-testid="year-${m.id}">${m.aka === 'The Alamo' ? m.name + ' · ' : ''}${m.year}</p>
+      <p>${m.text}</p></article>`).join('');
+
+  // ---------- river + stops on the map ----------
+  (function drawRiver() {
+    const pts = MISSIONS.map(proj);
+    const side = [-1, 1, -1, 1, -1];
+    const ctrl = [{ x: pts[0].x + 22, y: -10 }];
+    pts.forEach((p, i) => ctrl.push({ x: p.x + side[i] * 26, y: p.y + 8 }));
+    ctrl.push({ x: pts[4].x + 40, y: 720 });
+    let d = `M${ctrl[0].x} ${ctrl[0].y}`;
+    for (let i = 1; i < ctrl.length; i++) { const a = ctrl[i - 1], b = ctrl[i], my = (a.y + b.y) / 2, sw = (i % 2 ? 1 : -1) * 34; d += ` C${a.x + sw} ${my} ${b.x - sw} ${my} ${b.x} ${b.y}`; }
+    $('riverPath').setAttribute('d', d); $('riverPath2').setAttribute('d', d);
+  })();
+
+  // ---------- plan state ----------
+  const DEFAULT = () => ({ order: MISSIONS.map((m) => m.id), on: Object.fromEntries(MISSIONS.map((m) => [m.id, true])), mode: 'bike', start: '09:00', dwell: 45 });
+  let P = DEFAULT();
+  try { const saved = JSON.parse(localStorage.getItem('lab075-plan') || 'null');
+    if (saved && Array.isArray(saved.order) && saved.order.length === 5 && saved.order.every((id) => BY[id])) P = Object.assign(DEFAULT(), saved); } catch (e) { /* ignore */ }
+  const save = () => { try { localStorage.setItem('lab075-plan', JSON.stringify(P)); } catch (e) { /* storage blocked */ } };
+
+  const active = () => P.order.filter((id) => P.on[id]);
+  function legs() { const a = active(), out = []; for (let i = 1; i < a.length; i++) { const mi = legMi(a[i - 1], a[i]); out.push({ from: a[i - 1], to: a[i], mi, min: Math.round(mi / SPEED[P.mode] * 60) }); } return out; }
+  const toMin = (hhmm) => { const [h, m] = String(hhmm || '09:00').split(':').map(Number); return (Number.isFinite(h) ? h : 9) * 60 + (Number.isFinite(m) ? m : 0); };
+  const fmtClock = (min) => { min = ((Math.round(min) % 1440) + 1440) % 1440; let h = Math.floor(min / 60), m = min % 60; const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return `${h}:${String(m).padStart(2, '0')} ${ap}`; };
+  const fmtDur = (min) => min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')} min`;
+  function schedule() {
+    const a = active(), L = legs(), rows = []; let t = toMin(P.start);
+    a.forEach((id, i) => { if (i > 0) t += L[i - 1].min; rows.push({ id, arrive: t, leave: t + P.dwell }); t += P.dwell; });
+    return { rows, end: t, moveMin: L.reduce((s, l) => s + l.min, 0), miles: Math.round(L.reduce((s, l) => s + l.mi, 0) * 10) / 10 };
+  }
+
+  const GRIP = '<svg width="14" height="20" viewBox="0 0 14 20" aria-hidden="true"><g fill="currentColor"><circle cx="4" cy="4" r="1.8"/><circle cx="10" cy="4" r="1.8"/><circle cx="4" cy="10" r="1.8"/><circle cx="10" cy="10" r="1.8"/><circle cx="4" cy="16" r="1.8"/><circle cx="10" cy="16" r="1.8"/></g></svg>';
+  function render(msg) {
+    const a = active(), L = legs();
+    const legTo = Object.fromEntries(L.map((l) => [l.to, l]));
+    $('itin').innerHTML = P.order.map((id, i) => {
+      const m = BY[id], on = P.on[id], n = on ? a.indexOf(id) + 1 : '–', l = legTo[id];
+      const leg = l ? `${P.mode === 'walk' ? 'Walk' : 'Ride'} ≈ ${l.mi.toFixed(1)} mi · ${l.min} min` : '';
+      return `<li data-id="${id}" class="${on ? '' : 'off'}" data-leg="${leg}" data-testid="stop-${id}">
+        <button class="grip" data-grip aria-label="Drag ${m.short} to reorder" tabindex="-1">${GRIP}</button>
+        <span class="badge" aria-hidden="true">${n}</span>
+        <label class="it-name"><b><input type="checkbox" data-toggle ${on ? 'checked' : ''} data-testid="include-${id}" style="margin-right:6px;accent-color:#b5532e"> ${m.short}</b><span>${m.year}</span></label>
+        <span class="it-act"><button data-up aria-label="Move ${m.short} earlier" data-testid="up-${id}" ${i === 0 ? 'disabled' : ''}>↑</button><button data-down aria-label="Move ${m.short} later" data-testid="down-${id}" ${i === P.order.length - 1 ? 'disabled' : ''}>↓</button></span></li>`;
+    }).join('');
+    // map markers + route
+    $('stops').innerHTML = MISSIONS.map((m) => {
+      const p = proj(m), on = P.on[m.id], n = on ? a.indexOf(m.id) + 1 : '', lx = p.x > 200 ? -16 : 16, anchor = p.x > 200 ? 'end' : 'start';
+      return `<g class="stop-dot" transform="translate(${p.x.toFixed(1)} ${p.y.toFixed(1)})" tabindex="0" role="button" aria-pressed="${on}" aria-label="${m.short}: ${on ? 'in your plan, stop ' + n : 'not in your plan'}" data-id="${m.id}" data-testid="marker-${m.id}">
+        <circle class="ring" r="14" fill="${on ? '#b5532e' : '#fbf6ec'}" stroke="#2a211b" stroke-width="2"/>
+        <text y="4.5" text-anchor="middle" font-family="Gill Sans, Calibri, sans-serif" font-size="13" font-weight="700" fill="${on ? '#fff' : '#6b5b4c'}">${n || '+'}</text>
+        <text x="${lx}" y="-18" text-anchor="${anchor}" font-family="Garamond, Cambria, serif" font-size="17" font-weight="600" fill="#2a211b">${m.short}</text></g>`;
+    }).join('');
+    const pts = a.map((id) => proj(BY[id]));
+    $('routePath').setAttribute('d', pts.length > 1 ? pts.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ') : '');
+    // summary + schedule
+    const s = schedule();
+    $('sumStops').textContent = String(a.length);
+    $('sumDist').textContent = a.length > 1 ? `≈ ${s.miles.toFixed(1)} mi` : '—';
+    $('sumMove').textContent = a.length > 1 ? fmtDur(s.moveMin) : '—';
+    $('sumEnd').textContent = a.length ? fmtClock(s.end) : '—';
+    $('schedBody').innerHTML = a.length ? s.rows.map((r, i) => `<tr data-testid="row-${r.id}"><td>${i + 1}. ${BY[r.id].short}</td><td>${fmtClock(r.arrive)}</td><td>${fmtClock(r.leave)}</td></tr>`).join('')
+      : '<tr><td colspan="3">Pick at least one mission.</td></tr>';
+    document.querySelectorAll('[data-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === P.mode)));
+    $('dwellOut').textContent = `${P.dwell} min`; $('dwell').value = P.dwell; $('start').value = P.start;
+    if (msg) $('live').textContent = msg;
+    save();
+  }
+
+  function move(id, delta) {
+    const i = P.order.indexOf(id), j = i + delta; if (i < 0 || j < 0 || j >= P.order.length) return;
+    P.order.splice(i, 1); P.order.splice(j, 0, id);
+    render(`${BY[id].short} moved to position ${j + 1}.`);
+    const btn = document.querySelector(`[data-testid="${delta < 0 ? 'up' : 'down'}-${id}"]`);
+    (btn && !btn.disabled ? btn : document.querySelector(`[data-testid="include-${id}"]`)).focus();
+  }
+  function toggle(id) { P.on[id] = !P.on[id]; render(`${BY[id].short} ${P.on[id] ? 'added to' : 'removed from'} your plan.`); }
+
+  $('itin').addEventListener('click', (e) => {
+    const li = e.target.closest('li'); if (!li) return; const id = li.dataset.id;
+    if (e.target.closest('[data-up]')) move(id, -1); else if (e.target.closest('[data-down]')) move(id, 1);
+  });
+  $('itin').addEventListener('change', (e) => { if (e.target.matches('[data-toggle]')) { const id = e.target.closest('li').dataset.id; toggle(id); const cb = document.querySelector(`[data-testid="include-${id}"]`); cb && cb.focus(); } });
+  $('stops').addEventListener('click', (e) => { const g = e.target.closest('.stop-dot'); if (g) { toggle(g.dataset.id); const n = document.querySelector(`[data-testid="marker-${g.dataset.id}"]`); n && n.focus(); } });
+  $('stops').addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('.stop-dot')) { e.preventDefault(); const id = e.target.closest('.stop-dot').dataset.id; toggle(id); const n = document.querySelector(`[data-testid="marker-${id}"]`); n && n.focus(); } });
+  document.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => { P.mode = b.dataset.mode; render(`Planning for ${P.mode === 'walk' ? 'walking' : 'biking'}.`); }));
+  $('dwell').addEventListener('input', (e) => { P.dwell = +e.target.value; render(); });
+  $('start').addEventListener('change', (e) => { if (/^\d{2}:\d{2}$/.test(e.target.value)) { P.start = e.target.value; render(`Starting at ${fmtClock(toMin(P.start))}.`); } });
+  $('reverse').addEventListener('click', () => { P.order.reverse(); render('Order reversed.'); });
+  $('southward').addEventListener('click', () => { P.order = MISSIONS.map((m) => m.id); render('Ordered north to south, the way the river runs.'); });
+  $('resetPlan').addEventListener('click', () => { P = DEFAULT(); render('Plan reset.'); });
+
+  // ---------- drag to reorder (pointer events; works for mouse and touch) ----------
+  let drag = null;
+  $('itin').addEventListener('pointerdown', (e) => {
+    const grip = e.target.closest('[data-grip]'); if (!grip) return;
+    const li = grip.closest('li'); e.preventDefault();
+    const items = [...$('itin').children], rects = items.map((el) => el.getBoundingClientRect());
+    drag = { id: li.dataset.id, li, startY: e.clientY, from: items.indexOf(li), rects, pid: e.pointerId, to: items.indexOf(li) };
+    li.classList.add('dragging'); try { grip.setPointerCapture(e.pointerId); } catch (err) { /* synthetic */ }
+  });
+  window.addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== drag.pid) return;
+    const dy = e.clientY - drag.startY; drag.li.style.transform = `translateY(${dy}px)`;
+    const mid = drag.rects[drag.from].top + drag.rects[drag.from].height / 2 + dy;
+    // new index = how many other stops have their centre above the dragged card's centre
+    drag.to = drag.rects.reduce((n, r, i) => n + (i !== drag.from && r.top + r.height / 2 < mid ? 1 : 0), 0);
+  });
+  const endDrag = (e) => {
+    if (!drag || e.pointerId !== drag.pid) return;
+    const { id, from, to } = drag; drag.li.style.transform = ''; drag.li.classList.remove('dragging'); drag = null;
+    if (to !== from) { P.order.splice(from, 1); P.order.splice(to, 0, id); render(`${BY[id].short} moved to position ${to + 1}.`); }
+  };
+  window.addEventListener('pointerup', endDrag); window.addEventListener('pointercancel', endDrag);
+
+  window.__missions = {
+    get plan() { return JSON.parse(JSON.stringify(P)); },
+    legs, schedule, legMi, active,
+  };
+  render();
+})();
+</script>
+</body>
+</html>

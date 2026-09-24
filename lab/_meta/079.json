@@ -1,0 +1,35 @@
+{
+  "id": "079",
+  "slug": "079-prairie-pinball",
+  "file": "lab/079-prairie-pinball.html",
+  "title": "Prairie Pinball — a Texas-prairie pinball table",
+  "category": "Games",
+  "tags": ["canvas", "physics", "fixed-timestep", "continuous-collision", "game"],
+  "description": "A physics pinball table painted as a Texas prairie at sunset. It has flippers, a pull-strength plunger, bluebonnet pop bumpers, kicking slingshots, a windmill spinner, the Cattle Drive ramp, S-T-A-R rollover lanes that raise a multiplier up to 5×, an 8-second ball saver and a tilt that punishes three quick nudges. Play with the keyboard, touch halves of the table or on-screen buttons.",
+  "prompt": "Build a physics pinball table with a Texas prairie theme. I want flippers (keyboard Z/M or Left/Right, and the two halves of the screen on touch), a plunger with pull strength, bumpers, slingshots, a spinner, ramps as lanes, multiplier lanes, a ball save, a tilt warning and a score. Use fixed-timestep physics that's deterministic with ?seed=, with continuous collision so the ball never tunnels through anything, and expose window.__pinball for tests. Make it look like a real cabinet with a dot-matrix score display, not a canvas demo.",
+  "qa": {
+    "methodology": [
+      "Anti-tunnelling tests at the speed cap (2,600 px/s, which is more than a ball radius per 1/240 s step): straight at the outer wall, at a zero-thickness lane divider, and down onto a resting flipper. Every sampled sub-step position must stay on the near side, and a flipper swinging into a fast ball must send it upward.",
+      "Determinism oracle: two runs with the same seed and the same scripted input give identical traces and scores; another seed (bumper-kick and launch jitter) gives a different trace.",
+      "Scoring rules exercised by placing the ball precisely through window.__pinball.place: bumper 100, four S-T-A-R lanes raising the multiplier to 2× (with the bonus already doubled), lane change on flipper press, windmill spins scored at 25× the multiplier, and the ramp hiding and returning the ball.",
+      "Game-state flow: ball save returns a drained ball, three nudges tilt the table and kill the flippers, a tilted drain resets tilt, three drains end the game, and the final-score dialog matches state and restarts.",
+      "Playability soak (during development): a simple bot played 8,000 frames on several seeds and tracked the longest stretch with the ball nearly still. This found two resting pockets (the inlane guides meeting the flipper pivots, and slingshots too close to the inlanes), and both were fixed in the geometry."
+    ],
+    "risks": [
+      "Ball traps: any V-shaped pocket narrower than a ball can hold it forever; the soak bot's still-time check is the regression guard.",
+      "Flipper-ball impulse depends on the flipper's angular velocity, so a change to the flipper speed changes shot power everywhere.",
+      "Sensor debounce (0.4 s per rollover) can hide a second pass through the same lane in quick succession, which the spec deliberately waits out.",
+      "Canvas values must stay finite (the ball position is guarded before drawing, and ramp-ride positions come from a bounded Bézier)."
+    ],
+    "playwright": "Real-time physics is impossible to assert reliably by wall clock, so the page exposes manual(true) and frames(n), where one frame is four 1/240 s physics steps, plus trace(n) for per-step positions and place() to set up exact shots. Keyboard input goes through real page.keyboard events, and touch flippers through dispatched pointer events on each half of the canvas, which behaves the same on desktop and Pixel 7. The anti-tunnelling assertions come straight from the geometry, not from screenshots. The only DOM checks are the status line, the game-over dialog and the final score, where the user-facing wording matters.",
+    "coverage": [
+      "Keyboard and touch-half flippers",
+      "Plunger strength versus launch speed; ball save timer; leaving the shooter lane",
+      "Seeded determinism of traces and score",
+      "No tunnelling through the wall, a divider or a flipper at maximum speed; flipper impulse",
+      "Bumper, lanes and multiplier, lane change, spinner, ramp",
+      "Ball save, tilt with dead flippers, drains, game over and restart"
+    ]
+  },
+  "a11y": "The whole table can be played from the keyboard (Z/M or the arrow keys, Space or Down for the plunger, N to nudge), and the on-screen Left, Plunger, Right and Nudge controls are real buttons that also respond to Enter and Space. Game events such as launches, ball saves, the tilt warning, drains and the final score are announced through an aria-live status line, and the canvas aria-label reports score, ball and multiplier."
+}

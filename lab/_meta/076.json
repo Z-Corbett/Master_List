@@ -1,0 +1,35 @@
+{
+  "id": "076",
+  "slug": "076-script-playground",
+  "file": "lab/076-script-playground.html",
+  "title": "Bitcoin Script Playground — a stack machine you can step through",
+  "category": "Tools",
+  "tags": ["bitcoin", "interpreter", "sha-256", "ripemd-160", "stack-machine"],
+  "description": "A teaching interpreter for a subset of Bitcoin Script. It runs an unlocking script and then a locking script one opcode at a time, animating the stack, marking skipped IF/ELSE branches and saying exactly why a spend fails. SHA-256 and RIPEMD-160 are written from scratch and checked against published test vectors on every load, and OP_CHECKSIG is a clearly labelled simulation.",
+  "prompt": "Build a Bitcoin Script playground: a stack-machine interpreter for a teaching subset with data pushes, OP_DUP, OP_DROP, OP_SWAP, OP_ADD, OP_SUB, OP_EQUAL, OP_EQUALVERIFY, OP_VERIFY, OP_IF/OP_ELSE/OP_ENDIF, OP_SHA256 and OP_HASH160. Implement SHA-256 and RIPEMD-160 properly and prove them against known test vectors. OP_CHECKSIG should be a clearly labelled simulated check with no real ECDSA. Let me step through a script and watch the stack animate, with presets for a simulated P2PKH spend and a hash puzzle. It should feel like an engineer's notebook, not another dark crypto dashboard.",
+  "qa": {
+    "methodology": [
+      "Known-answer tests: the page's own SHA-256 is checked against the FIPS 180-2 vectors (including the million-'a' message), RIPEMD-160 against the reference vectors from its designers (empty, 'a', 'abc', 'message digest', the alphabet, a million 'a'), and HASH160 against the BIP-173 generator-key example.",
+      "The hash implementations were also checked offline against Node's crypto module at the 55-, 56- and 64-byte padding boundaries before the page was written.",
+      "Step-level state checks for P2PKH: after each Step click the spec compares the stack to expected values (DUP gives [sig, pub, pub], HASH160 gives hash160(pub)), checks the program-counter chip on the tape, and checks that Step back restores the previous state exactly.",
+      "Negative paths, each checked for its exact error: the wrong key fails at step 6 (OP_EQUALVERIFY), a forged signature ends with false, a bad preimage leaves false, an unknown opcode is a parse error, and there are cases for an unbalanced IF across scripts, a missing ENDIF, stack underflow and OP_VERIFY on false.",
+      "Consensus details that are easy to get wrong: minimal script-number encoding (-1 → 81, 128 → 8000, -128 → 8080) and negative zero (0x80) counting as false."
+    ],
+    "risks": [
+      "Bit-level mistakes in the hash functions (a wrong rotation table or endianness in the length padding); the self-test badge makes any regression visible to users as well as to tests.",
+      "IF/ELSE nesting inside a skipped branch must not flip on ELSE; the page tracks whether the outer branch was executing.",
+      "Step back relies on snapshots, so a shallow copy of any nested array would corrupt history.",
+      "Visitors could mistake the simulated CHECKSIG for real cryptography, so the page labels it in the note, the log and the opcode table."
+    ],
+    "playwright": "This page is deterministic and pure, so the spec leans on page.evaluate into window.__script for known-answer tests: hashing a million bytes and running whole scripts headlessly is fast and exact. The UI tests click Step and read both the rendered stack (data-testid stack-item counts and labels) and the interpreter state, so a rendering bug and a logic bug fail differently. The Run button animates with setInterval; with emulateMedia({ reducedMotion: 'reduce' }) the interval drops to 40 ms and Playwright's auto-waiting toHaveText covers the rest, so no fixed sleeps are needed. Visual snapshots were not used because the monospace wrapping of long hashes differs between desktop and Pixel 7.",
+    "coverage": [
+      "SHA-256, RIPEMD-160 and HASH160 known-answer vectors; hash lab UI",
+      "Stepping the P2PKH spend with stack checks at each opcode; step back",
+      "Wrong-key failure at OP_EQUALVERIFY; forged signature",
+      "Hash puzzle with right and wrong preimages; parse errors",
+      "IF/ELSE skipping and the branch stack",
+      "Script-number encoding, negative zero, underflow and unbalanced branches"
+    ]
+  },
+  "a11y": "Every control is a native button or labelled textarea, and preset choices expose aria-pressed. The verdict is an aria-live status that names the failing step and reason. The stack is a labelled list whose items carry text labels (number, text, true/false, simulated key) as well as colour."
+}

@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HTTP Cache Lab — A Time-Travel Browser Cache Simulator</title>
+<meta name="description" content="Set response headers (Cache-Control max-age, no-cache, no-store, private, must-revalidate, stale-while-revalidate, immutable, ETag, Last-Modified, Vary) for six resources, jump the clock forward and issue requests. See fresh hits, conditional requests ending in 304 or 200, stale-while-revalidate, offline behaviour and bypasses on a timeline, with the exact headers exchanged.">
+<style>
+  :root {
+    --oak: #4b3222;
+    --oak-2: #5f412d;
+    --oak-3: #3a2619;
+    --card: #fbf6e9;
+    --card-2: #f3ead3;
+    --ink: #2b211b;
+    --ink-2: #5a4a3e;
+    --ink-3: #8c7a6b;
+    --redline: #c8553d;
+    --blueline: #a8c8dc;
+    --hit: #2e7d4f;
+    --reval: #2f5f8f;
+    --changed: #b8741a;
+    --swr: #8a55a8;
+    --miss: #6d6d6d;
+    --bad: #b3261e;
+    --type: "American Typewriter", "Courier Prime", "Courier New", Courier, monospace;
+    --sans: Georgia, "Times New Roman", serif;
+    --ui: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--oak); color: var(--ink); font-family: var(--ui); line-height: 1.45; overflow-x: hidden;
+    background-image: repeating-linear-gradient(90deg, rgba(255,255,255,.025) 0 2px, transparent 2px 9px), repeating-linear-gradient(0deg, rgba(0,0,0,.06) 0 1px, transparent 1px 37px); }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  input, select, pre { max-width: 100%; }
+  code { overflow-wrap: anywhere; }
+  :focus-visible { outline: 3px solid #f2b84b; outline-offset: 2px; }
+  .back { position: fixed; top: 10px; left: 10px; z-index: 50; color: var(--card); background: var(--oak-3); border: 1px solid #8a6a52; text-decoration: none; font: 700 13px/1 var(--type); padding: 8px 11px; border-radius: 3px; }
+  .back:hover { background: #2a1a10; }
+  .wrap { max-width: 1320px; margin: 0 auto; padding: 60px 18px 50px; }
+
+  .index-card { background: var(--card); border-radius: 4px; box-shadow: 0 2px 0 rgba(0,0,0,.25), 0 10px 24px rgba(0,0,0,.25); position: relative;
+    background-image: linear-gradient(transparent 0 38px, var(--redline) 38px 40px, transparent 40px), repeating-linear-gradient(transparent 0 23px, var(--blueline) 23px 24px); background-position: 0 0, 0 40px; background-repeat: no-repeat, repeat; background-size: 100% 100%, 100% calc(100% - 40px); }
+  header.hero { padding: 10px 22px 20px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; align-items: start; margin-bottom: 20px; }
+  header.hero h1 { margin: 0; font: 700 clamp(28px, 5vw, 52px)/40px var(--type); height: auto; letter-spacing: -.01em; padding-top: 2px; }
+  header.hero p { margin: 14px 0 0; font: 15.5px/24px var(--sans); max-width: 78ch; color: var(--ink-2); }
+  .drawer-tag { font: 700 12px var(--type); background: var(--card-2); border: 1px solid #c9b996; padding: 6px 10px; text-align: center; transform: rotate(2deg); margin-top: 6px; }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+  .catalog { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .res { padding: 8px 14px 14px; min-width: 0; }
+  .res h2 { margin: 0; font: 700 15px/30px var(--type); overflow-wrap: anywhere; display: flex; justify-content: space-between; gap: 8px; }
+  .res h2 small { font: 11px var(--ui); color: var(--ink-3); }
+  .res .desc { font: 12.5px/24px var(--sans); color: var(--ink-2); margin: 6px 0 0; }
+  .res label { display: block; font: 700 11px/1.3 var(--ui); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin-top: 8px; }
+  .res input[type="text"] { width: 100%; font: 12.5px var(--type); border: 1px solid #c9b996; background: rgba(255,255,255,.75); padding: 5px 7px; border-radius: 2px; }
+  .res input[aria-invalid="true"] { border-color: var(--bad); }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; min-height: 20px; }
+  .chip { font: 11px var(--type); padding: 1px 5px; border-radius: 2px; background: #e9dfc6; border: 1px solid #cdbd98; }
+  .chip.unk { background: #f6d9d4; border-color: #d99a8f; }
+  .res .opts { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; font-size: 13px; align-items: center; }
+  .res .opts label { display: inline-flex; gap: 5px; align-items: center; text-transform: none; letter-spacing: 0; font: 13px var(--ui); color: var(--ink); margin: 0; }
+  .res .opts input[type="checkbox"] { accent-color: var(--oak-2); }
+  .res select { font: 12.5px var(--ui); border: 1px solid #c9b996; background: #fff; padding: 3px 4px; }
+  .state { margin-top: 10px; font: 12.5px var(--type); padding: 6px 8px; border-left: 4px solid var(--miss); background: rgba(255,255,255,.6); overflow-wrap: anywhere; }
+  .state[data-state="fresh"] { border-color: var(--hit); } .state[data-state="swr"] { border-color: var(--swr); } .state[data-state="stale"] { border-color: var(--changed); }
+  .state b { font-family: var(--ui); }
+  .res .foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; font-size: 12px; color: var(--ink-3); }
+  .btn { border: 1px solid var(--oak-3); background: var(--card); color: var(--ink); padding: 6px 10px; border-radius: 3px; font: 700 12.5px var(--ui); box-shadow: 0 2px 0 var(--oak-3); }
+  .btn:active { transform: translateY(2px); box-shadow: none; }
+  .btn.go { background: #2b211b; color: var(--card); }
+
+  .console { padding: 8px 18px 18px; }
+  .console h2 { margin: 0; font: 700 18px/30px var(--type); }
+  .clock { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
+  .clock .t { font: 700 30px var(--type); }
+  .clock .date { font: 13px var(--type); color: var(--ink-2); }
+  .adv { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .adv button { border: 1px solid #c9b996; background: #fff; padding: 4px 9px; font: 700 12.5px var(--type); border-radius: 2px; }
+  .form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; margin-top: 14px; }
+  .form label.f { display: grid; gap: 3px; font: 700 11px var(--ui); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); min-width: 0; }
+  .form select { font: 14px var(--ui); padding: 6px; border: 1px solid #c9b996; background: #fff; width: 100%; text-transform: none; letter-spacing: 0; color: var(--ink); }
+  .form .modes { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 14px; }
+  .form .modes label { display: inline-flex; gap: 6px; align-items: center; }
+  .sendrow { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
+  .stamp { display: inline-block; font: 700 15px var(--type); text-transform: uppercase; letter-spacing: .06em; padding: 5px 10px; border: 3px double currentColor; border-radius: 4px; transform: rotate(-3deg); background: rgba(255,255,255,.5); }
+  .o-hit { color: var(--hit); } .o-revalidated { color: var(--reval); } .o-changed { color: var(--changed); } .o-swr { color: var(--swr); } .o-miss, .o-nostore, .o-hard { color: var(--miss); } .o-offline-stale { color: var(--changed); } .o-gateway, .o-fail { color: var(--bad); }
+  .exchange { margin-top: 14px; display: grid; gap: 10px; }
+  .step { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 8px; }
+  .step .n { width: 24px; height: 24px; border-radius: 50%; background: var(--oak-2); color: var(--card); display: grid; place-items: center; font: 700 12px var(--ui); }
+  .step p { margin: 2px 0 4px; font-size: 14px; }
+  pre.h { margin: 0; font: 12.5px/1.5 var(--type); background: #fffdf6; border: 1px dashed #c9b996; padding: 7px 9px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  pre.h .m { color: var(--reval); font-weight: 700; }
+  .why { font: 13.5px/1.5 var(--sans); color: var(--ink-2); background: var(--card-2); padding: 8px 10px; border-left: 4px solid var(--oak-2); }
+
+  .timeline { margin-top: 20px; padding: 8px 16px 16px; }
+  .timeline h2 { margin: 0; font: 700 18px/30px var(--type); display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .timeline h2 small { font: 12px var(--ui); color: var(--ink-3); }
+  .tlwrap { background: #fffdf6; border: 1px solid #d9caa6; margin-top: 10px; overflow-x: auto; max-width: 100%; }
+  svg#tl { display: block; width: 100%; height: auto; min-width: 700px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--ink-2); margin-top: 8px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+  table.log { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px; table-layout: fixed; }
+  table.log th { text-align: left; font: 700 11px var(--ui); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); border-bottom: 2px solid var(--redline); padding: 4px 6px; }
+  table.log td { padding: 5px 6px; border-bottom: 1px solid var(--blueline); overflow-wrap: anywhere; vertical-align: top; }
+  table.log tr { cursor: pointer; }
+  table.log tr[aria-selected="true"] td { background: #f1e6c8; }
+  table.log td code { font: 12px var(--type); }
+  .notes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 20px; }
+  .notes div { padding: 8px 14px 14px; font: 13.5px/24px var(--sans); color: var(--ink-2); }
+  .notes h3 { margin: 0; font: 700 14px/30px var(--type); color: var(--ink); }
+  .notes code { font: 12px var(--type); }
+  footer.f { margin-top: 18px; font-size: 12.5px; color: #d9c8ad; max-width: 100ch; }
+
+  @media (max-width: 1080px) {
+    .layout { grid-template-columns: minmax(0, 1fr); }
+    .console { order: -1; }
+    .notes { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 620px) {
+    .catalog { grid-template-columns: minmax(0, 1fr); }
+    header.hero { grid-template-columns: minmax(0, 1fr); }
+    .drawer-tag { justify-self: start; }
+    .wrap { padding: 56px 12px 40px; }
+    .form { grid-template-columns: minmax(0, 1fr); }
+    table.log th:nth-child(3), table.log td:nth-child(3) { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<a href="../index.html#lab" class="back" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="hero index-card">
+    <div>
+      <h1>HTTP Cache Lab</h1>
+      <p>A browser's HTTP cache is a card catalogue with due dates. Set the response headers for six resources, move the clock forward, and ask for them again. Each request shows whether the cache could answer on its own, had to check with the server, or had to fetch the whole thing again, and the exact headers that went back and forth.</p>
+    </div>
+    <div class="drawer-tag">DRAWER 9111<br>simulated, private cache</div>
+  </header>
+
+  <div class="layout">
+    <section aria-labelledby="catH">
+      <h2 id="catH" style="position:absolute;left:-9999px">Resources</h2>
+      <div class="catalog" data-testid="catalog"></div>
+    </section>
+
+    <section class="console index-card" aria-labelledby="conH">
+      <h2 id="conH">Request desk</h2>
+      <div class="clock"><span class="t" data-testid="clock" data-t="0">t = 0 s</span><span class="date" data-testid="date"></span></div>
+      <div class="adv" role="group" aria-label="Advance the clock">
+        <button type="button" data-adv="1" data-testid="adv-1s">+1 s</button>
+        <button type="button" data-adv="10" data-testid="adv-10s">+10 s</button>
+        <button type="button" data-adv="60" data-testid="adv-1m">+1 min</button>
+        <button type="button" data-adv="300" data-testid="adv-5m">+5 min</button>
+        <button type="button" data-adv="3600" data-testid="adv-1h">+1 h</button>
+        <button type="button" data-adv="86400" data-testid="adv-1d">+1 day</button>
+      </div>
+      <div class="form">
+        <label class="f">Resource<select data-testid="req-res" id="reqRes"></select></label>
+        <label class="f">Accept-Language<select data-testid="req-lang" id="reqLang"><option value="en-US">en-US</option><option value="fr-FR">fr-FR</option></select></label>
+        <div class="modes" role="radiogroup" aria-label="How the request is made">
+          <label><input type="radio" name="mode" value="normal" checked data-testid="mode-normal"> Normal load</label>
+          <label><input type="radio" name="mode" value="reload" data-testid="mode-reload"> Reload</label>
+          <label><input type="radio" name="mode" value="hard" data-testid="mode-hard"> Hard reload</label>
+          <label><input type="checkbox" data-testid="offline" id="offline"> Network offline</label>
+        </div>
+      </div>
+      <div class="sendrow">
+        <button type="button" class="btn go" data-testid="send">Send request</button>
+        <button type="button" class="btn" data-testid="tour">Play a sample morning</button>
+        <button type="button" class="btn" data-testid="reset">Reset</button>
+        <span data-testid="outcome" aria-live="polite"></span>
+      </div>
+      <div class="exchange" data-testid="exchange"></div>
+    </section>
+  </div>
+
+  <section class="timeline index-card" aria-labelledby="tlH">
+    <h2 id="tlH">Timeline <small>one lane per resource · bars show fresh (solid) and stale-while-revalidate (hatched) windows</small></h2>
+    <div class="tlwrap"><svg id="tl" data-testid="timeline" role="img" aria-label="Timeline of requests"></svg></div>
+    <div class="legend">
+      <span><i style="background:var(--hit)"></i>fresh hit</span><span><i style="background:var(--reval)"></i>304 revalidated</span><span><i style="background:var(--changed)"></i>stale → 200 / offline stale</span>
+      <span><i style="background:var(--swr)"></i>stale-while-revalidate</span><span><i style="background:var(--miss)"></i>miss / bypass / hard reload</span><span><i style="background:var(--bad)"></i>504 / network error</span><span>◆ new version published</span>
+    </div>
+    <table class="log" data-testid="log"><thead><tr><th style="width:60px">t</th><th>Request</th><th>Sent to origin</th><th style="width:34%">Outcome</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <div class="notes">
+    <div class="index-card"><h3>Freshness (RFC 9111 §4.2)</h3>A stored response is fresh while its age is below its freshness lifetime: <code>max-age</code> if present, otherwise a heuristic. Here the heuristic is 10 % of the time since <code>Last-Modified</code> (§4.2.2 suggests that figure). With no max-age and no Last-Modified the lifetime is 0. <code>no-cache</code> stores the response but forces validation before every use; <code>no-store</code> stops it being stored at all.</div>
+    <div class="index-card"><h3>Validation (§4.3)</h3>A stale response isn't thrown away. The cache sends <code>If-None-Match</code> (from the ETag) and <code>If-Modified-Since</code> (from Last-Modified). If the server answers <code>304 Not Modified</code>, the stored copy is freshened with the new headers (§4.3.4); a 200 replaces it. <code>Vary</code> adds request headers to the cache key (§4.1), and <code>Vary: *</code> never matches.</div>
+    <div class="index-card"><h3>Extensions and reloads</h3><code>stale-while-revalidate</code> (RFC 5861) serves a stale copy at once and refreshes it in the background. <code>must-revalidate</code> forbids serving stale, so offline you get a 504 instead (§4.2.4). <code>immutable</code> (RFC 8246) tells the browser not to revalidate a fresh response on reload. Reload here means sending <code>max-age=0</code>; a hard reload sends <code>no-cache</code> and skips the cache.</div>
+  </div>
+  <footer class="f">Simplifications: one private browser cache, zero network latency (so Age is simply now minus the response time), no Expires or Age headers from the origin, heuristic freshness fixed at 10 %, and 'reload' semantics are generic, since real browsers differ. Directives not modelled here, such as s-maxage, public and proxy-revalidate, are shown as unrecognised. The resources are fictional.</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s, r = document) => r.querySelector(s);
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const BASE = Date.UTC(2026, 0, 1, 9, 0, 0); // Thu, 01 Jan 2026 09:00:00 GMT is t = 0
+  const httpDate = (t) => new Date(BASE + t * 1000).toUTCString();
+  const KNOWN = ['max-age', 'no-cache', 'no-store', 'private', 'must-revalidate', 'stale-while-revalidate', 'immutable'];
+  const WITH_VALUE = ['max-age', 'stale-while-revalidate'];
+
+  const RES = [
+    { slug: 'app', url: '/assets/app.3f9a1c.js', type: 'application/javascript', size: 48213, desc: 'Fingerprinted bundle. The name changes on every build.', cc: 'max-age=31536000, immutable', etag: true, lm: false, vary: '', pub: -3 * 86400 },
+    { slug: 'profile', url: '/api/profile', type: 'application/json', size: 612, desc: 'Personal data. Always check it is current.', cc: 'private, no-cache', etag: true, lm: false, vary: '', pub: -3600 },
+    { slug: 'news', url: '/news.html', type: 'text/html', size: 18230, desc: 'No Cache-Control at all, only Last-Modified.', cc: '', etag: false, lm: true, vary: '', pub: -7200 },
+    { slug: 'avatar', url: '/img/avatar.png', type: 'image/png', size: 9120, desc: 'Short max-age with a generous background-refresh window.', cc: 'max-age=60, stale-while-revalidate=300', etag: true, lm: true, vary: '', pub: -86400 },
+    { slug: 'greeting', url: '/api/greeting', type: 'application/json', size: 88, desc: 'Translated text, one copy per language.', cc: 'max-age=600', etag: true, lm: false, vary: 'Accept-Language', pub: -86400 },
+    { slug: 'cart', url: '/api/cart', type: 'application/json', size: 1402, desc: 'Changes constantly. Never store it.', cc: 'no-store', etag: false, lm: false, vary: '', pub: -300 },
+  ];
+
+  // ---------- state ----------
+  let S;
+  function fresh() {
+    return {
+      t: 0,
+      conf: RES.map((r) => ({ cc: r.cc, etag: r.etag, lm: r.lm, vary: r.vary })),
+      origin: RES.map((r) => ({ v: 1, pub: r.pub, history: [] })),
+      cache: RES.map(() => []), // entries: { stored, headers:{cc, etag, lm, vary}, v, varyVals }
+      log: [], sel: -1,
+    };
+  }
+  S = fresh();
+
+  // ---------- header logic ----------
+  function parseCC(s) {
+    const out = { dirs: {}, unknown: [], bad: [] };
+    for (const part of (s || '').split(',')) {
+      const p = part.trim(); if (!p) continue;
+      const m = /^([A-Za-z-]+)(?:\s*=\s*"?([^"]*)"?)?$/.exec(p);
+      if (!m) { out.bad.push(p); continue; }
+      const name = m[1].toLowerCase();
+      if (!KNOWN.includes(name)) { out.unknown.push(name); continue; }
+      if (WITH_VALUE.includes(name)) {
+        if (m[2] === undefined || !/^\d+$/.test(m[2])) { out.bad.push(p); continue; }
+        out.dirs[name] = Number(m[2]);
+      } else out.dirs[name] = true;
+    }
+    return out;
+  }
+  const etagOf = (i, v) => `"${RES[i].slug}-v${v}"`;
+  function originHeaders(i, t, status) {
+    const c = S.conf[i], o = S.origin[i];
+    const h = [];
+    h.push(['Date', httpDate(t)]);
+    if (c.cc.trim()) h.push(['Cache-Control', c.cc.trim()]);
+    if (c.etag) h.push(['ETag', etagOf(i, o.v)]);
+    if (c.lm && status === 200) h.push(['Last-Modified', httpDate(o.pub)]);
+    if (c.vary) h.push(['Vary', c.vary]);
+    if (status === 200) { h.push(['Content-Type', RES[i].type]); h.push(['Content-Length', String(RES[i].size + o.v * 7)]); }
+    return h;
+  }
+  function lifetimeOf(e) {
+    const cc = parseCC(e.headers.cc).dirs;
+    if (cc['max-age'] !== undefined) return { life: cc['max-age'], how: `max-age=${cc['max-age']}` };
+    if (e.headers.lm !== null) { const life = Math.floor(0.1 * (e.date - e.headers.lm)); return { life, how: `heuristic: 10 % of ${fmtDur(e.date - e.headers.lm)} since Last-Modified` }; }
+    return { life: 0, how: 'no max-age and no Last-Modified, so lifetime 0' };
+  }
+  function entryState(e, t) {
+    const { life, how } = lifetimeOf(e);
+    const age = t - e.stored;
+    const cc = parseCC(e.headers.cc).dirs;
+    const swr = cc['stale-while-revalidate'];
+    let state = age < life ? 'fresh' : swr !== undefined && age < life + swr && !cc['must-revalidate'] ? 'swr' : 'stale';
+    return { life, how, age, state, cc, swr };
+  }
+  function fmtDur(s) {
+    s = Math.round(s);
+    if (s < 120) return s + ' s';
+    if (s < 7200) return Math.round(s / 60) + ' min';
+    if (s < 172800) return (s / 3600).toFixed(s % 3600 ? 1 : 0) + ' h';
+    if (s < 60 * 86400) return Math.round(s / 86400) + ' days';
+    return Math.round(s / 86400 / 365 * 10) / 10 + ' years';
+  }
+  function varyKey(i, lang, varyHeader) {
+    if (!varyHeader) return '';
+    if (varyHeader.trim() === '*') return '*';
+    return varyHeader.split(',').map((h) => h.trim().toLowerCase()).map((h) => (h === 'accept-language' ? 'accept-language=' + lang : h + '=')).join('&');
+  }
+  function findEntry(i, lang) {
+    return S.cache[i].find((e) => e.headers.vary.trim() !== '*' && e.varyVals === varyKey(i, lang, e.headers.vary));
+  }
+  function store(i, t, lang, reqT) {
+    const c = S.conf[i];
+    const cc = parseCC(c.cc).dirs;
+    if (cc['no-store']) return false;
+    const e = { stored: t, date: t, v: S.origin[i].v, headers: { cc: c.cc, etag: c.etag ? etagOf(i, S.origin[i].v) : null, lm: c.lm ? S.origin[i].pub : null, vary: c.vary }, varyVals: varyKey(i, lang, c.vary) };
+    // a response with a different Vary header changes the variant set, so older variants are dropped
+    S.cache[i] = S.cache[i].filter((x) => x.headers.vary === e.headers.vary && x.varyVals !== e.varyVals);
+    S.cache[i].push(e);
+    return true;
+  }
+  function freshen(e, i, t) {
+    // RFC 9111 §4.3.4: update stored headers from the 304
+    const c = S.conf[i];
+    e.stored = t; e.date = t;
+    e.headers.cc = c.cc;
+    if (c.etag) e.headers.etag = etagOf(i, S.origin[i].v);
+  }
+  const H = (pairs) => pairs.map(([k, v]) => `${k}: ${v}`).join('\n');
+
+  // ---------- one request ----------
+  function request(i, mode, lang, offline) {
+    const t = S.t, r = RES[i];
+    const ev = { t, i, mode, lang, offline, steps: [], outcome: '', label: '', sent: '—', why: '' };
+    const reqBase = [[`GET ${r.url} HTTP/1.1`, null], ['Host', 'shop.example'], ['Accept-Language', lang]];
+    const reqText = (extra) => reqBase.concat(extra).map(([k, v]) => (v === null ? k : `${k}: ${v}`)).join('\n');
+    const toOrigin = (cond) => {
+      // origin answers a (possibly conditional) request
+      const o = S.origin[i];
+      let status = 200;
+      if (cond) {
+        const cur = S.conf[i].etag ? etagOf(i, o.v) : null;
+        if (cond.inm) status = cur && cond.inm === cur ? 304 : 200; // If-None-Match takes precedence (RFC 9110 §13.2.2)
+        else if (cond.ims !== undefined) status = o.pub <= cond.ims ? 304 : 200;
+      }
+      return { status, headers: originHeaders(i, t, status) };
+    };
+    const fail = (why) => { ev.outcome = 'fail'; ev.label = 'Network error'; ev.why = why; ev.steps.push({ who: 'Cache → page', text: 'The network is down and there is nothing usable in the cache.', res: 'TypeError: Failed to fetch' }); };
+
+    if (mode === 'hard') {
+      const extra = [['Cache-Control', 'no-cache'], ['Pragma', 'no-cache']];
+      ev.steps.push({ who: 'Browser → origin', text: 'Hard reload: the cache is skipped and the request asks every cache on the way not to answer from storage.', req: reqText(extra) });
+      if (offline) { fail('Hard reload never uses the cache, and the network is offline.'); return ev; }
+      const res = toOrigin(null);
+      const stored = store(i, t, lang);
+      ev.steps.push({ who: 'Origin → browser', text: stored ? 'Full response, stored again.' : 'Full response, not stored (no-store).', res: `HTTP/1.1 200 OK\n${H(res.headers)}` });
+      ev.outcome = 'hard'; ev.label = 'Hard reload → 200'; ev.sent = 'unconditional'; ev.why = 'A hard reload bypasses the cache on purpose.';
+      return ev;
+    }
+    const e = findEntry(i, lang);
+    const reloadExtra = mode === 'reload' ? [['Cache-Control', 'max-age=0']] : [];
+    if (!e) {
+      const vstar = S.cache[i].some((x) => x.headers.vary.trim() === '*');
+      const noStoreNow = parseCC(S.conf[i].cc).dirs['no-store'];
+      ev.steps.push({ who: 'Browser → cache', text: vstar ? 'The stored response has Vary: *, which can never match a new request (§4.1).' : S.cache[i].length ? `A copy exists, but for a different ${S.cache[i][0].headers.vary || 'variant'}, so it cannot be used.` : 'Nothing stored for this URL.' });
+      if (offline) { fail('Nothing stored, and the network is offline.'); return ev; }
+      const res = toOrigin(null);
+      ev.steps.push({ who: 'Cache → origin', text: 'Plain request, no validators to offer.', req: reqText(reloadExtra) });
+      const stored = store(i, t, lang);
+      ev.steps.push({ who: 'Origin → cache', text: stored ? 'Stored in the cache.' : 'Cache-Control: no-store, so it is passed to the page and forgotten.', res: `HTTP/1.1 200 OK\n${H(res.headers)}` });
+      ev.outcome = noStoreNow ? 'nostore' : 'miss'; ev.label = noStoreNow ? 'Bypass: no-store → 200' : 'Miss → 200'; ev.sent = 'unconditional';
+      ev.why = noStoreNow ? 'no-store responses are never kept, so every request goes to the origin.' : 'First request for this cache key.';
+      return ev;
+    }
+    const st = entryState(e, t);
+    const noCache = !!st.cc['no-cache'];
+    const immutable = !!st.cc.immutable;
+    ev.steps.push({ who: 'Browser → cache', text: `Stored copy found. Age ${fmtDur(st.age)}, freshness lifetime ${fmtDur(st.life)} (${st.how}).${noCache ? ' It was stored with no-cache.' : ''}` });
+    const fresh = st.state === 'fresh';
+    const mustValidate = noCache || (mode === 'reload' && !(immutable && fresh));
+    if (fresh && !mustValidate) {
+      ev.outcome = 'hit'; ev.label = mode === 'reload' && immutable ? 'Fresh hit (immutable, reload skipped)' : 'Fresh hit';
+      ev.why = mode === 'reload' && immutable ? 'The response is immutable and still fresh, so even a reload uses it without asking the server.' : 'Age is below the freshness lifetime, so the cache answers without the network.';
+      ev.steps.push({ who: 'Cache → page', text: 'Served from the cache. Nothing sent over the network.', res: `HTTP/1.1 200 OK  (from cache)\nAge: ${st.age}` });
+      return ev;
+    }
+    const cond = {}, extra = reloadExtra.slice();
+    if (e.headers.etag) { cond.inm = e.headers.etag; extra.push(['If-None-Match', e.headers.etag]); }
+    if (e.headers.lm !== null) { cond.ims = e.headers.lm; extra.push(['If-Modified-Since', httpDate(e.headers.lm)]); }
+    const hasValidator = !!(cond.inm || cond.ims !== undefined);
+    // stale-while-revalidate: serve now, refresh in the background
+    if (st.state === 'swr' && mode === 'normal' && !noCache && !offline) {
+      const res = toOrigin(hasValidator ? cond : null);
+      ev.steps.push({ who: 'Cache → page', text: `Stale by ${fmtDur(st.age - st.life)}, but inside stale-while-revalidate=${st.swr}, so it is served immediately.`, res: `HTTP/1.1 200 OK  (from cache, stale)\nAge: ${st.age}` });
+      ev.steps.push({ who: 'Cache → origin (background)', text: 'Meanwhile the cache revalidates.', req: reqText(extra) });
+      if (res.status === 304) freshen(e, i, t); else store(i, t, lang);
+      ev.steps.push({ who: 'Origin → cache (background)', text: res.status === 304 ? 'Not modified: the stored copy is freshened for next time.' : 'Changed: the new version replaces the stored copy for next time.', res: `HTTP/1.1 ${res.status === 304 ? '304 Not Modified' : '200 OK'}\n${H(res.headers)}` });
+      ev.outcome = 'swr'; ev.label = `Stale served (SWR), background ${res.status}`; ev.sent = hasValidator ? 'conditional (background)' : 'unconditional (background)';
+      ev.why = 'The page got an instant answer; the next request will see the refreshed copy.';
+      return ev;
+    }
+    if (offline) {
+      if (!noCache && !st.cc['must-revalidate']) {
+        ev.outcome = 'offline-stale'; ev.label = 'Offline: cached copy served';
+        ev.why = 'Disconnected caches may serve stale responses (§4.2.4) unless must-revalidate or no-cache forbids it.';
+        ev.steps.push({ who: 'Cache → page', text: 'The network is down, so the stale copy is used as the best available answer.', res: `HTTP/1.1 200 OK  (from cache, stale)\nAge: ${st.age}` });
+      } else {
+        ev.outcome = 'gateway'; ev.label = '504 Gateway Timeout';
+        ev.why = `${noCache ? 'no-cache' : 'must-revalidate'} forbids using the stale copy without validation, and validation is impossible offline.`;
+        ev.steps.push({ who: 'Cache → page', text: 'The cache may not use its copy and cannot reach the origin.', res: 'HTTP/1.1 504 Gateway Timeout' });
+      }
+      return ev;
+    }
+    const res = toOrigin(hasValidator ? cond : null);
+    const reason = noCache ? 'Stored with no-cache: validate before every use.' : mode === 'reload' ? `Reload asks for max-age=0${immutable ? ', but the copy is stale anyway' : ''}.` : st.state === 'swr' ? 'Inside the stale-while-revalidate window, but this is not a normal load, so it waits for validation.' : `Stale: age ${fmtDur(st.age)} ≥ lifetime ${fmtDur(st.life)}${st.cc['must-revalidate'] ? ' (must-revalidate)' : ''}.`;
+    ev.steps.push({ who: 'Cache → origin', text: `${reason} ${hasValidator ? 'Sending a conditional request.' : 'No ETag or Last-Modified stored, so the whole response must be fetched again.'}`, req: reqText(extra) });
+    if (res.status === 304) {
+      freshen(e, i, t);
+      ev.steps.push({ who: 'Origin → cache', text: 'Not modified. The stored body is reused and its headers are freshened (§4.3.4).', res: `HTTP/1.1 304 Not Modified\n${H(res.headers)}` });
+      ev.outcome = 'revalidated'; ev.label = '304 Not Modified'; ev.sent = cond.inm ? 'If-None-Match' + (cond.ims !== undefined ? ' + If-Modified-Since' : '') : 'If-Modified-Since';
+      ev.why = 'Only headers crossed the network; the body came from the cache.';
+    } else {
+      const stored = store(i, t, lang);
+      ev.steps.push({ who: 'Origin → cache', text: hasValidator ? 'The validator no longer matches: here is the new version.' : 'Full response.', res: `HTTP/1.1 200 OK\n${H(res.headers)}` });
+      ev.outcome = 'changed'; ev.label = hasValidator ? 'Stale → 200 (changed)' : 'Stale → 200 (no validator)'; ev.sent = hasValidator ? (cond.inm ? 'If-None-Match' : 'If-Modified-Since') + ' → 200' : 'unconditional';
+      ev.why = hasValidator ? 'The resource changed since it was cached, so the full body was downloaded.' : 'Without validators the cache cannot ask "has it changed?", only "send it again".';
+      if (!stored) ev.why += ' (Not stored: no-store.)';
+    }
+    return ev;
+  }
+
+  // ---------- rendering ----------
+  function renderCatalog(focus) {
+    const box = $('[data-testid="catalog"]');
+    box.innerHTML = RES.map((r, i) => {
+      const c = S.conf[i];
+      const p = parseCC(c.cc);
+      const chips = Object.entries(p.dirs).map(([k, v]) => `<span class="chip">${k}${v === true ? '' : '=' + v}</span>`).join('') + p.unknown.map((u) => `<span class="chip unk" title="not modelled here">${esc(u)}?</span>`).join('') + p.bad.map((b) => `<span class="chip unk">${esc(b)} ✗</span>`).join('');
+      const entries = S.cache[i];
+      const langNow = $('#reqLang') ? $('#reqLang').value : 'en-US';
+      const e = findEntry(i, langNow) || entries[0];
+      let stHTML, stState = 'none', life = '', age = '';
+      if (!e) stHTML = parseCC(c.cc).dirs['no-store'] ? 'Not stored (no-store).' : 'Not in the cache yet.';
+      else {
+        const s = entryState(e, S.t);
+        stState = s.state; life = s.life; age = s.age;
+        stHTML = `<b>${s.state === 'fresh' ? 'Fresh' : s.state === 'swr' ? 'Stale, SWR window' : 'Stale'}</b> · age ${fmtDur(s.age)} / lifetime ${fmtDur(s.life)}${s.cc['no-cache'] ? ' · no-cache' : ''} · v${e.v}${entries.length > 1 ? ` · ${entries.length} variants` : e.varyVals ? ` · ${esc(e.varyVals)}` : ''}`;
+      }
+      return `<article class="res index-card" data-testid="card-${r.slug}">
+        <h2><span>${esc(r.url)}</span><small data-testid="version-${r.slug}">origin v${S.origin[i].v}</small></h2>
+        <p class="desc">${esc(r.desc)}</p>
+        <label for="cc-${r.slug}">Cache-Control</label>
+        <input type="text" id="cc-${r.slug}" data-i="${i}" data-f="cc" data-testid="cc-${r.slug}" value="${esc(c.cc)}" spellcheck="false" autocomplete="off" aria-invalid="${p.bad.length > 0}" placeholder="(none)">
+        <div class="chips" aria-hidden="true">${chips}</div>
+        <div class="opts">
+          <label><input type="checkbox" data-i="${i}" data-f="etag" data-testid="etag-${r.slug}" ${c.etag ? 'checked' : ''}> ETag</label>
+          <label><input type="checkbox" data-i="${i}" data-f="lm" data-testid="lm-${r.slug}" ${c.lm ? 'checked' : ''}> Last-Modified</label>
+          <label>Vary <select data-i="${i}" data-f="vary" data-testid="vary-${r.slug}" aria-label="Vary for ${esc(r.url)}"><option value=""${c.vary === '' ? ' selected' : ''}>none</option><option${c.vary === 'Accept-Language' ? ' selected' : ''}>Accept-Language</option><option${c.vary === '*' ? ' selected' : ''}>*</option></select></label>
+        </div>
+        <div class="state" data-testid="state-${r.slug}" data-state="${stState}" data-lifetime="${life}" data-age="${age}">${stHTML}</div>
+        <div class="foot"><span>Last-Modified ${esc(httpDate(S.origin[i].pub).slice(5, 22))}</span><button type="button" class="btn" data-publish="${i}" data-testid="publish-${r.slug}">Publish new version</button></div>
+      </article>`;
+    }).join('');
+    if (focus) { const el = box.querySelector(`[data-testid="${focus.id}"]`); if (el) { el.focus(); if (focus.pos != null && el.setSelectionRange) el.setSelectionRange(focus.pos, focus.pos); } }
+  }
+  function renderClock() {
+    const c = $('[data-testid="clock"]');
+    c.dataset.t = String(S.t);
+    c.textContent = `t = ${S.t < 120 ? S.t + ' s' : fmtDur(S.t)}`;
+    $('[data-testid="date"]').textContent = httpDate(S.t);
+  }
+  const OUT_COLOR = { hit: 'var(--hit)', revalidated: 'var(--reval)', changed: 'var(--changed)', 'offline-stale': 'var(--changed)', swr: 'var(--swr)', miss: 'var(--miss)', nostore: 'var(--miss)', hard: 'var(--miss)', gateway: 'var(--bad)', fail: 'var(--bad)' };
+  function renderExchange() {
+    const ev = S.log[S.sel];
+    const box = $('[data-testid="exchange"]');
+    const out = $('[data-testid="outcome"]');
+    if (!ev) { box.innerHTML = '<p class="why">Pick a resource and send a request. Then move the clock and send it again.</p>'; out.innerHTML = ''; return; }
+    out.innerHTML = `<span class="stamp o-${ev.outcome}" data-testid="stamp" data-outcome="${ev.outcome}">${esc(ev.label)}</span>`;
+    box.innerHTML = `<p class="why" data-testid="why"><b>${esc(RES[ev.i].url)}</b> at t = ${ev.t} s${ev.mode !== 'normal' ? ` (${ev.mode === 'hard' ? 'hard reload' : 'reload'})` : ''}${ev.offline ? ', offline' : ''}: ${esc(ev.why)}</p>` + ev.steps.map((s, k) => `<div class="step"><span class="n">${k + 1}</span><div><p><b>${esc(s.who)}</b>. ${esc(s.text)}</p>${s.req ? `<pre class="h" data-testid="req-headers">${esc(s.req)}</pre>` : ''}${s.res ? `<pre class="h" data-testid="res-headers">${esc(s.res)}</pre>` : ''}</div></div>`).join('');
+  }
+  function renderLog() {
+    const tb = $('[data-testid="log"] tbody');
+    tb.innerHTML = S.log.map((ev, k) => `<tr data-testid="log-row" data-k="${k}" data-outcome="${ev.outcome}" aria-selected="${k === S.sel}" tabindex="0"><td>${ev.t < 120 ? ev.t + ' s' : fmtDur(ev.t)}</td><td><code>${esc(RES[ev.i].url)}</code>${ev.mode !== 'normal' ? ` · ${ev.mode}` : ''}${ev.lang !== 'en-US' && S.conf[ev.i].vary ? ` · ${ev.lang}` : ''}${ev.offline ? ' · offline' : ''}</td><td>${esc(ev.sent)}</td><td><span style="color:${OUT_COLOR[ev.outcome]};font-weight:700">●</span> ${esc(ev.label)}</td></tr>`).reverse().join('') || '<tr><td colspan="4" style="color:var(--ink-3)">No requests yet.</td></tr>';
+  }
+  function renderTimeline() {
+    const svg = $('#tl');
+    const W = 1000, L = 150, R = 16, lane = 34, top = 26;
+    const Hh = top + lane * RES.length + 24;
+    svg.setAttribute('viewBox', `0 0 ${W} ${Hh}`);
+    const tmax = Math.max(120, S.t * 1.08 + 10);
+    const X = (t) => L + ((W - L - R) * Math.max(0, Math.min(t, tmax))) / tmax;
+    let g = '';
+    // ticks
+    const steps = [10, 30, 60, 300, 600, 1800, 3600, 7200, 21600, 43200, 86400, 172800, 604800];
+    const step = steps.find((s) => tmax / s <= 8) || 604800;
+    for (let s = 0; s <= tmax; s += step) g += `<line x1="${X(s)}" x2="${X(s)}" y1="${top - 6}" y2="${Hh - 20}" stroke="#e6dcc3"/><text x="${X(s)}" y="${Hh - 6}" font-size="11" text-anchor="middle" fill="#8c7a6b" font-family="Courier New, monospace">${s < 120 ? s + 's' : fmtDur(s).replace(' ', '')}</text>`;
+    g += `<line x1="${X(S.t)}" x2="${X(S.t)}" y1="${top - 12}" y2="${Hh - 20}" stroke="#c8553d" stroke-width="2"/><text x="${X(S.t)}" y="${top - 14}" font-size="11" text-anchor="middle" fill="#c8553d" font-family="Courier New, monospace">now</text>`;
+    RES.forEach((r, i) => {
+      const y = top + lane * i + lane / 2;
+      g += `<text x="8" y="${y + 4}" font-size="12" fill="#2b211b" font-family="Courier New, monospace">${esc(r.url.length > 18 ? '…' + r.url.slice(-17) : r.url)}</text><line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="#d9caa6" stroke-dasharray="3 4"/>`;
+      // freshness windows, reconstructed from the log (stored/freshened points)
+      S.log.filter((ev) => ev.i === i && ev.win).forEach((ev) => {
+        const w = ev.win;
+        if (!Number.isFinite(w.start) || !Number.isFinite(w.life)) return;
+        const x0 = X(w.start), x1 = X(w.start + w.life), x2 = X(w.start + w.life + (w.swr || 0));
+        if (x1 > x0) g += `<rect x="${x0}" y="${y - 7}" width="${Math.max(1, x1 - x0)}" height="14" fill="rgba(46,125,79,.22)"/>`;
+        if (w.swr && x2 > x1) g += `<rect x="${x1}" y="${y - 7}" width="${Math.max(1, x2 - x1)}" height="14" fill="url(#hatch)"/>`;
+      });
+      S.origin[i].history.forEach((pt) => { g += `<path d="M${X(pt)} ${y - 13} l5 5 -5 5 -5 -5z" fill="#2b211b"/>`; });
+      S.log.forEach((ev, k) => {
+        if (ev.i !== i) return;
+        const x = X(ev.t);
+        g += `<circle cx="${x}" cy="${y}" r="${k === S.sel ? 7 : 5.5}" fill="${OUT_COLOR[ev.outcome].replace('var(--hit)', '#2e7d4f').replace('var(--reval)', '#2f5f8f').replace('var(--changed)', '#b8741a').replace('var(--swr)', '#8a55a8').replace('var(--miss)', '#6d6d6d').replace('var(--bad)', '#b3261e')}" stroke="#fffdf6" stroke-width="2"><title>${esc(ev.label)} at t=${ev.t}s</title></circle>`;
+      });
+    });
+    svg.innerHTML = `<defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="rgba(138,85,168,.10)"/><line x1="0" y1="0" x2="0" y2="6" stroke="rgba(138,85,168,.55)" stroke-width="2"/></pattern></defs>` + g;
+  }
+  function renderAll(focus) { renderClock(); renderCatalog(focus); renderExchange(); renderLog(); renderTimeline(); }
+
+  function send(i, mode, lang, offline) {
+    const ev = request(i, mode, lang, offline);
+    const e = findEntry(i, lang);
+    if (e && ['miss', 'hard', 'revalidated', 'changed', 'swr'].includes(ev.outcome) && e.stored === S.t) {
+      const st = entryState(e, S.t);
+      ev.win = { start: S.t, life: st.life, swr: st.cc['must-revalidate'] ? 0 : st.swr || 0 };
+    }
+    S.log.push(ev); S.sel = S.log.length - 1;
+    return ev;
+  }
+
+  // ---------- events ----------
+  $('#reqRes').innerHTML = RES.map((r, i) => `<option value="${i}">${esc(r.url)}</option>`).join('');
+  $('[data-testid="send"]').addEventListener('click', () => {
+    const mode = document.querySelector('input[name="mode"]:checked').value;
+    send(Number($('#reqRes').value), mode, $('#reqLang').value, $('#offline').checked);
+    renderAll();
+  });
+  document.querySelector('.adv').addEventListener('click', (e) => { const b = e.target.closest('[data-adv]'); if (!b) return; S.t += Number(b.dataset.adv); renderAll(); });
+  $('#reqLang').addEventListener('change', () => renderCatalog());
+  const cat = $('[data-testid="catalog"]');
+  cat.addEventListener('input', (e) => {
+    const el = e.target; if (!el.dataset.f) return;
+    const i = Number(el.dataset.i);
+    if (el.dataset.f === 'cc') { S.conf[i].cc = el.value; renderCatalog({ id: el.dataset.testid, pos: el.selectionStart }); }
+  });
+  cat.addEventListener('change', (e) => {
+    const el = e.target; if (!el.dataset.f || el.dataset.f === 'cc') return;
+    const i = Number(el.dataset.i);
+    S.conf[i][el.dataset.f] = el.type === 'checkbox' ? el.checked : el.value;
+    renderCatalog({ id: el.dataset.testid });
+  });
+  cat.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-publish]'); if (!b) return;
+    const i = Number(b.dataset.publish);
+    S.origin[i].v++; S.origin[i].pub = S.t; S.origin[i].history.push(S.t);
+    renderCatalog({ id: b.dataset.testid }); renderTimeline();
+  });
+  const logT = $('[data-testid="log"] tbody');
+  const pickRow = (row) => { S.sel = Number(row.dataset.k); renderExchange(); renderLog(); renderTimeline(); const again = logT.querySelector(`[data-k="${S.sel}"]`); if (again) again.focus(); };
+  logT.addEventListener('click', (e) => { const row = e.target.closest('[data-k]'); if (row) pickRow(row); });
+  logT.addEventListener('keydown', (e) => { const row = e.target.closest('[data-k]'); if (row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); pickRow(row); } });
+  $('[data-testid="reset"]').addEventListener('click', () => { S = fresh(); renderAll(); });
+  $('[data-testid="tour"]').addEventListener('click', () => {
+    S = fresh();
+    const plan = [
+      [0, 'app', 'normal'], [0, 'profile', 'normal'], [0, 'news', 'normal'], [0, 'avatar', 'normal'], [0, 'greeting', 'normal'], [0, 'cart', 'normal'],
+      [30, 'app', 'normal'], [30, 'profile', 'normal'], [30, 'avatar', 'normal'], [30, 'cart', 'normal'],
+      [150, 'avatar', 'normal'], [150, 'greeting', 'normal', 'fr-FR'], [400, 'news', 'normal'], [400, 'app', 'reload'],
+      [900, 'news', 'normal'], [900, 'avatar', 'normal'], [900, 'greeting', 'normal'],
+    ];
+    for (const [t, slug, mode, lang] of plan) { S.t = t; send(RES.findIndex((r) => r.slug === slug), mode, lang || 'en-US', false); }
+    renderAll();
+  });
+
+  renderAll();
+})();
+</script>
+</body>
+</html>
