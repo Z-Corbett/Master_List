@@ -1,0 +1,36 @@
+{
+  "id": "103",
+  "slug": "103-embedding-explorer",
+  "file": "lab/103-embedding-explorer.html",
+  "title": "Embedding Space Explorer — similarity you can see",
+  "category": "AI & Agents",
+  "tags": ["embeddings", "cosine-similarity", "pca", "vector-arithmetic", "svg"],
+  "description": "Forty toy words, each with a hand-built 8-dimensional vector on named axes (royalty, gender, person, animal, food, place, youth, sweet), projected to 2D with PCA computed in the page by power iteration. Click or arrow-key to a word to see its k nearest neighbours by cosine similarity, try king − man + woman style arithmetic with honest caveats, and watch cosine, dot product and Euclidean distance disagree until the vectors are unit-normalised.",
+  "prompt": "Build an Embedding Space Explorer. Use about 40 toy words with hand-built low-dimensional vectors (say 8 dimensions) and project them to 2D with PCA, implemented in the page with power iteration. Clicking a point should show its k nearest neighbours by cosine similarity. Add a vector-arithmetic demo in the king − man + woman style, with honest caveats about how that result is usually produced. Compare cosine with dot product and Euclidean distance. The spec must recompute the cosines and neighbour rankings itself rather than trusting the page.",
+  "qa": {
+    "methodology": [
+      "Independent linear-algebra oracle: the spec builds the sample covariance matrix itself and diagonalises it with a cyclic Jacobi eigenvalue routine, then requires the page's power-iteration eigenvalues to match within 1e-9, its components to match up to sign, to be unit length and orthogonal, and the explained-variance text to match.",
+      "Projection check: every plotted point's PC1/PC2 coordinates must equal (x − μ) · v computed in the test, and the projections must be centred.",
+      "Ranking oracle: nearest neighbours, the three metric lists and the analogy results are re-ranked in the spec with its own cosine, dot and distance functions (same alphabetical tie-break) and compared word by word and to three decimals. A few values are hand-derived: cos(dog, cat) ≈ 0.99380, cake · apple = 2.72, ‖apple‖ = √1.49.",
+      "Identities under normalisation: with unit vectors the dot and Euclidean rankings must equal the cosine ranking, a · b = cos θ and ‖a − b‖² = 2 − 2 cos θ for every listed neighbour, and PCA is recomputed on the new vectors.",
+      "Interaction paths: a real click on a point chosen at test time because nothing else is within 30 px, the word select, the k input, arrow-key roving focus with wrap-around, Enter, and the include-inputs toggle for the analogy."
+    ],
+    "risks": [
+      "Power iteration converging slowly or to the wrong vector when the top eigenvalues are close; the Jacobi comparison would catch a wrong or half-converged component.",
+      "Overlapping points on the flat map (son and boy nearly coincide), which makes taps ambiguous on a phone; the keyboard and the select are the reliable routes, and the click test picks an isolated point.",
+      "The analogy demo looking more impressive than it is: the vectors are hand-built so it works, which the caveats say plainly, and the include-inputs toggle shows the unfiltered ranking.",
+      "Near-ties in similarity reordering between the page and the spec on rounding; there are no exact ties in the data and both sides break ties alphabetically."
+    ],
+    "playwright": "The page exposes __emb with the words, the current vectors, the PCA result and the state, and the spec treats the vectors as input data only: every number it asserts on is recomputed in Node, including a full Jacobi eigen-decomposition to check the page's power iteration. Points carry data-pc1/data-pc2 attributes, so the SVG is verified through its coordinates, not pixels. One test measures point positions with getBoundingClientRect in page.evaluate and clicks an isolated one, which keeps the tap unambiguous on the Pixel 7 project; that is a little indirect, but it was chosen up front because labels and hit areas overlap in the clusters, so a hard-coded word could be covered by a neighbour after any change to the vectors. There is no randomness or timing on this page, so page.clock and seeds are not needed.",
+    "coverage": [
+      "40 words × 8 dimensions, labelled points, hand-checked vectors and cosine",
+      "PCA eigenvalues, components, orthogonality and explained variance vs Jacobi",
+      "Point coordinates equal the projections; projections centred",
+      "k nearest by cosine after a click, select and k changes; vector bars and norm",
+      "Arrow-key roving focus with wrap-around, Enter, aria-live summary",
+      "king − man + woman, puppy − dog + cat, prince − boy + girl; include-inputs toggle",
+      "Cosine vs dot vs Euclidean rankings; agreement and identities after normalisation"
+    ]
+  },
+  "a11y": "Each point is a focusable SVG button with an aria-label and aria-pressed, using a roving tabindex so the map is one tab stop and the arrow keys move between words. A native select offers the same choice without the map. Neighbour summaries and analogy results are announced through aria-live regions, all controls are labelled native inputs, and the vector bars also print their values as text."
+}

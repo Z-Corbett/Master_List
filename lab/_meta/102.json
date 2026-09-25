@@ -1,0 +1,36 @@
+{
+  "id": "102",
+  "slug": "102-auto-wait-lab",
+  "file": "lab/102-auto-wait-lab.html",
+  "title": "Auto-Wait Lab — why sleep() makes tests flaky",
+  "category": "QA & Testing",
+  "tags": ["flaky-tests", "auto-wait", "actionability", "web-first-assertions", "page-clock", "seeded-prng"],
+  "description": "A simulated checkout (a fictional shop) renders its Pay button late: attached, then shown, then sliding into place, enabled once prices load, sometimes covered by an overlay, all after seeded random delays. Three versions of one test race over hundreds of runs: a fixed sleep(), an auto-waiting click followed by a one-shot check, and an auto-waiting click with a web-first assertion. The page charts pass rate against total wait time, sweeps the sleep length, replays any single run in real time and explains each Playwright actionability check.",
+  "prompt": "Build 'Auto-Wait Lab' to show why sleep() makes tests flaky. Simulate a UI whose elements appear, animate and become enabled after seeded random delays, and race three strategies over N simulated runs: a fixed sleep(ms), polling/auto-wait with a timeout that models Playwright's actionability checks (attached, visible, stable, enabled, receives events), and a web-first assertion. Chart pass rate and total wait time, and explain each actionability check accurately. Make it deterministic with ?seed=, and make any live replay drivable from page.clock so the tests can step through it.",
+  "qa": {
+    "methodology": [
+      "Independent oracle: the spec re-implements the seeded generator and the three strategies' rules from the page's own description, regenerates all 200 runs for seed 7 and checks every timing field, then recomputes passes and total wait for each strategy and compares them with the results table.",
+      "Invariants rather than snapshots: sleep costs exactly 2·S per run and a longer sleep never passes fewer runs; an auto-waiting click lands on the first poll at or after the actionable moment (a multiple of the interval, never a full interval late); the one-shot check passes exactly when the response was cached.",
+      "Timeout partitioning: with an 800 ms timeout, every run that isn't actionable by the last poll fails, costs exactly the timeout, and names the first check still pending.",
+      "Clock-driven replay: under page.clock the spec starts the real-time replay, advances to moments just before and after the attach, overlay and actionable times, and checks the checklist, the button's presence and its disabled state against the run's timings. It then runs to the end and checks each lane's verdict.",
+      "Determinism and input handling: ?seed is honoured, raising N keeps earlier runs identical, out-of-range N is clamped, and New seed steps the seed."
+    ],
+    "risks": [
+      "The oracle mirrors the page's model, so a shared misunderstanding (for example of how polls line up with the timeout) would pass both; the invariant tests exist to catch that class of error from another angle.",
+      "The model is a simplification: real Playwright retries on a short growing back-off rather than a fixed interval, and real actionability is decided per animation frame. The page says so.",
+      "Off-by-one at boundaries (a check becoming true exactly on a poll, or a receipt arriving exactly at the timeout); integer millisecond timings and ≤ comparisons keep it defined, and the tests use the same rule.",
+      "The replay ticks every 20 ms, so its displayed state can lag an event by up to one tick; the spec compares against the replay's own elapsed time rather than assuming exact landing."
+    ],
+    "playwright": "page.clock.install() before navigation puts Date.now and setInterval under the test's control, so the replay advances only when clock.runFor() says so, with no real waiting and no flake. The page exposes __autowait (runs, per-run verdicts, totals, the sweep and the replay state), which lets the spec compare derived numbers with its own oracle instead of scraping only formatted text. The spec also uses the very features the page teaches: toBeEnabled/toBeDisabled and toHaveText as web-first assertions, and expect.poll to wait for the config hook after typing. The candid part: a model that mirrors the page is only as good as its reading of the rules, and this page simulates timings rather than driving a real racy DOM through Playwright's own actionability checks.",
+    "coverage": [
+      "Seeded runs regenerate exactly; ?seed changes them; plausible slow and cached fractions",
+      "Results table vs oracle for sleep, one-shot and web-first",
+      "Sleep cost 2·S·N and monotonic pass rate; S = 0 passes nothing",
+      "Auto-wait click timing vs poll interval; one-shot passes only when cached",
+      "Short timeout: failures, wait = timeout, stuck-check reason",
+      "N prefix stability, clamping, New seed; sweep chart vs oracle",
+      "page.clock replay: checklist, button presence and disabled state, overlay, lane verdicts, Stop"
+    ]
+  },
+  "a11y": "Every setting is a labelled number input, and Race, New seed, Replay and Stop are real buttons (Stop returns focus to Replay). The results summary and the replay status are aria-live regions that announce totals and verdicts rather than every tick. The charts have aria-labels that state the key numbers, pass rates are also printed as text beside the bars and in a table, and the mock checkout stage is hidden from assistive technology because a text checklist shows the same states."
+}

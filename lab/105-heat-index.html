@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heat Index — the National Weather Service equation, charted</title>
+<meta name="description" content="The National Weather Service heat index algorithm, step by step: the simple Steadman-style estimate, the Rothfusz regression when it reaches 80 °F, and the low- and high-humidity adjustments. A temperature × humidity heat map shows the NWS caution, extreme caution, danger and extreme danger bands, with °F/°C and an Austin summer-afternoon preset.">
+<style>
+  :root {
+    --sand: #fbf3e4;
+    --sand-2: #f1e2c6;
+    --ink: #2a1a12;
+    --ink-2: #5a3b2b;
+    --muted: #7c6152;
+    --sun: #e8871e;
+    --ember: #c2361b;
+    --card: #fffaf1;
+    --b0: #e9e4d6;   /* below 80 °F */
+    --b1: #f5d657;   /* caution */
+    --b2: #f2a03d;   /* extreme caution */
+    --b3: #e0562b;   /* danger */
+    --b4: #8e1631;   /* extreme danger */
+    --display: "Impact", "Haettenschwiler", "Arial Narrow Bold", "Franklin Gothic Bold", "Arial Black", sans-serif;
+    --sans: "Trebuchet MS", "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --mono: "Consolas", "SFMono-Regular", "Menlo", "Liberation Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--sand); color: var(--ink); font: 15px/1.55 var(--sans); overflow-x: hidden;
+    background-image: radial-gradient(circle at 92% -8%, rgba(232,135,30,.45), rgba(232,135,30,0) 38%), radial-gradient(circle at 92% -8%, rgba(245,214,87,.6), rgba(245,214,87,0) 18%); }
+  :focus-visible { outline: 3px solid var(--ember); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: #fff; background: var(--ember); text-decoration: none; font: 700 13px/1 var(--sans); padding: 8px 12px; border-radius: 4px; box-shadow: 0 2px 0 var(--ink); }
+  a.back:hover { background: var(--ink); }
+  .wrap { max-width: 1140px; margin: 0 auto; padding: 60px 16px 40px; }
+  .eyebrow { margin: 0; font: 700 12px/1.3 var(--sans); letter-spacing: .22em; text-transform: uppercase; color: var(--ember); }
+  h1 { font: 400 clamp(46px, 9vw, 96px)/.95 var(--display); margin: 6px 0 8px; letter-spacing: .01em; text-transform: uppercase; color: var(--ink); overflow-wrap: anywhere; }
+  h1 span { color: var(--sun); }
+  .lede { margin: 0 0 18px; color: var(--ink-2); max-width: 66ch; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 20px; align-items: start; }
+  .card { background: var(--card); border: 2px solid var(--ink); border-radius: 6px; padding: 16px; min-width: 0; box-shadow: 5px 5px 0 var(--sand-2); }
+  h2 { font: 400 26px/1.1 var(--display); text-transform: uppercase; letter-spacing: .02em; margin: 0 0 10px; }
+  .field { margin-bottom: 12px; min-width: 0; }
+  .field label, .lbl { display: block; font: 700 12px/1.3 var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+  .pair { display: grid; grid-template-columns: minmax(0, 1fr) 96px; gap: 10px; align-items: center; }
+  input[type=range] { width: 100%; min-width: 0; accent-color: var(--ember); }
+  input[type=number] { width: 100%; min-width: 0; font: 16px var(--mono); padding: 7px 8px; border: 2px solid var(--ink); border-radius: 4px; background: #fff; color: var(--ink); }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .chip { min-height: 38px; padding: 6px 12px; border-radius: 4px; border: 2px solid var(--ink); background: #fff; color: var(--ink); font: 700 13px/1.1 var(--sans); cursor: pointer; max-width: 100%; }
+  .chip[aria-pressed="true"] { background: var(--ink); color: var(--sand); }
+  .result { margin-top: 14px; border-radius: 6px; padding: 14px 16px; border: 2px solid var(--ink); background: var(--b0); color: var(--ink); }
+  .result[data-band="1"] { background: var(--b1); }
+  .result[data-band="2"] { background: var(--b2); }
+  .result[data-band="3"] { background: var(--b3); color: #fff; }
+  .result[data-band="4"] { background: var(--b4); color: #fff; }
+  .result small { display: block; font: 700 12px/1.3 var(--sans); letter-spacing: .1em; text-transform: uppercase; opacity: .85; }
+  .big { font: 400 clamp(54px, 12vw, 84px)/1 var(--display); letter-spacing: .01em; }
+  .bandname { font: 700 18px/1.2 var(--sans); text-transform: uppercase; letter-spacing: .06em; }
+  .bandtext { margin: 4px 0 0; font-size: 14px; }
+  .steps { list-style: none; margin: 12px 0 0; padding: 0; counter-reset: s; }
+  .steps li { position: relative; padding: 8px 10px 8px 40px; border-top: 1px dashed #d8c3a2; font-size: 14px; overflow-wrap: anywhere; }
+  .steps li::before { counter-increment: s; content: counter(s); position: absolute; left: 6px; top: 8px; width: 24px; height: 24px; border-radius: 50%; background: var(--ink); color: var(--sand); font: 700 13px/24px var(--sans); text-align: center; }
+  .steps li.off { color: var(--muted); }
+  .steps li.off::before { background: #c9b69a; }
+  code, .eq { font: 13px/1.5 var(--mono); }
+  .eq { display: block; background: #fff; border-left: 3px solid var(--sun); padding: 6px 8px; margin: 4px 0; overflow-wrap: anywhere; }
+  .val { font: 700 14px var(--mono); }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; margin: 0 0 8px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 14px; height: 14px; border: 1px solid var(--ink); border-radius: 2px; display: inline-block; }
+  #map { display: block; width: 100%; height: auto; touch-action: manipulation; }
+  #map rect.cell { cursor: pointer; }
+  .note { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+  .tablewrap { overflow-x: auto; max-width: 100%; margin-top: 12px; }
+  table { border-collapse: collapse; font: 13px/1.3 var(--mono); width: 100%; }
+  th, td { border: 1px solid #e0cfb2; padding: 4px 5px; text-align: center; }
+  th { font: 700 11px/1.2 var(--sans); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); background: #fff; }
+  td[data-band="1"] { background: var(--b1); } td[data-band="2"] { background: var(--b2); }
+  td[data-band="3"] { background: var(--b3); color: #fff; } td[data-band="4"] { background: var(--b4); color: #fff; }
+  footer { margin-top: 26px; text-align: center; font-size: 13px; color: var(--muted); }
+  @media (max-width: 880px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 420px) { .pair { grid-template-columns: minmax(0, 1fr) 80px; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <p class="eyebrow">National Weather Service · Rothfusz regression</p>
+  <h1>Heat <span>Index</span></h1>
+  <p class="lede">How hot it feels when humidity stops sweat from cooling you. This page runs the algorithm the NWS Weather Prediction Center publishes: first a simple estimate, then, if that reaches 80 °F, the full Rothfusz regression with its two humidity adjustments. The map shows the whole temperature × humidity plane in the NWS risk bands.</p>
+
+  <div class="layout">
+    <section class="card" aria-labelledby="in-h">
+      <h2 id="in-h">Conditions</h2>
+      <div class="field">
+        <span class="lbl" id="unit-l">Units</span>
+        <div class="row" role="group" aria-labelledby="unit-l">
+          <button type="button" class="chip" data-testid="unit-f" aria-pressed="true">°F</button>
+          <button type="button" class="chip" data-testid="unit-c" aria-pressed="false">°C</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="t-num">Air temperature (<span data-testid="t-unit">°F</span>)</label>
+        <div class="pair">
+          <input type="range" id="t-range" aria-label="Air temperature slider" data-testid="t-range">
+          <input type="number" id="t-num" data-testid="t" step="0.1">
+        </div>
+      </div>
+      <div class="field">
+        <label for="rh-num">Relative humidity (%)</label>
+        <div class="pair">
+          <input type="range" id="rh-range" min="0" max="100" step="1" aria-label="Relative humidity slider" data-testid="rh-range">
+          <input type="number" id="rh-num" min="0" max="100" step="1" data-testid="rh">
+        </div>
+      </div>
+      <div class="field">
+        <span class="lbl" id="pre-l">Presets</span>
+        <div class="row" role="group" aria-labelledby="pre-l">
+          <button type="button" class="chip" data-testid="preset-austin" aria-pressed="false">Austin summer afternoon</button>
+          <button type="button" class="chip" data-testid="preset-textbook" aria-pressed="false">90 °F, 70 %</button>
+          <button type="button" class="chip" data-testid="preset-desert" aria-pressed="false">Dry desert</button>
+          <button type="button" class="chip" data-testid="preset-muggy" aria-pressed="false">Muggy morning</button>
+        </div>
+        <p class="note" data-testid="preset-note">The Austin preset is a typical August afternoon (98 °F, 40 %), not a measurement.</p>
+      </div>
+
+      <div class="result" data-testid="result" data-band="0" aria-live="polite">
+        <small>Heat index</small>
+        <div class="big" data-testid="hi">--</div>
+        <div class="bandname" data-testid="band">--</div>
+        <p class="bandtext" data-testid="band-text"></p>
+      </div>
+
+      <ol class="steps" aria-label="How the value was computed">
+        <li data-testid="step-simple">Simple estimate
+          <span class="eq">HI = ½ · [T + 61 + 1.2 (T − 68) + 0.094 RH]</span>
+          = <span class="val" data-testid="simple">--</span>
+        </li>
+        <li data-testid="step-full">Rothfusz regression (used only when step 1 ≥ 80 °F)
+          <span class="eq">HI = −42.379 + 2.04901523 T + 10.14333127 RH − 0.22475541 T·RH − 0.00683783 T² − 0.05481717 RH² + 0.00122874 T²·RH + 0.00085282 T·RH² − 0.00000199 T²·RH²</span>
+          = <span class="val" data-testid="full">--</span>
+        </li>
+        <li data-testid="step-adj">Adjustment
+          <span class="eq">RH &lt; 13 % and 80–112 °F: − [(13 − RH)/4] · √{[17 − |T − 95|]/17}<br>RH &gt; 85 % and 80–87 °F: + [(RH − 85)/10] · [(87 − T)/5]</span>
+          <span class="val" data-testid="adj">--</span>
+        </li>
+      </ol>
+      <p class="note" data-testid="method" aria-live="polite"></p>
+    </section>
+
+    <section class="card" aria-labelledby="map-h">
+      <h2 id="map-h">Temperature × humidity</h2>
+      <div class="legend" aria-hidden="true">
+        <span><i style="background:var(--b0)"></i>Below 80 °F</span>
+        <span><i style="background:var(--b1)"></i>Caution</span>
+        <span><i style="background:var(--b2)"></i>Extreme caution</span>
+        <span><i style="background:var(--b3)"></i>Danger</span>
+        <span><i style="background:var(--b4)"></i>Extreme danger</span>
+      </div>
+      <svg id="map" data-testid="map" viewBox="0 0 520 440" role="img" aria-label="Heat index map"></svg>
+      <p class="note">Each cell is the heat index at that temperature (across) and relative humidity (up), coloured by NWS band. Tap a cell to load it. The ring marks your conditions.</p>
+      <div class="tablewrap">
+        <table data-testid="row-table">
+          <caption class="note" style="text-align:left;margin-bottom:4px" data-testid="row-caption"></caption>
+          <thead><tr id="row-head"></tr></thead>
+          <tbody><tr id="row-body"></tr></tbody>
+        </table>
+      </div>
+      <p class="note">Bands (NWS): caution 80–90 °F, extreme caution 90–103 °F, danger 103–124 °F, extreme danger 125 °F and above. The heat index assumes shade and a light wind; full sun can add up to about 15 °F.</p>
+    </section>
+  </div>
+  <footer>Built by Zac Corbett · algorithm from the NWS Weather Prediction Center's heat index equation page (Rothfusz 1990, after Steadman 1979)</footer>
+</div>
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const tid = (id) => document.querySelector(`[data-testid="${id}"]`);
+  const toC = (f) => (f - 32) * 5 / 9, toF = (c) => c * 9 / 5 + 32;
+  const T_MIN_F = 50, T_MAX_F = 120;
+
+  // ---- the NWS algorithm ----
+  function simple(T, RH) { return 0.5 * (T + 61.0 + (T - 68.0) * 1.2 + RH * 0.094); }
+  function rothfusz(T, RH) {
+    return -42.379 + 2.04901523 * T + 10.14333127 * RH - 0.22475541 * T * RH
+      - 0.00683783 * T * T - 0.05481717 * RH * RH + 0.00122874 * T * T * RH
+      + 0.00085282 * T * RH * RH - 0.00000199 * T * T * RH * RH;
+  }
+  function adjustment(T, RH) {
+    if (RH < 13 && T >= 80 && T <= 112) return { kind: 'low', value: -((13 - RH) / 4) * Math.sqrt((17 - Math.abs(T - 95)) / 17) };
+    if (RH > 85 && T >= 80 && T <= 87) return { kind: 'high', value: ((RH - 85) / 10) * ((87 - T) / 5) };
+    return { kind: 'none', value: 0 };
+  }
+  const BANDS = [
+    { name: 'No heat-index advisory band', text: 'Below 80 °F: the NWS chart starts at caution.' },
+    { name: 'Caution', text: 'Fatigue is possible with prolonged exposure and activity.' },
+    { name: 'Extreme caution', text: 'Heat cramps and heat exhaustion are possible with prolonged exposure and activity.' },
+    { name: 'Danger', text: 'Heat cramps and heat exhaustion are likely; heat stroke is possible with prolonged exposure.' },
+    { name: 'Extreme danger', text: 'Heat stroke is highly likely.' },
+  ];
+  function band(hi) { return hi >= 125 ? 4 : hi >= 103 ? 3 : hi >= 90 ? 2 : hi >= 80 ? 1 : 0; }
+  function compute(T, RH) {
+    const s = simple(T, RH);
+    if (s < 80) return { T, RH, simple: s, full: null, adj: { kind: 'none', value: 0 }, hi: s, method: 'simple', band: band(s) };
+    const f = rothfusz(T, RH), a = adjustment(T, RH), hi = f + a.value;
+    return { T, RH, simple: s, full: f, adj: a, hi, method: 'rothfusz', band: band(hi) };
+  }
+
+  // ---- state ----
+  const S = { unit: 'F', tF: 98, rh: 40, preset: 'austin' };
+  const PRESETS = { austin: [98, 40], textbook: [90, 70], desert: [110, 8], muggy: [84, 92] };
+  const fmtT = (f, d = 0) => (S.unit === 'F' ? f : toC(f)).toFixed(d) + (S.unit === 'F' ? ' °F' : ' °C');
+
+  const tNum = $('#t-num'), tRange = $('#t-range'), rhNum = $('#rh-num'), rhRange = $('#rh-range');
+  function syncInputs() {
+    const lo = S.unit === 'F' ? T_MIN_F : Math.round(toC(T_MIN_F)), hi = S.unit === 'F' ? T_MAX_F : Math.round(toC(T_MAX_F));
+    for (const el of [tNum, tRange]) { el.min = lo; el.max = hi; }
+    tRange.step = S.unit === 'F' ? 1 : 0.5;
+    const shown = S.unit === 'F' ? S.tF : toC(S.tF);
+    const txt = String(Math.round(shown * 10) / 10);
+    tNum.value = txt; tRange.value = txt;
+    rhNum.value = String(S.rh); rhRange.value = String(S.rh);
+    tid('t-unit').textContent = S.unit === 'F' ? '°F' : '°C';
+    tid('unit-f').setAttribute('aria-pressed', String(S.unit === 'F'));
+    tid('unit-c').setAttribute('aria-pressed', String(S.unit === 'C'));
+    for (const k of Object.keys(PRESETS)) tid('preset-' + k).setAttribute('aria-pressed', String(S.preset === k));
+  }
+
+  // ---- heat map ----
+  const MAP = { t0: 80, t1: 112, dt: 2, r0: 0, r1: 100, dr: 5, x0: 46, y0: 12, w: 460, h: 380 };
+  const cols = (MAP.t1 - MAP.t0) / MAP.dt + 1, rows = (MAP.r1 - MAP.r0) / MAP.dr + 1;
+  const cw = MAP.w / cols, ch = MAP.h / rows;
+  const svg = $('#map'), NS = 'http://www.w3.org/2000/svg';
+  const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); (parent || svg).appendChild(e); return e; };
+  const colors = ['var(--b0)', 'var(--b1)', 'var(--b2)', 'var(--b3)', 'var(--b4)'];
+  const grid = [];
+  const cellsG = mk('g', {});
+  for (let j = 0; j < rows; j++) {
+    const rh = MAP.r0 + j * MAP.dr;
+    for (let i = 0; i < cols; i++) {
+      const t = MAP.t0 + i * MAP.dt, r = compute(t, rh);
+      grid.push({ t, rh, hi: r.hi, band: r.band });
+      const rect = mk('rect', { class: 'cell', x: (MAP.x0 + i * cw).toFixed(2), y: (MAP.y0 + MAP.h - (j + 1) * ch).toFixed(2), width: (cw + 0.3).toFixed(2), height: (ch + 0.3).toFixed(2), fill: colors[r.band], 'data-t': t, 'data-rh': rh, 'data-band': r.band }, cellsG);
+      mk('title', {}, rect).textContent = `${t} °F, ${rh} %: heat index ${Math.round(r.hi)} °F`;
+      rect.addEventListener('click', () => { S.tF = t; S.rh = rh; S.preset = null; update(); });
+    }
+  }
+  const axisG = mk('g', { 'font-size': 12, 'font-family': 'Trebuchet MS, Segoe UI, Arial, sans-serif', fill: '#5a3b2b' });
+  const xLabels = [];
+  for (let i = 0; i < cols; i += 2) {
+    const t = MAP.t0 + i * MAP.dt;
+    const tx = mk('text', { x: (MAP.x0 + (i + 0.5) * cw).toFixed(1), y: MAP.y0 + MAP.h + 16, 'text-anchor': 'middle' }, axisG);
+    xLabels.push([tx, t]);
+  }
+  for (let j = 0; j < rows; j += 2) {
+    const rh = MAP.r0 + j * MAP.dr;
+    mk('text', { x: MAP.x0 - 6, y: (MAP.y0 + MAP.h - (j + 0.5) * ch + 4).toFixed(1), 'text-anchor': 'end' }, axisG).textContent = rh + '%';
+  }
+  const xTitle = mk('text', { x: MAP.x0 + MAP.w / 2, y: MAP.y0 + MAP.h + 38, 'text-anchor': 'middle', 'font-weight': 700 }, axisG);
+  mk('text', { x: 12, y: MAP.y0 + MAP.h / 2, 'text-anchor': 'middle', 'font-weight': 700, transform: `rotate(-90 12 ${MAP.y0 + MAP.h / 2})` }, axisG).textContent = 'Relative humidity';
+  const marker = mk('circle', { r: 9, fill: 'none', stroke: '#2a1a12', 'stroke-width': 3, 'data-testid': 'marker' });
+  const markerIn = mk('circle', { r: 9, fill: 'none', stroke: '#fff', 'stroke-width': 1.2 });
+
+  function drawAxes() {
+    for (const [tx, t] of xLabels) tx.textContent = S.unit === 'F' ? String(t) : toC(t).toFixed(0);
+    xTitle.textContent = `Air temperature (${S.unit === 'F' ? '°F' : '°C'})`;
+  }
+  function placeMarker() {
+    const inside = S.tF >= MAP.t0 - MAP.dt / 2 && S.tF <= MAP.t1 + MAP.dt / 2;
+    const x = MAP.x0 + ((S.tF - MAP.t0) / MAP.dt + 0.5) * cw;
+    const y = MAP.y0 + MAP.h - ((S.rh - MAP.r0) / MAP.dr + 0.5) * ch;
+    for (const m of [marker, markerIn]) { m.setAttribute('cx', x.toFixed(1)); m.setAttribute('cy', y.toFixed(1)); m.style.display = inside ? '' : 'none'; }
+    marker.setAttribute('data-inside', String(inside));
+  }
+  function rowTable() {
+    const rh = Math.round(S.rh);
+    const head = $('#row-head'), body = $('#row-body');
+    head.innerHTML = ''; body.innerHTML = '';
+    const th0 = document.createElement('th'); th0.scope = 'row'; th0.textContent = S.unit === 'F' ? 'T °F' : 'T °C'; head.appendChild(th0);
+    const tb0 = document.createElement('th'); tb0.scope = 'row'; tb0.textContent = 'HI'; body.appendChild(tb0);
+    for (let t = 80; t <= 112; t += 4) {
+      const r = compute(t, rh);
+      const th = document.createElement('th'); th.scope = 'col'; th.textContent = S.unit === 'F' ? t : toC(t).toFixed(1); head.appendChild(th);
+      const td = document.createElement('td'); td.dataset.band = r.band; td.dataset.testid = 'row-' + t;
+      td.textContent = Math.round(S.unit === 'F' ? r.hi : toC(r.hi)); body.appendChild(td);
+    }
+    tid('row-caption').textContent = `Heat index across temperatures at ${rh} % relative humidity`;
+  }
+
+  // ---- render ----
+  let last = null;
+  function update() {
+    S.tF = Math.min(T_MAX_F, Math.max(T_MIN_F, S.tF));
+    S.rh = Math.min(100, Math.max(0, S.rh));
+    const r = compute(S.tF, S.rh);
+    last = r;
+    syncInputs();
+    const res = tid('result');
+    res.dataset.band = r.band;
+    tid('hi').textContent = fmtT(r.hi);
+    tid('band').textContent = BANDS[r.band].name;
+    tid('band-text').textContent = BANDS[r.band].text;
+    tid('simple').textContent = fmtT(r.simple, 1);
+    tid('step-full').classList.toggle('off', r.method === 'simple');
+    tid('step-adj').classList.toggle('off', r.adj.kind === 'none');
+    tid('full').textContent = r.full === null ? 'not needed (step 1 is below 80 °F)' : fmtT(r.full, 1);
+    const dUnit = (v) => (S.unit === 'F' ? v : v * 5 / 9);
+    tid('adj').textContent = r.adj.kind === 'none' ? 'none applies'
+      : `${r.adj.kind === 'low' ? 'low-humidity' : 'high-humidity'}: ${r.adj.value >= 0 ? '+' : '−'}${Math.abs(dUnit(r.adj.value)).toFixed(2)} ${S.unit === 'F' ? '°F' : '°C'}`;
+    tid('method').textContent = r.method === 'simple'
+      ? `The simple estimate is ${r.simple.toFixed(1)} °F, below 80 °F, so it is the answer.`
+      : `The simple estimate is ${r.simple.toFixed(1)} °F (80 °F or more), so the Rothfusz regression${r.adj.kind === 'none' ? '' : ' and the ' + (r.adj.kind === 'low' ? 'low' : 'high') + '-humidity adjustment'} gives ${r.hi.toFixed(1)} °F.`;
+    svg.setAttribute('aria-label', `Heat index map from 80 to 112 °F and 0 to 100 % humidity, coloured by NWS band. Your conditions, ${fmtT(S.tF)} and ${S.rh} %, give ${fmtT(r.hi)}: ${BANDS[r.band].name.toLowerCase()}.`);
+    drawAxes(); placeMarker(); rowTable();
+  }
+
+  const readT = (v) => { const n = parseFloat(v); if (!Number.isFinite(n)) return; S.tF = S.unit === 'F' ? n : toF(n); S.preset = null; update(); };
+  const readRH = (v) => { const n = parseFloat(v); if (!Number.isFinite(n)) return; S.rh = n; S.preset = null; update(); };
+  tRange.addEventListener('input', () => readT(tRange.value));
+  tNum.addEventListener('change', () => readT(tNum.value));
+  tNum.addEventListener('input', () => { const n = parseFloat(tNum.value); const lo = +tNum.min, hi = +tNum.max; if (Number.isFinite(n) && n >= lo && n <= hi) readT(tNum.value); });
+  rhRange.addEventListener('input', () => readRH(rhRange.value));
+  rhNum.addEventListener('change', () => readRH(rhNum.value));
+  rhNum.addEventListener('input', () => { const n = parseFloat(rhNum.value); if (Number.isFinite(n) && n >= 0 && n <= 100) readRH(rhNum.value); });
+  tid('unit-f').addEventListener('click', () => { S.unit = 'F'; update(); });
+  tid('unit-c').addEventListener('click', () => { S.unit = 'C'; update(); });
+  for (const k of Object.keys(PRESETS)) tid('preset-' + k).addEventListener('click', () => { [S.tF, S.rh] = PRESETS[k]; S.preset = k; update(); });
+
+  const qs = new URLSearchParams(location.search);
+  if (qs.get('unit') === 'C') S.unit = 'C';
+  update();
+
+  window.__heat = { compute, simple, rothfusz, adjustment, band, grid, get last() { return last; }, get state() { return { ...S }; } };
+})();
+</script>
+</body>
+</html>

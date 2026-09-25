@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Easter Dates — the Computus, visualized</title>
+<meta name="description" content="Compute Western Easter for any year from 1583 to 4099 with the Anonymous Gregorian algorithm (Meeus/Jones/Butcher), shown step by step, plus Orthodox Easter from the Julian computus converted to the Gregorian calendar. Chart how often each date from March 22 to April 25 occurs, and derive Ash Wednesday, Palm Sunday, Ascension, Pentecost and Corpus Christi.">
+<style>
+  :root {
+    --night: #17122b;
+    --night-2: #231c3f;
+    --panel: #2c2450;
+    --line: #4a3f7a;
+    --gold: #e7c66b;
+    --gold-2: #f6e3a8;
+    --lily: #fbf8ef;
+    --lilac: #b9aee6;
+    --lent: #8a5fd1;
+    --rose: #e79bb3;
+    --muted: #a39cc4;
+    --serif: "Book Antiqua", "Palatino Linotype", Palatino, "Goudy Old Style", Georgia, serif;
+    --sans: "Gill Sans", "Gill Sans MT", "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --mono: "Consolas", "SFMono-Regular", "Menlo", "Liberation Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--night); color: var(--lily); font: 15px/1.6 var(--sans); overflow-x: hidden;
+    background-image: radial-gradient(ellipse at 50% -10%, rgba(231,198,107,.18), transparent 55%), repeating-linear-gradient(90deg, rgba(255,255,255,.015) 0 1px, transparent 1px 64px); }
+  :focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+  a { color: var(--gold-2); }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: var(--night); background: var(--gold); text-decoration: none; font: 600 13px/1 var(--sans); padding: 8px 12px; border-radius: 999px; }
+  a.back:hover { background: var(--lily); }
+  .wrap { max-width: 1140px; margin: 0 auto; padding: 60px 16px 40px; }
+  .eyebrow { margin: 0; font: 600 12px/1.3 var(--sans); letter-spacing: .3em; text-transform: uppercase; color: var(--gold); text-align: center; }
+  h1 { font: 400 clamp(40px, 8vw, 78px)/1.02 var(--serif); margin: 8px 0 6px; text-align: center; letter-spacing: .03em; overflow-wrap: anywhere; }
+  h1 i { color: var(--gold); }
+  .lede { margin: 0 auto 22px; color: var(--lilac); max-width: 64ch; text-align: center; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+  .card { background: var(--night-2); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; min-width: 0; }
+  .card.wide { grid-column: 1 / -1; }
+  h2 { font: 400 25px/1.2 var(--serif); margin: 0 0 10px; color: var(--gold-2); }
+  h3 { font: 600 13px/1.3 var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--gold); margin: 14px 0 6px; }
+  label, .lbl { display: block; font: 600 12px/1.3 var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+  .yearrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  input[type=number] { font: 22px var(--serif); width: 7.5em; max-width: 100%; min-width: 0; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--night); color: var(--lily); }
+  input.small { font-size: 16px; width: 6.5em; }
+  .btn { min-height: 40px; min-width: 40px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--gold); background: transparent; color: var(--gold-2); font: 600 14px/1 var(--sans); cursor: pointer; }
+  .btn:hover { background: rgba(231,198,107,.12); }
+  .btn[aria-pressed="true"] { background: var(--gold); color: var(--night); }
+  .err { color: var(--rose); min-height: 1.4em; margin: 6px 0 0; font-weight: 600; }
+  .dates { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin-top: 12px; }
+  .date { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: var(--panel); min-width: 0; }
+  .date small { display: block; font: 600 11px/1.3 var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--gold); }
+  .date b { display: block; font: 400 30px/1.15 var(--serif); overflow-wrap: anywhere; }
+  .date span { color: var(--muted); font-size: 13px; }
+  .same { margin: 10px 0 0; color: var(--lilac); font-style: italic; font-family: var(--serif); }
+  table { border-collapse: collapse; width: 100%; font: 14px/1.35 var(--mono); }
+  th, td { padding: 4px 6px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  th { font: 600 11px/1.2 var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  td.v { text-align: right; color: var(--gold-2); font-weight: 700; white-space: nowrap; }
+  td.f { color: var(--lilac); overflow-wrap: anywhere; }
+  .tablewrap { overflow-x: auto; max-width: 100%; }
+  .feasts { list-style: none; margin: 0; padding: 0; }
+  .feasts li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; padding: 7px 0; border-bottom: 1px dashed var(--line); }
+  .feasts li b { font: 400 17px/1.3 var(--serif); }
+  .feasts li span { text-align: right; font-variant-numeric: tabular-nums; }
+  .feasts li em { grid-column: 1 / -1; font-size: 12px; color: var(--muted); font-style: normal; }
+  .feasts li.easter b, .feasts li.easter span { color: var(--gold); }
+  .rangerow { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+  .rangerow > div { min-width: 0; }
+  #chart { display: block; width: 100%; height: auto; margin-top: 10px; }
+  .stats { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 8px; color: var(--lilac); font-size: 14px; }
+  .stats b { color: var(--gold-2); }
+  details { margin-top: 10px; }
+  summary { cursor: pointer; color: var(--gold-2); }
+  .note { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+  footer { margin-top: 26px; text-align: center; font-size: 13px; color: var(--muted); }
+  @media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 420px) { .dates { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <p class="eyebrow">Computus · the reckoning of Easter</p>
+  <h1>Easter <i>Dates</i></h1>
+  <p class="lede">Easter is the first Sunday after the ecclesiastical full moon on or after March 21. The calendar arithmetic that turns that rule into a date is the computus. Here it is worked out for any year from 1583 to 4099, step by step.</p>
+
+  <div class="grid">
+    <section class="card" aria-labelledby="y-h">
+      <h2 id="y-h">Choose a year</h2>
+      <label for="year">Year (1583–4099)</label>
+      <div class="yearrow">
+        <button type="button" class="btn" data-testid="prev" aria-label="Previous year">‹</button>
+        <input type="number" id="year" data-testid="year" min="1583" max="4099" step="1" aria-describedby="year-err">
+        <button type="button" class="btn" data-testid="next" aria-label="Next year">›</button>
+        <button type="button" class="btn" data-testid="this-year">This year</button>
+      </div>
+      <p class="err" id="year-err" data-testid="year-err" role="alert"></p>
+      <div class="dates" aria-live="polite" data-testid="dates">
+        <div class="date"><small>Western Easter</small><b data-testid="western">--</b><span data-testid="western-iso"></span></div>
+        <div class="date"><small>Orthodox Easter</small><b data-testid="orthodox">--</b><span data-testid="orthodox-julian"></span></div>
+      </div>
+      <p class="same" data-testid="same"></p>
+
+      <h3>Movable feasts (Western)</h3>
+      <ul class="feasts" data-testid="feasts"></ul>
+    </section>
+
+    <section class="card" aria-labelledby="s-h">
+      <h2 id="s-h">The arithmetic</h2>
+      <h3>Anonymous Gregorian algorithm (Meeus/Jones/Butcher)</h3>
+      <div class="tablewrap">
+        <table data-testid="steps-gregorian">
+          <thead><tr><th scope="col">Var</th><th scope="col">Formula</th><th scope="col">Value</th></tr></thead>
+          <tbody id="greg-body"></tbody>
+        </table>
+      </div>
+      <h3>Julian computus (Meeus), then converted</h3>
+      <div class="tablewrap">
+        <table data-testid="steps-julian">
+          <thead><tr><th scope="col">Var</th><th scope="col">Formula</th><th scope="col">Value</th></tr></thead>
+          <tbody id="jul-body"></tbody>
+        </table>
+      </div>
+      <p class="note">The Orthodox churches still reckon Easter on the Julian calendar. The Julian date is converted to the Gregorian calendar through the Julian Day Number; in this century the calendars are 13 days apart, and from March 1, 2100 they are 14 apart.</p>
+    </section>
+
+    <section class="card wide" aria-labelledby="d-h">
+      <h2 id="d-h">How often each date comes round</h2>
+      <div class="rangerow">
+        <div><label for="from">From</label><input class="small" type="number" id="from" data-testid="from" min="1583" max="4099" value="1583"></div>
+        <div><label for="to">To</label><input class="small" type="number" id="to" data-testid="to" min="1583" max="4099" value="4099"></div>
+        <div role="group" aria-label="Which Easter">
+          <button type="button" class="btn" data-testid="kind-western" aria-pressed="true">Western</button>
+          <button type="button" class="btn" data-testid="kind-orthodox" aria-pressed="false">Orthodox</button>
+        </div>
+        <button type="button" class="btn" data-testid="range-full">Full range</button>
+      </div>
+      <p class="err" data-testid="range-err" role="alert"></p>
+      <svg id="chart" data-testid="chart" viewBox="0 0 900 300" role="img" aria-label="Distribution of Easter dates"></svg>
+      <div class="stats" aria-live="polite" data-testid="stats"></div>
+      <p class="note">Western Easter can fall no earlier than March 22 and no later than April 25. The Gregorian pattern only repeats every 5,700,000 years, far too long to chart, so this uses 1583–4099, the range the algorithm is usually quoted for. Orthodox Easter, shown in Gregorian dates, drifts later as the calendars diverge.</p>
+      <details>
+        <summary>Counts as a table</summary>
+        <div class="tablewrap"><table data-testid="dist-table"><thead><tr><th scope="col">Date</th><th scope="col">Years</th><th scope="col">Share</th></tr></thead><tbody id="dist-body"></tbody></table></div>
+      </details>
+    </section>
+  </div>
+  <footer>Built by Zac Corbett · algorithms after Jean Meeus, <cite>Astronomical Algorithms</cite> (the Gregorian one first published anonymously in <cite>Nature</cite>, 1876)</footer>
+</div>
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const tid = (id) => document.querySelector(`[data-testid="${id}"]`);
+  const MIN = 1583, MAX = 4099;
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const fl = Math.floor;
+
+  // ---- Anonymous Gregorian algorithm ----
+  function western(Y) {
+    const a = Y % 19, b = fl(Y / 100), c = Y % 100, d = fl(b / 4), e = b % 4, f = fl((b + 8) / 25), g = fl((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30, i = fl(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = fl((a + 11 * h + 22 * l) / 451);
+    const n = h + l - 7 * m + 114, month = fl(n / 31), day = (n % 31) + 1;
+    return { year: Y, month, day, vars: { a, b, c, d, e, f, g, h, i, k, l, m, month, day } };
+  }
+  // ---- Julian computus, then Julian date -> Julian Day Number -> Gregorian ----
+  function julianToJDN(Y, M, D) { const a = fl((14 - M) / 12), y = Y + 4800 - a, m = M + 12 * a - 3; return D + fl((153 * m + 2) / 5) + 365 * y + fl(y / 4) - 32083; }
+  function jdnToGregorian(J) { const t = new Date((J - 2440588) * 86400000); return { year: t.getUTCFullYear(), month: t.getUTCMonth() + 1, day: t.getUTCDate() }; }
+  function gregorianToJDN(Y, M, D) { return Math.round(Date.UTC(Y, M - 1, D) / 86400000) + 2440588; }
+  function orthodox(Y) {
+    const a = Y % 4, b = Y % 7, c = Y % 19, d = (19 * c + 15) % 30, e = (2 * a + 4 * b - d + 34) % 7;
+    const n = d + e + 114, jm = fl(n / 31), jd = (n % 31) + 1;
+    const J = julianToJDN(Y, jm, jd), gr = jdnToGregorian(J), offset = J - gregorianToJDN(Y, jm, jd);
+    return { year: gr.year, month: gr.month, day: gr.day, julianMonth: jm, julianDay: jd, offset, vars: { a, b, c, d, e, month: jm, day: jd, offset: '+' + offset + ' days' } };
+  }
+  const utc = (y, m, d) => new Date(Date.UTC(y, m - 1, d));
+  function addDays(dt, n) { return new Date(dt.getTime() + n * 86400000); }
+  const FEASTS = [
+    { key: 'ash', name: 'Ash Wednesday', off: -46, note: 'start of Lent, 46 days before Easter' },
+    { key: 'palm', name: 'Palm Sunday', off: -7, note: 'one week before' },
+    { key: 'goodfriday', name: 'Good Friday', off: -2, note: '' },
+    { key: 'easter', name: 'Easter Sunday', off: 0, note: '' },
+    { key: 'ascension', name: 'Ascension Thursday', off: 39, note: '40th day of Easter, counting Easter as day 1' },
+    { key: 'pentecost', name: 'Pentecost', off: 49, note: 'seven weeks after' },
+    { key: 'trinity', name: 'Trinity Sunday', off: 56, note: '' },
+    { key: 'corpus', name: 'Corpus Christi', off: 60, note: 'Thursday after Trinity Sunday (many places now keep it on the following Sunday)' },
+  ];
+  function feasts(Y) {
+    const w = western(Y), e = utc(Y, w.month, w.day);
+    return FEASTS.map((f) => { const dt = addDays(e, f.off); return { key: f.key, name: f.name, offset: f.off, iso: dt.toISOString().slice(0, 10), weekday: DAYS[dt.getUTCDay()] }; });
+  }
+  const iso = (y, m, d) => `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  const pretty = (m, d) => `${MONTHS[m - 1]} ${d}`;
+  const prettyISO = (s) => { const [, m, d] = s.split('-').map(Number); return `${MONTHS[m - 1].slice(0, 3)} ${d}`; };
+
+  function distribution(from, to, kind) {
+    const counts = new Map();
+    for (let y = from; y <= to; y++) {
+      const r = kind === 'orthodox' ? orthodox(y) : western(y);
+      const k = r.month * 100 + r.day; counts.set(k, (counts.get(k) || 0) + 1);
+    }
+    // continuous run of dates from the first to the last seen
+    const keys = [...counts.keys()].sort((a, b) => a - b);
+    const out = [];
+    if (!keys.length) return out;
+    let dt = utc(2001, fl(keys[0] / 100), keys[0] % 100); const last = keys[keys.length - 1];
+    if (kind === 'western') dt = utc(2001, 3, 22);
+    const end = kind === 'western' ? 425 : last;
+    for (;;) {
+      const k = (dt.getUTCMonth() + 1) * 100 + dt.getUTCDate();
+      out.push({ key: k, month: fl(k / 100), day: k % 100, count: counts.get(k) || 0 });
+      if (k >= end) break;
+      dt = addDays(dt, 1);
+    }
+    return out;
+  }
+
+  // ---- step tables ----
+  const GREG_ROWS = [
+    ['a', 'Y mod 19'], ['b', '⌊Y / 100⌋'], ['c', 'Y mod 100'], ['d', '⌊b / 4⌋'], ['e', 'b mod 4'], ['f', '⌊(b + 8) / 25⌋'], ['g', '⌊(b − f + 1) / 3⌋'],
+    ['h', '(19a + b − d − g + 15) mod 30'], ['i', '⌊c / 4⌋'], ['k', 'c mod 4'], ['l', '(32 + 2e + 2i − h − k) mod 7'], ['m', '⌊(a + 11h + 22l) / 451⌋'],
+    ['month', '⌊(h + l − 7m + 114) / 31⌋'], ['day', '((h + l − 7m + 114) mod 31) + 1'],
+  ];
+  const JUL_ROWS = [['a', 'Y mod 4'], ['b', 'Y mod 7'], ['c', 'Y mod 19'], ['d', '(19c + 15) mod 30'], ['e', '(2a + 4b − d + 34) mod 7'], ['month', '⌊(d + e + 114) / 31⌋'], ['day', '((d + e + 114) mod 31) + 1'], ['offset', 'Julian → Gregorian (via Julian Day Number)']];
+  function fillSteps(body, rows, vars, prefix) {
+    body.innerHTML = '';
+    for (const [k, f] of rows) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<th scope="row">${k}</th><td class="f">${f}</td><td class="v" data-testid="${prefix}-${k}">${vars[k]}</td>`;
+      body.appendChild(tr);
+    }
+  }
+
+  // ---- chart ----
+  const svg = $('#chart'), NS = 'http://www.w3.org/2000/svg';
+  const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); (parent || svg).appendChild(e); return e; };
+  let dist = [];
+  function drawChart(current) {
+    svg.innerHTML = '';
+    const X0 = 44, Y0 = 16, W = 840, H = 230;
+    const max = Math.max(1, ...dist.map((d) => d.count));
+    const bw = W / dist.length;
+    const step = max > 60 ? 20 : max > 20 ? 10 : max > 8 ? 2 : 1;
+    const top = Math.ceil(max / step) * step;
+    const g = mk('g', { 'font-family': 'Gill Sans, Segoe UI, Arial, sans-serif', 'font-size': 12, fill: '#a39cc4' });
+    for (let v = 0; v <= top; v += step) {
+      const y = Y0 + H - (v / top) * H;
+      mk('line', { x1: X0, x2: X0 + W, y1: y, y2: y, stroke: '#4a3f7a', 'stroke-width': v ? 0.6 : 1.2 }, g);
+      mk('text', { x: X0 - 6, y: y + 4, 'text-anchor': 'end' }, g).textContent = v;
+    }
+    dist.forEach((d, i) => {
+      const h = (d.count / top) * H, x = X0 + i * bw;
+      const isCur = current && d.month === current.month && d.day === current.day;
+      const fill = isCur ? '#fbf8ef' : d.month === 3 ? '#8a5fd1' : d.month === 4 ? '#e7c66b' : '#e79bb3';
+      const r = mk('rect', { x: (x + 1).toFixed(2), y: (Y0 + H - h).toFixed(2), width: Math.max(1, bw - 2).toFixed(2), height: h.toFixed(2), fill, 'data-testid': `bar-${d.month}-${d.day}`, 'data-count': d.count, rx: 1.5 }, g);
+      if (isCur) r.setAttribute('data-current', 'true');
+      mk('title', {}, r).textContent = `${pretty(d.month, d.day)}: ${d.count} year${d.count === 1 ? '' : 's'}`;
+      if (d.day === 1 || d.day % 5 === 0 || i === 0) {
+        const lx = x + bw / 2;
+        mk('text', { x: lx.toFixed(1), y: Y0 + H + 16, 'text-anchor': 'middle' }, g).textContent = d.day;
+        if (d.day === 1 || i === 0) mk('text', { x: lx.toFixed(1), y: Y0 + H + 32, 'text-anchor': 'middle', fill: '#e7c66b' }, g).textContent = MONTHS[d.month - 1].slice(0, 3);
+      }
+    });
+  }
+
+  // ---- state + render ----
+  const S = { year: null, from: MIN, to: MAX, kind: 'western' };
+  let last = null;
+  function renderYear() {
+    const Y = S.year, w = western(Y), o = orthodox(Y);
+    tid('western').textContent = `Sunday, ${pretty(w.month, w.day)}`;
+    tid('western-iso').textContent = iso(Y, w.month, w.day);
+    tid('orthodox').textContent = `Sunday, ${pretty(o.month, o.day)}`;
+    tid('orthodox-julian').textContent = `${iso(o.year, o.month, o.day)} · Julian calendar: ${pretty(o.julianMonth, o.julianDay)}`;
+    const wj = gregorianToJDN(Y, w.month, w.day), oj = gregorianToJDN(o.year, o.month, o.day);
+    tid('same').textContent = wj === oj ? `In ${Y} both churches keep Easter on the same Sunday.` : `In ${Y} Orthodox Easter is ${(oj - wj) / 7} week${oj - wj === 7 ? '' : 's'} after Western Easter.`;
+    fillSteps($('#greg-body'), GREG_ROWS, w.vars, 'g');
+    fillSteps($('#jul-body'), JUL_ROWS, o.vars, 'j');
+    const ul = tid('feasts'); ul.innerHTML = '';
+    const fs = feasts(Y);
+    fs.forEach((f, i) => {
+      const li = document.createElement('li'); li.dataset.testid = 'feast-' + f.key; if (f.key === 'easter') li.className = 'easter';
+      const off = f.offset === 0 ? 'Easter' : `Easter ${f.offset > 0 ? '+' : '−'} ${Math.abs(f.offset)}`;
+      li.innerHTML = `<b>${f.name}</b><span data-testid="feast-${f.key}-date">${f.weekday.slice(0, 3)} ${prettyISO(f.iso)}</span><em>${off}${FEASTS[i].note ? ' · ' + FEASTS[i].note : ''}</em>`;
+      ul.appendChild(li);
+    });
+    last = { year: Y, western: w, orthodox: o, feasts: fs };
+    drawChart(S.kind === 'orthodox' ? o : w);
+    try { history.replaceState(null, '', `?year=${Y}`); } catch (e) { /* file: or sandbox */ }
+  }
+  function renderDist() {
+    dist = distribution(S.from, S.to, S.kind);
+    const total = dist.reduce((s, d) => s + d.count, 0);
+    const seen = dist.filter((d) => d.count > 0);
+    const top = [...dist].sort((a, b) => b.count - a.count || a.key - b.key)[0];
+    const pct = (c) => (100 * c / total).toFixed(2) + '%';
+    tid('stats').innerHTML = `<span><b data-testid="stat-years">${total}</b> years (${S.from}–${S.to})</span>`
+      + `<span>Earliest <b data-testid="stat-earliest">${pretty(seen[0].month, seen[0].day)}</b></span>`
+      + `<span>Latest <b data-testid="stat-latest">${pretty(seen[seen.length - 1].month, seen[seen.length - 1].day)}</b></span>`
+      + `<span>Most common <b data-testid="stat-mode">${pretty(top.month, top.day)}</b> (${top.count}, ${pct(top.count)})</span>`;
+    svg.setAttribute('aria-label', `${S.kind === 'orthodox' ? 'Orthodox' : 'Western'} Easter dates, ${S.from} to ${S.to}: earliest ${pretty(seen[0].month, seen[0].day)}, latest ${pretty(seen[seen.length - 1].month, seen[seen.length - 1].day)}, most common ${pretty(top.month, top.day)} with ${top.count} years.`);
+    const tb = $('#dist-body'); tb.innerHTML = '';
+    for (const d of dist) { const tr = document.createElement('tr'); tr.innerHTML = `<td>${pretty(d.month, d.day)}</td><td>${d.count}</td><td>${pct(d.count)}</td>`; tb.appendChild(tr); }
+    tid('kind-western').setAttribute('aria-pressed', String(S.kind === 'western'));
+    tid('kind-orthodox').setAttribute('aria-pressed', String(S.kind === 'orthodox'));
+    if (S.year) drawChart(S.kind === 'orthodox' ? orthodox(S.year) : western(S.year));
+  }
+
+  function setYear(v) {
+    const n = Number(v);
+    if (!Number.isInteger(n) || n < MIN || n > MAX) { tid('year-err').textContent = `Enter a whole year from ${MIN} to ${MAX}.`; return false; }
+    tid('year-err').textContent = '';
+    S.year = n; $('#year').value = String(n); renderYear(); return true;
+  }
+  const yearIn = $('#year');
+  yearIn.addEventListener('input', () => { if (yearIn.value.length >= 4) setYear(yearIn.value); });
+  yearIn.addEventListener('change', () => setYear(yearIn.value));
+  tid('prev').addEventListener('click', () => setYear(Math.max(MIN, S.year - 1)));
+  tid('next').addEventListener('click', () => setYear(Math.min(MAX, S.year + 1)));
+  tid('this-year').addEventListener('click', () => setYear(Math.min(MAX, Math.max(MIN, new Date().getFullYear()))));
+
+  function setRange() {
+    const f = Number($('#from').value), t = Number($('#to').value);
+    const ok = Number.isInteger(f) && Number.isInteger(t) && f >= MIN && t <= MAX && f <= t;
+    tid('range-err').textContent = ok ? '' : `The range must run forwards, within ${MIN}–${MAX}.`;
+    if (!ok) return;
+    S.from = f; S.to = t; renderDist();
+  }
+  for (const id of ['#from', '#to']) { $(id).addEventListener('change', setRange); $(id).addEventListener('input', () => { if ($(id).value.length >= 4) setRange(); }); }
+  tid('range-full').addEventListener('click', () => { $('#from').value = MIN; $('#to').value = MAX; setRange(); });
+  tid('kind-western').addEventListener('click', () => { S.kind = 'western'; renderDist(); });
+  tid('kind-orthodox').addEventListener('click', () => { S.kind = 'orthodox'; renderDist(); });
+
+  const qy = Number(new URLSearchParams(location.search).get('year'));
+  renderDist();
+  if (!setYear(Number.isInteger(qy) && qy >= MIN && qy <= MAX ? qy : Math.min(MAX, Math.max(MIN, new Date().getFullYear())))) setYear(2026);
+
+  window.__easter = { western, orthodox, feasts, distribution, julianToJDN, get last() { return last; }, get state() { return { ...S }; } };
+})();
+</script>
+</body>
+</html>

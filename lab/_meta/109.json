@@ -1,0 +1,35 @@
+{
+  "id": "109",
+  "slug": "109-drum-machine",
+  "file": "lab/109-drum-machine.html",
+  "title": "Drum Machine — a 16-step sequencer, synthesized",
+  "category": "Audio",
+  "tags": ["web-audio", "synthesis", "sequencer", "lookahead-scheduler", "page-clock", "url-state"],
+  "description": "A six-voice, 16-step drum machine with no samples: kick, snare, closed and open hats, clap and rim are built from oscillators, filtered noise and a six-square metallic bank as they play. Set the tempo from 60 to 200 BPM, add swing, mix and mute each voice, load a four-on-the-floor, boom-bap or Texas two-step preset, and share the pattern as a link. A lookahead scheduler times every hit, and a timeline shows exactly where swing moves the off-beats.",
+  "prompt": "Build a 16-step drum machine where every voice is synthesized with Web Audio, no samples: kick, snare, closed hat, open hat, clap and rim. Give each voice a 16-step row, a tempo from 60 to 200 BPM, swing, per-voice volume and mute, and presets for four-on-the-floor, boom-bap and a Texas two-step shuffle. Use a proper lookahead scheduler and expose the schedule of note times in a hook so tests can check timing: a 16th note is 60/BPM/4 seconds and swing delays the off-beat 16ths. Patterns should be shareable through the URL hash. Arrow keys move around the grid and Space toggles a step. No audio before a user gesture, and the page and its tests must still work when AudioContext is missing or stays suspended.",
+  "qa": {
+    "methodology": [
+      "Timing oracle: the spec computes note times itself (n · 60/BPM/4, plus (2s/100 − 1) sixteenths on odd steps for swing s) and checks the page's plan, the timeline dots and the live scheduler log against it to 1e-9 s, at 60, 97, 120 and 200 BPM, and across a tempo change mid-bar.",
+      "Scheduler under page.clock: with Web Audio removed, the transport runs on performance.now, so two faked seconds must produce every note due inside the 100 ms lookahead and none past it, with the playhead on step floor((2 − 0.05)/0.125) = 15. Stop must stop scheduling.",
+      "Audio failure modes: one test deletes AudioContext, another wraps it so state stays 'suspended' and resume() never settles. Both must keep time silently and say why. A third uses real Web Audio and asserts no context exists before the Play gesture, then that hits are sounded on the audio clock.",
+      "Round-trip state: a pattern entered by clicks must appear in the hash as the hex the test encodes independently (steps 0, 5 and 10 give 8420), and a hand-built link, including junk hex and out-of-range tempo, must open as exactly that pattern, clamped.",
+      "Keyboard and structure: roving tabindex over a 6 × 16 ARIA grid, arrow wrap in a row, clamping at the top and bottom rows, Home and End, Space toggling once per press."
+    ],
+    "risks": [
+      "Clock hand-over: if the audio context starts running after Play, the transport moves from performance.now to AudioContext.currentTime. A wrong offset would jump the phase; only the real-audio test exercises this path, and only indirectly (the gaps between logged notes).",
+      "Swing convention: the page uses the MPC-style 50–75% scale. Another convention (0–100% of a sixteenth) would give different numbers, so the tests pin this one explicitly.",
+      "Voice build-up at fast tempos: every hit creates short-lived nodes. They are stopped on schedule, but nothing caps them the way a voice pool would.",
+      "The Texas two-step preset is written on a half-time grid (84 BPM, which feels like a 168 BPM two-step), which is a musical judgment rather than a checkable fact."
+    ],
+    "playwright": "page.clock does most of the work here. Installing it before navigation fakes performance.now, setInterval and requestAnimationFrame together, so runFor(2000) drives the 25 ms scheduler tick, the lookahead window and the playhead animation in lockstep and the log comes out identical every run. That only works on the silent path, which is why the page falls back to performance.now: the real AudioContext clock is not something page.clock can move, so the one real-audio test polls with expect.poll and checks relative gaps rather than absolute times. addInitScript made the missing and permanently suspended audio cases easy to set up. Range inputs are set through evaluate plus an input event, because fill() doesn't work on type=range. Everything passed on the first run, so this spec has not caught a regression yet.",
+    "coverage": [
+      "16th = 60/BPM/4, swing on off-beats only, timeline dots, tempo extremes",
+      "Tempo and swing clamping from the controls and from the hash",
+      "Lookahead window, exact scheduled times, playhead, stop",
+      "Tempo and swing changes while playing",
+      "Missing and suspended AudioContext; gesture-gated real audio",
+      "Grid keyboard navigation, presets, hash sharing, mute and volume"
+    ]
+  },
+  "a11y": "The sequencer is an ARIA grid: each voice is a row with a row header and 16 toggle buttons (aria-pressed, labelled like 'Kick, step 5'), with one roving tab stop and arrow, Home and End keys. Play is a toggle button, tempo has a labelled number field and slider, and every mixer slider and mute button is named for its voice. Step changes, presets and audio problems are announced in a polite live region, and the timing timeline has a text description of the swing delay."
+}

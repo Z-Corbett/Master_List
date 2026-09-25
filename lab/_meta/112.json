@@ -1,0 +1,35 @@
+{
+  "id": "112",
+  "slug": "112-southside-supper-club",
+  "file": "lab/112-southside-supper-club.html",
+  "title": "Southside Supper Club — a fictional Birmingham dinner series",
+  "category": "Landing Pages",
+  "tags": ["landing-page", "forms", "waitlist", "accordion", "responsive"],
+  "description": "A warm, editorial landing page for an invented monthly supper club on Birmingham, Alabama's Southside. Four Saturday dinners carry full Southern menus and live seat counts. The reservation flow checks party size, email and dietary notes, never splits a party, and puts anyone who doesn't fit on a first-fit waitlist that is promoted when someone cancels. There's also an FAQ accordion, a note from the (invented) hosts and a footer that says plainly it is all fictional.",
+  "prompt": "Make a landing page for a fictional monthly supper club in Birmingham, Alabama's Southside: Southern food, a warm editorial design. Don't use any real restaurant's name or branding. I want upcoming dinners with menus and a seat reservation flow with party size, dietary notes and a waitlist when a dinner is full, all simulated in memory with no network. Add an FAQ accordion, a host note, and a footer that says it's fictional. The spec should cover the seat availability math, the waitlist, form validation, the accordion's keyboard behaviour and the responsive layout.",
+  "qa": {
+    "methodology": [
+      "Model oracle for seats: the spec keeps its own model (capacity − already booked − held seats; promote waitlisted parties in order, skipping any that still don't fit) and compares it with the page after each booking and cancellation, including the case where a smaller party behind a larger one is promoted first.",
+      "Arithmetic checked from the rules, not snapshots: seat price × party size with and without the pairing for four sizes, the seats left after yours, and every dinner date's weekday computed with Date.UTC in the test (all four must be Saturdays).",
+      "Validation paths: empty submit focuses the first invalid field with aria-invalid; party sizes 0, 9, 2.5, −1 and blank are rejected; three malformed emails; a 241-character dietary note fails and 240 passes.",
+      "Privacy as a test: a request listener attached before booking must stay empty, and a name containing markup is shown as text, not rendered.",
+      "Accordion keyboard behaviour (Enter, Space, ArrowUp/Down with wrap, Home, End) and the layout at 1200 px and 390 px set with setViewportSize, on both projects."
+    ],
+    "risks": [
+      "Waitlist fairness is a policy choice: first-fit lets a small party overtake a large one. The FAQ says so, and the spec pins that behaviour so it can't change silently.",
+      "Seat counts are derived rather than stored, so a reservation edited in place (not implemented) would have to go through the same held() sum.",
+      "Everything is in memory: a reload wipes bookings. This is intended for a demo, but it would surprise anyone who took it for a real booking page.",
+      "The number input accepts text like 2.5 on some mobile keyboards; the page validates the raw string rather than trusting valueAsNumber."
+    ],
+    "playwright": "The page has no timers or randomness, so the spec needs no page.clock or seed. Its value is in the state logic. window.__supper exposes derived seat counts and the waitlist so the test's own model can be compared after every step, while user-facing assertions go through the real form, buttons and getByRole names such as 'Cancel reservation SSC-DEC-002 for Small Table'. page.setViewportSize made the two-layout check possible inside one test on both projects, though it tests the layout at two fixed widths rather than on real devices. keyboard.press drove the accordion; Space on a focused native button works the same on the Pixel 7 emulation. There are no screenshot assertions, so small visual regressions in the editorial styling would go unnoticed.",
+    "coverage": [
+      "Dinner dates (weekday oracle), menus, opening seat counts",
+      "Live price summary with and without pairing; oversize party flips to waitlist",
+      "Selling out, confirmation code, no network, HTML escaping",
+      "Waitlist ordering, leaving the list, first-fit promotion on cancel vs model",
+      "Validation of size, name, email and note length with focus management",
+      "Dinner card to form hand-off, FAQ accordion keyboard, responsive layout, fiction notices"
+    ]
+  },
+  "a11y": "Every field has a visible label, errors are tied in with aria-describedby and aria-invalid, and the first invalid field gets focus. The price summary and booking results are announced through aria-live. The FAQ follows the WAI-ARIA accordion pattern: header buttons with aria-expanded and aria-controls, labelled regions, and Arrow/Home/End keys. Cancel and Leave buttons have names that say which booking they act on, and seat bars carry text alternatives. Smooth scrolling is turned off under prefers-reduced-motion."
+}

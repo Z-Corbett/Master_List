@@ -1,0 +1,34 @@
+{
+  "id": "104",
+  "slug": "104-prompt-cache-planner",
+  "file": "lab/104-prompt-cache-planner.html",
+  "title": "Prompt Cache Planner — order your prompt for prefix hits",
+  "category": "AI & Agents",
+  "tags": ["prompt-caching", "llm-cost", "simulation", "reorderable-list", "svg-chart"],
+  "description": "Five prompt segments (system prompt, tool definitions, reference docs, conversation history, user message), each with a token size and a change frequency. Reorder them by dragging or with up and down buttons, and simulate 20 turns in which a prefix cache reuses only the longest unchanged prefix. The page charts cached against uncached tokens per turn and the relative cost under editable, clearly illustrative price multipliers, and Optimize moves the stable segments to the front.",
+  "prompt": "Build a prompt cache planner. Give me prompt segments (system, tools, docs, history, user message), each with a size in tokens and a change frequency. I reorder them by drag or with up/down buttons, and it simulates 20 turns where prefix caching only reuses the longest unchanged prefix. Show cached vs uncached tokens per turn and the relative cost, using clearly hypothetical price multipliers I can edit (defaults: cache read 0.1× base input, cache write 1.25×, labelled as illustrative). Add an Optimize button that puts stable segments first. Keep it provider-neutral, and have the spec compute the prefix-hit math on its own.",
+  "qa": {
+    "methodology": [
+      "Independent oracle: the spec reads the order, sizes and frequencies straight from the form, recomputes every turn's cached and uncached tokens and cost (longest prefix of segments that did not change since the previous turn), and compares all 20 rows, the totals and the chart bars' data attributes.",
+      "Brute-force optimality: the spec tries all 120 orders of the default segments, and the order Optimize produces must reach the maximum cached-token total. Optimizing twice must be a no-op.",
+      "Arithmetic reference values: a cold turn costs exactly 125% of no-cache under the defaults, a fully static prompt costs (1.25 + 19 × 0.1) / 20, read = write = 1 gives exactly 100%, and one volatile segment at the top gives zero hits on every turn.",
+      "Interaction coverage: keyboard Enter and Space on the up/down buttons, focus kept on the moved control, disabled buttons at the ends, aria-live announcements, a mouse drag on desktop, and validation that keeps the last good size or multiplier."
+    ],
+    "risks": [
+      "The model is deliberately simple: no cache expiry, no minimum cacheable length, and history is treated as one changing block rather than append-only. Real systems differ, and the page says so.",
+      "Off-by-one in the change schedule (does 'every 5 turns' mean turns 5, 10… or 1, 6…?). The spec pins turn 5 as a docs change and turn 10 as a tools change.",
+      "Optimize is a sort by change rate. It is provably best when the periods divide each other, as the defaults do, but for arbitrary periods it is a heuristic; only the default set is brute-forced.",
+      "The pointer-drag reorder mutates the DOM live and reads the order back on release, so a missed pointerup could leave the list and the state out of step."
+    ],
+    "playwright": "The oracle is plain TypeScript in the spec and reads its inputs from the DOM, so it checks the page's arithmetic without trusting window.__cache (the hook is only used once, to confirm a rejected size was ignored). Web-first assertions such as toHaveText, toBeFocused and toHaveAttribute('aria-invalid') remove any need for waits. selectOption and fill drive the native controls on both projects. The drag test uses page.mouse with stepped moves and is skipped on the Pixel 7 project with test.skip(isMobile): the up/down buttons are the touch and keyboard path there. Candidly, a drag through CDP mouse events only proves the pointer handlers work, not that a real finger drag feels right, and the 120-permutation brute force is only as good as the oracle it shares with the other tests.",
+    "coverage": [
+      "Default plan, cold first turn at 125%, 20 rows and bars",
+      "All turns vs the prefix oracle, hand-checked break points",
+      "Illustrative, editable multipliers; 100% identity; invalid values refused",
+      "Optimize order and brute-force maximum, idempotence",
+      "Keyboard up/down with focus and announcements, desktop mouse drag",
+      "Static and volatile frequency cases, size validation and reset, the turn inspector strip"
+    ]
+  },
+  "a11y": "Every segment has labelled size and frequency fields and real up/down buttons named for the segment, so reordering needs no drag; focus stays on the moved control and each move is announced in an aria-live region. The totals are live, the chart has an aria-label summarising hits and misses, the per-turn table is a real table in a focusable scroll region, and the turn inspector is a labelled range input whose strip carries a text description."
+}

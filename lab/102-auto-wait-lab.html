@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auto-Wait Lab — why sleep() makes tests flaky</title>
+<meta name="description" content="A simulated checkout whose Pay button appears, animates, enables and gets uncovered after seeded random delays. Race a fixed sleep(), an auto-waiting click with a one-shot check, and an auto-waiting click with a web-first assertion over hundreds of runs, and compare pass rate against total wait time.">
+<style>
+  :root {
+    --bg: #0f141c;
+    --bg-2: #161d28;
+    --panel: #1a2230;
+    --line: #2c3749;
+    --grid: #232d3d;
+    --text: #dfe7f1;
+    --muted: #93a2b6;
+    --sleep: #ff8a75;
+    --poll: #f2c14e;
+    --web: #3ddbb4;
+    --ok: #3ddbb4;
+    --bad: #ff8a75;
+    --accent: #7cb8ff;
+    --mono: "Cascadia Mono", "Cascadia Code", Consolas, "SFMono-Regular", Menlo, "Liberation Mono", monospace;
+    --sans: "Segoe UI", "Helvetica Neue", Roboto, Arial, system-ui, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 15px/1.55 var(--sans); overflow-x: hidden;
+    background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 100% 28px, 28px 100%; background-attachment: fixed; }
+  body::before { content: ""; position: fixed; inset: 0; background: radial-gradient(ellipse at 50% 0%, rgba(15,20,28,.3), rgba(15,20,28,.92) 70%); pointer-events: none; z-index: 0; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: var(--bg); background: var(--poll); text-decoration: none; font: 700 13px/1 var(--mono); padding: 8px 12px; border-radius: 4px; }
+  a.back:hover { background: var(--web); }
+  .wrap { position: relative; z-index: 1; max-width: 1180px; margin: 0 auto; padding: 60px 16px 40px; }
+  .eyebrow { margin: 0; font: 600 12px/1.3 var(--mono); letter-spacing: .2em; text-transform: uppercase; color: var(--web); }
+  h1 { font: 700 clamp(34px, 6vw, 62px)/1.05 var(--mono); margin: 6px 0 8px; letter-spacing: -.02em; overflow-wrap: anywhere; }
+  h1 .c1 { color: var(--sleep); text-decoration: line-through; text-decoration-thickness: 3px; }
+  h1 .c3 { color: var(--web); }
+  .lede { margin: 0 0 20px; color: var(--muted); max-width: 70ch; }
+  code, .code { font-family: var(--mono); font-size: .92em; background: var(--bg-2); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; overflow-wrap: anywhere; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; min-width: 0; }
+  .card.wide { grid-column: 1 / -1; }
+  h2 { font: 700 17px/1.3 var(--mono); margin: 0 0 10px; letter-spacing: .02em; }
+  h2 small { font: 400 13px var(--sans); color: var(--muted); }
+  .fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 12px; }
+  .field { min-width: 0; }
+  .field label { display: block; font: 600 12px/1.3 var(--mono); color: var(--muted); margin-bottom: 3px; }
+  input[type=number] { width: 100%; min-width: 0; font: 15px var(--mono); padding: 7px 9px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
+  .btn { min-height: 40px; padding: 8px 14px; border-radius: 4px; border: 1px solid var(--web); background: var(--web); color: #06231c; font: 700 14px/1 var(--mono); cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--web); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .note { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+  .strats { display: grid; gap: 10px; }
+  .strat { border-left: 4px solid; padding: 6px 10px; background: var(--bg-2); border-radius: 0 6px 6px 0; min-width: 0; }
+  .strat b { font-family: var(--mono); }
+  .strat pre { margin: 4px 0 0; font: 12.5px/1.45 var(--mono); color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .s-sleep { border-color: var(--sleep); } .s-poll { border-color: var(--poll); } .s-web { border-color: var(--web); }
+  .bars { display: grid; gap: 8px; }
+  .bar { display: grid; grid-template-columns: 9.5em minmax(0, 1fr) 5.5em; gap: 8px; align-items: center; font: 13px var(--mono); }
+  .bar .track { height: 18px; background: var(--bg); border: 1px solid var(--line); border-radius: 3px; overflow: hidden; min-width: 0; }
+  .bar .fill { height: 100%; width: 0; transition: width .25s; }
+  .bar .v { text-align: right; overflow-wrap: anywhere; }
+  .fill.sleep { background: var(--sleep); } .fill.poll { background: var(--poll); } .fill.web { background: var(--web); }
+  h3 { font: 600 13px/1.3 var(--mono); color: var(--muted); margin: 14px 0 6px; text-transform: uppercase; letter-spacing: .08em; }
+  table { width: 100%; border-collapse: collapse; font: 13px/1.35 var(--mono); }
+  th, td { padding: 5px 6px; border-bottom: 1px solid var(--line); text-align: right; }
+  th { color: var(--muted); font-weight: 600; }
+  th:first-child, td:first-child { text-align: left; }
+  .tablewrap { overflow-x: auto; }
+  .summary { font: 14px/1.5 var(--sans); background: var(--bg-2); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; margin-top: 12px; }
+  svg { display: block; width: 100%; height: auto; }
+  svg text { font-family: var(--mono); }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font: 12px var(--mono); color: var(--muted); margin: 6px 0 0; }
+  .legend i { display: inline-block; width: 14px; height: 3px; vertical-align: 3px; margin-right: 5px; }
+  /* replay stage */
+  .inspect { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  .stage { position: relative; height: 170px; background: #f4f1ea; color: #1f2530; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); font-family: var(--sans); }
+  .stage .shop { padding: 10px 14px; font-size: 13px; border-bottom: 1px solid #ddd6c8; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .stage .shop b { font-family: Georgia, serif; }
+  .stage .slot { position: absolute; left: 14px; top: 64px; }
+  #payBtn { font: 700 15px var(--sans); padding: 10px 22px; border-radius: 6px; border: 0; background: #2a6df4; color: #fff; }
+  #payBtn:disabled { background: #9db3de; }
+  .overlay { position: absolute; inset: 44px 0 0 0; background: rgba(31,37,48,.72); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+  .toast { position: absolute; right: 12px; bottom: 12px; background: #1f7a4d; color: #fff; padding: 6px 12px; border-radius: 4px; font-size: 13px; }
+  .clock { position: absolute; left: 14px; bottom: 10px; font: 12px var(--mono); color: #5a6474; }
+  .checks { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; font: 13px var(--mono); }
+  .checks li { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+  .checks li::before { content: "○"; color: var(--muted); width: 1em; flex: none; }
+  .checks li[data-ok="true"]::before { content: "●"; color: var(--ok); }
+  .checks li span { color: var(--muted); overflow-wrap: anywhere; }
+  .lanes { display: grid; gap: 6px; margin-top: 10px; font: 13px var(--mono); }
+  .lane { border-left: 4px solid; padding: 4px 8px; background: var(--bg-2); overflow-wrap: anywhere; min-width: 0; }
+  .lane[data-verdict="pass"] { box-shadow: inset 0 0 0 1px var(--ok); }
+  .lane[data-verdict="fail"] { box-shadow: inset 0 0 0 1px var(--bad); }
+  .explain { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 12px; }
+  .explain div { background: var(--bg-2); border: 1px solid var(--line); border-radius: 6px; padding: 10px; min-width: 0; }
+  .explain h4 { margin: 0 0 4px; font: 700 14px var(--mono); color: var(--poll); }
+  .explain p { margin: 0; font-size: 13.5px; color: var(--text); }
+  .explain p + p { margin-top: 6px; color: var(--muted); }
+  footer { margin-top: 24px; text-align: center; font-size: 13px; color: var(--muted); }
+  @media (max-width: 900px) { .grid, .inspect { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 520px) { .fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } .bar { grid-template-columns: 6.5em minmax(0, 1fr) 4.8em; font-size: 12px; } }
+  @media (prefers-reduced-motion: reduce) { .bar .fill { transition: none; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <p class="eyebrow">Flaky-test forensics · simulated timings</p>
+  <h1><span class="c1">sleep()</span> vs <span class="c3">auto-wait</span></h1>
+  <p class="lede">A pretend checkout page (the fictional <b>Pecan Hollow Outfitters</b>) renders its Pay button late: it is attached, then shown, then slides into place, then enabled once prices load, and sometimes a "loading offers" overlay covers it for a while. Every delay is drawn from a seeded random generator. Three versions of the same test race over many runs: click Pay, then check that the receipt says "Paid".</p>
+
+  <div class="grid">
+    <section class="card" aria-labelledby="h-set">
+      <h2 id="h-set">The race</h2>
+      <div class="fields">
+        <div class="field"><label for="seed">Seed</label><input id="seed" type="number" min="0" step="1" data-testid="seed"></div>
+        <div class="field"><label for="n">Runs (N)</label><input id="n" type="number" min="1" max="2000" step="1" value="200" data-testid="runs"></div>
+        <div class="field"><label for="slow">Slow runs (%)</label><input id="slow" type="number" min="0" max="100" step="1" value="15" data-testid="slow"></div>
+        <div class="field"><label for="sleep">sleep (ms)</label><input id="sleep" type="number" min="0" max="10000" step="50" value="1000" data-testid="sleep"></div>
+        <div class="field"><label for="poll">Poll interval (ms)</label><input id="poll" type="number" min="10" max="2000" step="10" value="100" data-testid="poll"></div>
+        <div class="field"><label for="timeout">Timeout (ms)</label><input id="timeout" type="number" min="100" max="30000" step="100" value="5000" data-testid="timeout"></div>
+      </div>
+      <div class="row">
+        <button type="button" class="btn" id="race" data-testid="race">Race N runs</button>
+        <button type="button" class="btn ghost" id="reseed" data-testid="reseed">New seed</button>
+      </div>
+      <p class="note">A slow run (think: a loaded CI machine) stretches all of that run's delays 3×. Results update as you type.</p>
+    </section>
+
+    <section class="card" aria-labelledby="h-strat">
+      <h2 id="h-strat">Three strategies</h2>
+      <div class="strats">
+        <div class="strat s-sleep"><b>A · fixed sleep</b><pre>await page.waitForTimeout(S);
+await pay.click({ force: true }); // no checks
+await page.waitForTimeout(S);
+expect(await receipt.textContent()).toBe('Paid');</pre></div>
+        <div class="strat s-poll"><b>B · auto-wait click, one-shot check</b><pre>await pay.click();   // waits until actionable
+expect(await receipt.textContent()).toBe('Paid');</pre></div>
+        <div class="strat s-web"><b>C · auto-wait click, web-first assertion</b><pre>await pay.click();
+await expect(receipt).toHaveText('Paid');   // retries</pre></div>
+      </div>
+      <p class="note">B shows the trap: auto-waiting covers the action, not the plain value you read afterwards. Only when the receipt is already there (a cached response, 30% of runs) does its one-shot check pass.</p>
+    </section>
+
+    <section class="card wide" aria-labelledby="h-res">
+      <h2 id="h-res">Results <small id="resMeta" data-testid="res-meta"></small></h2>
+      <div class="grid">
+        <div>
+          <h3>Pass rate</h3>
+          <div class="bars" id="passBars"></div>
+          <h3>Total time spent waiting</h3>
+          <div class="bars" id="waitBars"></div>
+        </div>
+        <div class="tablewrap">
+          <table data-testid="results">
+            <thead><tr><th scope="col">Strategy</th><th scope="col">Passed</th><th scope="col">Rate</th><th scope="col">Total wait</th><th scope="col">Mean / run</th></tr></thead>
+            <tbody id="resBody"></tbody>
+          </table>
+          <div class="summary" id="summary" aria-live="polite" data-testid="summary"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card wide" aria-labelledby="h-sweep">
+      <h2 id="h-sweep">Sweep the sleep <small>same seed, same runs, S from 0 to 4 s</small></h2>
+      <svg id="sweep" viewBox="0 0 720 260" role="img" aria-label="Pass rate against sleep length" data-testid="sweep"></svg>
+      <div class="legend"><span><i style="background:var(--sleep)"></i>A: sleep(S) pass rate</span><span><i style="background:var(--poll)"></i>B</span><span><i style="background:var(--web)"></i>C</span><span><i style="background:var(--accent)"></i>A's total wait (right axis)</span></div>
+      <p class="note">Each extra second of sleep buys a few more passes and costs N seconds of waiting. Only a sleep longer than the slowest run's worst delay reaches 100%, and the next slow run can still beat it.</p>
+    </section>
+
+    <section class="card wide" aria-labelledby="h-insp">
+      <h2 id="h-insp">Inspect one run</h2>
+      <div class="row" style="margin-top:0">
+        <div class="field" style="width:8em"><label for="pick">Run #</label><input id="pick" type="number" min="1" value="1" data-testid="pick"></div>
+        <button type="button" class="btn" id="replay" data-testid="replay">Replay in real time</button>
+        <button type="button" class="btn ghost" id="stop" data-testid="stop" disabled>Stop</button>
+      </div>
+      <div class="inspect" style="margin-top:12px">
+        <div>
+          <svg id="timeline" viewBox="0 0 640 250" role="img" aria-label="Timeline of the run" data-testid="timeline"></svg>
+          <div class="tablewrap"><table data-testid="run-table"><tbody id="runBody"></tbody></table></div>
+        </div>
+        <div>
+          <div class="stage" id="stage" aria-hidden="true" data-testid="stage">
+            <div class="shop"><b>Pecan Hollow Outfitters</b><span>Checkout · 1 canvas tote · $24.00</span></div>
+            <div class="slot" id="slot"></div>
+            <div class="overlay" id="overlay" hidden data-testid="overlay">Loading offers…</div>
+            <div class="toast" id="toast" hidden data-testid="toast">Paid</div>
+            <div class="clock" id="clock" data-testid="clock">t = 0 ms</div>
+          </div>
+          <ul class="checks" id="checks" aria-label="Actionability of the Pay button during the replay"></ul>
+          <div class="lanes" id="lanes"></div>
+          <p class="note" id="replayStatus" aria-live="polite" data-testid="replay-status">Press Replay to watch this run's timings play out.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card wide" aria-labelledby="h-ex">
+      <h2 id="h-ex">What a Playwright click waits for</h2>
+      <p class="note" style="margin:0 0 10px">Before <code>locator.click()</code>, Playwright checks that the element is <b>visible</b>, <b>stable</b>, <b>receives events</b> and is <b>enabled</b>, re-checking until all pass or the timeout runs out. <b>Attached</b> comes first: the locator has to resolve to an element in the DOM before anything else can be checked. <code>fill()</code> also needs <i>editable</i>; <code>hover()</code> skips <i>enabled</i>.</p>
+      <div class="explain" data-testid="explain">
+        <div data-check="attached"><h4>Attached</h4><p>The element is connected to a Document or a ShadowRoot.</p><p>Here: the Pay button isn't in the DOM at all until it is rendered.</p></div>
+        <div data-check="visible"><h4>Visible</h4><p>A non-empty bounding box and no <code>visibility:hidden</code>. <code>display:none</code> or zero size fails; <code>opacity:0</code> still counts as visible.</p><p>Here: it is attached with <code>display:none</code>, then shown (and faded in, which does not delay visibility).</p></div>
+        <div data-check="stable"><h4>Stable</h4><p>The same bounding box for at least two consecutive animation frames, so a click doesn't land where the element used to be.</p><p>Here: it slides in from the right before it settles.</p></div>
+        <div data-check="enabled"><h4>Enabled</h4><p>Not disabled: no <code>disabled</code> on a button, input, select, textarea, option or optgroup, not inside a disabled fieldset, and not under <code>aria-disabled="true"</code>.</p><p>Here: disabled until the prices load.</p></div>
+        <div data-check="receives"><h4>Receives events</h4><p>The element itself is the hit target at the click point: nothing else, like an overlay, spinner or cookie banner, is on top.</p><p>Here: in half the runs a "loading offers" overlay covers it for a while.</p></div>
+      </div>
+      <p class="note">Web-first assertions such as <code>expect(locator).toHaveText()</code> keep re-querying until they pass or the expect timeout (5 s by default) expires. Playwright's own docs warn against <code>page.waitForTimeout()</code> in real tests for exactly the reason the sweep shows. Real Playwright retries on a short growing back-off; this lab polls at a fixed interval so the arithmetic stays easy to follow.</p>
+    </section>
+  </div>
+  <footer>Built by Zac Corbett · a simulation of timings, not a real browser under test · the shop is fictional</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const NS = 'http://www.w3.org/2000/svg';
+  const CHECKS = ['attached', 'visible', 'stable', 'enabled', 'receives'];
+  const CHECK_LABEL = { attached: 'attached', visible: 'visible', stable: 'stable', enabled: 'enabled', receives: 'receives events' };
+  const STRATS = [
+    { id: 'sleep', name: 'A · sleep', color: 'var(--sleep)' },
+    { id: 'poll', name: 'B · one-shot', color: 'var(--poll)' },
+    { id: 'web', name: 'C · web-first', color: 'var(--web)' },
+  ];
+
+  // ---------- seeded timings ----------
+  function mulberry32(a) {
+    return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  }
+  /** Every run draws exactly 9 numbers, so run k is the same whatever N or the slow % is. */
+  function genRuns(seed, n, slowPct) {
+    const r = mulberry32(seed >>> 0), out = [];
+    for (let i = 0; i < n; i++) {
+      const slow = r() < slowPct / 100, f = slow ? 3 : 1;
+      const attached = Math.round((100 + 500 * r()) * f);
+      const visible = attached + Math.round(300 * r() * f);
+      const stable = visible + Math.round((150 + 350 * r()) * f);
+      const enabled = attached + Math.round((200 + 1200 * r()) * f);
+      const hasOverlay = r() < 0.5, ov = Math.round(1200 * r() * f);
+      const receives = hasOverlay ? Math.max(attached, ov) : attached;
+      const cached = r() < 0.3, rr = Math.round((100 + 800 * r()) * f);
+      const response = cached ? 0 : rr;
+      const actionable = Math.max(attached, visible, stable, enabled, receives);
+      out.push({ i, slow, attached, visible, stable, enabled, receives, hasOverlay, response, actionable });
+    }
+    return out;
+  }
+  const firstPending = (run, t) => CHECKS.find((c) => run[c] > t) || null;
+
+  // ---------- the three strategies ----------
+  function evaluate(run, cfg) {
+    const S = cfg.sleep, P = cfg.poll, TO = cfg.timeout;
+    // A: sleep S, click blindly, sleep S, read once.
+    const aPend = firstPending(run, S);
+    const A = aPend ? { pass: false, wait: 2 * S, clickAt: S, reason: `click at ${S} ms hit a button that was not ${CHECK_LABEL[aPend]}` }
+      : run.response <= S ? { pass: true, wait: 2 * S, clickAt: S, reason: 'lucky: everything was ready in time' }
+      : { pass: false, wait: 2 * S, clickAt: S, reason: `receipt appeared ${run.response} ms after the click, after the second sleep` };
+    // B and C: poll actionability at 0, P, 2P, ... up to the timeout.
+    const clickAt = Math.ceil(run.actionable / P) * P;
+    if (clickAt > TO) {
+      const pend = firstPending(run, Math.floor(TO / P) * P);
+      const f = { pass: false, wait: TO, clickAt: null, reason: `timed out after ${TO} ms waiting for ${CHECK_LABEL[pend]}` };
+      return { A, B: f, C: { ...f } };
+    }
+    const B = run.response === 0 ? { pass: true, wait: clickAt, clickAt, reason: 'receipt was already there (cached)' }
+      : { pass: false, wait: clickAt, clickAt, reason: 'read the receipt once, before the response arrived' };
+    const k = Math.ceil(run.response / P) * P;
+    const C = k <= TO ? { pass: true, wait: clickAt + k, clickAt, assertAt: clickAt + k, reason: `assertion passed ${k} ms after the click` }
+      : { pass: false, wait: clickAt + TO, clickAt, reason: `receipt took longer than the ${TO} ms expect timeout` };
+    return { A, B, C };
+  }
+  function simulate(cfg) {
+    const runs = genRuns(cfg.seed, cfg.n, cfg.slow);
+    const per = runs.map((r) => evaluate(r, cfg));
+    const tot = {};
+    for (const [k, id] of [['A', 'sleep'], ['B', 'poll'], ['C', 'web']]) {
+      tot[id] = { passed: per.filter((p) => p[k].pass).length, wait: per.reduce((s, p) => s + p[k].wait, 0) };
+      tot[id].rate = tot[id].passed / runs.length;
+    }
+    return { runs, per, tot };
+  }
+
+  // ---------- inputs ----------
+  const params = new URLSearchParams(location.search);
+  const urlSeed = parseInt(params.get('seed'), 10);
+  $('seed').value = Number.isFinite(urlSeed) && urlSeed >= 0 ? urlSeed : 1;
+  const clampInt = (v, lo, hi, d) => { v = Math.round(Number(v)); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d; };
+  function readCfg() {
+    return {
+      seed: clampInt($('seed').value, 0, 4294967295, 1),
+      n: clampInt($('n').value, 1, 2000, 200),
+      slow: clampInt($('slow').value, 0, 100, 15),
+      sleep: clampInt($('sleep').value, 0, 10000, 1000),
+      poll: clampInt($('poll').value, 10, 2000, 100),
+      timeout: clampInt($('timeout').value, 100, 30000, 5000),
+    };
+  }
+  const fmtS = (ms) => (ms / 1000).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' s';
+  const pct = (x) => (x * 100).toFixed(1) + '%';
+  function el(tag, a, p, txt) { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (txt != null) e.textContent = txt; if (p) p.appendChild(e); return e; }
+
+  let cfg = readCfg(), sim = null;
+
+  function renderResults() {
+    const { tot, runs } = sim;
+    $('resMeta').textContent = `· seed ${cfg.seed}, ${runs.length} runs, ${runs.filter((r) => r.slow).length} slow`;
+    const maxWait = Math.max(1, ...STRATS.map((s) => tot[s.id].wait));
+    $('passBars').innerHTML = STRATS.map((s) => `<div class="bar"><span>${s.name}</span><span class="track"><span class="fill ${s.id}" style="display:block;width:${(tot[s.id].rate * 100).toFixed(2)}%"></span></span><span class="v" data-testid="bar-rate-${s.id}">${pct(tot[s.id].rate)}</span></div>`).join('');
+    $('waitBars').innerHTML = STRATS.map((s) => `<div class="bar"><span>${s.name}</span><span class="track"><span class="fill ${s.id}" style="display:block;width:${(tot[s.id].wait / maxWait * 100).toFixed(2)}%"></span></span><span class="v" data-testid="bar-wait-${s.id}">${fmtS(tot[s.id].wait)}</span></div>`).join('');
+    $('resBody').innerHTML = STRATS.map((s) => `<tr data-testid="res-${s.id}"><td>${s.name}</td><td data-testid="passed-${s.id}">${tot[s.id].passed}</td><td data-testid="rate-${s.id}">${pct(tot[s.id].rate)}</td><td data-testid="wait-${s.id}">${fmtS(tot[s.id].wait)}</td><td>${Math.round(tot[s.id].wait / runs.length)} ms</td></tr>`).join('');
+    const a = tot.sleep, c = tot.web;
+    $('summary').textContent = `Over ${runs.length} runs, sleep(${cfg.sleep}) passed ${a.passed} (${pct(a.rate)}) and waited ${fmtS(a.wait)}; the web-first version passed ${c.passed} (${pct(c.rate)}) and waited ${fmtS(c.wait)}. The one-shot check after an auto-waiting click passed ${tot.poll.passed}.`;
+  }
+
+  function sweepData() {
+    const pts = [];
+    for (let S = 0; S <= 4000; S += 100) {
+      const c = { ...cfg, sleep: S };
+      let passed = 0;
+      for (const r of sim.runs) if (evaluate(r, c).A.pass) passed++;
+      pts.push({ S, rate: passed / sim.runs.length, wait: 2 * S * sim.runs.length });
+    }
+    return pts;
+  }
+  let sweep = [];
+  function renderSweep() {
+    sweep = sweepData();
+    const svg = $('sweep'); svg.innerHTML = '';
+    const W = 720, H = 260, m = { l: 48, r: 60, t: 12, b: 34 };
+    const x = (S) => m.l + S / 4000 * (W - m.l - m.r), y = (r) => m.t + (1 - r) * (H - m.t - m.b);
+    const maxW = sweep[sweep.length - 1].wait || 1, yw = (w) => m.t + (1 - w / maxW) * (H - m.t - m.b);
+    for (const r of [0, .25, .5, .75, 1]) { el('line', { x1: m.l, x2: W - m.r, y1: y(r), y2: y(r), stroke: '#2c3749' }, svg); el('text', { x: m.l - 6, y: y(r) + 4, 'text-anchor': 'end', 'font-size': 11, fill: '#93a2b6' }, svg, Math.round(r * 100) + '%'); }
+    for (const S of [0, 1000, 2000, 3000, 4000]) el('text', { x: x(S), y: H - m.b + 16, 'text-anchor': 'middle', 'font-size': 11, fill: '#93a2b6' }, svg, S === 4000 ? '4000 ms' : S);
+    el('text', { x: W - m.r + 6, y: m.t + 10, 'font-size': 11, fill: '#7cb8ff' }, svg, fmtS(maxW));
+    el('text', { x: W - m.r + 6, y: H - m.b, 'font-size': 11, fill: '#7cb8ff' }, svg, '0 s');
+    el('text', { x: m.l, y: H - 4, 'font-size': 11, fill: '#93a2b6' }, svg, 'sleep S');
+    el('path', { d: sweep.map((p, i) => (i ? 'L' : 'M') + x(p.S).toFixed(1) + ' ' + yw(p.wait).toFixed(1)).join(''), fill: 'none', stroke: '#7cb8ff', 'stroke-width': 1.5, 'stroke-dasharray': '2 3' }, svg);
+    for (const [id, col] of [['poll', '#f2c14e'], ['web', '#3ddbb4']]) el('line', { x1: m.l, x2: W - m.r, y1: y(sim.tot[id].rate), y2: y(sim.tot[id].rate), stroke: col, 'stroke-width': 2, 'stroke-dasharray': '6 4' }, svg);
+    el('path', { d: sweep.map((p, i) => (i ? 'L' : 'M') + x(p.S).toFixed(1) + ' ' + y(p.rate).toFixed(1)).join(''), fill: 'none', stroke: '#ff8a75', 'stroke-width': 2.5 }, svg);
+    if (cfg.sleep <= 4000) el('circle', { cx: x(cfg.sleep), cy: y(sim.tot.sleep.rate), r: 5, fill: '#ff8a75', stroke: '#0f141c', 'stroke-width': 2, 'data-testid': 'sweep-now' }, svg);
+    const full = sweep.find((p) => p.rate === 1);
+    svg.setAttribute('aria-label', `Pass rate of sleep(S) for S from 0 to 4000 ms: ${pct(sweep[0].rate)} at 0 ms, ${pct(sweep[10].rate)} at 1000 ms, ${pct(sweep[20].rate)} at 2000 ms, ${pct(sweep[40].rate)} at 4000 ms. ${full ? `It first reaches 100% at ${full.S} ms.` : 'It never reaches 100% in this range.'} The web-first strategy passes ${pct(sim.tot.web.rate)}.`);
+  }
+
+  // ---------- one run: timeline, table ----------
+  function pickIndex() { const k = clampInt($('pick').value, 1, sim.runs.length, 1); return k - 1; }
+  function renderInspect() {
+    const run = sim.runs[pickIndex()], ev = sim.per[pickIndex()];
+    $('pick').max = sim.runs.length;
+    const end = runEnd(run, ev);
+    const svg = $('timeline'); svg.innerHTML = '';
+    const W = 640, m = { l: 118, r: 12, t: 10 }, rowH = 24;
+    const x = (t) => m.l + Math.min(1, t / end) * (W - m.l - m.r);
+    CHECKS.forEach((c, i) => {
+      const yy = m.t + i * rowH;
+      el('text', { x: m.l - 8, y: yy + 14, 'text-anchor': 'end', 'font-size': 12, fill: '#dfe7f1' }, svg, CHECK_LABEL[c]);
+      el('rect', { x: m.l, y: yy + 4, width: x(run[c]) - m.l, height: 12, fill: '#2c3749' }, svg);
+      el('rect', { x: x(run[c]), y: yy + 4, width: W - m.r - x(run[c]), height: 12, fill: '#3ddbb4', opacity: .75 }, svg);
+    });
+    const yR = m.t + 5 * rowH;
+    el('text', { x: m.l - 8, y: yR + 14, 'text-anchor': 'end', 'font-size': 12, fill: '#dfe7f1' }, svg, 'receipt');
+    const recAt = ev.C.clickAt != null ? ev.C.clickAt + run.response : null;
+    if (recAt != null) el('rect', { x: x(recAt), y: yR + 4, width: Math.max(0, W - m.r - x(recAt)), height: 12, fill: '#7cb8ff', opacity: .75 }, svg);
+    el('line', { x1: x(run.actionable), x2: x(run.actionable), y1: m.t, y2: yR + 20, stroke: '#dfe7f1', 'stroke-dasharray': '3 3' }, svg);
+    el('text', { x: Math.min(x(run.actionable) + 4, W - 110), y: m.t + 6 * rowH + 12, 'font-size': 11, fill: '#dfe7f1' }, svg, `actionable ${run.actionable} ms`);
+    const lanes = [['A', 'sleep', '#ff8a75', [cfg.sleep, 2 * cfg.sleep]], ['B', 'poll', '#f2c14e', ev.B.clickAt != null ? [ev.B.clickAt] : [cfg.timeout]], ['C', 'web', '#3ddbb4', ev.C.clickAt != null ? [ev.C.clickAt, ev.C.wait] : [cfg.timeout]]];
+    lanes.forEach(([k, id, col, marks], i) => {
+      const yy = m.t + (7 + i) * rowH - 6;
+      el('text', { x: m.l - 8, y: yy + 12, 'text-anchor': 'end', 'font-size': 12, fill: col }, svg, STRATS[i].name);
+      el('line', { x1: m.l, x2: x(ev[k].wait), y1: yy + 8, y2: yy + 8, stroke: col, 'stroke-width': 2 }, svg);
+      for (const t of marks) el('circle', { cx: x(t), cy: yy + 8, r: 4.5, fill: ev[k].pass ? col : '#0f141c', stroke: col, 'stroke-width': 2 }, svg);
+      el('text', { x: W - m.r, y: yy + 12, 'text-anchor': 'end', 'font-size': 11, fill: ev[k].pass ? '#3ddbb4' : '#ff8a75' }, svg, ev[k].pass ? 'PASS' : 'FAIL');
+    });
+    svg.setAttribute('aria-label', `Run ${run.i + 1}${run.slow ? ' (slow)' : ''}: attached at ${run.attached} ms, visible ${run.visible}, stable ${run.stable}, enabled ${run.enabled}, receives events ${run.receives}; actionable at ${run.actionable} ms; the receipt takes ${run.response} ms after the click. A ${ev.A.pass ? 'passes' : 'fails'}, B ${ev.B.pass ? 'passes' : 'fails'}, C ${ev.C.pass ? 'passes' : 'fails'}.`);
+    $('runBody').innerHTML = [
+      ...CHECKS.map((c) => `<tr><td>${CHECK_LABEL[c]}</td><td data-testid="t-${c}">${run[c]} ms</td></tr>`),
+      `<tr><td>receipt after click</td><td data-testid="t-response">${run.response} ms${run.response === 0 ? ' (cached)' : ''}</td></tr>`,
+      ...STRATS.map((s, i) => { const r = ev['ABC'[i]]; return `<tr><td>${s.name}</td><td data-testid="verdict-${s.id}">${r.pass ? 'PASS' : 'FAIL'}: ${r.reason}</td></tr>`; }),
+    ].join('');
+    resetStage(run);
+  }
+  function runEnd(run, ev) { return Math.max(2 * cfg.sleep, ev.A.wait, ev.B.wait, ev.C.wait, run.actionable, (ev.C.clickAt ?? 0) + run.response) + 200; }
+
+  // ---------- replay (driven by Date.now + setInterval, so page.clock can control it) ----------
+  let replay = null;
+  function resetStage(run) {
+    stopReplay(false);
+    paintStage(run, sim.per[run.i], 0, false);
+    $('replayStatus').textContent = 'Press Replay to watch this run\'s timings play out.';
+  }
+  function paintStage(run, ev, t, live) {
+    const slot = $('slot');
+    let btn = $('payBtn');
+    const attached = live && t >= run.attached;
+    if (attached && !btn) { btn = document.createElement('button'); btn.id = 'payBtn'; btn.type = 'button'; btn.tabIndex = -1; btn.textContent = 'Pay $24.00'; btn.setAttribute('data-testid', 'pay'); slot.appendChild(btn); }
+    if (!attached && btn) { btn.remove(); btn = null; }
+    if (btn) {
+      btn.style.display = t >= run.visible ? '' : 'none';
+      const fade = Math.min(1, Math.max(0, (t - run.visible) / 200));
+      btn.style.opacity = fade.toFixed(2);
+      const k = run.stable > run.visible ? Math.min(1, Math.max(0, (t - run.visible) / (run.stable - run.visible))) : 1;
+      btn.style.transform = `translateX(${((1 - (1 - (1 - k) ** 2)) * 180).toFixed(1)}px)`;
+      btn.disabled = t < run.enabled;
+    }
+    $('overlay').hidden = !(live && run.hasOverlay && t < run.receives);
+    const rec = ev.C.clickAt != null ? ev.C.clickAt + run.response : Infinity;
+    $('toast').hidden = !(live && t >= rec);
+    $('clock').textContent = `t = ${Math.round(t)} ms${run.slow ? ' · slow run' : ''}`;
+    $('checks').innerHTML = CHECKS.map((c) => `<li data-testid="chk-${c}" data-ok="${live && t >= run[c]}">${CHECK_LABEL[c]} <span>${live && t >= run[c] ? `since ${run[c]} ms` : `at ${run[c]} ms`}</span></li>`).join('');
+    const lane = (i, text, verdict) => `<div class="lane" style="border-color:${STRATS[i].color}" data-testid="lane-${STRATS[i].id}" data-verdict="${verdict}">${STRATS[i].name}: ${text}</div>`;
+    const S = cfg.sleep;
+    const laneA = !live ? lane(0, 'waiting to start', '') : t < S ? lane(0, `sleeping (${Math.round(t)} / ${S} ms)`, '') : t < 2 * S ? lane(0, `clicked at ${S} ms${ev.A.reason.startsWith('click') ? ' on a button that wasn\'t ready' : ''}; sleeping again`, '') : lane(0, `${ev.A.pass ? 'PASS' : 'FAIL'}: ${ev.A.reason}`, ev.A.pass ? 'pass' : 'fail');
+    const done = (r) => t >= r.wait;
+    const laneB = !live ? lane(1, 'waiting to start', '') : !done(ev.B) ? lane(1, `polling actionability, waiting for ${CHECK_LABEL[firstPending(run, t)] || 'the next poll'}`, '') : lane(1, `${ev.B.pass ? 'PASS' : 'FAIL'}: ${ev.B.reason}`, ev.B.pass ? 'pass' : 'fail');
+    const laneC = !live ? lane(2, 'waiting to start', '') : !done(ev.C) ? lane(2, ev.C.clickAt != null && t >= ev.C.clickAt ? 'clicked; retrying toHaveText(\'Paid\')' : `polling actionability, waiting for ${CHECK_LABEL[firstPending(run, t)] || 'the next poll'}`, '') : lane(2, `${ev.C.pass ? 'PASS' : 'FAIL'}: ${ev.C.reason}`, ev.C.pass ? 'pass' : 'fail');
+    $('lanes').innerHTML = laneA + laneB + laneC;
+  }
+  function startReplay() {
+    const idx = pickIndex(), run = sim.runs[idx], ev = sim.per[idx];
+    stopReplay(false);
+    const t0 = Date.now(), end = runEnd(run, ev);
+    const finished = new Set();
+    replay = { idx, t0, end, elapsed: 0, running: true, timer: null };
+    $('stop').disabled = false;
+    $('replayStatus').textContent = `Replaying run ${idx + 1}${run.slow ? ' (a slow run)' : ''}…`;
+    const tick = () => {
+      const t = Math.min(end, Date.now() - t0);
+      replay.elapsed = t;
+      paintStage(run, ev, t, true);
+      const msgs = [];
+      for (const [k, i] of [['A', 0], ['B', 1], ['C', 2]]) if (!finished.has(k) && t >= ev[k].wait && (k !== 'A' || t >= 2 * cfg.sleep)) { finished.add(k); msgs.push(`${STRATS[i].name} ${ev[k].pass ? 'passed' : 'failed'}`); }
+      if (msgs.length) $('replayStatus').textContent = `t = ${Math.round(t)} ms: ${msgs.join(', ')}.`;
+      if (t >= end) { stopReplay(true); }
+    };
+    replay.timer = setInterval(tick, 20);
+    tick();
+  }
+  function stopReplay(completed) {
+    if (!replay) return;
+    clearInterval(replay.timer);
+    replay.running = false;
+    $('stop').disabled = true;
+    if (completed) $('replayStatus').textContent = `Replay of run ${replay.idx + 1} finished at ${Math.round(replay.elapsed)} ms.`;
+  }
+
+  // ---------- wire up ----------
+  function recompute() {
+    cfg = readCfg();
+    sim = simulate(cfg);
+    renderResults(); renderSweep(); renderInspect();
+  }
+  for (const id of ['seed', 'n', 'slow', 'sleep', 'poll', 'timeout']) $(id).addEventListener('input', recompute);
+  $('pick').addEventListener('input', () => { if (sim) renderInspect(); });
+  $('race').addEventListener('click', () => { recompute(); $('summary').textContent = 'Raced again. ' + $('summary').textContent; });
+  $('reseed').addEventListener('click', () => { $('seed').value = (readCfg().seed + 1) >>> 0; recompute(); });
+  $('replay').addEventListener('click', startReplay);
+  $('stop').addEventListener('click', () => { stopReplay(false); $('replayStatus').textContent = `Stopped at ${Math.round(replay.elapsed)} ms.`; $('replay').focus(); });
+
+  window.__autowait = {
+    mulberry32, genRuns, evaluate, simulate,
+    get cfg() { return { ...cfg }; },
+    get runs() { return JSON.parse(JSON.stringify(sim.runs)); },
+    get per() { return JSON.parse(JSON.stringify(sim.per)); },
+    get tot() { return JSON.parse(JSON.stringify(sim.tot)); },
+    get sweep() { return JSON.parse(JSON.stringify(sweep)); },
+    get replay() { return replay ? { idx: replay.idx, elapsed: replay.elapsed, end: replay.end, running: replay.running } : null; },
+  };
+  recompute();
+})();
+</script>
+</body>
+</html>

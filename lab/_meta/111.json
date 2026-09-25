@@ -1,0 +1,36 @@
+{
+  "id": "111",
+  "slug": "111-morse-trainer",
+  "file": "lab/111-morse-trainer.html",
+  "title": "Morse Trainer — PARIS timing and the Koch method",
+  "category": "Audio",
+  "tags": ["web-audio", "morse-code", "timing", "page-clock", "koch-method"],
+  "description": "A telegraph-desk Morse trainer. Type a message and it is encoded to International Morse (ITU-R M.1677-1 letters, figures and punctuation), drawn on a paper tape and sent as a sine tone with exact PARIS timing, with optional Farnsworth spacing. A key you hold (or the space bar) is timed with performance.now and decoded live, and a seeded Koch-method trainer starts you on K and M and adds a character each time you copy a drill at 90%.",
+  "prompt": "Build a Morse code trainer. Encode text to International Morse from ITU-R M.1677-1 (letters, digits and the common punctuation), play it with a Web Audio sine tone, and support Farnsworth spacing. Get the timing exactly right: a dot is 1200/WPM ms, a dash 3 dots, 1 unit inside a character, 3 between characters and 7 between words, so \"PARIS \" is 50 units. Add a decoder where I tap a key (pointer down/up or the space bar), timed with performance.now so page.clock can drive it in tests, and a Koch-method trainer that starts with K and M. Audio must wait for a gesture, and the page has to keep working when AudioContext is missing or suspended.",
+  "qa": {
+    "methodology": [
+      "Timing oracle: the spec builds its own mark list for PARIS from the rules alone (1/3/1/3/7 units) and checks every mark's start and length at 5, 13, 20, 25 and 40 WPM, plus the 50-unit total and 60 000 / WPM ms per word.",
+      "Standard reference data: the page's code table must equal an ITU-R M.1677-1 table typed into the spec, every drawn table cell must show it, every code must decode back to its character, and SOS must encode to ...---....",
+      "Farnsworth from the published ARRL formula: character-gap and word-gap readouts are compared with 3/19 and 7/19 of ta = (60c − 37.2s)/(sc), and the defining property is checked directly: one PARIS word takes 60/s seconds, so the effective speed reads exactly s.",
+      "Simulated keying under page.clock: the space bar and synthetic pointer events are held for computed durations (including ±20% wobble) and must decode SOS K and PARIS. The spec also covers the 2-unit dot/dash boundary (1.9 vs 2.1 units), an unknown six-dot code, and a character that isn't committed until 2 units of silence have passed.",
+      "Degraded audio: with AudioContext deleted, and again with a fake one that stays suspended after resume(), Play still drives the lamp and tape on the exact schedule and says why there is no sound. The real context must not exist before the first click."
+    ],
+    "risks": [
+      "Off-by-one spacing (adding a character gap after the last character of a word as well as the word gap) would silently make PARIS 53 units; the per-mark oracle would catch that.",
+      "Browsers that keep an AudioContext suspended can hang a Play button that awaits resume(); resume is raced against a 300 ms timeout and the lamp runs regardless.",
+      "Koch drills use a seeded mulberry32 generator; without ?seed the seed is random, so tests always pin it.",
+      "Real keying on touch screens can fire pointercancel or a long-press menu; the key uses touch-action: none, pointer capture and a contextmenu block, but that path is only tested with synthetic events."
+    ],
+    "playwright": "page.clock does most of the work here. It fakes performance.now, setTimeout and requestAnimationFrame together, so a test can hold the space bar for exactly 180 ms, let 420 ms of silence pass, and see the decoder commit a character and a word space deterministically. That needed pauseAt() after install(): with the clock merely installed, real time kept flowing between Playwright round-trips on a busy machine, stretching dots into dashes, and the first decoder run read SOS K as TETM T EA O. The same clock checks the lamp mid-dash, in the character gap, on the following dot and after the end. addInitScript deletes or replaces AudioContext before the page loads, which is the only practical way to test the no-audio and suspended paths. The weak spot: pointer keying uses locator.dispatchEvent('pointerdown'/'pointerup'), because real touch taps can't be held for a set time on the mobile project, so real touch gestures and pointer capture aren't exercised. Sound itself is never heard, only the context state.",
+    "coverage": [
+      "PARIS = 50 units, per-mark times at five speeds, readouts",
+      "ITU table, table cells, round-trip decode, SOS",
+      "Encoder: case, word breaks, skipped symbols, speed validation",
+      "Farnsworth gaps and effective speed",
+      "Decoder: space bar, pointer with wobble, dot/dash boundary, unknown code, commit delay",
+      "Lamp schedule without Web Audio; gesture gating; suspended fallback",
+      "Koch order, seeded drills, reveal, scoring, level up, level select"
+    ]
+  },
+  "a11y": "All settings are labelled native inputs with validation messages in an alert region. The key is a real button that works with the space bar while focused, and the decoded text is an aria-live region. Playback status is announced politely, and the signal lamp has a label that changes between on and off. The Koch drill stays hidden until the reveal button (with aria-expanded) is pressed, and scores are announced. The code table is plain text, and the decorative tape and header strip are hidden from assistive tech."
+}

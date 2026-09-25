@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Embedding Space Explorer — similarity you can see</title>
+<meta name="description" content="Forty toy words with hand-built 8-dimensional vectors, projected to 2D with PCA by power iteration. Click a word to see its nearest neighbours by cosine similarity, try king − man + woman vector arithmetic with honest caveats, and compare cosine, dot product and Euclidean distance.">
+<style>
+  :root {
+    --paper: #f3eee2;
+    --paper-2: #e7dfcc;
+    --ink: #1d2a78;
+    --ink-2: #3b49a3;
+    --pink: #e8397a;
+    --pink-soft: #fbd3e2;
+    --orange: #c46a00;
+    --green: #127a5c;
+    --violet: #6c35b5;
+    --muted: #5d5a6e;
+    --card: #fbf8f0;
+    --mono: "Cascadia Mono", "Consolas", "SF Mono", "Menlo", "DejaVu Sans Mono", monospace;
+    --sans: "Avenir Next", "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --display: "Rockwell", "Roboto Slab", "Georgia", serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--paper); color: var(--ink); font: 15px/1.55 var(--sans); overflow-x: hidden;
+    background-image: radial-gradient(rgba(232,57,122,.13) 1px, transparent 1.4px), radial-gradient(rgba(29,42,120,.08) 1px, transparent 1.4px);
+    background-size: 14px 14px, 22px 22px; background-position: 0 0, 7px 9px; }
+  :focus-visible { outline: 3px solid var(--pink); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: var(--paper); background: var(--ink); text-decoration: none; font: 700 13px/1 var(--sans); padding: 8px 12px; border-radius: 4px; box-shadow: 3px 3px 0 var(--pink); }
+  a.back:hover { background: var(--ink-2); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 60px 16px 40px; }
+  .eyebrow { margin: 0; font: 700 12px/1.3 var(--mono); letter-spacing: .2em; text-transform: uppercase; color: var(--pink); }
+  h1 { font: 700 clamp(36px, 6.4vw, 68px)/1.02 var(--display); margin: 6px 0 8px; color: var(--ink); text-shadow: 3px 3px 0 var(--pink-soft); overflow-wrap: anywhere; }
+  .lede { margin: 0 0 18px; max-width: 70ch; color: var(--ink-2); }
+  .layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+  .card { background: var(--card); border: 2px solid var(--ink); border-radius: 6px; padding: 14px 16px; min-width: 0; box-shadow: 5px 5px 0 rgba(232,57,122,.35); }
+  h2 { font: 700 21px/1.2 var(--display); margin: 0 0 8px; overflow-wrap: anywhere; }
+  .stack { display: grid; gap: 18px; min-width: 0; }
+  #plot { display: block; width: 100%; height: auto; background: #fffdf7; border: 1px solid var(--paper-2); border-radius: 4px; touch-action: manipulation; }
+  #plot .pt { cursor: pointer; }
+  #plot .pt:focus { outline: none; }
+  #plot .pt:focus-visible .hit { stroke: var(--pink); stroke-width: 3; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; margin: 8px 0 0; padding: 0; list-style: none; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: end; margin-bottom: 10px; }
+  .field { min-width: 0; display: grid; gap: 3px; }
+  .field label, .lbl { font: 700 11px/1.3 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  select, input[type=number] { font: 15px var(--sans); padding: 7px 9px; border: 2px solid var(--ink); border-radius: 4px; background: #fff; color: var(--ink); min-width: 0; max-width: 100%; }
+  input[type=number] { width: 5.5em; }
+  .check { display: inline-flex; gap: 7px; align-items: center; font-size: 14px; min-height: 38px; }
+  .check input { width: 18px; height: 18px; accent-color: var(--pink); }
+  .btn { min-height: 38px; padding: 7px 12px; border: 2px solid var(--ink); border-radius: 4px; background: #fff; color: var(--ink); font: 700 13px/1.1 var(--sans); cursor: pointer; }
+  .btn:hover { background: var(--pink-soft); }
+  .btn.primary { background: var(--ink); color: #fff; }
+  table { width: 100%; border-collapse: collapse; font: 14px/1.35 var(--mono); font-variant-numeric: tabular-nums; }
+  th, td { padding: 4px 6px; border-bottom: 1px dashed var(--paper-2); text-align: left; overflow-wrap: anywhere; }
+  th { font: 700 11px/1.3 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  td.num, th.num { text-align: right; }
+  .tag { font: 700 10px/1 var(--mono); padding: 2px 5px; border-radius: 3px; background: var(--pink-soft); color: #8a1543; margin-left: 4px; white-space: nowrap; }
+  .bars { display: grid; gap: 4px; }
+  .bar { display: grid; grid-template-columns: minmax(0, 9.5em) minmax(0, 1fr) 3.6em; gap: 8px; align-items: center; font-size: 13px; }
+  .bar .track { position: relative; height: 12px; background: var(--paper-2); border-radius: 2px; }
+  .bar .track::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; border-left: 1px solid var(--muted); }
+  .bar .fill { position: absolute; top: 0; bottom: 0; background: var(--ink); }
+  .bar .fill.neg { background: var(--pink); }
+  .bar .v { font: 12px var(--mono); text-align: right; }
+  .bar .name { overflow-wrap: anywhere; }
+  .cmp { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .cmp ol { margin: 4px 0 0; padding-left: 1.4em; font: 13px/1.5 var(--mono); }
+  .cmp li { overflow-wrap: anywhere; }
+  .cmp li.diff { background: #fff1c2; }
+  .cmp h3 { margin: 0; font: 700 13px/1.3 var(--sans); }
+  .cmp small { display: block; color: var(--muted); font-size: 12px; }
+  .eq { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: end; }
+  .eq .op { font: 700 22px/38px var(--mono); color: var(--pink); }
+  .result { font: 700 20px/1.3 var(--display); margin: 10px 0 4px; overflow-wrap: anywhere; }
+  .note { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+  .caveat { border-left: 4px solid var(--pink); background: #fff; padding: 8px 12px; font-size: 13.5px; margin-top: 10px; }
+  .caveat ul { margin: 4px 0 0; padding-left: 1.2em; }
+  .math { font: 13.5px/1.6 var(--mono); background: #fff; border: 1px dashed var(--ink-2); padding: 8px 10px; border-radius: 4px; overflow-wrap: anywhere; }
+  .readout { font: 14px var(--mono); overflow-wrap: anywhere; }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  footer { margin-top: 26px; text-align: center; font-size: 13px; color: var(--muted); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  @media (max-width: 920px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 560px) { .cmp { grid-template-columns: minmax(0, 1fr); } .bar { grid-template-columns: minmax(0, 7.5em) minmax(0, 1fr) 3.4em; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <p class="eyebrow">Vectors · cosine · PCA</p>
+  <h1>Embedding Space Explorer</h1>
+  <p class="lede">Forty toy words, each given a hand-built 8-number vector with named axes (royalty, gender, person, animal…). The map flattens those 8 dimensions to 2 with principal component analysis, computed right here by power iteration. Pick a word to see who its nearest neighbours really are in 8D, try some vector arithmetic, and see why the choice of similarity measure matters.</p>
+
+  <div class="layout">
+    <section class="card" aria-labelledby="h-map">
+      <h2 id="h-map">The map (PCA to 2D)</h2>
+      <div class="controls">
+        <div class="field"><label for="word">Selected word</label><select id="word" data-testid="word-select"></select></div>
+        <div class="field"><label for="k">Neighbours (k)</label><input id="k" type="number" min="1" max="10" step="1" value="5" data-testid="k"></div>
+        <label class="check"><input type="checkbox" id="unit" data-testid="normalise"> Unit-normalise every vector</label>
+      </div>
+      <svg id="plot" viewBox="0 0 620 460" role="group" aria-label="Scatter plot of the words on the first two principal components" data-testid="plot"></svg>
+      <ul class="legend" id="legend" aria-label="Groups"></ul>
+      <p class="note" id="pcaNote" data-testid="pca-note"></p>
+      <p class="note">Tip: focus the map and use the arrow keys to move between words. Lines join the selected word to its nearest neighbours measured in all 8 dimensions, so a neighbour can look far away on the flat map: 2D is a lossy shadow.</p>
+    </section>
+
+    <div class="stack">
+      <section class="card" aria-labelledby="h-nn">
+        <h2 id="h-nn">Nearest by cosine</h2>
+        <p class="readout" id="nnSummary" aria-live="polite" data-testid="nn-summary"></p>
+        <table data-testid="nn-table"><thead><tr><th scope="col">#</th><th scope="col">word</th><th scope="col" class="num">cosine</th></tr></thead><tbody id="nnBody"></tbody></table>
+        <div class="math">cos(a, b) = (a · b) / (‖a‖ ‖b‖)</div>
+      </section>
+      <section class="card" aria-labelledby="h-vec">
+        <h2 id="h-vec">Its vector</h2>
+        <div class="bars" id="bars" data-testid="bars"></div>
+        <p class="note" id="normTxt" data-testid="norm"></p>
+      </section>
+    </div>
+  </div>
+
+  <div class="layout" style="margin-top:18px">
+    <section class="card" aria-labelledby="h-cmp">
+      <h2 id="h-cmp">Cosine vs dot product vs Euclidean distance</h2>
+      <p class="note" style="margin-top:0">Top <span id="cmpK">5</span> neighbours of <b id="cmpWord">–</b> under each measure. Rows highlighted in yellow disagree with the cosine ranking.</p>
+      <div class="cmp" aria-live="polite">
+        <div><h3>Cosine</h3><small>angle only; length ignored</small><ol id="cmpCos" data-testid="cmp-cosine"></ol></div>
+        <div><h3>Dot product</h3><small>angle × both lengths</small><ol id="cmpDot" data-testid="cmp-dot"></ol></div>
+        <div><h3>Euclidean</h3><small>straight-line distance, smaller = closer</small><ol id="cmpEuc" data-testid="cmp-euclid"></ol></div>
+      </div>
+      <p class="note">Dot product rewards long vectors: <i>cake</i> and <i>pizza</i> were given big magnitudes (think "very frequent word"), so they climb the dot-product list for any food. Euclidean distance punishes length differences. Tick <b>Unit-normalise</b> and all three agree, because for unit vectors a · b = cos θ and ‖a − b‖² = 2 − 2 cos θ.</p>
+    </section>
+
+    <section class="card" aria-labelledby="h-ana">
+      <h2 id="h-ana">Vector arithmetic</h2>
+      <div class="presets" role="group" aria-label="Examples">
+        <button type="button" class="btn" data-a="king" data-b="man" data-c="woman" data-testid="ex-king">king − man + woman</button>
+        <button type="button" class="btn" data-a="puppy" data-b="dog" data-c="cat" data-testid="ex-puppy">puppy − dog + cat</button>
+        <button type="button" class="btn" data-a="palace" data-b="king" data-c="village" data-testid="ex-palace">palace − king + village</button>
+      </div>
+      <div class="eq">
+        <div class="field"><label for="aA">A</label><select id="aA" data-testid="ana-a"></select></div>
+        <span class="op" aria-hidden="true">−</span>
+        <div class="field"><label for="aB">B (minus)</label><select id="aB" data-testid="ana-b"></select></div>
+        <span class="op" aria-hidden="true">+</span>
+        <div class="field"><label for="aC">C (plus)</label><select id="aC" data-testid="ana-c"></select></div>
+      </div>
+      <label class="check"><input type="checkbox" id="excl" checked data-testid="exclude"> Leave A, B and C out of the answers</label>
+      <p class="result" id="anaResult" aria-live="polite" data-testid="ana-result">–</p>
+      <table data-testid="ana-table"><thead><tr><th scope="col">#</th><th scope="col">word</th><th scope="col" class="num">cosine</th></tr></thead><tbody id="anaBody"></tbody></table>
+      <div class="caveat">
+        <b>Honest caveats</b>
+        <ul>
+          <li>These vectors were built by hand with named axes, so the tidy answers are partly by construction. Real embeddings have hundreds of unnamed dimensions.</li>
+          <li>The famous word2vec result leaves the input words out of the answers. Allow them and the nearest vector is often just A or C. Untick the box above to see the full ranking.</li>
+          <li>It always returns some word. palace − king + village gets a confident-looking answer to a question that means nothing.</li>
+          <li>In real models analogies are unreliable, and they echo whatever the training text says, stereotypes included.</li>
+        </ul>
+      </div>
+    </section>
+  </div>
+
+  <footer>Built by Zac Corbett · toy vectors, hand-made · PCA by power iteration with deflation on the sample covariance matrix · no data leaves the page</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const NS = 'http://www.w3.org/2000/svg';
+  const DIMS = ['royalty', 'gender (+m / −f)', 'person', 'animal', 'food', 'place', 'youth', 'sweet'];
+  const GROUPS = { people: '#1d2a78', animals: '#e8397a', food: '#c46a00', places: '#127a5c', things: '#6c35b5' };
+  // word, group, [royalty, gender, person, animal, food, place, youth, sweet]
+  const DATA = [
+    ['king', 'people', [0.95, 0.9, 1, 0, 0, 0.1, 0, 0]],
+    ['queen', 'people', [0.9, -0.85, 1, 0, 0, 0.15, 0, 0.05]],
+    ['man', 'people', [0.05, 0.9, 1, 0, 0, 0, 0.05, 0]],
+    ['woman', 'people', [0.05, -0.9, 1, 0, 0, 0, 0.05, 0]],
+    ['prince', 'people', [0.85, 0.85, 0.95, 0, 0, 0.05, 0.6, 0]],
+    ['princess', 'people', [0.85, -0.85, 0.95, 0, 0, 0.05, 0.6, 0.05]],
+    ['boy', 'people', [0, 0.85, 0.95, 0, 0, 0, 0.9, 0.05]],
+    ['girl', 'people', [0, -0.85, 0.95, 0, 0, 0, 0.9, 0.05]],
+    ['father', 'people', [0.05, 0.9, 1, 0, 0, 0.05, -0.3, 0]],
+    ['mother', 'people', [0.05, -0.9, 1, 0, 0, 0.05, -0.3, 0.05]],
+    ['son', 'people', [0, 0.85, 0.95, 0, 0, 0, 0.6, 0]],
+    ['daughter', 'people', [0, -0.85, 0.95, 0, 0, 0, 0.6, 0]],
+    ['dog', 'animals', [0, 0.1, 0, 1, 0, 0, 0, 0]],
+    ['puppy', 'animals', [0, 0, 0, 1, 0, 0, 0.9, 0.1]],
+    ['cat', 'animals', [0, 0, 0, 1, 0, 0, 0, 0.05]],
+    ['kitten', 'animals', [0, 0, 0, 1, 0, 0, 0.9, 0.15]],
+    ['lion', 'animals', [0.35, 0.6, 0, 1.1, 0, 0, 0, 0]],
+    ['lioness', 'animals', [0.3, -0.7, 0, 1.1, 0, 0, 0, 0]],
+    ['horse', 'animals', [0, 0.1, 0, 1.2, 0, 0, 0, 0]],
+    ['foal', 'animals', [0, 0, 0, 1.1, 0, 0, 0.9, 0]],
+    ['apple', 'food', [0, 0, 0, 0, 1, 0, 0, 0.7]],
+    ['banana', 'food', [0, 0, 0, 0, 1, 0, 0, 0.8]],
+    ['cherry', 'food', [0, 0, 0, 0, 0.9, 0, 0, 0.9]],
+    ['bread', 'food', [0, 0, 0, 0, 1, 0, 0, 0.1]],
+    ['cheese', 'food', [0, 0, 0, 0.05, 1, 0, 0, 0]],
+    ['pizza', 'food', [0, 0, 0, 0, 1.8, 0.2, 0, 0.1]],
+    ['cake', 'food', [0, 0, 0, 0, 1.6, 0, 0.1, 1.6]],
+    ['soup', 'food', [0, 0, 0, 0, 0.9, 0, 0, -0.1]],
+    ['milk', 'food', [0, 0, 0, 0.15, 0.8, 0, 0.2, 0.2]],
+    ['paris', 'places', [0.1, 0, 0, 0, 0.1, 1, 0, 0]],
+    ['rome', 'places', [0.2, 0, 0, 0, 0.1, 1, 0, 0]],
+    ['london', 'places', [0.25, 0, 0, 0, 0, 1, 0, 0]],
+    ['tokyo', 'places', [0.05, 0, 0, 0, 0.1, 1, 0, 0]],
+    ['city', 'places', [0, 0, 0, 0, 0, 1, 0, 0]],
+    ['village', 'places', [0, 0, 0, 0, 0, 0.8, 0.1, 0]],
+    ['castle', 'places', [0.7, 0, 0, 0, 0, 0.9, 0, 0]],
+    ['palace', 'places', [0.9, 0, 0, 0, 0, 0.9, 0, 0]],
+    ['crown', 'things', [1, 0, 0, 0, 0, 0, 0, 0]],
+    ['throne', 'things', [0.9, 0, 0, 0, 0, 0.2, 0, 0]],
+    ['toy', 'things', [0, 0, 0, 0, 0, 0, 0.9, 0.1]],
+  ];
+  const WORDS = DATA.map((d) => d[0]);
+  const GROUP = Object.fromEntries(DATA.map((d) => [d[0], d[1]]));
+  const RAW = Object.fromEntries(DATA.map((d) => [d[0], d[2].slice()]));
+
+  // ---------- vector maths ----------
+  const dot = (a, b) => a.reduce((s, x, i) => s + x * b[i], 0);
+  const norm = (a) => Math.sqrt(dot(a, a));
+  const cosine = (a, b) => { const d = norm(a) * norm(b); return d === 0 ? 0 : dot(a, b) / d; };
+  const euclid = (a, b) => Math.sqrt(a.reduce((s, x, i) => s + (x - b[i]) ** 2, 0));
+  const unit = (a) => { const n = norm(a); return n === 0 ? a.slice() : a.map((x) => x / n); };
+  const METRICS = { cosine: { f: cosine, desc: true }, dot: { f: dot, desc: true }, euclid: { f: euclid, desc: false } };
+
+  const state = { word: 'king', k: 5, unit: false, a: 'king', b: 'man', c: 'woman', exclude: true };
+  const vec = (w) => (state.unit ? unit(RAW[w]) : RAW[w]);
+
+  /** rank every word against q; ties broken alphabetically */
+  function rank(q, metric, skip = []) {
+    const m = METRICS[metric];
+    return WORDS.filter((w) => !skip.includes(w))
+      .map((w) => ({ word: w, score: m.f(q, vec(w)) }))
+      .sort((x, y) => (m.desc ? y.score - x.score : x.score - y.score) || (x.word < y.word ? -1 : 1));
+  }
+  const neighbours = (w, k = state.k, metric = 'cosine') => rank(vec(w), metric, [w]).slice(0, k);
+  function analogy(a, b, c, exclude = state.exclude) {
+    const r = vec(a).map((x, i) => x - vec(b)[i] + vec(c)[i]);
+    return { vector: r, ranking: rank(r, 'cosine', exclude ? [a, b, c] : []) };
+  }
+
+  // ---------- PCA by power iteration ----------
+  function pca(vectors) {
+    const n = vectors.length, d = vectors[0].length;
+    const mean = Array.from({ length: d }, (_, j) => vectors.reduce((s, v) => s + v[j], 0) / n);
+    const X = vectors.map((v) => v.map((x, j) => x - mean[j]));
+    const C = Array.from({ length: d }, (_, i) => Array.from({ length: d }, (_, j) => X.reduce((s, r) => s + r[i] * r[j], 0) / (n - 1)));
+    const trace = C.reduce((s, r, i) => s + r[i], 0);
+    const mul = (M, v) => M.map((r) => dot(r, v));
+    const comps = [], vals = [];
+    let M = C.map((r) => r.slice());
+    for (let c = 0; c < 2; c++) {
+      let v = unit(Array.from({ length: d }, (_, i) => 1 + i * 0.37));
+      let iters = 0;
+      for (; iters < 10000; iters++) {
+        const w = unit(mul(M, v));
+        const delta = Math.max(...w.map((x, i) => Math.abs(x - v[i])));
+        v = w;
+        if (delta < 1e-13) break;
+      }
+      // sign convention: the largest-magnitude entry is positive
+      let big = 0; v.forEach((x, i) => { if (Math.abs(x) > Math.abs(v[big])) big = i; });
+      if (v[big] < 0) v = v.map((x) => -x);
+      const lam = dot(v, mul(M, v));
+      comps.push(v); vals.push(lam);
+      M = M.map((r, i) => r.map((x, j) => x - lam * v[i] * v[j]));   // deflate
+    }
+    const proj = X.map((r) => [dot(r, comps[0]), dot(r, comps[1])]);
+    return { mean, cov: C, trace, components: comps, eigenvalues: vals, explained: vals.map((l) => l / trace), projected: proj };
+  }
+
+  // ---------- drawing ----------
+  function el(tag, a, p) { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; }
+  const fmt = (x, n = 3) => (x < 0 ? '−' : '') + Math.abs(x).toFixed(n);
+  let P = null, scale = null;
+  function computeLayout() {
+    P = pca(WORDS.map(vec));
+    const xs = P.projected.map((p) => p[0]), ys = P.projected.map((p) => p[1]);
+    const pad = 36, W = 620, H = 460;
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const s = Math.min((W - 2 * pad - 50) / (x1 - x0 || 1), (H - 2 * pad) / (y1 - y0 || 1));
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    scale = { sx: (x) => W / 2 - 20 + (x - cx) * s, sy: (y) => H / 2 - (y - cy) * s };
+  }
+  function drawPlot() {
+    const svg = $('plot'); svg.innerHTML = '';
+    const { sx, sy } = scale;
+    // axes through the origin of PC space
+    el('line', { x1: 0, x2: 620, y1: sy(0), y2: sy(0), stroke: '#d9d0bc', 'stroke-dasharray': '4 4' }, svg);
+    el('line', { y1: 0, y2: 460, x1: sx(0), x2: sx(0), stroke: '#d9d0bc', 'stroke-dasharray': '4 4' }, svg);
+    const t1 = el('text', { x: 612, y: sy(0) - 6, 'text-anchor': 'end', 'font-size': 11, fill: '#5d5a6e', 'font-family': 'Consolas, monospace' }, svg); t1.textContent = `PC1 (${(P.explained[0] * 100).toFixed(1)}%)`;
+    const t2 = el('text', { x: sx(0) + 6, y: 14, 'font-size': 11, fill: '#5d5a6e', 'font-family': 'Consolas, monospace' }, svg); t2.textContent = `PC2 (${(P.explained[1] * 100).toFixed(1)}%)`;
+    const idx = Object.fromEntries(WORDS.map((w, i) => [w, i]));
+    const sel = idx[state.word];
+    const nn = neighbours(state.word);
+    const lines = el('g', { 'data-testid': 'nn-lines' }, svg);
+    for (const n of nn) {
+      const p = P.projected[idx[n.word]], q = P.projected[sel];
+      el('line', { x1: sx(q[0]), y1: sy(q[1]), x2: sx(p[0]), y2: sy(p[1]), stroke: '#e8397a', 'stroke-width': 1.6, opacity: 0.75, 'data-to': n.word }, lines);
+    }
+    // analogy result marker
+    const an = analogy(state.a, state.b, state.c);
+    const r = an.vector.map((x, j) => x - P.mean[j]);
+    const ax = sx(dot(r, P.components[0])), ay = sy(dot(r, P.components[1]));
+    const star = el('path', { d: starPath(ax, ay, 9, 4), fill: 'none', stroke: '#6c35b5', 'stroke-width': 2, 'data-testid': 'analogy-mark' }, svg);
+    el('title', {}, star).textContent = `${state.a} − ${state.b} + ${state.c}`;
+    const nnSet = new Set(nn.map((n) => n.word));
+    WORDS.forEach((w, i) => {
+      const [px, py] = P.projected[i];
+      const isSel = i === sel, isNN = nnSet.has(w);
+      const g = el('g', { class: 'pt', role: 'button', tabindex: isSel ? 0 : -1, 'aria-pressed': isSel, 'aria-label': `${w} (${GROUP[w]})`, 'data-testid': `pt-${w}`, 'data-word': w, 'data-pc1': px, 'data-pc2': py, transform: `translate(${sx(px).toFixed(2)} ${sy(py).toFixed(2)})` }, svg);
+      el('circle', { class: 'hit', r: 11, fill: 'transparent', stroke: 'none' }, g);
+      el('circle', { r: isSel ? 7.5 : 5, fill: isSel || isNN ? GROUPS[GROUP[w]] : '#fffdf7', stroke: GROUPS[GROUP[w]], 'stroke-width': 2 }, g);
+      const t = el('text', { x: 8, y: 4, 'font-size': isSel ? 14 : 11.5, 'font-weight': isSel || isNN ? 700 : 400, fill: GROUPS[GROUP[w]], 'font-family': 'Segoe UI, Arial, sans-serif', 'pointer-events': 'none' }, g);
+      t.textContent = w;
+    });
+    // bring the selected point to the top so its label is legible
+    const top = svg.querySelector(`[data-word="${state.word}"]`); if (top) svg.appendChild(top);
+  }
+  function starPath(cx, cy, R, r) {
+    let d = '';
+    for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r : R; d += (i ? 'L' : 'M') + (cx + rr * Math.cos(a)).toFixed(1) + ' ' + (cy + rr * Math.sin(a)).toFixed(1); }
+    return d + 'Z';
+  }
+
+  function renderPanels() {
+    const w = state.word, v = vec(w), nn = neighbours(w);
+    $('nnBody').innerHTML = nn.map((n, i) => `<tr data-testid="nn-row-${i}"><td>${i + 1}</td><td data-testid="nn-word-${i}">${n.word}</td><td class="num" data-testid="nn-cos-${i}">${n.score.toFixed(3)}</td></tr>`).join('');
+    $('nnSummary').textContent = `${w}: the ${nn.length} nearest by cosine are ${nn.map((n) => n.word).join(', ')}.`;
+    $('bars').innerHTML = v.map((x, i) => {
+      const pct = Math.min(50, Math.abs(x) / 2 * 50);
+      return `<div class="bar"><span class="name">${DIMS[i]}</span><span class="track" aria-hidden="true"><span class="fill${x < 0 ? ' neg' : ''}" style="left:${x < 0 ? 50 - pct : 50}%;width:${pct}%"></span></span><span class="v" data-testid="dim-${i}">${fmt(x, 2)}</span></div>`;
+    }).join('');
+    $('normTxt').textContent = `‖${w}‖ = ${norm(v).toFixed(3)}${state.unit ? ' (normalised)' : ''}`;
+    // metric comparison
+    const lists = { cosine: neighbours(w, state.k, 'cosine'), dot: neighbours(w, state.k, 'dot'), euclid: neighbours(w, state.k, 'euclid') };
+    const ids = { cosine: 'cmpCos', dot: 'cmpDot', euclid: 'cmpEuc' };
+    for (const m of Object.keys(lists)) {
+      $(ids[m]).innerHTML = lists[m].map((n, i) => `<li class="${n.word !== lists.cosine[i].word ? 'diff' : ''}" data-testid="cmp-${m}-${i}" data-word="${n.word}">${n.word} <span style="color:var(--muted)">${n.score.toFixed(3)}</span></li>`).join('');
+    }
+    $('cmpK').textContent = state.k; $('cmpWord').textContent = w;
+    // analogy
+    const an = analogy(state.a, state.b, state.c);
+    const inputs = [state.a, state.b, state.c];
+    const top = an.ranking.slice(0, 5);
+    $('anaBody').innerHTML = top.map((n, i) => `<tr data-testid="ana-row-${i}"><td>${i + 1}</td><td><span data-testid="ana-word-${i}">${n.word}</span>${inputs.includes(n.word) ? '<span class="tag">input</span>' : ''}</td><td class="num" data-testid="ana-cos-${i}">${n.score.toFixed(3)}</td></tr>`).join('');
+    $('anaResult').textContent = `${state.a} − ${state.b} + ${state.c} ≈ ${top[0].word} (cosine ${top[0].score.toFixed(3)})`;
+    $('pcaNote').textContent = `PC1 and PC2 explain ${(P.explained[0] * 100).toFixed(1)}% and ${(P.explained[1] * 100).toFixed(1)}% of the variance (${((P.explained[0] + P.explained[1]) * 100).toFixed(1)}% together). The rest is lost in the flat picture.`;
+  }
+  function render() { drawPlot(); renderPanels(); }
+
+  // ---------- controls ----------
+  const opts = WORDS.map((w) => `<option value="${w}">${w}</option>`).join('');
+  for (const id of ['word', 'aA', 'aB', 'aC']) $(id).innerHTML = opts;
+  $('legend').innerHTML = Object.entries(GROUPS).map(([g, c]) => `<li><i style="background:${c}"></i>${g}</li>`).join('');
+  function syncInputs() { $('word').value = state.word; $('aA').value = state.a; $('aB').value = state.b; $('aC').value = state.c; $('k').value = state.k; $('unit').checked = state.unit; $('excl').checked = state.exclude; }
+  function select(w, focus) {
+    if (!RAW[w]) return;
+    state.word = w; syncInputs(); render();
+    if (focus) { const p = $('plot').querySelector(`[data-word="${w}"]`); if (p) p.focus(); }
+  }
+  $('plot').addEventListener('click', (e) => { const g = e.target.closest('.pt'); if (g) select(g.dataset.word, true); });
+  $('plot').addEventListener('keydown', (e) => {
+    const g = e.target.closest('.pt'); if (!g) return;
+    const i = WORDS.indexOf(g.dataset.word);
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(g.dataset.word, true); }
+    else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); select(WORDS[(i + 1) % WORDS.length], true); }
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); select(WORDS[(i - 1 + WORDS.length) % WORDS.length], true); }
+  });
+  $('word').addEventListener('change', () => select($('word').value));
+  $('k').addEventListener('input', () => { const k = parseInt($('k').value, 10); if (Number.isFinite(k) && k >= 1 && k <= 10) { state.k = k; render(); } });
+  $('unit').addEventListener('change', () => { state.unit = $('unit').checked; computeLayout(); render(); });
+  $('excl').addEventListener('change', () => { state.exclude = $('excl').checked; render(); });
+  for (const [id, key] of [['aA', 'a'], ['aB', 'b'], ['aC', 'c']]) $(id).addEventListener('change', () => { state[key] = $(id).value; render(); });
+  document.querySelectorAll('.presets .btn').forEach((b) => b.addEventListener('click', () => { state.a = b.dataset.a; state.b = b.dataset.b; state.c = b.dataset.c; syncInputs(); render(); }));
+
+  const q = new URLSearchParams(location.search);
+  if (RAW[q.get('word')]) state.word = q.get('word');
+  window.__emb = {
+    dims: DIMS.slice(), words: WORDS.slice(), groups: { ...GROUP },
+    get vectors() { return WORDS.map((w) => vec(w).slice()); },
+    get raw() { return JSON.parse(JSON.stringify(RAW)); },
+    get pca() { return JSON.parse(JSON.stringify(P)); },
+    get state() { return { ...state }; },
+    neighbours: (w, k, m) => neighbours(w, k, m),
+    analogy: (a, b, c, ex) => analogy(a, b, c, ex),
+    cosine, dot, euclid, select,
+  };
+  syncInputs(); computeLayout(); render();
+})();
+</script>
+</body>
+</html>

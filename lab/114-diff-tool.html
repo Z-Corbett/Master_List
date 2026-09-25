@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diff Tool — Myers diff, line and word level</title>
+<meta name="description" content="A text diff built on Eugene Myers' O(ND) algorithm, written from scratch: side-by-side and unified views with @@ hunk headers and configurable context, word-level highlights inside changed lines, ignore-whitespace and ignore-case options, and an edit-graph view that draws the furthest-reaching D-paths for small inputs.">
+<style>
+  :root {
+    --paper: #f4f1e8;
+    --paper-2: #e7e1d1;
+    --ink: #1d2a3a;
+    --ink-2: #44546a;
+    --rule: #cfc6b0;
+    --del: #a3312a;
+    --del-bg: #f6dcd7;
+    --del-hi: #eaa99f;
+    --ins: #2f6b3a;
+    --ins-bg: #d9ecd6;
+    --ins-hi: #9fd09a;
+    --hunk: #3b5d8f;
+    --hunk-bg: #e1e8f3;
+    --card: #fbfaf5;
+    --mono: "Cascadia Mono", "Consolas", "SFMono-Regular", "Menlo", "DejaVu Sans Mono", monospace;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--paper); color: var(--ink); font: 15px/1.5 var(--sans); overflow-x: hidden;
+    background-image: linear-gradient(rgba(59,93,143,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(59,93,143,.06) 1px, transparent 1px);
+    background-size: 22px 22px; }
+  :focus-visible { outline: 3px solid var(--hunk); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: var(--card); background: var(--ink); text-decoration: none; font: 600 13px/1 var(--sans); padding: 8px 12px; border-radius: 4px; border: 1px solid var(--ink-2); }
+  a.back:hover { background: var(--hunk); }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 60px 16px 40px; }
+  header.head { border-bottom: 3px double var(--ink); padding-bottom: 12px; margin-bottom: 18px; }
+  .eyebrow { margin: 0; font: 600 12px/1.3 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--hunk); }
+  h1 { font: 700 clamp(36px, 6vw, 60px)/1.05 var(--mono); margin: 6px 0; letter-spacing: -.02em; overflow-wrap: anywhere; }
+  h1 .m { color: var(--del); } h1 .p { color: var(--ins); }
+  .lede { margin: 0; color: var(--ink-2); max-width: 70ch; }
+  h2 { font: 700 17px/1.2 var(--mono); margin: 0 0 10px; text-transform: uppercase; letter-spacing: .06em; }
+  .card { background: var(--card); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 16px; min-width: 0; box-shadow: 0 1px 0 var(--rule); }
+  .inputs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+  .inputs label { display: block; font: 700 12px/1.3 var(--mono); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
+  .inputs label .a { color: var(--del); } .inputs label .b { color: var(--ins); }
+  textarea { width: 100%; min-width: 0; min-height: 180px; resize: vertical; font: 13px/1.45 var(--mono); padding: 8px 10px; border: 1px solid var(--rule); border-radius: 4px; background: #fff; color: var(--ink); tab-size: 4; }
+  .eol { font: 12px/1.3 var(--mono); color: var(--ink-2); margin: 4px 0 0; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin: 14px 0 0; }
+  .toolbar fieldset { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; }
+  .toolbar legend { float: left; margin-right: 6px; font: 700 12px/1 var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+  .seg { display: inline-flex; border: 1px solid var(--ink); border-radius: 4px; overflow: hidden; }
+  .seg label { padding: 7px 10px; font: 600 13px/1 var(--sans); cursor: pointer; }
+  .seg input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .seg input:checked + span { color: var(--card); }
+  .seg label:has(input:checked) { background: var(--ink); color: var(--card); }
+  .seg label:has(input:focus-visible) { outline: 3px solid var(--hunk); outline-offset: -3px; }
+  .chk { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; cursor: pointer; }
+  .chk input { width: 18px; height: 18px; accent-color: var(--ink); }
+  .num { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; }
+  .num input { width: 64px; font: 14px var(--mono); padding: 6px 8px; border: 1px solid var(--rule); border-radius: 4px; }
+  .btn { min-height: 36px; padding: 7px 12px; border-radius: 4px; border: 1px solid var(--ink); background: transparent; color: var(--ink); font: 600 13px/1 var(--sans); cursor: pointer; }
+  .btn:hover { background: var(--paper-2); }
+  .samples { display: flex; flex-wrap: wrap; gap: 6px; }
+  .stats { font: 600 14px/1.4 var(--mono); margin: 14px 0 8px; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; }
+  .stats .n-del { color: var(--del); } .stats .n-ins { color: var(--ins); }
+  .same { font: 600 15px/1.4 var(--mono); padding: 14px; background: var(--hunk-bg); border-radius: 4px; color: var(--hunk); }
+  .out { margin-top: 16px; }
+  .diff { width: 100%; border-collapse: collapse; table-layout: fixed; font: 12.5px/1.45 var(--mono); }
+  .diff td { vertical-align: top; padding: 0 6px; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+  .diff td.ln { width: 3.4em; text-align: right; color: #8b8a80; user-select: none; padding-right: 6px; border-right: 1px solid var(--rule); }
+  .diff td.mk { width: 1.4em; text-align: center; user-select: none; padding: 0; }
+  .diff tr.hunk td { background: var(--hunk-bg); color: var(--hunk); padding: 3px 8px; font-weight: 600; }
+  .diff .del { background: var(--del-bg); } .diff .ins { background: var(--ins-bg); }
+  .diff .del .mk { color: var(--del); } .diff .ins .mk { color: var(--ins); }
+  .diff td.empty { background: repeating-linear-gradient(135deg, transparent 0 5px, rgba(29,42,58,.05) 5px 10px); }
+  .diff td.nonl { color: #8b8a80; font-style: italic; }
+  del.w { background: var(--del-hi); color: #5a120d; text-decoration: none; border-radius: 2px; }
+  ins.w { background: var(--ins-hi); color: #123d1a; text-decoration: none; border-radius: 2px; }
+  .split td.code { width: calc(50% - 4.8em); }
+  .scroller { overflow-x: auto; border: 1px solid var(--rule); border-radius: 4px; background: #fff; }
+  pre.patch { margin: 10px 0 0; max-height: 260px; overflow: auto; font: 12px/1.4 var(--mono); background: var(--ink); color: #e9e4d6; padding: 10px; border-radius: 4px; white-space: pre; }
+  details summary { cursor: pointer; font: 600 13px/1.4 var(--mono); margin-top: 10px; }
+  .lower { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; margin-top: 18px; }
+  #graph { display: block; width: 100%; height: auto; max-height: 560px; }
+  .graphctl { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 6px 0 8px; font-size: 14px; }
+  .graphctl input[type=range] { width: 180px; max-width: 100%; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--ink-2); }
+  .legend i { display: inline-block; width: 18px; height: 0; border-top: 3px solid; vertical-align: 4px; margin-right: 4px; }
+  .note { font-size: 13px; color: var(--ink-2); margin: 8px 0 0; }
+  .algo ol { margin: 6px 0 0; padding-left: 20px; }
+  .algo li { margin: 4px 0; }
+  .algo code { font: 12.5px var(--mono); background: var(--paper-2); padding: 1px 4px; border-radius: 3px; overflow-wrap: anywhere; }
+  footer { margin-top: 26px; text-align: center; font-size: 13px; color: var(--ink-2); }
+  @media (max-width: 820px) { .inputs, .lower { grid-template-columns: minmax(0, 1fr); } textarea { min-height: 130px; } }
+  @media (max-width: 520px) { .diff { font-size: 11.5px; } .diff td.ln { width: 2.6em; padding-right: 3px; } .diff td { padding: 0 3px; } .split td.code { width: calc(50% - 4em); } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="head">
+    <p class="eyebrow">diff(1), rebuilt · Myers 1986</p>
+    <h1><span class="m">−</span>diff<span class="p">+</span>tool</h1>
+    <p class="lede">Paste two versions of a text. The tool finds a shortest edit script with Eugene Myers' O(ND) greedy algorithm, shows it side by side or as a unified patch, highlights the words that changed inside each line, and draws the edit graph so you can watch the D-paths reach across it.</p>
+  </header>
+
+  <section class="card" aria-labelledby="h-in">
+    <h2 id="h-in">Inputs</h2>
+    <div class="inputs">
+      <div><label for="ta"><span class="a">A</span> · original</label><textarea id="ta" data-testid="a" spellcheck="false" autocomplete="off"></textarea><p class="eol" id="eolA" data-testid="a-eol"></p></div>
+      <div><label for="tb"><span class="b">B</span> · changed</label><textarea id="tb" data-testid="b" spellcheck="false" autocomplete="off"></textarea><p class="eol" id="eolB" data-testid="b-eol"></p></div>
+    </div>
+    <div class="toolbar">
+      <fieldset><legend>View</legend>
+        <span class="seg"><label><input type="radio" name="view" value="split" data-testid="view-split" checked><span>Side by side</span></label><label><input type="radio" name="view" value="unified" data-testid="view-unified"><span>Unified</span></label></span>
+      </fieldset>
+      <label class="num" for="ctx">Context lines <input id="ctx" type="number" min="0" max="50" value="3" data-testid="ctx"></label>
+      <label class="chk"><input type="checkbox" id="ws" data-testid="ignore-ws"> Ignore whitespace</label>
+      <label class="chk"><input type="checkbox" id="ic" data-testid="ignore-case"> Ignore case</label>
+      <label class="chk"><input type="checkbox" id="wd" data-testid="words" checked> Word highlights</label>
+    </div>
+    <div class="toolbar">
+      <div class="samples" role="group" aria-label="Samples">
+        <button type="button" class="btn" data-sample="code" data-testid="sample-code">Sample: code edit</button>
+        <button type="button" class="btn" data-sample="myers" data-testid="sample-myers">Sample: Myers' ABCABBA → CBABAC</button>
+        <button type="button" class="btn" data-sample="eol" data-testid="sample-eol">Sample: missing newline</button>
+      </div>
+      <button type="button" class="btn" id="swap" data-testid="swap">Swap A ⇄ B</button>
+    </div>
+  </section>
+
+  <section class="card out" aria-labelledby="h-out">
+    <h2 id="h-out">Differences</h2>
+    <div class="stats" id="stats" data-testid="stats" aria-live="polite"></div>
+    <div id="same" class="same" data-testid="identical" hidden></div>
+    <div class="scroller" id="viewBox"><table class="diff" id="view" data-testid="view"></table></div>
+    <details id="patchBox"><summary>Unified patch text</summary><pre class="patch" id="patch" data-testid="patch" tabindex="0" aria-label="Unified patch text"></pre></details>
+  </section>
+
+  <div class="lower">
+    <section class="card" aria-labelledby="h-graph">
+      <h2 id="h-graph">Edit graph</h2>
+      <p class="note" style="margin-top:0">A runs left to right and B top to bottom. A step right deletes a line of A, a step down inserts a line of B, and a free diagonal (dashed) is a line they share. Each D-path is the furthest point reachable on its diagonal k = x − y with exactly D edits; Myers stops at the first D that reaches the corner.</p>
+      <div class="graphctl" id="graphCtl"><label for="dmax">Show D-paths up to D = <b id="dmaxOut" data-testid="dmax-out">0</b></label><input id="dmax" type="range" min="0" max="0" value="0" data-testid="dmax"></div>
+      <svg id="graph" role="img" aria-label="Edit graph" data-testid="graph" viewBox="0 0 300 300"></svg>
+      <div class="legend"><span><i style="border-color:#1d2a3a"></i>chosen shortest path</span><span><i style="border-color:#c98b2b"></i>D-path frontier (colour by D)</span><span><i style="border-color:#9fb3cf;border-top-style:dashed"></i>free diagonal</span></div>
+      <p class="note" id="graphNote" data-testid="graph-note"></p>
+    </section>
+    <section class="card algo" aria-labelledby="h-algo">
+      <h2 id="h-algo">How it works</h2>
+      <ol>
+        <li>Each line becomes a comparison key: trimmed of all whitespace if you ignore whitespace, lower-cased if you ignore case. A last line with no newline gets a marker, so <code>b</code> and <code>b⏎</code> differ, as in GNU diff and git.</li>
+        <li>For D = 0, 1, 2 … the array <code>V[k]</code> stores the furthest x reached on diagonal k. From <code>V[k−1]+1</code> (right) or <code>V[k+1]</code> (down) the path follows the diagonal "snake" as far as the lines match.</li>
+        <li>The first D that reaches (N, M) is the edit distance; a copy of V per round lets the path be walked back from the corner into the edit script.</li>
+        <li>Unified hunks keep <code>n</code> lines of context and merge when two changes are within 2n lines. A hunk header is <code>@@ -start,count +start,count @@</code>; a count of 1 is left out, and an empty side starts at the line before it.</li>
+        <li>Each deleted line is paired with the inserted line in the same position of its block, and the pair is diffed again on word tokens for the highlights.</li>
+      </ol>
+      <p class="note">Up to 1,500 lines a side. Myers' refinement (the linear-space middle snake) isn't needed at that size, so this keeps the simpler O((N+M)·D) time, O(D²) space form.</p>
+    </section>
+  </div>
+  <footer>Built by Zac Corbett · Myers, "An O(ND) Difference Algorithm and Its Variations", Algorithmica 1 (1986) · no network, all in this page</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const NS = 'http://www.w3.org/2000/svg';
+  const MAX_LINES = 1500;
+
+  // ---------- Myers O(ND) ----------
+  /**
+   * Shortest edit script from a to b. Returns { d, ops, frontier } where ops are
+   * {op:'=',ai,bi} | {op:'-',ai} | {op:'+',bi}. With wantFrontier, also the D-path segments per D.
+   */
+  function myers(a, b, eq = (x, y) => x === y, wantFrontier = false) {
+    const n = a.length, m = b.length, max = n + m, off = max + 1;
+    const v = new Int32Array(2 * max + 3);
+    v[off + 1] = 0;
+    const trace = [], frontier = [];
+    let D = 0;
+    outer: for (let d = 0; d <= max; d++) {
+      trace.push(v.slice(off - d - 1, off + d + 2));        // V as it stood before round d, for k in [−d−1, d+1]
+      const round = [];
+      for (let k = -d; k <= d; k += 2) {
+        let x, fx, fy;
+        const down = k === -d || (k !== d && v[off + k - 1] < v[off + k + 1]);
+        if (down) { x = v[off + k + 1]; fx = x; fy = x - (k + 1); }
+        else { x = v[off + k - 1] + 1; fx = x - 1; fy = fx - (k - 1); }
+        if (d === 0) { fx = 0; fy = 0; }
+        let y = x - k;
+        const mx = x, my = y;
+        while (x < n && y < m && eq(a[x], b[y])) { x++; y++; }
+        v[off + k] = x;
+        if (wantFrontier) round.push({ k, from: [fx, fy], mid: [mx, my], to: [x, y] });
+        if (x >= n && y >= m) { D = d; if (wantFrontier) frontier.push(round); break outer; }
+      }
+      if (wantFrontier) frontier.push(round);
+    }
+    // walk back from (n, m)
+    const ops = [];
+    let x = n, y = m;
+    for (let d = D; d >= 0; d--) {
+      const s = trace[d], get = (k) => s[k + d + 1];
+      const k = x - y;
+      let px = 0, py = 0;
+      if (d > 0) {
+        const pk = (k === -d || (k !== d && get(k - 1) < get(k + 1))) ? k + 1 : k - 1;
+        px = get(pk); py = px - pk;
+      }
+      while (x > px && y > py) { ops.push({ op: '=', ai: x - 1, bi: y - 1 }); x--; y--; }
+      if (d > 0) {
+        if (x === px) ops.push({ op: '+', bi: y - 1 }); else ops.push({ op: '-', ai: x - 1 });
+        x = px; y = py;
+      }
+    }
+    ops.reverse();
+    return { d: D, ops, frontier };
+  }
+
+  // ---------- lines ----------
+  function splitLines(text) {
+    if (text === '') return { lines: [], noEol: false };
+    const parts = text.split('\n');
+    const noEol = parts[parts.length - 1] !== '';
+    if (!noEol) parts.pop();
+    return { lines: parts.map((l) => l.replace(/\r$/, '')), noEol };
+  }
+  const normFn = (o) => (s) => { let t = s; if (o.ignoreWs) t = t.replace(/\s+/g, ''); if (o.ignoreCase) t = t.toLowerCase(); return t; };
+  function keysFor(f, norm) { return f.lines.map((l, i) => norm(l) + (f.noEol && i === f.lines.length - 1 ? '\u0000no-eol' : '')); }
+
+  function diffTexts(textA, textB, o = {}) {
+    const A = splitLines(textA), B = splitLines(textB);
+    const norm = normFn(o);
+    const ka = keysFor(A, norm), kb = keysFor(B, norm);
+    const small = A.lines.length <= 24 && B.lines.length <= 24;
+    const r = myers(ka, kb, undefined, small);
+    const raw = r.ops.map((p) => (p.op === '+' ? { ...p, value: B.lines[p.bi] } : { ...p, value: A.lines[p.ai] }));
+    // within each run of edits, put deletions before insertions, as diff(1) prints them
+    const ops = [];
+    for (let i = 0; i < raw.length;) {
+      if (raw[i].op === '=') { ops.push(raw[i++]); continue; }
+      const run = [];
+      while (i < raw.length && raw[i].op !== '=') run.push(raw[i++]);
+      ops.push(...run.filter((p) => p.op === '-'), ...run.filter((p) => p.op === '+'));
+    }
+    return { A, B, ka, kb, d: r.d, ops, rawOps: raw, frontier: small ? r.frontier : null };
+  }
+
+  // ---------- hunks ----------
+  function hunks(ops, ctx) {
+    const changes = [];
+    ops.forEach((p, i) => { if (p.op !== '=') changes.push(i); });
+    if (!changes.length) return [];
+    const groups = [];
+    let s = changes[0], e = changes[0];
+    for (let j = 1; j < changes.length; j++) {
+      if (changes[j] - e - 1 <= 2 * ctx) e = changes[j];
+      else { groups.push([s, e]); s = e = changes[j]; }
+    }
+    groups.push([s, e]);
+    // a/b line positions before each op
+    const aAt = [], bAt = [];
+    let ai = 0, bi = 0;
+    for (const p of ops) { aAt.push(ai); bAt.push(bi); if (p.op !== '+') ai++; if (p.op !== '-') bi++; }
+    return groups.map(([s0, e0]) => {
+      const from = Math.max(0, s0 - ctx), to = Math.min(ops.length - 1, e0 + ctx);
+      let aLen = 0, bLen = 0;
+      for (let i = from; i <= to; i++) { if (ops[i].op !== '+') aLen++; if (ops[i].op !== '-') bLen++; }
+      const aStart = aLen ? aAt[from] + 1 : aAt[from], bStart = bLen ? bAt[from] + 1 : bAt[from];
+      const rng = (st, len) => (len === 1 ? `${st}` : `${st},${len}`);
+      return { from, to, aStart, aLen, bStart, bLen, header: `@@ -${rng(aStart, aLen)} +${rng(bStart, bLen)} @@` };
+    });
+  }
+
+  function unifiedText(res, ctx) {
+    const hs = hunks(res.ops, ctx);
+    if (!hs.length) return '';
+    const out = ['--- a/original', '+++ b/changed'];
+    for (const h of hs) {
+      out.push(h.header);
+      for (let i = h.from; i <= h.to; i++) {
+        const p = res.ops[i];
+        out.push((p.op === '=' ? ' ' : p.op) + p.value);
+        if (eolMissing(res, p)) out.push('\\ No newline at end of file');
+      }
+    }
+    return out.join('\n') + '\n';
+  }
+  function eolMissing(res, p) {
+    if (p.op === '+') return res.B.noEol && p.bi === res.B.lines.length - 1;
+    if (p.op === '-') return res.A.noEol && p.ai === res.A.lines.length - 1;
+    return (res.A.noEol && p.ai === res.A.lines.length - 1) || (res.B.noEol && p.bi === res.B.lines.length - 1);
+  }
+
+  // ---------- word level ----------
+  const tokenize = (s) => s.match(/\s+|[\p{L}\p{N}_]+|[^\s\p{L}\p{N}_]/gu) || [];
+  const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  function wordDiff(la, lb, o) {
+    const ta = tokenize(la), tb = tokenize(lb);
+    const norm = (t) => (o.ignoreWs && /^\s+$/.test(t) ? ' ' : o.ignoreCase ? t.toLowerCase() : t);
+    const r = myers(ta.map(norm), tb.map(norm));
+    let left = '', right = '', changed = 0;
+    for (const p of r.ops) {
+      if (p.op === '=') { left += esc(ta[p.ai]); right += esc(tb[p.bi]); }
+      else if (p.op === '-') { left += `<del class="w">${esc(ta[p.ai])}</del>`; changed++; }
+      else { right += `<ins class="w">${esc(tb[p.bi])}</ins>`; changed++; }
+    }
+    return { left, right, changed };
+  }
+
+  // ---------- rendering ----------
+  const opts = { ignoreWs: false, ignoreCase: false, ctx: 3, view: 'split', words: true };
+  let last = null;
+
+  function blocks(ops) {
+    // runs of '=' and change blocks (deletes then inserts, as Myers emits them in either order)
+    const out = [];
+    let i = 0;
+    while (i < ops.length) {
+      if (ops[i].op === '=') { out.push({ eq: ops[i] }); i++; continue; }
+      const dels = [], ins = [];
+      while (i < ops.length && ops[i].op !== '=') { (ops[i].op === '-' ? dels : ins).push(ops[i]); i++; }
+      out.push({ dels, ins });
+    }
+    return out;
+  }
+
+  function lineHtml(res, block) {
+    // pair the k-th deleted and k-th inserted line for word highlights
+    const pairs = [];
+    const n = Math.max(block.dels.length, block.ins.length);
+    for (let k = 0; k < n; k++) {
+      const d = block.dels[k], s = block.ins[k];
+      let l = d ? esc(d.value) : null, r = s ? esc(s.value) : null;
+      if (d && s && opts.words) { const w = wordDiff(d.value, s.value, opts); l = w.left; r = w.right; }
+      pairs.push({ d, s, l, r });
+    }
+    return pairs;
+  }
+
+  function render() {
+    const ta = $('ta').value, tb = $('tb').value;
+    $('eolA').textContent = eolText(ta); $('eolB').textContent = eolText(tb);
+    const nA = splitLines(ta).lines.length, nB = splitLines(tb).lines.length;
+    if (nA > MAX_LINES || nB > MAX_LINES) {
+      $('stats').textContent = `Too long: this page diffs up to ${MAX_LINES.toLocaleString('en-US')} lines a side (A has ${nA}, B has ${nB}).`;
+      $('view').innerHTML = ''; $('patch').textContent = ''; $('same').hidden = true; last = null; return;
+    }
+    const res = diffTexts(ta, tb, opts);
+    const hs = hunks(res.ops, opts.ctx);
+    const nDel = res.ops.filter((p) => p.op === '-').length, nIns = res.ops.filter((p) => p.op === '+').length;
+    const patch = unifiedText(res, opts.ctx);
+    $('patch').textContent = patch || '(no differences)';
+    const same = nDel + nIns === 0;
+    $('same').hidden = !same;
+    $('viewBox').hidden = same;
+    if (same) $('same').textContent = res.A.lines.length === 0 ? 'Both inputs are empty: nothing to compare.' : (ta === tb ? `Identical: ${res.A.lines.length} line${res.A.lines.length === 1 ? '' : 's'}, no edits.` : `No differences once ${[opts.ignoreWs && 'whitespace', opts.ignoreCase && 'case'].filter(Boolean).join(' and ')} ${opts.ignoreWs && opts.ignoreCase ? 'are' : 'is'} ignored.`);
+    $('stats').innerHTML = `<span class="n-del" data-testid="n-del">−${nDel}</span><span class="n-ins" data-testid="n-ins">+${nIns}</span><span data-testid="n-hunks">${hs.length} hunk${hs.length === 1 ? '' : 's'}</span><span>edit distance D = <b data-testid="d">${res.d}</b></span><span>${res.A.lines.length} → ${res.B.lines.length} lines</span>`;
+    if (!same) (opts.view === 'split' ? renderSplit : renderUnified)(res, hs);
+    renderGraph(res);
+    last = { d: res.d, nDel, nIns, hunks: hs.map((h) => h.header), patch, ops: res.ops, aLines: res.A.lines, bLines: res.B.lines, aNoEol: res.A.noEol, bNoEol: res.B.noEol };
+  }
+  const eolText = (t) => (t === '' ? 'empty' : t.endsWith('\n') ? 'ends with a newline' : 'no newline at end of file');
+
+  function renderUnified(res, hs) {
+    const rows = [];
+    // word-level html for each changed op, keyed by the op object
+    const htmlByOp = new Map();
+    for (const b of blocks(res.ops)) {
+      if (b.eq) continue;
+      const pairs = lineHtml(res, b);
+      b.dels.forEach((d, k) => htmlByOp.set(d, pairs[k].l));
+      b.ins.forEach((s, k) => htmlByOp.set(s, pairs[k].r));
+    }
+    for (const h of hs) {
+      rows.push(`<tr class="hunk" data-testid="hunk-header"><td colspan="4">${esc(h.header)}</td></tr>`);
+      for (let i = h.from; i <= h.to; i++) {
+        const p = res.ops[i];
+        const cls = p.op === '-' ? 'del' : p.op === '+' ? 'ins' : 'ctx';
+        const html = htmlByOp.get(p) ?? esc(p.value);
+        rows.push(`<tr class="${cls}" data-testid="u-${cls}"><td class="ln">${p.op !== '+' ? p.ai + 1 : ''}</td><td class="ln">${p.op !== '-' ? p.bi + 1 : ''}</td><td class="mk">${p.op === '=' ? '' : p.op === '-' ? '−' : '+'}</td><td class="code">${html}</td></tr>`);
+        if (eolMissing(res, p)) rows.push(`<tr><td class="ln"></td><td class="ln"></td><td class="mk"></td><td class="nonl" data-testid="no-eol">\\ No newline at end of file</td></tr>`);
+      }
+    }
+    $('view').className = 'diff unified';
+    $('view').setAttribute('aria-label', `Unified diff, ${hs.length} hunks`);
+    $('view').innerHTML = `<colgroup><col style="width:3.4em"><col style="width:3.4em"><col style="width:1.4em"><col></colgroup>` + rows.join('');
+  }
+
+  function renderSplit(res, hs) {
+    const rows = [];
+    const eolL = (p) => res.A.noEol && p && p.ai === res.A.lines.length - 1 ? ' <span class="nonl">⏎̸</span>' : '';
+    const eolR = (p) => res.B.noEol && p && p.bi === res.B.lines.length - 1 ? ' <span class="nonl">⏎̸</span>' : '';
+    // show only hunk ranges (with context), each introduced by its header
+    const bs = blocks(res.ops);
+    const opIndex = new Map(res.ops.map((p, i) => [p, i]));
+    const inHunk = (i) => hs.find((h) => i >= h.from && i <= h.to);
+    let lastHunk = null;
+    for (const b of bs) {
+      const first = b.eq || b.dels[0] || b.ins[0];
+      const h = inHunk(opIndex.get(first));
+      if (!h) continue;
+      if (h !== lastHunk) { rows.push(`<tr class="hunk" data-testid="hunk-header"><td colspan="6">${esc(h.header)}</td></tr>`); lastHunk = h; }
+      if (b.eq) {
+        const p = b.eq, t = esc(p.value);
+        rows.push(`<tr class="ctx" data-testid="s-ctx"><td class="ln">${p.ai + 1}</td><td class="mk"></td><td class="code">${t}${eolL(p)}</td><td class="ln">${p.bi + 1}</td><td class="mk"></td><td class="code">${esc(res.B.lines[p.bi])}${eolR(p)}</td></tr>`);
+        continue;
+      }
+      for (const pr of lineHtml(res, b)) {
+        const L = pr.d ? `<td class="ln del">${pr.d.ai + 1}</td><td class="mk del">−</td><td class="code del" data-testid="s-del">${pr.l}${eolL(pr.d)}</td>` : '<td class="ln empty"></td><td class="mk empty"></td><td class="code empty"></td>';
+        const R = pr.s ? `<td class="ln ins">${pr.s.bi + 1}</td><td class="mk ins">+</td><td class="code ins" data-testid="s-ins">${pr.r}${eolR(pr.s)}</td>` : '<td class="ln empty"></td><td class="mk empty"></td><td class="code empty"></td>';
+        rows.push(`<tr class="chg">${L}${R}</tr>`);
+      }
+    }
+    $('view').className = 'diff split';
+    $('view').setAttribute('aria-label', `Side-by-side diff, ${hs.length} hunks`);
+    $('view').innerHTML = `<colgroup><col style="width:3.2em"><col style="width:1.4em"><col><col style="width:3.2em"><col style="width:1.4em"><col></colgroup>` + rows.join('');
+  }
+
+  // ---------- edit graph ----------
+  let graphRes = null;
+  function renderGraph(res) {
+    graphRes = res;
+    const svg = $('graph');
+    const n = res.A.lines.length, m = res.B.lines.length;
+    if (!res.frontier) {
+      svg.innerHTML = ''; svg.setAttribute('viewBox', '0 0 300 40');
+      $('graphCtl').hidden = true;
+      $('graphNote').textContent = `The edit graph is drawn for inputs up to 24 lines a side (these have ${n} and ${m}). Try the Myers sample.`;
+      svg.setAttribute('aria-label', 'Edit graph not drawn: inputs too large');
+      return;
+    }
+    $('graphCtl').hidden = false;
+    const r = $('dmax');
+    const wasMax = +r.value === +r.max;
+    r.max = res.d;
+    if (wasMax || +r.value > res.d) r.value = res.d;
+    drawGraph();
+  }
+  function drawGraph() {
+    const res = graphRes, svg = $('graph');
+    if (!res || !res.frontier) return;
+    const n = res.A.lines.length, m = res.B.lines.length;
+    const dShow = +$('dmax').value;
+    $('dmaxOut').textContent = dShow;
+    const cell = Math.max(14, Math.min(40, 440 / Math.max(n, m, 1)));
+    const pad = 34, W = pad + n * cell + 12, H = pad + m * cell + 12;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    const P = (x, y) => `${pad + x * cell},${pad + y * cell}`;
+    const parts = [];
+    for (let i = 0; i <= n; i++) parts.push(`<line x1="${pad + i * cell}" y1="${pad}" x2="${pad + i * cell}" y2="${pad + m * cell}" stroke="#d9d2bf" stroke-width="1"/>`);
+    for (let j = 0; j <= m; j++) parts.push(`<line x1="${pad}" y1="${pad + j * cell}" x2="${pad + n * cell}" y2="${pad + j * cell}" stroke="#d9d2bf" stroke-width="1"/>`);
+    let diag = 0;
+    for (let i = 0; i < n; i++) for (let j = 0; j < m; j++) if (res.ka[i] === res.kb[j]) { diag++; parts.push(`<line x1="${pad + i * cell}" y1="${pad + j * cell}" x2="${pad + (i + 1) * cell}" y2="${pad + (j + 1) * cell}" stroke="#9fb3cf" stroke-width="1.5" stroke-dasharray="3 3" data-testid="diag"/>`); }
+    const lab = (s) => esc((s.trim() || '·').slice(0, 3));
+    const fs = Math.min(12, cell * 0.6);
+    res.A.lines.forEach((l, i) => parts.push(`<text x="${pad + (i + 0.5) * cell}" y="${pad - 8}" text-anchor="middle" font-size="${fs}" font-family="Consolas, monospace" fill="#a3312a">${lab(l)}</text>`));
+    res.B.lines.forEach((l, j) => parts.push(`<text x="${pad - 6}" y="${pad + (j + 0.5) * cell + fs / 3}" text-anchor="end" font-size="${fs}" font-family="Consolas, monospace" fill="#2f6b3a">${lab(l)}</text>`));
+    // frontier D-paths
+    const hues = (d) => `hsl(${(35 + d * 47) % 360} 65% 45%)`;
+    res.frontier.forEach((round, d) => {
+      if (d > dShow) return;
+      for (const s of round) {
+        parts.push(`<polyline points="${P(...s.from)} ${P(...s.mid)} ${P(...s.to)}" fill="none" stroke="${hues(d)}" stroke-width="${d === dShow ? 3.2 : 2}" stroke-opacity="${d === dShow ? 0.95 : 0.45}" stroke-linecap="round" stroke-linejoin="round" data-testid="dpath" data-d="${d}"/>`);
+        parts.push(`<circle cx="${pad + s.to[0] * cell}" cy="${pad + s.to[1] * cell}" r="${d === dShow ? 3.4 : 2.2}" fill="${hues(d)}" data-testid="dpoint" data-d="${d}" data-k="${s.k}"/>`);
+      }
+    });
+    // final path
+    if (dShow === res.d) {
+      let x = 0, y = 0; const pts = [P(0, 0)];
+      for (const p of res.rawOps) { if (p.op !== "+") x++; if (p.op !== "-") y++; pts.push(P(x, y)); }
+      parts.push(`<polyline points="${pts.join(' ')}" fill="none" stroke="#1d2a3a" stroke-width="4" stroke-linejoin="round" stroke-linecap="round" opacity=".85" data-testid="graph-path" data-steps="${res.ops.length}"/>`);
+    }
+    parts.push(`<circle cx="${pad}" cy="${pad}" r="4" fill="#1d2a3a"/><circle cx="${pad + n * cell}" cy="${pad + m * cell}" r="4" fill="#1d2a3a"/>`);
+    svg.innerHTML = parts.join('');
+    const reached = res.frontier[dShow] || [];
+    svg.setAttribute('aria-label', `Edit graph, ${n} by ${m}, ${diag} matching cells. Showing D-paths up to D = ${dShow} of ${res.d}: ${reached.map((s) => `k=${s.k} reaches (${s.to[0]},${s.to[1]})`).join('; ')}.`);
+    $('graphNote').textContent = dShow === res.d ? `D = ${res.d}: the shortest edit script, ${res.d} edits (${res.ops.filter((p) => p.op === '-').length} deletions, ${res.ops.filter((p) => p.op === '+').length} insertions) and ${res.ops.filter((p) => p.op === '=').length} shared lines.` : `D = ${dShow}: no ${dShow}-path reaches the corner yet, so Myers tries D = ${dShow + 1}.`;
+  }
+
+  // ---------- samples ----------
+  const SAMPLES = {
+    code: [
+      'function greet(name) {\n  const msg = "Hello, " + name;\n  console.log(msg);\n  return msg;\n}\n\nfunction add(a, b) {\n  return a + b;\n}\n\nmodule.exports = { greet, add };\n',
+      'function greet(name, punct = "!") {\n  const msg = `Hello, ${name}${punct}`;\n  console.log(msg);\n  return msg;\n}\n\nfunction add(a, b) {\n  return a + b;\n}\n\nfunction sub(a, b) {\n  return a - b;\n}\n\nmodule.exports = { greet, add, sub };\n',
+    ],
+    myers: ['A\nB\nC\nA\nB\nB\nA\n', 'C\nB\nA\nB\nA\nC\n'],
+    eol: ['one\ntwo\nthree\n', 'one\ntwo\nthree'],
+  };
+  function load(k) { $('ta').value = SAMPLES[k][0]; $('tb').value = SAMPLES[k][1]; $('dmax').value = 1e9; render(); }
+  document.querySelectorAll('[data-sample]').forEach((b) => b.addEventListener('click', () => load(b.dataset.sample)));
+  $('swap').addEventListener('click', () => { const t = $('ta').value; $('ta').value = $('tb').value; $('tb').value = t; $('dmax').value = 1e9; render(); });
+
+  // ---------- controls ----------
+  $('ta').addEventListener('input', render); $('tb').addEventListener('input', render);
+  document.querySelectorAll('input[name=view]').forEach((r) => r.addEventListener('change', () => { opts.view = r.value; render(); }));
+  $('ctx').addEventListener('input', () => { const v = parseInt($('ctx').value, 10); opts.ctx = Number.isFinite(v) ? Math.max(0, Math.min(50, v)) : 3; render(); });
+  $('ws').addEventListener('change', () => { opts.ignoreWs = $('ws').checked; render(); });
+  $('ic').addEventListener('change', () => { opts.ignoreCase = $('ic').checked; render(); });
+  $('wd').addEventListener('change', () => { opts.words = $('wd').checked; render(); });
+  $('dmax').addEventListener('input', drawGraph);
+
+  window.__diff = {
+    myers: (a, b) => { const r = myers(a, b); return { d: r.d, ops: r.ops }; },
+    diffTexts: (a, b, o) => { const r = diffTexts(a, b, o || {}); return { d: r.d, ops: r.ops }; },
+    unified: (a, b, ctx = 3, o) => unifiedText(diffTexts(a, b, o || {}), ctx),
+    get last() { return last ? JSON.parse(JSON.stringify(last)) : null; },
+  };
+  load('code');
+})();
+</script>
+</body>
+</html>

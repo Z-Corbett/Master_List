@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Test Impact Map — which tests does this change need?</title>
+<meta name="description" content="Tick the files a change touches in a small fictional bakery-ordering app and see the modules it can affect (a breadth-first walk over the reverse-dependency graph), the tests that target them, and how much suite time the selection saves, with the risks spelled out: tests without coverage data, smoke tests and global files.">
+<style>
+  :root {
+    --bg: #10150f; --panel: #182017; --panel-2: #1f2a1e; --line: #33422f;
+    --cream: #ebe6d6; --dim: #a3ab98; --faint: #6e7a66;
+    --amber: #f2a93b; --amber-2: #ffcf7a; --red: #ef6a50; --green: #7fcf83; --blue: #8cc4e8;
+    --mono: "Cascadia Mono", "Consolas", "DejaVu Sans Mono", "Menlo", monospace;
+    --sans: "Bahnschrift", "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--cream); font: 15px/1.55 var(--sans); overflow-x: hidden;
+    background-image: repeating-linear-gradient(0deg, rgba(255,255,255,.018) 0 1px, transparent 1px 28px), repeating-linear-gradient(90deg, rgba(255,255,255,.018) 0 1px, transparent 1px 28px); }
+  :focus-visible { outline: 3px solid var(--amber-2); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: var(--bg); background: var(--amber); text-decoration: none; font: 700 13px/1 var(--sans); padding: 8px 12px; border-radius: 4px; }
+  a.back:hover { background: var(--amber-2); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 60px 16px 40px; }
+  .eyebrow { margin: 0; font: 600 12px/1.3 var(--mono); letter-spacing: .2em; text-transform: uppercase; color: var(--amber); }
+  h1 { font: 700 clamp(34px, 6vw, 62px)/1.02 var(--sans); margin: 6px 0 8px; letter-spacing: -.01em; overflow-wrap: anywhere; }
+  h1 span { color: var(--amber); }
+  .lede { margin: 0 0 18px; color: var(--dim); max-width: 70ch; }
+  .layout { display: grid; grid-template-columns: minmax(0, 330px) minmax(0, 1fr); gap: 18px; align-items: start; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; min-width: 0; }
+  h2 { font: 700 18px/1.2 var(--sans); margin: 0 0 10px; letter-spacing: .02em; }
+  h2 small { font: 400 12px var(--mono); color: var(--faint); margin-left: 6px; }
+  fieldset { border: 0; margin: 0 0 10px; padding: 0; min-width: 0; }
+  legend { font: 600 11px/1.3 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--faint); padding: 0; margin: 8px 0 4px; }
+  .file { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 4px; min-width: 0; cursor: pointer; }
+  .file:hover { background: var(--panel-2); }
+  .file input { width: 18px; height: 18px; accent-color: var(--red); flex: none; margin: 0; }
+  .file code { font: 13px/1.3 var(--mono); overflow-wrap: anywhere; min-width: 0; }
+  .file .tag { margin-left: auto; font: 600 10px/1 var(--mono); color: var(--bg); background: var(--dim); padding: 3px 5px; border-radius: 3px; flex: none; }
+  .file.on code { color: var(--red); }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+  button { font: 600 13px/1 var(--sans); min-height: 36px; padding: 8px 11px; border-radius: 4px; border: 1px solid var(--line); background: var(--panel-2); color: var(--cream); cursor: pointer; }
+  button:hover { border-color: var(--amber); }
+  .toggle { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0; font-size: 14px; cursor: pointer; }
+  .toggle input { width: 18px; height: 18px; accent-color: var(--amber); margin: 2px 0 0; flex: none; }
+  .toggle small { display: block; color: var(--faint); font-size: 12px; }
+  .graphwrap { overflow-x: auto; border-radius: 6px; background: #0c110b; border: 1px solid var(--line); }
+  #graph { display: block; width: 100%; min-width: 520px; height: auto; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font: 12px var(--mono); color: var(--dim); margin: 8px 0 0; }
+  .legend i { display: inline-block; width: 11px; height: 11px; border-radius: 50%; vertical-align: -1px; margin-right: 5px; }
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 18px 0; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+  .stat small { display: block; font: 600 11px/1.3 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .stat b { display: block; font: 700 26px/1.2 var(--mono); color: var(--amber); overflow-wrap: anywhere; }
+  .stat span { font-size: 12px; color: var(--dim); }
+  .bar { height: 10px; background: var(--panel-2); border-radius: 5px; overflow: hidden; margin-top: 6px; }
+  .bar i { display: block; height: 100%; background: var(--amber); width: 0; transition: width .25s; }
+  .lower { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr); gap: 18px; align-items: start; }
+  ul.plain { list-style: none; margin: 0; padding: 0; }
+  .aff li { padding: 5px 0; border-bottom: 1px dashed var(--line); font: 13px/1.4 var(--mono); overflow-wrap: anywhere; }
+  .aff li b { color: var(--amber-2); font-weight: 600; }
+  .aff li.src b { color: var(--red); }
+  .aff .chain { display: block; color: var(--faint); font-size: 12px; }
+  .empty { color: var(--faint); font-style: italic; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font: 600 11px/1.3 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
+  td code { font: 12px/1.3 var(--mono); overflow-wrap: anywhere; }
+  td.num { text-align: right; font-family: var(--mono); white-space: nowrap; }
+  tr[data-selected="false"] { color: var(--faint); }
+  tr[data-selected="false"] .lamp { background: #2c3629; box-shadow: none; }
+  .lamp { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .why { font-size: 12px; color: var(--dim); }
+  tr[data-selected="false"] .why { color: var(--faint); }
+  .tablewrap { overflow-x: auto; }
+  .risks li { margin: 0 0 8px; padding-left: 12px; border-left: 3px solid var(--red); font-size: 14px; }
+  .risks li.ok { border-color: var(--green); color: var(--dim); }
+  .notes { margin-top: 18px; }
+  .notes p { color: var(--dim); margin: 0 0 8px; max-width: 80ch; }
+  .notes code { font: 13px var(--mono); color: var(--amber-2); }
+  footer { margin-top: 24px; text-align: center; font-size: 12px; color: var(--faint); }
+  .node { cursor: pointer; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  @media (max-width: 900px) { .layout, .lower { grid-template-columns: minmax(0, 1fr); } .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (prefers-reduced-motion: reduce) { .bar i { transition: none; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <p class="eyebrow">Test impact analysis · signal box</p>
+  <h1>Test Impact <span>Map</span></h1>
+  <p class="lede">A pull request touches a few files. Which tests does it actually need? This is <strong>Hollowbrook Bakery</strong>, a small, entirely fictional ordering app. Tick the files you changed. The map walks the dependency graph backwards to find every module that imports them, directly or not, then picks the tests that target those modules. You can see what that saves against the full suite, and what it risks.</p>
+
+  <div class="layout">
+    <section class="card" aria-labelledby="h-files">
+      <h2 id="h-files">Changed files</h2>
+      <div id="files"></div>
+      <div class="row" role="group" aria-label="Example changes">
+        <button type="button" data-preset="money" data-testid="preset-money">Money helper</button>
+        <button type="button" data-preset="leaf" data-testid="preset-leaf">One page</button>
+        <button type="button" data-preset="docs" data-testid="preset-docs">Docs only</button>
+        <button type="button" data-preset="lock" data-testid="preset-lock">Lockfile bump</button>
+        <button type="button" id="clear" data-testid="clear">Clear</button>
+      </div>
+      <label class="toggle"><input type="checkbox" id="smoke" checked data-testid="smoke"><span>Always run smoke tests<small>A cheap safety net for paths the graph can't see.</small></span></label>
+      <label class="toggle"><input type="checkbox" id="uncov" checked data-testid="uncovered"><span>Always run tests with no coverage data<small>We don't know what they touch, so we can't rule them out.</small></span></label>
+    </section>
+
+    <section class="card" aria-labelledby="h-graph">
+      <h2 id="h-graph">Module graph <small>arrows point at what a module imports</small></h2>
+      <div class="graphwrap" tabindex="0" aria-label="Dependency graph, scrollable on narrow screens">
+        <svg id="graph" viewBox="0 0 720 440" role="img" aria-label="Dependency graph" data-testid="graph"></svg>
+      </div>
+      <div class="legend"><span><i style="background:var(--red)"></i>changed</span><span><i style="background:var(--amber)"></i>affected (imports a change)</span><span><i style="background:#2c3629;border:1px solid #55664f"></i>untouched</span></div>
+    </section>
+  </div>
+
+  <div class="stats" aria-live="polite" id="summary" data-testid="summary">
+    <div class="stat"><small>Affected modules</small><b id="sAff" data-testid="affected-count">0</b><span>of <span id="sMods">0</span></span></div>
+    <div class="stat"><small>Tests selected</small><b id="sSel" data-testid="selected-count">0</b><span>of <span id="sTests">0</span></span></div>
+    <div class="stat"><small>Suite time</small><b id="sTime" data-testid="selected-time">0s</b><span>full suite <span id="sFull" data-testid="full-time">0s</span></span></div>
+    <div class="stat"><small>Time saved</small><b id="sSaved" data-testid="saved">0%</b><div class="bar" aria-hidden="true"><i id="sBar"></i></div></div>
+  </div>
+
+  <div class="lower">
+    <div style="display:grid;gap:18px;min-width:0">
+      <section class="card" aria-labelledby="h-aff">
+        <h2 id="h-aff">Affected modules <small>breadth-first, nearest first</small></h2>
+        <ul class="plain aff" id="aff" data-testid="affected-list"></ul>
+      </section>
+      <section class="card" aria-labelledby="h-risk">
+        <h2 id="h-risk">Risk check</h2>
+        <ul class="plain risks" id="risks" data-testid="risks"></ul>
+      </section>
+    </div>
+    <section class="card" aria-labelledby="h-tests">
+      <h2 id="h-tests">Test suite</h2>
+      <div class="tablewrap">
+        <table data-testid="tests-table">
+          <caption class="sr">Tests, whether each is selected for this change, and why</caption>
+          <thead><tr><th scope="col"><span class="sr">Selected</span></th><th scope="col">Test</th><th scope="col">Why</th><th scope="col" class="num">Time</th></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <section class="card notes" aria-labelledby="h-how">
+    <h2 id="h-how">How the selection works</h2>
+    <p><strong>1. Reverse the graph.</strong> Each module lists what it imports. Flipping every edge gives, for each module, the modules that import it.</p>
+    <p><strong>2. Walk it breadth-first.</strong> Start from the changed files and follow the reversed edges until nothing new turns up. Everything reached is <em>affected</em>: its behaviour could change even though its own code didn't. The walk records who reached whom, so each affected module can show the chain back to a changed file.</p>
+    <p><strong>3. Select tests.</strong> Each test is mapped to the modules it targets directly. A test runs if any of those modules is affected. Tests with no coverage data run unless you switch that off, and smoke tests run if the toggle is on. A change to a global file such as <code>package-lock.json</code> can change anything, so it runs the full suite.</p>
+    <p><strong>What this can't see.</strong> Dynamic imports, config read at runtime, CSS, feature flags flipped on a server, and anything outside the import graph. That's why the always-run buckets exist: they trade some of the saving for cover against the graph being wrong.</p>
+  </section>
+  <footer>Built by Zac Corbett · Hollowbrook Bakery is invented, and so are its modules and timings</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const NS = 'http://www.w3.org/2000/svg';
+  const M = {
+    money: 'src/utils/money.ts', dates: 'src/utils/dates.ts', http: 'src/lib/http.ts', store: 'src/lib/store.ts', flags: 'src/config/flags.ts',
+    catalog: 'src/api/catalog.ts', orders: 'src/api/orders.ts', session: 'src/auth/session.ts', cart: 'src/cart/cart.ts',
+    checkout: 'src/checkout/checkout.ts', header: 'src/ui/Header.tsx', product: 'src/ui/ProductPage.tsx', checkoutPage: 'src/ui/CheckoutPage.tsx', account: 'src/ui/AccountPage.tsx',
+  };
+  // module -> what it imports, plus a fixed position on the map (rows by depth)
+  const MODULES = [
+    { id: M.checkoutPage, deps: [M.checkout, M.dates], x: 540, y: 40 },
+    { id: M.header, deps: [M.session, M.cart, M.flags], x: 110, y: 130 },
+    { id: M.product, deps: [M.catalog, M.cart, M.money], x: 330, y: 130 },
+    { id: M.checkout, deps: [M.cart, M.orders, M.session, M.flags], x: 540, y: 130 },
+    { id: M.cart, deps: [M.money, M.store, M.catalog], x: 290, y: 220 },
+    { id: M.account, deps: [M.session, M.orders, M.dates], x: 630, y: 220 },
+    { id: M.session, deps: [M.http, M.store], x: 110, y: 310 },
+    { id: M.catalog, deps: [M.http], x: 330, y: 310 },
+    { id: M.orders, deps: [M.http, M.money], x: 540, y: 310 },
+    { id: M.store, deps: [], x: 72, y: 400 },
+    { id: M.http, deps: [], x: 216, y: 400 },
+    { id: M.money, deps: [], x: 360, y: 400 },
+    { id: M.flags, deps: [], x: 504, y: 400 },
+    { id: M.dates, deps: [], x: 648, y: 400 },
+  ];
+  const OTHER = [
+    { id: 'package-lock.json', global: true, note: 'global' },
+    { id: 'README.md', note: 'docs' },
+  ];
+  const TESTS = [
+    { id: 'unit-money', file: 'tests/unit/money.test.ts', kind: 'unit', dur: 4, targets: [M.money] },
+    { id: 'unit-dates', file: 'tests/unit/dates.test.ts', kind: 'unit', dur: 3, targets: [M.dates] },
+    { id: 'unit-http', file: 'tests/unit/http.test.ts', kind: 'unit', dur: 6, targets: [M.http] },
+    { id: 'unit-store', file: 'tests/unit/store.test.ts', kind: 'unit', dur: 5, targets: [M.store] },
+    { id: 'unit-catalog', file: 'tests/unit/catalog.test.ts', kind: 'unit', dur: 12, targets: [M.catalog] },
+    { id: 'unit-orders', file: 'tests/unit/orders.test.ts', kind: 'unit', dur: 14, targets: [M.orders] },
+    { id: 'unit-session', file: 'tests/unit/session.test.ts', kind: 'unit', dur: 10, targets: [M.session] },
+    { id: 'unit-cart', file: 'tests/unit/cart.test.ts', kind: 'unit', dur: 18, targets: [M.cart] },
+    { id: 'unit-checkout', file: 'tests/unit/checkout.test.ts', kind: 'unit', dur: 25, targets: [M.checkout] },
+    { id: 'e2e-browse', file: 'tests/e2e/browse.spec.ts', kind: 'e2e', dur: 60, targets: [M.product, M.header], smoke: true },
+    { id: 'e2e-purchase', file: 'tests/e2e/purchase.spec.ts', kind: 'e2e', dur: 120, targets: [M.checkoutPage, M.product], smoke: true },
+    { id: 'e2e-account', file: 'tests/e2e/account.spec.ts', kind: 'e2e', dur: 75, targets: [M.account] },
+    { id: 'e2e-login', file: 'tests/e2e/login.spec.ts', kind: 'e2e', dur: 45, targets: [M.header], smoke: true },
+    { id: 'visual-header', file: 'tests/visual/header.spec.ts', kind: 'visual', dur: 30, targets: [M.header] },
+    { id: 'a11y-pages', file: 'tests/a11y/pages.spec.ts', kind: 'a11y', dur: 40, targets: [M.product, M.checkoutPage, M.account] },
+    { id: 'legacy-pack', file: 'tests/legacy/regression-pack.spec.ts', kind: 'e2e', dur: 90, targets: null },
+    { id: 'api-contracts', file: 'tests/contract/api-snapshots.spec.ts', kind: 'contract', dur: 35, targets: null },
+  ];
+  const ALLFILES = [...MODULES.map((m) => m.id), ...OTHER.map((o) => o.id)];
+  const FULL = TESTS.reduce((a, t) => a + t.dur, 0);
+  const base = (p) => p.split('/').pop();
+  const fmt = (s) => (s >= 60 ? `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s` : `${s}s`);
+
+  // reverse edges: module -> modules that import it
+  const REV = {};
+  for (const m of MODULES) REV[m.id] = [];
+  for (const m of MODULES) for (const d of m.deps) REV[d].push(m.id);
+
+  const state = { changed: new Set(), smoke: true, uncovered: true };
+
+  /** Breadth-first walk over the reversed graph from the changed modules. */
+  function impact(changedList) {
+    const dist = {}, parent = {}, order = [];
+    const q = [];
+    for (const f of changedList) if (REV[f] && !(f in dist)) { dist[f] = 0; parent[f] = null; q.push(f); }
+    while (q.length) {
+      const u = q.shift(); order.push(u);
+      for (const v of REV[u]) if (!(v in dist)) { dist[v] = dist[u] + 1; parent[v] = u; q.push(v); }
+    }
+    return { dist, parent, order };
+  }
+  function chainOf(id, parent) { const c = [id]; while (parent[c[c.length - 1]]) c.push(parent[c[c.length - 1]]); return c; }
+
+  function compute() {
+    const changed = ALLFILES.filter((f) => state.changed.has(f));
+    const global = changed.some((f) => OTHER.find((o) => o.id === f && o.global));
+    const imp = impact(changed);
+    const affected = global ? MODULES.map((m) => m.id) : imp.order;
+    const affSet = new Set(affected);
+    const tests = TESTS.map((t) => {
+      let selected = false, reason = 'not affected', hits = [];
+      if (global) { selected = true; reason = 'global'; }
+      else if (t.targets === null) { selected = state.uncovered; reason = state.uncovered ? 'no-coverage' : 'no-coverage-skipped'; }
+      else {
+        hits = t.targets.filter((x) => affSet.has(x));
+        if (hits.length) { selected = true; reason = 'affected'; }
+        else if (t.smoke && state.smoke) { selected = true; reason = 'smoke'; }
+      }
+      return { id: t.id, selected, reason, hits };
+    });
+    const selTime = TESTS.reduce((a, t, i) => a + (tests[i].selected ? t.dur : 0), 0);
+    // risks
+    const risks = [];
+    if (global) risks.push({ k: 'global', text: 'A global file changed (the lockfile can swap any dependency), so the whole suite runs. No saving, no guesswork.' });
+    const targeted = new Set(TESTS.flatMap((t) => t.targets || []));
+    for (const f of changed) {
+      if (!REV[f]) { if (!OTHER.find((o) => o.id === f && o.global)) risks.push({ k: 'outside', file: f, text: `${f} isn't in the import graph, so no targeted test covers it. Only the always-run buckets are left.` }); continue; }
+      if (!targeted.has(f)) risks.push({ k: 'no-direct', file: f, text: `${base(f)} has no test of its own. It's only exercised through the modules that import it.` });
+    }
+    if (!state.uncovered && !global) risks.push({ k: 'blind', text: `${TESTS.filter((t) => t.targets === null).length} tests with no coverage data are being skipped. If they guard this change, nothing will notice.` });
+    if (!state.smoke && !global && changed.length) risks.push({ k: 'no-smoke', text: 'Smoke tests are off: a wrong or missing edge in the graph would go unnoticed.' });
+    return { changed, global, affected, dist: imp.dist, parent: imp.parent, tests, selTime, full: FULL, saved: FULL ? 1 - selTime / FULL : 0, risks };
+  }
+
+  // ---------- UI ----------
+  function buildFiles() {
+    const groups = {};
+    for (const f of ALLFILES) { const g = f.includes('/') ? f.split('/').slice(0, -1).join('/') + '/' : 'repo root'; (groups[g] = groups[g] || []).push(f); }
+    $('files').innerHTML = Object.entries(groups).map(([g, fs]) => `<fieldset><legend>${g}</legend>${fs.map((f) => {
+      const o = OTHER.find((x) => x.id === f);
+      return `<label class="file" data-file="${f}"><input type="checkbox" value="${f}" data-testid="file-${base(f)}"><code>${base(f)}</code>${o ? `<span class="tag">${o.note}</span>` : ''}</label>`;
+    }).join('')}</fieldset>`).join('');
+    $('files').addEventListener('change', (e) => { const c = e.target; if (c.type !== 'checkbox') return; c.checked ? state.changed.add(c.value) : state.changed.delete(c.value); render(); });
+  }
+
+  function drawGraph(r) {
+    const svg = $('graph'); svg.innerHTML = '';
+    const el = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); (p || svg).appendChild(e); return e; };
+    const defs = el('defs', {});
+    for (const [id, c] of [['a-dim', '#46553f'], ['a-hot', '#f2a93b']]) {
+      const mk = el('marker', { id, viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' }, defs);
+      el('path', { d: 'M0 0 L10 5 L0 10 z', fill: c }, mk);
+    }
+    const pos = Object.fromEntries(MODULES.map((m) => [m.id, m]));
+    const aff = new Set(r.affected), W = 124, H = 32;
+    // edges first: dependent (above) -> dependency (below); hot when the walk used it
+    let nEdges = 0;
+    for (const m of MODULES) for (const d of m.deps) {
+      const a = pos[m.id], b = pos[d];
+      const hot = aff.has(m.id) && aff.has(d) && !r.global;
+      const x1 = a.x, y1 = a.y + H / 2, x2 = b.x, y2 = b.y - H / 2 - 2, my = (y1 + y2) / 2;
+      el('path', { d: `M${x1} ${y1} C${x1} ${my} ${x2} ${my} ${x2} ${y2}`, fill: 'none', stroke: hot ? '#f2a93b' : '#3a4834', 'stroke-width': hot ? 2.2 : 1.3, 'marker-end': `url(#${hot ? 'a-hot' : 'a-dim'})`, 'data-edge': `${m.id}>${d}`, opacity: hot ? 1 : 0.9 });
+      nEdges++;
+    }
+    for (const m of MODULES) {
+      const st = state.changed.has(m.id) ? 'changed' : aff.has(m.id) ? 'affected' : 'idle';
+      const g = el('g', { class: 'node', 'data-testid': `node-${base(m.id)}`, 'data-state': st, 'data-file': m.id });
+      const fill = st === 'changed' ? '#ef6a50' : st === 'affected' ? '#f2a93b' : '#1c251a';
+      el('rect', { x: m.x - W / 2, y: m.y - H / 2, width: W, height: H, rx: 5, fill, stroke: st === 'idle' ? '#55664f' : '#fff3', 'stroke-width': 1.2 }, g);
+      const t = el('text', { x: m.x, y: m.y + 5, 'text-anchor': 'middle', 'font-size': 13, 'font-family': 'Cascadia Mono, Consolas, DejaVu Sans Mono, monospace', fill: st === 'idle' ? '#cfd6c4' : '#10150f', 'font-weight': st === 'idle' ? 400 : 700 }, g);
+      t.textContent = base(m.id);
+      const tt = el('title', {}, g); tt.textContent = `${m.id}: ${st}${m.deps.length ? `; imports ${m.deps.map(base).join(', ')}` : ''}`;
+    }
+    svg.setAttribute('aria-label', `Dependency graph of ${MODULES.length} modules and ${nEdges} imports. ${r.changed.length ? `Changed: ${r.changed.map(base).join(', ')}. Affected: ${r.affected.length ? r.affected.map(base).join(', ') : 'none'}.` : 'Nothing changed yet.'}`);
+  }
+
+  const REASON = {
+    global: () => 'global file changed: full suite',
+    affected: (h) => `targets ${h.map(base).join(', ')}`,
+    smoke: () => 'smoke test: always runs',
+    'no-coverage': () => 'no coverage data: always runs',
+    'no-coverage-skipped': () => 'no coverage data: skipped (risky)',
+    'not affected': () => 'targets nothing affected',
+  };
+
+  function render() {
+    const r = compute();
+    last = r;
+    document.querySelectorAll('#files input').forEach((c) => { c.checked = state.changed.has(c.value); c.closest('.file').classList.toggle('on', c.checked); });
+    drawGraph(r);
+    $('sAff').textContent = r.affected.length; $('sMods').textContent = MODULES.length;
+    const nSel = r.tests.filter((t) => t.selected).length;
+    $('sSel').textContent = nSel; $('sTests').textContent = TESTS.length;
+    $('sTime').textContent = fmt(r.selTime); $('sFull').textContent = fmt(r.full);
+    $('sSaved').textContent = Math.round(r.saved * 100) + '%';
+    $('sBar').style.width = (r.saved * 100).toFixed(1) + '%';
+    $('aff').innerHTML = !r.changed.length ? '<li class="empty">Tick a changed file to start the walk.</li>'
+      : r.global ? `<li class="src"><b>every module</b><span class="chain">package-lock.json can change any of them</span></li>`
+      : !r.affected.length ? '<li class="empty">No module in the graph is affected.</li>'
+      : r.affected.map((id) => {
+        const c = chainOf(id, r.parent);
+        return `<li class="${r.dist[id] === 0 ? 'src' : ''}" data-testid="aff-${base(id)}" data-hops="${r.dist[id]}"><b>${base(id)}</b> <span class="why">${r.dist[id] === 0 ? 'changed' : `${r.dist[id]} hop${r.dist[id] > 1 ? 's' : ''}`}</span><span class="chain" data-testid="chain-${base(id)}">${c.map(base).join(' ← ')}</span></li>`;
+      }).join('');
+    $('tbody').innerHTML = TESTS.map((t, i) => {
+      const s = r.tests[i];
+      return `<tr data-testid="t-${t.id}" data-selected="${s.selected}" data-reason="${s.reason}"><td><span class="lamp" aria-hidden="true"></span><span class="sr">${s.selected ? 'runs' : 'skipped'}</span></td><td><code>${t.file}</code>${t.smoke ? ' <span class="why">· smoke</span>' : ''}</td><td class="why">${REASON[s.reason](s.hits)}</td><td class="num">${fmt(t.dur)}</td></tr>`;
+    }).join('');
+    $('risks').innerHTML = r.risks.length ? r.risks.map((k) => `<li data-risk="${k.k}">${k.text}</li>`).join('')
+      : `<li class="ok">${r.changed.length ? 'Every changed module has a test of its own, and both safety nets are on.' : 'Nothing changed, nothing to worry about yet.'}</li>`;
+    $('summary').setAttribute('aria-label', `${r.affected.length} modules affected, ${nSel} of ${TESTS.length} tests selected, ${fmt(r.selTime)} of ${fmt(r.full)}, ${Math.round(r.saved * 100)}% saved`);
+  }
+
+  let last = null;
+  const PRESETS = { money: [M.money], leaf: [M.checkoutPage], docs: ['README.md'], lock: ['package-lock.json'] };
+  document.querySelectorAll('[data-preset]').forEach((b) => b.addEventListener('click', () => { state.changed = new Set(PRESETS[b.dataset.preset]); render(); }));
+  $('clear').addEventListener('click', () => { state.changed.clear(); render(); });
+  $('smoke').addEventListener('change', (e) => { state.smoke = e.target.checked; render(); });
+  $('uncov').addEventListener('change', (e) => { state.uncovered = e.target.checked; render(); });
+  $('graph').addEventListener('click', (e) => { const g = e.target.closest('.node'); if (!g) return; const f = g.dataset.file; state.changed.has(f) ? state.changed.delete(f) : state.changed.add(f); render(); });
+
+  window.__impact = {
+    modules: MODULES.map((m) => ({ id: m.id, deps: [...m.deps] })), others: OTHER.map((o) => ({ ...o })),
+    tests: TESTS.map((t) => ({ ...t, targets: t.targets && [...t.targets] })),
+    select(files) { state.changed = new Set(files); render(); return this.last; },
+    get last() { return last ? JSON.parse(JSON.stringify(last)) : null; },
+  };
+  buildFiles(); render();
+})();
+</script>
+</body>
+</html>

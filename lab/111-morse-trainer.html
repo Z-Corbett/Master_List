@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Morse Trainer — PARIS timing and the Koch method</title>
+<meta name="description" content="Encode text to International Morse code (ITU-R M.1677-1), hear it as a sine tone with exact PARIS timing and Farnsworth spacing, tap a key to decode your own sending, and learn the characters with a Koch-method trainer that starts with K and M.">
+<style>
+  :root {
+    --desk: #2b1e15;
+    --desk-2: #3a2a1d;
+    --brass: #c9a45c;
+    --brass-2: #e8cd8c;
+    --tape: #f4e8c8;
+    --tape-2: #eadbb2;
+    --ink: #1c140e;
+    --muted: #6b5a47;
+    --lamp: #e2472c;
+    --ok: #2f6b3a;
+    --bad: #9b2a1c;
+    --serif: "Iowan Old Style", "Charter", "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
+    --sans: "Avenir Next", "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { min-height: 100vh; background: var(--desk); color: var(--tape); font: 15px/1.55 var(--sans); overflow-x: hidden;
+    background-image: repeating-linear-gradient(92deg, rgba(255,255,255,.018) 0 3px, transparent 3px 11px), radial-gradient(ellipse at 50% -10%, #4a3524 0%, var(--desk) 60%); }
+  :focus-visible { outline: 3px solid var(--brass-2); outline-offset: 2px; }
+  a.back { position: fixed; top: 12px; left: 12px; z-index: 30; color: var(--tape); text-decoration: none; font: 600 13px/1 var(--sans); letter-spacing: .04em;
+    padding: 8px 12px; border-radius: 3px; background: rgba(43,30,21,.85); border: 1px solid var(--brass); }
+  a.back:hover { background: var(--brass); color: var(--ink); }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 64px 16px 40px; }
+  header { margin-bottom: 22px; min-width: 0; }
+  .kicker { font: 600 12px/1 var(--sans); letter-spacing: .24em; text-transform: uppercase; color: var(--brass); margin: 0 0 10px; }
+  h1 { font: 400 clamp(38px, 7vw, 66px)/1 var(--serif); margin: 0; color: var(--tape); }
+  h1 i { color: var(--brass-2); }
+  .lede { color: #d8c7a6; max-width: 62ch; margin: 12px 0 0; }
+  .strip { margin-top: 16px; height: 30px; background: var(--tape); border-radius: 2px; display: flex; align-items: center; gap: 6px; padding: 0 12px; overflow: hidden;
+    box-shadow: 0 6px 18px -8px rgba(0,0,0,.6); }
+  .strip span { flex: none; height: 8px; border-radius: 4px; background: var(--ink); }
+  .grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 18px; }
+  .card { background: var(--tape); color: var(--ink); border-radius: 4px; padding: 18px 18px 16px; min-width: 0;
+    box-shadow: 0 1px 0 rgba(255,255,255,.6) inset, 0 20px 40px -24px rgba(0,0,0,.8);
+    background-image: linear-gradient(180deg, rgba(255,255,255,.35), transparent 40%); }
+  .card.full { grid-column: 1 / -1; }
+  h2 { font: 400 26px/1.1 var(--serif); margin: 0 0 4px; }
+  h2 small { font: 600 11px/1 var(--sans); letter-spacing: .2em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 6px; }
+  .hint { font-size: 13px; color: var(--muted); margin: 4px 0 12px; }
+  label { font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px; }
+  textarea, input[type=number], input[type=text], select { width: 100%; max-width: 100%; font: 16px/1.3 var(--mono); padding: 9px 10px; border: 1px solid #a8926a; border-radius: 3px; background: #fffaf0; color: var(--ink); min-width: 0; }
+  textarea { resize: vertical; min-height: 64px; text-transform: uppercase; }
+  .fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 12px 0; }
+  .fields > div { min-width: 0; }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .btn { min-height: 44px; padding: 10px 14px; border-radius: 3px; border: 1px solid var(--desk); background: #fffaf0; color: var(--ink); font: 600 14px/1.1 var(--sans); cursor: pointer; max-width: 100%; }
+  .btn.primary { background: var(--desk); color: var(--tape); }
+  .btn.primary:hover { background: #4a3524; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .lamp { width: 30px; height: 30px; border-radius: 50%; background: #5a2a20; border: 3px solid var(--brass); flex: none; box-shadow: inset 0 -4px 6px rgba(0,0,0,.35); }
+  .lamp.on { background: var(--lamp); box-shadow: 0 0 18px 4px rgba(226,71,44,.7), inset 0 -3px 5px rgba(0,0,0,.2); }
+  .status { font-size: 13px; color: var(--muted); min-height: 1.4em; margin: 10px 0 0; }
+  .codeout { font: 600 18px/1.5 var(--mono); letter-spacing: .06em; background: #fffaf0; border: 1px dashed #a8926a; border-radius: 3px; padding: 8px 10px; min-height: 44px; overflow-wrap: anywhere; word-break: break-all; margin-top: 12px; }
+  .warn { color: var(--bad); font-size: 13px; min-height: 1.2em; margin: 4px 0 0; }
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+  .stat { border: 1px solid #cbb78e; border-radius: 3px; padding: 6px 8px; min-width: 0; background: rgba(255,255,255,.4); }
+  .stat small { display: block; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+  .stat b { font: 600 16px/1.3 var(--mono); overflow-wrap: anywhere; }
+  .tape { margin-top: 12px; background: var(--tape-2); border-top: 2px solid #cdb886; border-bottom: 2px solid #cdb886; padding: 10px 8px; display: flex; flex-wrap: wrap; gap: 6px 22px; min-height: 48px; }
+  .tw { display: flex; flex-wrap: wrap; gap: 6px 12px; min-width: 0; }
+  .tc { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+  .tc em { font: 600 11px/1 var(--mono); font-style: normal; color: var(--muted); }
+  .tc .ms { display: flex; gap: 5px; align-items: center; height: 10px; }
+  .m { display: block; height: 7px; border-radius: 4px; background: var(--ink); }
+  .m.dot { width: 7px; } .m.dash { width: 21px; }
+  .m.on { background: var(--lamp); box-shadow: 0 0 6px var(--lamp); }
+  /* key */
+  .keybox { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: center; }
+  .key { width: 120px; height: 120px; border-radius: 50%; border: 4px solid var(--brass); background: radial-gradient(circle at 40% 35%, #5a4430, var(--desk) 70%); color: var(--brass-2);
+    font: 700 13px/1.2 var(--sans); letter-spacing: .08em; text-transform: uppercase; cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; box-shadow: 0 8px 0 #1a120c, 0 12px 20px rgba(0,0,0,.4); }
+  .key.down { transform: translateY(6px); box-shadow: 0 2px 0 #1a120c, 0 4px 10px rgba(0,0,0,.4); color: #fff; background: radial-gradient(circle at 40% 35%, #7a3a28, #3a1a10 70%); }
+  .decoded { font: 600 24px/1.3 var(--mono); min-height: 44px; background: #fffaf0; border: 1px solid #a8926a; border-radius: 3px; padding: 6px 10px; overflow-wrap: anywhere; word-break: break-all; }
+  .cur { font: 600 18px/1.3 var(--mono); color: var(--lamp); min-height: 1.3em; }
+  /* koch */
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0 10px; }
+  .chip { font: 600 13px/1 var(--mono); padding: 6px 8px; border-radius: 3px; background: #fffaf0; border: 1px solid #cbb78e; }
+  .chip.new { background: var(--desk); color: var(--brass-2); border-color: var(--desk); }
+  .drill { font: 600 18px/1.4 var(--mono); letter-spacing: .12em; overflow-wrap: anywhere; margin: 8px 0; }
+  .result { font-weight: 600; min-height: 1.4em; margin: 8px 0 0; }
+  .result.ok { color: var(--ok); } .result.bad { color: var(--bad); }
+  /* reference */
+  .ref { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; margin-top: 10px; }
+  .ref div { display: flex; justify-content: space-between; gap: 6px; align-items: baseline; border: 1px solid #cbb78e; border-radius: 3px; padding: 5px 8px; background: rgba(255,255,255,.45); min-width: 0; }
+  .ref b { font: 700 16px/1 var(--serif); }
+  .ref code { font: 600 14px/1 var(--mono); letter-spacing: .08em; }
+  footer { text-align: center; font-size: 13px; color: #bca888; margin-top: 26px; }
+  footer code { background: rgba(255,255,255,.08); padding: 1px 5px; border-radius: 3px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 520px) {
+    .fields { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .fields > div:last-child { grid-column: 1 / -1; }
+    .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .keybox { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+    .keybox > div { width: 100%; }
+  }
+  @media (prefers-reduced-motion: reduce) { .key.down { transform: none; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <p class="kicker">Telegraph office · International Morse</p>
+    <h1>Morse <i>Trainer</i></h1>
+    <p class="lede">Send text as International Morse with exact PARIS timing, stretch the spaces with Farnsworth spacing, tap out your own code on the key, and learn the alphabet one character at a time with the Koch method.</p>
+    <div class="strip" aria-hidden="true" id="strip"></div>
+  </header>
+
+  <div class="grid">
+    <section class="card" aria-labelledby="h-send">
+      <h2 id="h-send"><small>Sender</small>Encode and play</h2>
+      <p class="hint">A dot lasts 1200 ÷ WPM ms. A dash is 3 dots, the gap inside a character 1, between characters 3, between words 7, so “PARIS ” is exactly 50 units.</p>
+      <label for="text">Message</label>
+      <textarea id="text" data-testid="text" maxlength="240" spellcheck="false" autocomplete="off">PARIS PARIS</textarea>
+      <div class="fields">
+        <div><label for="wpm">Character speed (WPM)</label><input id="wpm" data-testid="wpm" type="number" min="5" max="40" step="1" value="20" inputmode="numeric"></div>
+        <div><label for="fwpm">Effective speed (Farnsworth)</label><input id="fwpm" data-testid="fwpm" type="number" min="3" max="40" step="1" value="20" inputmode="numeric"></div>
+        <div><label for="tone">Tone (Hz)</label><input id="tone" data-testid="tone" type="number" min="300" max="1000" step="10" value="600" inputmode="numeric"></div>
+      </div>
+      <p class="warn" id="warn" data-testid="warn" role="alert"></p>
+      <div class="btns">
+        <button type="button" class="btn primary" id="playBtn" data-testid="play">Play</button>
+        <button type="button" class="btn" id="stopBtn" data-testid="stop" disabled>Stop</button>
+        <span class="lamp" id="lamp" data-testid="lamp" role="img" aria-label="Signal lamp: off"></span>
+      </div>
+      <p class="status" id="status" data-testid="status" role="status" aria-live="polite">Sound starts only when you press Play. The lamp and tape show the timing either way.</p>
+      <div class="codeout" id="codeOut" data-testid="code-out" aria-label="Morse code for the message"></div>
+      <p class="warn" id="unknown" data-testid="unknown"></p>
+      <div class="stats">
+        <div class="stat"><small>Dot</small><b id="dotMs" data-testid="dot-ms"></b></div>
+        <div class="stat"><small>Dash</small><b id="dashMs" data-testid="dash-ms"></b></div>
+        <div class="stat"><small>Char gap</small><b id="cgMs" data-testid="char-gap"></b></div>
+        <div class="stat"><small>Word gap</small><b id="wgMs" data-testid="word-gap"></b></div>
+        <div class="stat"><small>Units</small><b id="units" data-testid="units"></b></div>
+        <div class="stat"><small>Duration</small><b id="dur" data-testid="duration"></b></div>
+        <div class="stat"><small>Effective</small><b id="eff" data-testid="eff-wpm"></b></div>
+        <div class="stat"><small>Spacing</small><b id="mode" data-testid="spacing"></b></div>
+      </div>
+      <div class="tape" id="tape" data-testid="tape" aria-hidden="true"></div>
+    </section>
+
+    <section class="card" aria-labelledby="h-key">
+      <h2 id="h-key"><small>Receiver</small>Key and decoder</h2>
+      <p class="hint">Hold the key (or focus it and hold the space bar). Marks shorter than 2 units read as dots. A pause of 2 units ends a character, 5 units a word.</p>
+      <div class="keybox">
+        <button type="button" class="key" id="key" data-testid="key" aria-describedby="keyHelp">Key</button>
+        <div>
+          <label for="decWpm">Your keying speed (WPM)</label>
+          <input id="decWpm" data-testid="dec-wpm" type="number" min="5" max="40" step="1" value="15" inputmode="numeric">
+          <p class="hint" id="keyHelp">Press and hold for a dash, tap for a dot. Space bar works while the key has focus.</p>
+        </div>
+      </div>
+      <p class="cur" id="cur" data-testid="current" aria-label="Current character being keyed"></p>
+      <div class="decoded" id="decoded" data-testid="decoded" aria-live="polite" aria-label="Decoded text"></div>
+      <p class="status" id="lastMark" data-testid="last-mark">No marks yet.</p>
+      <div class="btns"><button type="button" class="btn" id="clearBtn" data-testid="clear">Clear</button></div>
+    </section>
+
+    <section class="card full" aria-labelledby="h-koch">
+      <h2 id="h-koch"><small>Koch method</small>Learn two characters, then one more</h2>
+      <p class="hint">Characters are sent at full speed from the start. You begin with K and M; copy a drill of five groups at 90% or better and the next character is added.</p>
+      <div class="fields">
+        <div><label for="level">Characters in play</label><select id="level" data-testid="level"></select></div>
+        <div><label>Seed</label><b id="seedOut" data-testid="seed" style="font:600 16px/2.2 var(--mono)"></b></div>
+        <div class="btns" style="align-self:end">
+          <button type="button" class="btn primary" id="playDrill" data-testid="play-drill">Play drill</button>
+          <button type="button" class="btn" id="newDrill" data-testid="new-drill">New drill</button>
+        </div>
+      </div>
+      <div class="chips" id="chips" data-testid="koch-chars" aria-label="Characters in play"></div>
+      <label for="answer">What did you copy?</label>
+      <input id="answer" data-testid="answer" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      <div class="btns" style="margin-top:8px">
+        <button type="button" class="btn primary" id="checkBtn" data-testid="check">Check</button>
+        <button type="button" class="btn" id="revealBtn" data-testid="reveal" aria-expanded="false" aria-controls="drill">Show the drill</button>
+      </div>
+      <p class="drill" id="drill" data-testid="drill" hidden></p>
+      <p class="result" id="result" data-testid="result" aria-live="polite"></p>
+    </section>
+
+    <section class="card full" aria-labelledby="h-ref">
+      <h2 id="h-ref"><small>ITU-R M.1677-1</small>Code table</h2>
+      <p class="hint">Letters, figures and the punctuation marks in the ITU recommendation.</p>
+      <div class="ref" id="ref" data-testid="ref"></div>
+    </section>
+  </div>
+  <footer>Built by Zac Corbett · Web Audio sine tone · timing from <code>performance.now()</code> · add <code>?seed=</code> for repeatable Koch drills</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+
+  // ---------- code table (ITU-R M.1677-1) ----------
+  const CODES = {
+    A: '.-', B: '-...', C: '-.-.', D: '-..', E: '.', F: '..-.', G: '--.', H: '....', I: '..', J: '.---', K: '-.-', L: '.-..', M: '--',
+    N: '-.', O: '---', P: '.--.', Q: '--.-', R: '.-.', S: '...', T: '-', U: '..-', V: '...-', W: '.--', X: '-..-', Y: '-.--', Z: '--..',
+    '1': '.----', '2': '..---', '3': '...--', '4': '....-', '5': '.....', '6': '-....', '7': '--...', '8': '---..', '9': '----.', '0': '-----',
+    '.': '.-.-.-', ',': '--..--', ':': '---...', '?': '..--..', "'": '.----.', '-': '-....-', '/': '-..-.', '(': '-.--.', ')': '-.--.-',
+    '"': '.-..-.', '=': '-...-', '+': '.-.-.', '@': '.--.-.'
+  };
+  const REV = {};
+  for (const [k, v] of Object.entries(CODES)) REV[v] = k;
+  // LCWO / Koch teaching order: starts with K and M
+  const KOCH = 'KMURESNAPTLWI.JZ=FOY,VG5/Q92H38B?47C1D60X'.split('');
+
+  function normalize(s) {
+    return String(s).toUpperCase().replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-');
+  }
+  function tokenize(text) {
+    const t = normalize(text), unknown = new Set();
+    const words = [];
+    for (const raw of t.split(/\s+/)) {
+      let w = '';
+      for (const ch of raw) { if (CODES[ch]) w += ch; else unknown.add(ch); }
+      if (w) words.push(w);
+    }
+    return { words, unknown: [...unknown], trailing: /\s$/.test(t) };
+  }
+  function encode(text) { return tokenize(text).words.map((w) => [...w].map((c) => CODES[c]).join(' ')).join(' / '); }
+
+  // ---------- timing ----------
+  function timing(wpm, fwpm) {
+    const u = 1200 / wpm;
+    let cg = 3 * u, wg = 7 * u, farnsworth = false;
+    if (fwpm && fwpm < wpm) {
+      // ARRL / Bloom: total extra delay per PARIS word, split 3:7 between the 19 spacing units
+      const ta = ((60 * wpm - 37.2 * fwpm) / (fwpm * wpm)) * 1000;
+      cg = (3 * ta) / 19; wg = (7 * ta) / 19; farnsworth = true;
+    }
+    return { u, dash: 3 * u, cg, wg, farnsworth };
+  }
+  function schedule(text, wpm, fwpm) {
+    const T = timing(wpm, fwpm), tk = tokenize(text), marks = [];
+    let t = 0, units = 0;
+    tk.words.forEach((w, wi) => {
+      if (wi) { t += T.wg; units += 7; }
+      [...w].forEach((ch, ci) => {
+        if (ci) { t += T.cg; units += 3; }
+        [...CODES[ch]].forEach((s, si) => {
+          if (si) { t += T.u; units += 1; }
+          const d = s === '.' ? T.u : T.dash;
+          marks.push({ t, d, sym: s, ch, wi, ci, si });
+          t += d; units += s === '.' ? 1 : 3;
+        });
+      });
+    });
+    if (tk.trailing && tk.words.length) { t += T.wg; units += 7; }
+    const eff = t > 0 ? (units / 50) / (t / 60000) : 0;
+    return { ...T, wpm, fwpm: T.farnsworth ? fwpm : wpm, marks, totalMs: t, units, eff, words: tk.words, unknown: tk.unknown };
+  }
+
+  // ---------- state ----------
+  const params = new URLSearchParams(location.search);
+  const seedParam = parseInt(params.get('seed'), 10);
+  const seed = Number.isFinite(seedParam) ? seedParam >>> 0 : (Math.floor(Math.random() * 1e6) + 1);
+  function mulberry32(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  const rng = mulberry32(seed);
+
+  const state = {
+    seed, audio: 'none', playing: false, lamp: false, lead: 50, last: null,
+    decoder: { text: '', cur: '', marks: [], down: false },
+    koch: { level: 2, drill: '', score: null, history: [] }
+  };
+  const settings = { wpm: 20, fwpm: 20, tone: 600, decWpm: 15 };
+
+  // ---------- audio ----------
+  let AC = null, master = null;
+  function say(msg) { $('status').textContent = msg; }
+  async function ensureAudio() {
+    const Ctor = window.AudioContext || window.webkitAudioContext;
+    if (!Ctor) { state.audio = 'unavailable'; return false; }
+    try {
+      if (!AC) {
+        AC = new Ctor();
+      }
+      if (AC.state !== 'running' && AC.resume) {
+        await Promise.race([Promise.resolve(AC.resume()).catch(() => {}), new Promise((r) => setTimeout(r, 300))]);
+      }
+    } catch (e) { state.audio = 'unavailable'; AC = null; return false; }
+    state.audio = AC.state === 'running' ? 'running' : (AC.state || 'suspended');
+    if (state.audio !== 'running') return false;
+    if (!master) { master = AC.createGain(); master.gain.value = 0.9; master.connect(AC.destination); }
+    return true;
+  }
+  let playOsc = null, playGain = null;
+  function scheduleAudio(S, leadMs) {
+    const t0 = AC.currentTime + leadMs / 1000;
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = 'sine'; o.frequency.value = settings.tone;
+    g.gain.setValueAtTime(0, AC.currentTime);
+    const R = 0.005;
+    for (const m of S.marks) {
+      const a = t0 + m.t / 1000, b = t0 + (m.t + m.d) / 1000;
+      g.gain.setValueAtTime(0, a);
+      g.gain.linearRampToValueAtTime(0.45, a + R);
+      g.gain.setValueAtTime(0.45, Math.max(a + R, b - R));
+      g.gain.linearRampToValueAtTime(0, b);
+    }
+    o.connect(g); g.connect(master);
+    o.start(AC.currentTime); o.stop(t0 + S.totalMs / 1000 + 0.05);
+    playOsc = o; playGain = g;
+  }
+  function stopAudio() {
+    if (playOsc) { try { playGain.gain.cancelScheduledValues(AC.currentTime); playGain.gain.setValueAtTime(0, AC.currentTime); playOsc.stop(); } catch (e) {} }
+    playOsc = playGain = null;
+  }
+
+  // ---------- sender UI ----------
+  const fmt = (ms) => (Math.round(ms * 10) / 10) + ' ms';
+  function readInt(el, lo, hi) { const v = Number(el.value); return Number.isInteger(v) && v >= lo && v <= hi ? v : null; }
+  function readSettings() {
+    const wpm = readInt($('wpm'), 5, 40), fwpm = readInt($('fwpm'), 3, 40), tone = readInt($('tone'), 300, 1000);
+    const msgs = [];
+    if (wpm === null) msgs.push('Character speed must be a whole number from 5 to 40.'); else settings.wpm = wpm;
+    if (fwpm === null) msgs.push('Effective speed must be a whole number from 3 to 40.');
+    else if (fwpm > settings.wpm) msgs.push('Effective speed cannot be faster than the character speed.');
+    else settings.fwpm = fwpm;
+    if (tone === null) msgs.push('Tone must be 300 to 1000 Hz.'); else settings.tone = tone;
+    if (settings.fwpm > settings.wpm) settings.fwpm = settings.wpm;
+    $('warn').textContent = msgs.join(' ');
+  }
+  function renderSender() {
+    readSettings();
+    const S = schedule($('text').value, settings.wpm, settings.fwpm);
+    state.last = S;
+    $('codeOut').textContent = encode($('text').value);
+    $('unknown').textContent = S.unknown.length ? 'Not in the ITU table, skipped: ' + S.unknown.join(' ') : '';
+    $('dotMs').textContent = fmt(S.u);
+    $('dashMs').textContent = fmt(S.dash);
+    $('cgMs').textContent = fmt(S.cg);
+    $('wgMs').textContent = fmt(S.wg);
+    $('units').textContent = String(S.units);
+    $('dur').textContent = (S.totalMs / 1000).toFixed(2) + ' s';
+    $('eff').textContent = S.totalMs ? S.eff.toFixed(1) + ' WPM' : '—';
+    $('mode').textContent = S.farnsworth ? 'Farnsworth' : 'Standard';
+    const tape = $('tape');
+    tape.textContent = '';
+    let i = 0, word = null, lastW = -1, chEl = null, lastKey = '';
+    for (const m of S.marks) {
+      if (m.wi !== lastW) { word = document.createElement('span'); word.className = 'tw'; tape.appendChild(word); lastW = m.wi; }
+      const key = m.wi + ':' + m.ci;
+      if (key !== lastKey) {
+        chEl = document.createElement('span'); chEl.className = 'tc';
+        const em = document.createElement('em'); em.textContent = m.ch; chEl.appendChild(em);
+        const ms = document.createElement('span'); ms.className = 'ms'; chEl.appendChild(ms);
+        word.appendChild(chEl); lastKey = key;
+      }
+      const s = document.createElement('span'); s.className = 'm ' + (m.sym === '.' ? 'dot' : 'dash'); s.dataset.i = i++;
+      chEl.lastChild.appendChild(s);
+    }
+  }
+
+  // ---------- playback ----------
+  let play = null;
+  function setLamp(on, idx) {
+    if (state.lamp === on && (!play || play.idx === idx)) return;
+    state.lamp = on;
+    $('lamp').classList.toggle('on', on);
+    $('lamp').setAttribute('aria-label', 'Signal lamp: ' + (on ? 'on' : 'off'));
+    if (play && play.idx !== idx) {
+      if (play.idx >= 0 && play.tape) { const p = play.tape.querySelector('[data-i="' + play.idx + '"]'); if (p) p.classList.remove('on'); }
+      if (idx >= 0 && play.tape) { const n = play.tape.querySelector('[data-i="' + idx + '"]'); if (n) n.classList.add('on'); }
+      play.idx = idx;
+    }
+  }
+  function tick() {
+    if (!play) return;
+    const t = performance.now() - play.t0, S = play.S;
+    let on = -1;
+    for (let i = 0; i < S.marks.length; i++) { const m = S.marks[i]; if (t >= m.t && t < m.t + m.d) { on = i; break; } if (m.t > t) break; }
+    setLamp(on >= 0, on);
+    if (t >= S.totalMs) { finish('Finished: ' + S.marks.length + ' marks in ' + (S.totalMs / 1000).toFixed(2) + ' s.'); return; }
+    play.raf = requestAnimationFrame(tick);
+  }
+  function finish(msg) {
+    if (!play) return;
+    cancelAnimationFrame(play.raf);
+    setLamp(false, -1);
+    play = null; state.playing = false;
+    $('stopBtn').disabled = true;
+    if (msg) say(msg);
+  }
+  async function startPlay(text, label, tapeEl) {
+    finish(); stopAudio();
+    renderSender();
+    const S = schedule(text, settings.wpm, settings.fwpm);
+    if (!S.marks.length) { say('Nothing to send: type some letters or figures.'); return; }
+    const sound = await ensureAudio();
+    if (sound) scheduleAudio(S, state.lead);
+    play = { S, t0: performance.now() + state.lead, idx: -1, raf: 0, tape: tapeEl || null };
+    state.playing = true; state.playingText = S.words.join(' ');
+    state.playedWithSound = sound;
+    $('stopBtn').disabled = false;
+    const why = sound ? '' : state.audio === 'unavailable' ? ' Web Audio is not available here, so watch the lamp.' : ' Audio is ' + state.audio + ', so watch the lamp.';
+    say('Sending ' + label + ' at ' + S.wpm + ' WPM' + (S.farnsworth ? ' (Farnsworth ' + S.fwpm + ')' : '') + '.' + why);
+    play.raf = requestAnimationFrame(tick);
+  }
+  $('playBtn').addEventListener('click', () => startPlay($('text').value, 'the message', $('tape')));
+  $('stopBtn').addEventListener('click', () => { stopAudio(); finish('Stopped.'); });
+  for (const id of ['text', 'wpm', 'fwpm', 'tone']) $(id).addEventListener('input', renderSender);
+
+  // ---------- key and decoder ----------
+  const dec = state.decoder;
+  let downAt = null, lastUp = null, timer = 0, side = null;
+  const decUnit = () => 1200 / settings.decWpm;
+  function renderDecoder() {
+    $('decoded').textContent = dec.text;
+    $('cur').textContent = dec.cur;
+  }
+  function commit() {
+    if (!dec.cur) return;
+    dec.text += REV[dec.cur] || '?';
+    dec.cur = '';
+    renderDecoder();
+  }
+  function keyDown() {
+    if (downAt !== null) return;
+    const now = performance.now(), u = decUnit();
+    clearTimeout(timer);
+    if (lastUp !== null) {
+      const gap = now - lastUp;
+      if (dec.cur && gap >= 2 * u) commit();
+      if (gap >= 5 * u && dec.text && !dec.text.endsWith(' ')) dec.text += ' ';
+    }
+    downAt = now; dec.down = true;
+    $('key').classList.add('down');
+    if (AC && master && AC.state === 'running') {
+      try { const o = AC.createOscillator(), g = AC.createGain(); o.frequency.value = settings.tone; g.gain.value = 0.35; o.connect(g); g.connect(master); o.start(); side = o; } catch (e) {}
+    }
+    renderDecoder();
+  }
+  function keyUp() {
+    if (downAt === null) return;
+    const now = performance.now(), u = decUnit(), d = now - downAt;
+    downAt = null; dec.down = false;
+    $('key').classList.remove('down');
+    if (side) { try { side.stop(); } catch (e) {} side = null; }
+    const sym = d < 2 * u ? '.' : '-';
+    dec.cur += sym;
+    dec.marks.push({ d: Math.round(d * 10) / 10, sym });
+    lastUp = now;
+    $('lastMark').textContent = 'Last mark: ' + Math.round(d) + ' ms, read as a ' + (sym === '.' ? 'dot' : 'dash') + ' (' + (d / u).toFixed(1) + ' units).';
+    timer = setTimeout(commit, 2 * u);
+    renderDecoder();
+  }
+  const key = $('key');
+  key.addEventListener('pointerdown', (e) => { if (e.button > 0) return; e.preventDefault(); key.focus(); try { key.setPointerCapture(e.pointerId); } catch (err) {} keyDown(); });
+  key.addEventListener('pointerup', keyUp);
+  key.addEventListener('pointercancel', keyUp);
+  key.addEventListener('lostpointercapture', keyUp);
+  key.addEventListener('contextmenu', (e) => e.preventDefault());
+  key.addEventListener('keydown', (e) => { if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); if (!e.repeat) keyDown(); } });
+  key.addEventListener('keyup', (e) => { if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); keyUp(); } });
+  key.addEventListener('blur', keyUp);
+  $('decWpm').addEventListener('input', () => { const v = readInt($('decWpm'), 5, 40); if (v !== null) settings.decWpm = v; });
+  $('clearBtn').addEventListener('click', () => {
+    clearTimeout(timer); dec.text = ''; dec.cur = ''; dec.marks = []; lastUp = null;
+    $('lastMark').textContent = 'No marks yet.'; renderDecoder();
+  });
+
+  // ---------- Koch trainer ----------
+  const K = state.koch;
+  const sel = $('level');
+  for (let n = 2; n <= KOCH.length; n++) {
+    const o = document.createElement('option'); o.value = n; o.textContent = n + ' (adds ' + KOCH[n - 1] + ')'; sel.appendChild(o);
+  }
+  function newDrill() {
+    const pool = KOCH.slice(0, K.level), groups = [];
+    for (let g = 0; g < 5; g++) { let s = ''; for (let i = 0; i < 5; i++) s += pool[Math.floor(rng() * pool.length)]; groups.push(s); }
+    K.drill = groups.join(' ');
+    $('drill').textContent = K.drill;
+    $('drill').hidden = true; $('revealBtn').setAttribute('aria-expanded', 'false'); $('revealBtn').textContent = 'Show the drill';
+    $('answer').value = '';
+  }
+  function renderKoch() {
+    sel.value = String(K.level);
+    const chips = $('chips'); chips.textContent = '';
+    KOCH.slice(0, K.level).forEach((c, i) => {
+      const s = document.createElement('span'); s.className = 'chip' + (i === K.level - 1 ? ' new' : '');
+      s.textContent = c + ' ' + CODES[c]; s.dataset.ch = c; chips.appendChild(s);
+    });
+  }
+  function score(answer, drill) {
+    const want = drill.replace(/\s/g, ''), got = normalize(answer).replace(/\s/g, '');
+    let ok = 0;
+    for (let i = 0; i < want.length; i++) if (got[i] === want[i]) ok++;
+    return { ok, of: want.length, pct: Math.round((100 * ok) / want.length) };
+  }
+  sel.addEventListener('change', () => { K.level = Number(sel.value); renderKoch(); newDrill(); $('result').textContent = ''; });
+  $('newDrill').addEventListener('click', () => { newDrill(); $('result').textContent = 'New drill ready.'; $('result').className = 'result'; });
+  $('playDrill').addEventListener('click', () => startPlay(K.drill, 'the Koch drill', null));
+  $('revealBtn').addEventListener('click', () => {
+    const d = $('drill'); d.hidden = !d.hidden;
+    $('revealBtn').setAttribute('aria-expanded', String(!d.hidden));
+    $('revealBtn').textContent = d.hidden ? 'Show the drill' : 'Hide the drill';
+  });
+  function check() {
+    const r = score($('answer').value, K.drill);
+    K.score = r.pct; K.history.push({ level: K.level, pct: r.pct });
+    const res = $('result');
+    let msg = r.ok + ' of ' + r.of + ' correct (' + r.pct + '%).';
+    if (r.pct >= 90 && K.level < KOCH.length) {
+      K.level++;
+      msg += ' Level up: added ' + KOCH[K.level - 1] + ' (' + CODES[KOCH[K.level - 1]] + ').';
+      renderKoch(); newDrill();
+      res.className = 'result ok';
+    } else if (r.pct >= 90) {
+      msg += ' You have every character.'; res.className = 'result ok'; newDrill();
+    } else {
+      msg += ' 90% moves you on. Try this drill again or ask for a new one.'; res.className = 'result bad';
+    }
+    res.textContent = msg;
+  }
+  $('checkBtn').addEventListener('click', check);
+  $('answer').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); check(); } });
+
+  // ---------- reference table and header strip ----------
+  const ref = $('ref');
+  for (const [c, code] of Object.entries(CODES)) {
+    const d = document.createElement('div'); d.dataset.testid = 'ref-' + c; d.setAttribute('data-testid', 'ref-' + c);
+    const b = document.createElement('b'); b.textContent = c;
+    const k = document.createElement('code'); k.textContent = code;
+    d.append(b, k); ref.appendChild(d);
+  }
+  const strip = $('strip');
+  for (const ch of 'MORSE TRAINER') {
+    if (ch === ' ') { const g = document.createElement('span'); g.style.width = '28px'; g.style.background = 'transparent'; strip.appendChild(g); continue; }
+    for (const s of CODES[ch]) { const e = document.createElement('span'); e.style.width = s === '.' ? '8px' : '24px'; strip.appendChild(e); }
+    const g = document.createElement('span'); g.style.width = '6px'; g.style.background = 'transparent'; strip.appendChild(g);
+  }
+
+  $('seedOut').textContent = String(seed);
+  renderSender(); renderKoch(); newDrill(); renderDecoder();
+
+  window.__morse = { CODES, KOCH, encode, schedule, timing, score, state, settings, decode: (c) => REV[c] || null };
+})();
+</script>
+</body>
+</html>

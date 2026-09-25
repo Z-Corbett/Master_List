@@ -1,0 +1,35 @@
+{
+  "id": "101",
+  "slug": "101-test-impact-map",
+  "file": "lab/101-test-impact-map.html",
+  "title": "Test Impact Map — which tests does this change need?",
+  "category": "QA & Testing",
+  "tags": ["test-impact-analysis", "dependency-graph", "bfs", "svg", "test-selection"],
+  "description": "Tick the files a change touches in Hollowbrook Bakery, a small fictional ordering app. The page walks its module graph backwards, breadth-first, to find every module that imports the change, lights up the path on an SVG map, and selects the tests that target those modules. It shows how much time the selection saves against the full suite and what it risks: tests with no coverage data, smoke tests you can switch off, files outside the graph, and global files that force a full run.",
+  "prompt": "Build a test impact map. Invent a small app with about a dozen modules and draw its dependency graph in SVG, then give it a test suite where each test is mapped to the modules it covers. I tick the files I changed and the page shows the transitive set of affected modules (BFS over the reverse-dependency graph), the tests that would run, and how much time that saves compared with the full suite. Be honest about the risk trade-off: tests with no coverage data always run, add a toggle for always running smoke tests, and flag changes the graph can't see. The spec should compute the BFS itself and check the page against it.",
+  "qa": {
+    "methodology": [
+      "Independent oracle: the spec carries its own copy of the import edges and test targets, first asserts the page ships exactly the same fixture, then runs its own BFS over the reversed edges and compares the affected set, hop counts, selected test IDs, selected time and percentage saved.",
+      "Path validity: every 'why' chain shown for an affected module is checked edge by edge against the import list, must end at a changed file, and must be exactly hops + 1 long (BFS gives the shortest chains).",
+      "Rule scenarios: a leaf page change with the smoke toggle on and off, the no-coverage bucket on and off (a 125 s difference), a docs-only change outside the graph, a global lockfile change forcing the full 592 s suite, and a module with no direct test.",
+      "Seeded property check: 30 random change sets from a mulberry32 generator are pushed through __impact.select, and each result must agree with the spec's BFS, including every BFS distance, while the on-screen time readout keeps up.",
+      "Input parity: keyboard Space on a checkbox, clicking a node on the SVG map, presets and Clear all drive the same state and give oracle-matching results."
+    ],
+    "risks": [
+      "The fixture being copied into the spec means a deliberate change to the app's graph needs the spec updating too; the first test fails loudly when they drift, which is the intent.",
+      "Selection by targeted module is only as good as the mapping; the page says so, and the tests cover the safety nets (no-coverage and smoke buckets) rather than pretending the graph is complete.",
+      "Highlighted edges are read from the SVG stroke colour, which ties one assertion to a presentation detail.",
+      "The graph is wider than a phone, so it scrolls inside its own container; node clicks on mobile rely on Playwright scrolling that container."
+    ],
+    "playwright": "Mostly plain locators and web-first assertions on data attributes (data-selected, data-reason, data-hops, data-state), which keep the checks about behaviour rather than wording. The oracle is ordinary TypeScript in the spec, so the interesting assertions compare two independent implementations of the same BFS. page.evaluate drives the seeded property check through window.__impact.select, which made 30 cases fast enough to run on every push; the UI paths are still exercised with real check(), click() and keyboard input in the other tests. There is nothing timed on this page, so page.clock isn't needed. One awkward spot: SVG <g> nodes aren't native buttons, so the map is a mouse and touch convenience and the checkbox list is the accessible way in.",
+    "coverage": [
+      "Fixture parity with the spec, 14 nodes and 23 import edges drawn, full suite 9m 52s",
+      "money.ts: 8 affected modules, hop counts, idle vs changed vs affected nodes",
+      "Why-chains are valid shortest import paths",
+      "Smoke toggle, no-coverage toggle, docs-only, lockfile, module with no direct test, highlighted edges",
+      "30 seeded random change sets vs the spec's BFS",
+      "Keyboard, map clicks, presets, Clear, live summary"
+    ]
+  },
+  "a11y": "Changed files are native checkboxes grouped in fieldsets, and both toggles are labelled checkboxes with explanations. The summary stats are an aria-live region with a spoken summary label. The SVG map has an aria-label naming the changed and affected modules, and every node has a title; the same information is in the affected-modules list and the test table, which has a caption and a text 'runs/skipped' status next to each lamp. The wide map scrolls inside a focusable container on small screens."
+}

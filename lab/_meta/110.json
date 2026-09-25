@@ -1,0 +1,37 @@
+{
+  "id": "110",
+  "slug": "110-tuning-lab",
+  "file": "lab/110-tuning-lab.html",
+  "title": "Tuning Lab — equal temperament vs just intonation",
+  "category": "Audio",
+  "tags": ["web-audio", "music-theory", "tuning", "svg", "cents"],
+  "description": "Pick a root and an interval or chord and compare 12-tone equal temperament with 5-limit just intonation side by side: the frequencies, the cents (1200 · log2 of the ratio), the gap between them and the beat rate of the harmonics that nearly coincide. A band chart shows the equal-tempered beating against the level just envelope, a waveform overlays both tunings, and you can hear either one. A4 is editable (default 440 Hz) and the setup is shared through the address.",
+  "prompt": "Build a tuning lab that compares 12-TET with just intonation. I pick a root and an interval or a chord, and the page shows and plays both: equal temperament against 5-limit just ratios (3/2, 5/4, 6/5, 4/3, 5/3, 8/5, 9/8, 15/8, 16/15, 45/32 and so on). Show the frequencies, the cents difference using 1200·log2(ratio), and the beat rate between the near-coincident harmonics. Add a waveform or interference visualization and an editable A4 reference, default 440 Hz. Sound only starts after a gesture, and the page must still work without Web Audio. The tests should check the reference values: the ET fifth is 700 cents against a just 701.955, the major third 400 against 386.314, and A4 = 440 puts C4 at about 261.626 Hz.",
+  "qa": {
+    "methodology": [
+      "Formula oracles computed in the test: 12-TET frequencies from a4 · 2^((m − 69)/12), just frequencies from root · p/q, cents from 1200 · log2(p/q). All twelve intervals are clicked through and every Hz, cents and difference readout is compared against them to within display rounding.",
+      "Published reference values pinned as text: C4 = 261.626 Hz at A4 = 440, the fifth 700 vs 701.955 cents, the major third 400 vs 386.314 (−13.686 ¢), the 6/5 minor third 315.641, the 45/32 tritone 590.224 and the 15/8 major seventh 1088.269.",
+      "Beat physics: the ET beat must equal |p · f_root − q · f_upper| for every interval and chord tone (about 10.38 Hz for the C4–E4 third, about 1.49 Hz for the A4–E5 fifth), the just beat must be exactly zero, and the octave shows no beating in either tuning. The drawn band is read back from the SVG path: the ET envelope pinches once per beat (about 42 times in 4 s for the third), and the just band stays level.",
+      "Audio decisions rather than sound: no AudioContext until a play button is pressed, the frequencies sent to the oscillators match the numbers on screen, a new play replaces the old voices and Stop clears them. Two failure modes are simulated with addInitScript: AudioContext deleted entirely, and a context whose state is stuck at 'suspended'. Both give a clear status message and no page errors.",
+      "Input and state: out-of-range and empty A4 values are refused with aria-invalid while the last good value stays in use, a 415 Hz baroque pitch retunes everything, the address hash restores root, selection and A4, and junk in the hash falls back to the defaults."
+    ],
+    "risks": [
+      "Mixing up which harmonics coincide: for a ratio p/q it is harmonic p of the root and harmonic q of the upper note. Swapping them would still produce plausible-looking numbers, which is why the test recomputes the beat from its own formula.",
+      "Just intonation is ambiguous for some intervals (9/5 or 16/9 for the minor seventh, 45/32 or 64/45 for the tritone). The page states the ratio it uses on every card, and the tests pin those choices.",
+      "Rounding: readouts are rounded to 3 decimals, so the tests compare within 0.0006 rather than for equality with unrounded values.",
+      "Autoplay and suspended-context behaviour varies between browsers; audio is created only inside a click handler and its state is checked after resume()."
+    ],
+    "playwright": "Most of the checks are arithmetic, so the spec keeps its own copies of the ET, just and cents formulas and compares the page's text against them, with the published reference values pinned as a second line of defence. page.addInitScript was the most useful feature here: one test deletes AudioContext before the page loads and another patches its prototype so the context never leaves 'suspended', which reproduces browser conditions that are otherwise hard to get in CI. The beat chart is checked by parsing the SVG path data back into an envelope and counting the dips, not with a screenshot. That is more robust, but it does couple the test to how the path is built. Audio output itself can't be heard in CI; the spec asserts the oscillator frequencies and voice counts the page reports through __tuning.",
+    "coverage": [
+      "Defaults at A4 = 440: C4, G4, fifth cents and difference",
+      "All twelve intervals vs the ET, just and cents formulas; tritone, minor third and major seventh reference values",
+      "Beat rates for the third, the A–E fifth and the octave; the just beat is always zero",
+      "A4 editing, validation and the 415 Hz baroque pitch",
+      "Chords (4:5:6 major triad, minor, major seventh), beat strips and waveform",
+      "Radiogroup arrow keys, Home/End and wrap-around; root select",
+      "Gesture-gated audio, played frequencies, Stop; missing and suspended AudioContext",
+      "Hash sharing and fallback on bad values"
+    ]
+  },
+  "a11y": "The root is a native select and A4 a labelled number field with an inline error tied by aria-describedby and aria-invalid. The intervals and chords form a radiogroup with roving tabindex, arrow keys, Home and End, and each button has its full interval name as its label. The comparison summary and play status are aria-live regions, every number is also plain text on a card, and both SVG charts have aria-labels that state the beat rates and notes."
+}

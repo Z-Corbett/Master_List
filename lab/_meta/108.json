@@ -1,0 +1,34 @@
+{
+  "id": "108",
+  "slug": "108-sorting-race",
+  "file": "lab/108-sorting-race.html",
+  "title": "Sorting Race — algorithms side by side",
+  "category": "Data Viz",
+  "tags": ["algorithms", "canvas", "page-clock", "seeded-prng", "instrumentation"],
+  "description": "Bubble, insertion, selection, merge, quick (Lomuto) and heap sort race on the same seeded array as six lanes of animated bars. A scheduler gives each algorithm one operation per step (a comparison, a swap or a write), so the finishing order is an operation count, and each lane shows live counts of comparisons, swaps and writes. The input can be random, nearly sorted, reversed, few unique or already sorted, and ?seed= makes a race repeatable.",
+  "prompt": "Build a sorting race: bubble, insertion, selection, merge, quick (Lomuto or Hoare, say which) and heap sort running on the same seeded array, as animated bar lanes stepped by a scheduler that page.clock can drive. Show counts of comparisons and swaps/writes. Offer input shapes (random, nearly sorted, reversed, few unique). The spec should check that every lane ends sorted, that the counts match instrumented reference implementations in the test (the same algorithm variant gives identical counts), and known facts such as bubble sort with an early exit on sorted input taking n−1 comparisons.",
+  "qa": {
+    "methodology": [
+      "Reference implementations: the spec has its own instrumented versions of all six algorithms, written as plain loops and recursion where the page uses generators. On every input shape, their comparison, swap and write counts and their final arrays must equal the page's exactly.",
+      "Known facts about sorted and reversed input: on sorted input, early-exit bubble sort and insertion sort make n − 1 comparisons and tie for first place, selection sort and Lomuto quicksort make n(n−1)/2, and none of them swap. On reversed input, bubble sort makes n(n−1)/2 comparisons and swaps, insertion sort n(n−1)/2 + n − 1 writes, and selection sort n/2 swaps. Merge sort on 64 elements makes exactly 384 writes, and its comparisons fall within the standard bounds.",
+      "Scheduler under page.clock: after 10 ticks at 4 ops per tick, every running lane has done exactly 40 steps. Pausing freezes them while the clock runs on, and Step adds exactly one. Every lane's steps must equal comparisons + swaps + single writes.",
+      "End state and ranking: a clock-driven race must leave every lane equal to the sorted input. Each lane's place must be 1 + the number of lanes that took strictly fewer steps, so ties share a place, and the results table must agree with the lane data.",
+      "Seeded inputs: the same seed gives the same array after a reload and a different seed gives a different one. Random input is a permutation of 1..n and reversed input is n..1. Few unique uses at most 4 distinct values, and nearly sorted has at most round(n/10) inversions."
+    ],
+    "risks": [
+      "Generators only report that they are done when asked for another operation, which would make a lane finish one step late and could break ties. The page reads one operation ahead so a lane finishes on the step of its last real operation. The tie test on sorted input depends on this.",
+      "Counting conventions differ between textbooks (whether merge sort's copy into the auxiliary array counts, whether self-swaps count). The page states its conventions, and the reference implementations follow the same ones.",
+      "Lomuto quicksort with a last-element pivot is quadratic on sorted, reversed and few-unique input, and a recursive version could overflow the stack at large n. The page uses an explicit stack and caps n at 120.",
+      "Reading ahead means the bars show the next operation's write one step early. The counts are unaffected, but the animation runs one operation ahead of the numbers."
+    ],
+    "playwright": "page.clock.install goes in before goto, so the page's setTimeout scheduler runs on fake time, and pauseAt then stops that time moving on its own. The pauseAt was added after a real flake: without it the fake clock still followed wall time, and on the slower mobile project an extra tick sometimes fired between runFor and the Pause click (44 steps where 40 were expected). With the clock paused, runFor(tick × 10) gives exactly ten ticks, and the tests can check step counts to the operation rather than waiting for results to show up. Canvas pixels aren't checked; lane state comes from window.__sort.lanes and the canvases' aria-labels. The Finish button runs a race to completion in the same code path without a clock, which keeps the five-shape count test fast. The reference implementations are TypeScript in the spec itself, so a counting change on the page fails with a readable diff of the two count objects. The checks cover what was counted, not what the animation looks like.",
+    "coverage": [
+      "Clock-driven race to completion: every lane sorted, places shown",
+      "Scheduler fairness, pause and single step",
+      "Counts vs reference implementations on random, nearly sorted, reversed, few-unique and sorted input",
+      "Sorted/reversed facts (bubble n−1, selection n(n−1)/2, Lomuto worst case, reversed swaps); merge sort write count",
+      "Seed determinism and input-shape properties; places vs step counts; bar count limits; keyboard"
+    ]
+  },
+  "a11y": "The settings are labelled native selects, number inputs and buttons, and they work from the keyboard (Enter or Space on the buttons). The race status is an aria-live region that names the winner. Each lane's canvas has an aria-label with its step, comparison, swap and write counts and its finishing place, and the results table repeats the same numbers in text. Colour is never the only signal, because the numbers and places are shown as text."
+}

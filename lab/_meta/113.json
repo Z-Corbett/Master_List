@@ -1,0 +1,39 @@
+{
+  "id": "113",
+  "slug": "113-hill-country-half",
+  "file": "lab/113-hill-country-half.html",
+  "title": "Hill Country Half — a fictional Texas trail race",
+  "category": "Landing Pages",
+  "tags": ["landing-page", "svg", "page-clock", "form-validation", "pricing-tiers", "responsive"],
+  "description": "A landing page for an invented trail half marathon and 10K at a made-up Hill Country ranch. The course elevation profile is drawn from a surveyed-points table, with total climb, descent and high point computed from it. Early-bird, regular and race-week prices switch at midnight Central with a live countdown. The registration form checks age limits per distance, shirt size and an emergency contact who isn't the runner (simulated: nothing is sent). There is also a race-day schedule and a pace-group finder. It's labelled fictional at the top and bottom.",
+  "prompt": "Build a landing page for a fictional half marathon and 10K on Texas Hill Country trails, the Hill Country Half. It needs a course elevation profile as inline SVG generated from a distance/elevation table, with the total climb computed. Add a pricing-tier countdown (early bird, regular, race week) that page.clock can drive, a registration form that validates distance, shirt size and emergency contact (simulated, no network), a race-day schedule and a pace-group finder. Make it very clear the event is fictional. The spec should cover the price-tier boundaries under page.clock, check the elevation gain with its own calculation, test the form validation and check the mobile layout.",
+  "qa": {
+    "methodology": [
+      "Boundary instants under page.clock: the clock is installed and paused before navigation, so the page renders at exactly 11:59:59 PM CST on Dec 31 (early bird, 1 second left). runFor(1000) then crosses midnight and the page must switch to regular with exactly 58 days left. Race week, closing time, race morning and an ordinary September day are pinned the same way, and each countdown is compared with a difference of Date.UTC values computed in the test.",
+      "Independent climb oracle: the spec keeps its own copy of both course tables, sums every rise and fall, and compares the result with the page's readouts (feet and metres). It also checks that the page's table matches the copy, that the SVG polyline has one vertex per surveyed point with its highest vertex at the Lookout, and that the scrubber's readout matches the test's own linear interpolation.",
+      "Form rules one at a time: an empty submit must list all nine problems, focus the summary and set aria-invalid on each field. The age limits are probed at the day-before and day-of birthday boundaries, using a race-day age computed in the test. The emergency-contact rules cover the same name in another case, the same number in another format and a +1 country code.",
+      "No network: a request listener is attached after load, and a valid submission has to produce a confirmation at the current tier's price with zero requests.",
+      "Layout per project: the same test asserts side-by-side tiers and fields on desktop and stacked, full-width ones on the Pixel 7, and that the fixed back link doesn't cover the fictional-event banner."
+    ],
+    "risks": [
+      "Time zones: the tier boundaries are fixed UTC instants (all before the March DST change), so the browser's zone can't move a price change. The spec only uses UTC instants.",
+      "Countdown drift: a one-second interval can render up to a second late. The spec avoids this by freezing the clock before load instead of after.",
+      "Off-by-one ages: a runner whose 16th birthday falls on race day must be allowed. Both sides of that boundary are tested for each distance.",
+      "The fixed back link overlapping the banner on narrow screens (the banner is padded to clear it, and the spec checks for overlap)."
+    ],
+    "playwright": "page.clock did most of the work here. Calling install() and then pauseAt() before goto() means the first render happens at the exact instant under test, and runFor(1000) steps across midnight on one tick of the page's interval. Pausing after load instead would let the first render land anywhere in the interval's one-second phase, leaving the countdown up to a second out. Form checks use getByTestId plus toHaveAttribute('aria-invalid') and toBeFocused, so the accessibility wiring is checked along with the messages. The isMobile fixture lets one layout test assert different geometry on each project with no skip. What it doesn't cover: the SVG is checked through its points attribute and aria-label, not visually, so a bad scale factor that squashed the chart would pass.",
+    "coverage": [
+      "Fictional banner, footer, hero CTA jumps to the form",
+      "Early bird to regular at midnight CST, exact countdowns, fee by distance",
+      "Race week, closed state with submit disabled, race morning, an ordinary day",
+      "Half and 10K climb, descent, high and low points, table and polyline, keyboard tabs",
+      "Profile scrubber interpolation",
+      "Empty submit: summary, focus, aria-invalid, live re-validation",
+      "Age limits at the birthday boundary, emergency-contact rules",
+      "Valid registration with no network requests; reset",
+      "Pace per mile and km, group choice, faster, slower and over-cutoff goals",
+      "Desktop versus phone layout"
+    ]
+  },
+  "a11y": "Every form control has a visible label, and errors are tied to their fields with aria-describedby and aria-invalid. The error summary takes focus and links to each field, and the confirmation takes focus too. The distance tabs are a real tablist with arrow-key navigation, the profile SVG's aria-label gives the distance, total climb and extremes, and the course table is available as text. The countdown and pace results are aria-live."
+}

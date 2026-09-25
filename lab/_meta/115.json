@@ -1,0 +1,38 @@
+{
+  "id": "115",
+  "slug": "115-two-step",
+  "file": "lab/115-two-step.html",
+  "title": "Two-Step — a dance-hall rhythm game",
+  "category": "Games",
+  "tags": ["canvas", "rhythm-game", "web-audio", "page-clock", "seeded-prng"],
+  "description": "A rhythm game built on the Texas two-step's footwork: six counts of quick, quick, slow, slow, with the quicks one count each and the slows two, alternating left and right feet. Boot prints scroll down two lanes to a hit line. Step with the keys or the tap pads for Perfect (±45 ms) or Good (±100 ms), build a combo toward a ×4 multiplier, and dance to a synthesized honky-tonk boom-chick bass and snare at 100 to 180 BPM. Charts are seeded, and a practice mode calls the count.",
+  "prompt": "Make a rhythm game built on the Texas two-step's quick-quick-slow-slow footwork: six counts, the quicks one count each and the slows two counts each. Notes scroll toward a hit line and the player hits keys or taps for the left and right foot lanes. Judge Perfect, Good or Miss against timing windows and track the combo and score. Generate the songs with Web Audio, a simple honky-tonk bass and snare, at a BPM the player picks. All timing has to come from a clock that page.clock controls. Include a practice mode that shows the count and a seeded chart. The spec should feed inputs at exact times through page.clock, check the judgement windows, the scoring and the QQSS count structure, and it has to pass without audio.",
+  "qa": {
+    "methodology": [
+      "Exact-time input: the fake clock is paused, the test reads the song time from __two, advances by exactly the difference with runFor(), and presses a real key. Every judgement in the spec therefore lands at a known offset: 0, ±45, ±46, ±100 and +101 ms.",
+      "Window boundaries from both sides: ±45 ms is Perfect, ±46 and ±100 are Good, and at +101 the window has closed, so the print is a Miss and the late step counts as a stray. A step with the wrong foot is a stray too, and a stray between prints leaves the combo intact.",
+      "Scoring oracle: expectedScore() in the test re-implements the rule (base × (1 + ⌊combo/10⌋), capped at ×4, reset by a miss) and is compared with the page for a mixed run (12 perfects, a miss, 3 goods, 9 perfects) and for a full 64-step perfect song.",
+      "Structure: every note of the chart is checked against QQSS (onsets on counts 1, 2, 3 and 5, lengths 1, 1, 2, 2, six counts per figure, feet alternating, each step lasting until the next), at 120 BPM and at 150 and 180.",
+      "No audio: an init script deletes AudioContext before load. The Sound button must report it unavailable and the beat clock must still tick. The rest of the suite never turns sound on."
+    ],
+    "risks": [
+      "Frame-quantised judging: misses are swept on animation frames, which fire every 16 ms under the fake clock. The page therefore also sweeps on every input, and the tests assert the boundary at the input instant rather than waiting for a frame.",
+      "Floating-point tempo: 180 BPM gives 333⅓ ms beats, so exact-boundary tests stay at 120 and 150 BPM, and 180 is checked with toBeCloseTo.",
+      "Audio drift: sound is triggered from the same clock as the judging, so it can't disagree with it, but it's only as tight as the frame rate. Nothing depends on it.",
+      "Mobile: tap pads must respond to pointerdown and not also fire on click. Keyboard activation of a pad (Enter) is handled separately through click with detail 0."
+    ],
+    "playwright": "page.clock made this testable: performance.now(), requestAnimationFrame and timers all run on the fake clock, so pauseAt() followed by runFor(delta) puts the song at an exact millisecond before page.keyboard.press(). No test has a sleep or a timing tolerance. The first spec run caught a wrong assumption in the test, not the page: I'd expected a step at +101 ms to leave the print unjudged, but the page sweeps expired prints on each input, so it's already a Miss. That's the better behaviour, and the test now pins it. addInitScript is used to remove Web Audio altogether. On the Pixel 7 project, click() on the pads still dispatches pointerdown, so one test covers taps on both projects.",
+    "coverage": [
+      "QQSS chart structure at 120, 150 and 180 BPM",
+      "Seeded figures and chords, reseed writes the URL",
+      "Perfect/Good/Miss windows at exact offsets, strays",
+      "Score, combo and multiplier vs an independent model",
+      "Full perfect song, grade S, results focus, replay",
+      "Practice mode count-in and 1–6 count calls",
+      "Tap pads, arrow keys, keyboard-activated pads",
+      "Tempo changes",
+      "No AudioContext at all"
+    ]
+  },
+  "a11y": "Both lanes can be played with the keyboard (F/J or the arrow keys) or with large tap pads, which are real buttons and also work with Enter. Judgements, combo and results are announced in an aria-live status, and the results card focuses its replay button. Tempo, practice and sound are labelled controls, with aria-pressed on the toggles. The game never depends on sound."
+}

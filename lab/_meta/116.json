@@ -1,0 +1,38 @@
+{
+  "id": "116",
+  "slug": "116-live-oak",
+  "file": "lab/116-live-oak.html",
+  "title": "Live Oak — a generative L-system tree",
+  "category": "Generative",
+  "tags": ["l-system", "canvas", "svg", "seeded-prng", "turtle-graphics", "generative-art"],
+  "description": "A stochastic Lindenmayer system grows a broad, low, sprawling Texas live oak on a canvas. A tropism pulls the long limbs toward level, and Spanish moss drapes from them, with leaf clusters under a dawn, midday, dusk or night sky. The seasons follow the real tree: it stays green all winter, then in spring drops the old leaves as the new flush and catkins come. It's seeded with ?seed=, with controls for iterations, angle, randomness and sprawl, an axiom and rules editor, and classic presets (algae, Koch curves, fractal plant). A turtle-graphics explainer steps through the string and highlights which symbol drew which segment.",
+  "prompt": "Grow a Texas live oak with a stochastic L-system: broad, low and sprawling, drawn in SVG or canvas, with Spanish moss hanging in gentle strands (it's common on live oaks in parts of Texas), leaf clusters, and time of day and seasons. Live oaks are evergreen, dropping and replacing their leaves in spring. Seed it with ?seed= and give me controls for iterations, branching angle and randomness, plus an axiom and rules editor. Add a turtle-graphics explainer that highlights which symbol drew which segment. The spec should check that a seed gives deterministic output, that the string rewriting matches the expected output for known L-systems (the algae system A→AB, B→A giving Fibonacci lengths, and the Koch curve), and that the segment count stays within bounds.",
+  "qa": {
+    "methodology": [
+      "Known systems as oracles: for algae, the lengths must be the Fibonacci numbers up to 377 and each string must equal the previous two joined, a property the test builds itself. For the Koch and quadratic Koch curves, the strings must match the test's own parallel expansion, there must be 4ⁿ and 5ⁿ segments, and the turtle must end exactly 3ⁿ steps from the start.",
+      "Bounds from the rules themselves: the spec parses the default rules text independently and uses a memoised min/max over every possible choice sequence to find the fewest and most segments after n iterations. Six seeds must fall inside the bounds and give more than one count.",
+      "Determinism: the same seed across a reload gives identical segment coordinates and hash, another seed gives a different tree, and the deterministic fractal plant ignores the seed. Season, light and moss decoration use separate random streams, so switching them never changes the geometry, and the moss count stays the same across seasons.",
+      "The cap: the fractal plant at 8 iterations would pass 200,000 symbols, so the page must stop after 7 with the exact string length and F count that the test's own expansion gives, and show a warning.",
+      "Explainer traceability: every explainer segment's symbol index must point at an F in the explainer string, in order. Stepping, the next button, clicking a segment and the Home key must all agree on which symbol is current."
+    ],
+    "risks": [
+      "RNG order coupling: if decoration drew from the rewriting stream, changing the season would change the tree. Each purpose has its own mulberry32 stream, and a test checks this.",
+      "Exponential growth freezing the tab. Rewriting bails out as soon as the next string would pass the cap, before building it.",
+      "Floating-point turtle drift over long strings. The Koch endpoints are checked to 6 decimal places at 4ⁿ segments.",
+      "The 'wider than tall' claim is statistical. The spec checks it over 16 seeds (min above 1.1, mean above 1.35) rather than for one lucky seed, and checks that removing the sprawl makes the trees taller on average."
+    ],
+    "playwright": "Nearly everything here is checked through page.evaluate against __oak (rewrite, turtle, state, segments), with the expected values computed in Node: Fibonacci, 3ⁿ, the min/max over choice sequences. The canvas itself isn't asserted in pixels. Its aria-label and the readouts are, and the geometry hash stands in for 'same picture'. Range inputs can't be filled, so a small setRange helper sets the value and dispatches input. The SVG explainer is checked through data-i, data-state and data-testid on its lines. The first draft of the width test asserted a ratio for three hand-picked seeds and failed on seed 1 (1.24). I turned it into a claim over 16 seeds that holds up, instead of tuning the page to pass one seed.",
+    "coverage": [
+      "Algae: Fibonacci lengths and concatenation, UI string and lengths",
+      "Koch and quadratic Koch: strings, 4ⁿ/5ⁿ segments, 3ⁿ endpoint",
+      "Seeded determinism, reload, URL, seed-independent deterministic preset",
+      "Segment bounds from the rules, stochastic variety, iteration 0",
+      "Fractal plant cap at 200,000 symbols",
+      "Rules editor: custom rules, parse errors, weighted choices",
+      "Turtle explainer: symbol-to-segment mapping, stepping, clicking, keyboard",
+      "Seasons and time of day leave the tree unchanged; evergreen note; moss toggle",
+      "Spread-to-height ratio over 16 seeds, sprawl effect, angle vs string"
+    ]
+  },
+  "a11y": "All controls are labelled native inputs, and the sliders show their values in <output>. The canvas's aria-label describes the tree (segments, leaf clusters, moss, season, time, width-to-height) and updates with it, and the readouts and rule errors are live. In the explainer, the step slider, the previous/next buttons and a clickable drawing all move through the string. Its caption says in words what each symbol does, and the symbol strip is decorative (aria-hidden) because the caption carries the same information."
+}

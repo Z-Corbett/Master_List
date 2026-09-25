@@ -1,0 +1,39 @@
+{
+  "id": "114",
+  "slug": "114-diff-tool",
+  "file": "lab/114-diff-tool.html",
+  "title": "Diff Tool — Myers diff, line and word level",
+  "category": "Tools",
+  "tags": ["algorithms", "myers-diff", "unified-diff", "svg", "text-tools"],
+  "description": "A text diff built on Eugene Myers' O(ND) algorithm, written from scratch. It has side-by-side and unified views with correct @@ -a,b +c,d @@ hunk headers and configurable context, word-level highlights inside changed lines, ignore-whitespace and ignore-case options, and \"No newline at end of file\" handling. For small inputs an edit-graph view draws the furthest-reaching D-paths round by round, with a slider to replay the search.",
+  "prompt": "Implement Myers' O(ND) diff algorithm from scratch and build a diff tool around it. I want side-by-side and unified views (unified with @@ -a,b +c,d @@ hunk headers and a configurable number of context lines), word-level highlighting inside changed lines, and ignore-whitespace and ignore-case options. Add an edit-graph visualization for small inputs that shows the D-paths. The spec has to prove the edit script is minimal by comparing its edit distance with an independent LCS dynamic program in the test, check that applying the script to A gives B, check the unified hunk headers on known cases, and cover the edge cases: empty files, identical files and a missing trailing newline.",
+  "qa": {
+    "methodology": [
+      "Minimality against an independent oracle: the test has its own textbook O(NM) LCS dynamic program. Over 80 seeded random pairs (small alphabets, so there are lots of ties), Myers' D must equal N + M − 2·LCS, the number of non-equal ops must equal D, and every '=' op must pair equal elements.",
+      "Round trip: an apply() in the test copies '=' ops from A, skips '-' ops and inserts '+' values, never reading B. It checks that the ops consume A in order and that the result is B, for 25 random line sequences through the page's line pipeline and for the sample in the UI.",
+      "Known reference cases: Myers' own example (ABCABBA → CBABAC, D = 5) with the paper's furthest-reaching 2-paths at (3,1), (2,2) and (2,4). The hunk headers follow GNU conventions: context 3 and 0, two hunks merging only once the gap is within 2n lines, a pure insertion as @@ -2,0 +3 @@, a new file as @@ -0,0 +1,2 @@ and a deleted one as @@ -1 +0,0 @@.",
+      "Edge cases asserted on the exact patch text: a missing final newline on either side (with the marker in the right place after a swap), both sides unterminated with a shared last line, empty inputs, identical inputs and a 200-line input that skips the graph.",
+      "Options: ignore-case alone still sees whitespace changes, both options together make the texts identical, and the word highlights mark exactly the inserted tokens."
+    ],
+    "risks": [
+      "Off-by-one errors in the backtrack through the saved V arrays. The LCS oracle over many random pairs is there to catch those.",
+      "Hunk-header conventions: the count is left out when it's 1, and an empty side starts at the line before. These are easy to get subtly wrong, so they're pinned on known cases.",
+      "Trailing newlines: treating \"b\" and \"b⏎\" as equal would silently drop a change. The last line carries a marker in its comparison key.",
+      "Memory: the page keeps one V snapshot per D (O(D²)), so inputs are capped at 1,500 lines a side rather than using the linear-space variant."
+    ],
+    "playwright": "Most of the value came from page.evaluate: the spec hands 80 random pairs to __diff.myers in one round trip and checks them against a Node-side LCS table, which is much faster than typing them into textareas. The UI tests use fill() on the textareas and compare the whole unified patch with toHaveText, so the headers, markers and ordering are checked in one assertion. One friction point: fill() refuses <input type=range>, so the D slider is set through evaluate plus a dispatched input event. The view radios are checked through the keyboard (ArrowRight) as well as check(). The edit graph is asserted through data attributes on its SVG points (data-d, data-k) and its aria-label, not pixels.",
+    "coverage": [
+      "Minimal edit distance vs LCS on 80 random pairs",
+      "Script application reproduces B (API and UI)",
+      "Myers' paper example: D = 5, 2-path frontier, slider replay",
+      "Unified hunk headers with context 0, 1, 3, 7 and 8, merging, pure insertion",
+      "Empty and identical inputs, single-snake graph",
+      "Missing trailing newline, both directions and shared last line",
+      "Ignore whitespace and case, alone and together",
+      "Word-level highlights, toggle off",
+      "Split vs unified counts agree, keyboard view switch",
+      "Large input: graph skipped, hunks correct"
+    ]
+  },
+  "a11y": "The textareas, options and context field are labelled native controls, and the view switch is a radio group that works with the arrow keys. The change summary is aria-live. The diff tables have aria-labels with the hunk count, the patch text is a focusable, labelled region, and the edit graph's aria-label lists which point each D-path reaches on each diagonal."
+}

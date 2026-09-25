@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live Oak — a generative L-system tree</title>
+<meta name="description" content="A stochastic Lindenmayer system grows a broad, low, sprawling Texas live oak on a canvas, hung with Spanish moss and leaf clusters, under a sky that follows the time of day and the season. Seeded with ?seed=, with controls for iterations, branching angle, randomness and sprawl, an axiom and rules editor, classic presets (algae, Koch curve, fractal plant) and a turtle-graphics explainer that shows which symbol drew which segment.">
+<style>
+  :root {
+    --bark: #3b2f25;
+    --moss: #8f9a86;
+    --leaf: #34502c;
+    --sage: #dfe3d3;
+    --sage-2: #c9d0b9;
+    --ink: #22281f;
+    --muted: #5d6656;
+    --card: #f6f6ee;
+    --accent: #a3662b;
+    --accent-2: #6c7f3a;
+    --serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --mono: "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--sage); color: var(--ink); font: 15px/1.55 var(--sans); overflow-x: hidden;
+    background-image: radial-gradient(ellipse at 10% 0%, rgba(255,255,255,.6), transparent 50%), radial-gradient(ellipse at 100% 100%, rgba(108,127,58,.18), transparent 55%); }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: #fff; background: var(--bark); text-decoration: none; font: 600 13px/1 var(--sans); padding: 8px 12px; border-radius: 999px; border: 1px solid rgba(255,255,255,.3); }
+  a.back:hover { background: var(--accent-2); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 58px 16px 40px; }
+  .head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 24px; align-items: end; margin-bottom: 14px; }
+  .eyebrow { margin: 0; font: 600 12px/1.3 var(--sans); letter-spacing: .24em; text-transform: uppercase; color: var(--accent-2); }
+  h1 { font: 400 clamp(40px, 7vw, 72px)/1 var(--serif); margin: 4px 0 6px; font-style: italic; }
+  .lede { margin: 0; max-width: 68ch; color: var(--muted); }
+  .latin { font: italic 15px/1.35 var(--serif); color: var(--muted); text-align: right; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 340px); gap: 18px; align-items: start; }
+  .card { background: var(--card); border: 1px solid var(--sage-2); border-radius: 12px; padding: 14px 16px; min-width: 0; box-shadow: 0 10px 26px -20px rgba(34,40,31,.55); }
+  .card + .card { margin-top: 14px; }
+  h2 { font: 400 24px/1.15 var(--serif); margin: 0 0 8px; }
+  .stage canvas { display: block; width: 100%; height: auto; border-radius: 8px; background: #cfe0e8; }
+  .readout { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; font-size: 13.5px; color: var(--muted); }
+  .readout b { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .field { margin-bottom: 10px; min-width: 0; }
+  .field label, .lbl { display: flex; justify-content: space-between; gap: 8px; font: 600 12px/1.3 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+  .field output { font: 600 13px var(--mono); color: var(--ink); letter-spacing: 0; text-transform: none; }
+  input[type=range] { width: 100%; accent-color: var(--accent-2); }
+  select, input[type=number], input[type=text] { width: 100%; max-width: 100%; min-width: 0; font: 14px var(--sans); padding: 7px 9px; border: 1px solid #b8bfa7; border-radius: 6px; background: #fff; color: var(--ink); }
+  textarea { width: 100%; min-width: 0; min-height: 120px; resize: vertical; font: 13px/1.45 var(--mono); padding: 8px; border: 1px solid #b8bfa7; border-radius: 6px; background: #fff; color: var(--ink); }
+  .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 10px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .btn { min-height: 38px; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--accent-2); background: var(--accent-2); color: #fff; font: 600 14px/1 var(--sans); cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--accent-2); }
+  .chk { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; }
+  .chk input { width: 18px; height: 18px; accent-color: var(--accent-2); }
+  .err { color: #9b2c1c; font-weight: 600; min-height: 1.3em; margin: 4px 0 0; font-size: 13.5px; }
+  .note { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+  .string { font: 12.5px/1.5 var(--mono); background: #fff; border: 1px solid var(--sage-2); border-radius: 6px; padding: 8px; max-height: 110px; overflow: auto; overflow-wrap: anywhere; margin: 6px 0 0; }
+  .lengths { font: 12.5px var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+  .explain { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-top: 18px; }
+  #exSvg { display: block; width: 100%; height: auto; max-height: 380px; background: #fff; border: 1px solid var(--sage-2); border-radius: 8px; }
+  #exSvg line { cursor: pointer; }
+  .syms { font: 14px/1.9 var(--mono); background: #fff; border: 1px solid var(--sage-2); border-radius: 6px; padding: 8px; max-height: 190px; overflow: auto; overflow-wrap: anywhere; margin: 8px 0; }
+  .syms span { padding: 1px 1px; border-radius: 3px; color: #9aa092; }
+  .syms span.done { color: var(--ink); }
+  .syms span.draw.done { color: var(--accent); font-weight: 700; }
+  .syms span.cur { background: var(--accent); color: #fff !important; }
+  .caption { font-size: 14px; background: #fff; border-left: 3px solid var(--accent); padding: 6px 10px; border-radius: 0 6px 6px 0; min-height: 3.2em; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font: 12.5px var(--mono); color: var(--muted); margin: 6px 0 0; padding: 0; list-style: none; }
+  footer { margin-top: 26px; text-align: center; font-size: 13px; color: var(--muted); }
+  @media (max-width: 900px) { .layout, .explain { grid-template-columns: minmax(0, 1fr); } .head { grid-template-columns: minmax(0, 1fr); } .latin { text-align: left; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <div class="head">
+    <div>
+      <p class="eyebrow">Lindenmayer systems · stochastic rewriting</p>
+      <h1>Live Oak</h1>
+      <p class="lede">A few rewriting rules, applied over and over with a seeded coin toss, grow a string of symbols; a turtle walks the string and draws. Tuned the right way, it comes out low, wide and sprawling like a Texas live oak, with Spanish moss hanging off the long limbs.</p>
+    </div>
+    <p class="latin">Quercus virginiana<br><small>with Tillandsia usneoides</small></p>
+  </div>
+
+  <div class="layout">
+    <div>
+      <section class="card stage" aria-labelledby="h-tree">
+        <h2 id="h-tree" class="vh" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">The tree</h2>
+        <canvas id="cv" width="960" height="600" role="img" aria-label="Generated tree" data-testid="canvas"></canvas>
+        <div class="readout" aria-live="polite" id="readout">
+          <span>seed <b id="rSeed" data-testid="seed-out">–</b></span>
+          <span>symbols <b id="rLen" data-testid="length">–</b></span>
+          <span>segments <b id="rSeg" data-testid="segments">–</b></span>
+          <span>leaf clusters <b id="rLeaf" data-testid="leaves">–</b></span>
+          <span>moss strands <b id="rMoss" data-testid="moss">–</b></span>
+          <span>spread : height <b id="rRatio" data-testid="ratio">–</b></span>
+        </div>
+        <p class="err" id="warn" data-testid="warn" role="status"></p>
+        <p class="note" id="seasonNote" data-testid="season-note"></p>
+      </section>
+    </div>
+
+    <div>
+      <section class="card" aria-labelledby="h-grow">
+        <h2 id="h-grow">Grow</h2>
+        <div class="field"><label for="preset">Preset</label>
+          <select id="preset" data-testid="preset"><option value="oak">Texas live oak (stochastic)</option><option value="plant">Fractal plant (Lindenmayer, 1968 style)</option><option value="koch">Koch curve</option><option value="quad">Quadratic Koch curve</option><option value="algae">Algae (A → AB, B → A)</option></select></div>
+        <div class="two">
+          <div class="field"><label for="seed">Seed</label><input id="seed" type="number" min="1" step="1" data-testid="seed"></div>
+          <div class="field" style="display:flex;align-items:flex-end"><button type="button" class="btn ghost" id="reseed" data-testid="reseed" style="width:100%">New seed</button></div>
+        </div>
+        <div class="field"><label for="iter">Iterations <output id="iterOut" for="iter" data-testid="iter-out">7</output></label><input id="iter" type="range" min="0" max="8" step="1" data-testid="iter"></div>
+        <div class="field"><label for="angle">Branching angle <output id="angleOut" for="angle" data-testid="angle-out">22°</output></label><input id="angle" type="range" min="5" max="90" step="1" data-testid="angle"></div>
+        <div class="field"><label for="rand">Randomness <output id="randOut" for="rand" data-testid="rand-out">35%</output></label><input id="rand" type="range" min="0" max="100" step="1" data-testid="rand"></div>
+        <div class="field"><label for="sprawl">Sprawl (pull toward level) <output id="sprawlOut" for="sprawl" data-testid="sprawl-out">60%</output></label><input id="sprawl" type="range" min="0" max="100" step="1" data-testid="sprawl"></div>
+      </section>
+      <section class="card" aria-labelledby="h-when">
+        <h2 id="h-when">When</h2>
+        <div class="two">
+          <div class="field"><label for="season">Season</label><select id="season" data-testid="season"><option value="winter">Winter</option><option value="spring">Spring</option><option value="summer" selected>Summer</option><option value="fall">Fall</option></select></div>
+          <div class="field"><label for="tod">Time of day</label><select id="tod" data-testid="tod"><option value="dawn">Dawn</option><option value="noon" selected>Midday</option><option value="dusk">Dusk</option><option value="night">Night</option></select></div>
+        </div>
+        <label class="chk"><input type="checkbox" id="mossOn" data-testid="moss-on" checked> Spanish moss</label>
+      </section>
+      <section class="card" aria-labelledby="h-rules">
+        <h2 id="h-rules">Axiom &amp; rules</h2>
+        <div class="field"><label for="axiom">Axiom</label><input id="axiom" type="text" spellcheck="false" autocomplete="off" data-testid="axiom" style="font-family:var(--mono)"></div>
+        <div class="field"><label for="rules">Rules <span style="text-transform:none;letter-spacing:0">one per line: <code>X -> FX</code> or <code>X (0.4) -> FX</code></span></label><textarea id="rules" spellcheck="false" data-testid="rules" aria-describedby="ruleErr symHelp"></textarea></div>
+        <p class="err" id="ruleErr" data-testid="rule-error" role="alert"></p>
+        <p class="note" id="symHelp">F, G draw forward · f moves without drawing · + − turn left / right · [ ] save / restore the turtle · | turns round · L hangs a leaf cluster · any other letter just rewrites.</p>
+        <p class="lbl" style="margin-top:8px">Length after each iteration</p>
+        <div class="lengths" id="lengths" data-testid="lengths"></div>
+        <div class="string" id="strOut" data-testid="string" tabindex="0" aria-label="The rewritten string"></div>
+      </section>
+    </div>
+  </div>
+
+  <section class="card explain" aria-labelledby="h-ex">
+    <div>
+      <h2 id="h-ex">Turtle graphics, symbol by symbol</h2>
+      <p class="note" style="margin-top:0">The same rules at a small iteration count, walked one symbol at a time with no jitter or sprawl, so every segment lines up exactly with the symbol that drew it. Click a segment to find its symbol.</p>
+      <div class="row" style="margin-top:8px">
+        <label class="chk" for="exIter">Iterations</label>
+        <select id="exIter" data-testid="ex-iter" style="width:auto"><option>1</option><option selected>2</option><option>3</option></select>
+        <button type="button" class="btn ghost" id="exPrev" data-testid="ex-prev" aria-label="Previous symbol">◀</button>
+        <button type="button" class="btn ghost" id="exNext" data-testid="ex-next" aria-label="Next symbol">▶</button>
+        <button type="button" class="btn ghost" id="exEnd" data-testid="ex-end">Draw all</button>
+      </div>
+      <div class="field" style="margin-top:8px"><label for="exStep">Symbol <output id="exStepOut" data-testid="ex-step-out">1</output></label><input id="exStep" type="range" min="0" max="0" value="0" data-testid="ex-step"></div>
+      <div class="caption" id="exCap" data-testid="ex-caption" aria-live="polite"></div>
+      <div class="syms" id="exSyms" data-testid="ex-syms" aria-hidden="true"></div>
+      <ul class="legend"><li>F G: segment</li><li>+ −: turn</li><li>[ ]: branch</li><li>L: leaves</li></ul>
+    </div>
+    <div><svg id="exSvg" viewBox="0 0 100 100" role="img" aria-label="Turtle drawing" data-testid="ex-svg"></svg></div>
+  </section>
+  <footer>Built by Zac Corbett · after Lindenmayer (1968) and Prusinkiewicz &amp; Lindenmayer, <em>The Algorithmic Beauty of Plants</em> (1990) · add <code>?seed=</code> for a repeatable tree</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const MAX_SYMBOLS = 200000;
+  const rad = (d) => d * Math.PI / 180;
+
+  // ---------- rules ----------
+  function parseRules(text) {
+    const rules = new Map(), errors = [];
+    text.split('\n').forEach((raw, i) => {
+      const line = raw.replace(/#.*$/, '').trim();
+      if (!line) return;
+      const m = line.match(/^(\S)\s*(?:\(\s*([0-9]*\.?[0-9]+)\s*\))?\s*(?:->|→)\s*(\S*)$/);
+      if (!m) { errors.push(`Line ${i + 1}: write a rule as "X -> FX" or "X (0.4) -> FX".`); return; }
+      const w = m[2] === undefined ? 1 : parseFloat(m[2]);
+      if (!(w > 0)) { errors.push(`Line ${i + 1}: a rule's weight must be more than 0.`); return; }
+      if (!rules.has(m[1])) rules.set(m[1], []);
+      rules.get(m[1]).push({ w, s: m[3] });
+    });
+    return { rules, errors };
+  }
+  /** Rewrites in parallel n times. A symbol with several rules picks one by weight with the seeded RNG. */
+  function rewrite(axiom, rules, n, seed) {
+    const rng = mulberry32(seed);
+    let s = axiom;
+    const lengths = [s.length];
+    let stopped = null;
+    for (let it = 0; it < n; it++) {
+      const out = [];
+      let len = 0;
+      for (let i = 0; i < s.length; i++) {
+        const c = s[i], opts = rules.get(c);
+        let r = c;
+        if (opts) {
+          if (opts.length === 1) r = opts[0].s;
+          else {
+            const tot = opts.reduce((a, o) => a + o.w, 0);
+            let u = rng() * tot;
+            r = opts[opts.length - 1].s;
+            for (const o of opts) { if (u < o.w) { r = o.s; break; } u -= o.w; }
+          }
+        }
+        out.push(r); len += r.length;
+        if (len > MAX_SYMBOLS) break;
+      }
+      if (len > MAX_SYMBOLS) { stopped = it; break; }
+      s = out.join('');
+      lengths.push(s.length);
+    }
+    return { str: s, lengths, stopped };
+  }
+
+  // ---------- turtle ----------
+  /**
+   * Walks the string. Heading is in degrees, maths convention (0 = +x, 90 = up), y up.
+   * o: { angle, heading, len, lenScale, widthScale, width, jitter (0..1), sprawl (0..1), rng, keep }
+   */
+  function turtle(str, o) {
+    const rng = o.rng || (() => 0.5);
+    const J = o.jitter || 0, SP = o.sprawl || 0;
+    let x = 0, y = 0, h = o.heading ?? 90, len = o.len ?? 1, w = o.width ?? 1, depth = 0;
+    const stack = [], segs = [], leaves = [];
+    let minX = 0, maxX = 0, minY = 0, maxY = 0;
+    const jit = () => (J ? 1 + J * (rng() * 2 - 1) * 0.5 : 1);
+    for (let i = 0; i < str.length; i++) {
+      const c = str[i];
+      if (c === 'F' || c === 'G' || c === 'f') {
+        if (SP && depth > 0) {                                  // tropism: limbs bend toward the horizontal on the side they lean
+          const lean = Math.cos(rad(h)) >= 0 ? -8 : 188;
+          h += (lean - h) * SP * 0.13;
+        }
+        const L = len * jit();
+        const nx = x + L * Math.cos(rad(h)), ny = y + L * Math.sin(rad(h));
+        if (c !== 'f') segs.push({ x1: x, y1: y, x2: nx, y2: ny, w, depth, i, sym: c });
+        x = nx; y = ny;
+        if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
+      } else if (c === '+') h += o.angle * jit();
+      else if (c === '-') h -= o.angle * jit();
+      else if (c === '|') h += 180;
+      else if (c === '[') { stack.push([x, y, h, len, w, depth]); depth++; len *= o.lenScale ?? 1; w *= o.widthScale ?? 1; }
+      else if (c === ']') { if (stack.length) [x, y, h, len, w, depth] = stack.pop(); }
+      else if (c === 'L') leaves.push({ x, y, i, depth });
+    }
+    return { segs, leaves, end: { x, y, h }, bounds: { minX, maxX, minY, maxY } };
+  }
+
+  // ---------- presets ----------
+  const PRESETS = {
+    oak: { kind: 'tree', axiom: 'FFA', iter: 7, angle: 22, rand: 35, sprawl: 70, heading: 90, lenScale: 0.86, widthScale: 0.64,
+      rules: '# trunk splits low into big spreading limbs\nA (0.5) -> [+++FFB][----FFFB]F[+FB][-FB]FB\nA (0.5) -> [++++FFFB][---FFB][-FFB]F[+FB]FB\n# limbs fork, reach, and end in leaf clusters\nB (0.45) -> F[+FB]F[-FB]L\nB (0.35) -> F[-FB][+FB]FBL\nB (0.2) -> FF[+FB]L' },
+    plant: { kind: 'tree', axiom: 'X', iter: 5, angle: 25, rand: 0, sprawl: 0, heading: 65, lenScale: 1, widthScale: 0.9, rules: 'X -> F+[[X]-X]-F[-FX]+X\nF -> FF' },
+    koch: { kind: 'curve', axiom: 'F', iter: 4, angle: 60, rand: 0, sprawl: 0, heading: 0, lenScale: 1, widthScale: 1, rules: 'F -> F+F--F+F' },
+    quad: { kind: 'curve', axiom: 'F', iter: 3, angle: 90, rand: 0, sprawl: 0, heading: 0, lenScale: 1, widthScale: 1, rules: 'F -> F+F-F-F+F' },
+    algae: { kind: 'curve', axiom: 'A', iter: 5, angle: 90, rand: 0, sprawl: 0, heading: 0, lenScale: 1, widthScale: 1, rules: 'A -> AB\nB -> A' },
+  };
+
+  // ---------- state ----------
+  let SEED = (parseInt(params.get('seed'), 10) >>> 0) || 1854;
+  let preset = 'oak';
+  const P = { ...PRESETS.oak };
+  let season = 'summer', tod = 'noon', mossOn = true;
+  let good = null;               // last successful build
+  let last = null;
+
+  function build() {
+    const { rules, errors } = parseRules($('rules').value);
+    const axiom = $('axiom').value.trim();
+    $('ruleErr').textContent = errors.length ? errors.join(' ') + ' Showing the last tree that worked.' : !axiom ? 'The axiom is empty: give the system a starting string.' : '';
+    if (errors.length || !axiom) { publish(); return; }
+    const rw = rewrite(axiom, rules, P.iter, SEED);
+    const t = turtle(rw.str, { angle: P.angle, heading: P.heading, len: 10, lenScale: P.lenScale, widthScale: P.widthScale, width: P.kind === 'tree' ? 24 : 1.5,
+      jitter: P.rand / 100, sprawl: P.sprawl / 100, rng: mulberry32((SEED ^ 0x9e3779b9) >>> 0) });
+    good = { axiom, rules, rw, t };
+    draw();
+    explainBuild();
+  }
+
+  // ---------- drawing ----------
+  const cv = $('cv'), ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height, GROUND = H - 70;
+  const SKY = {
+    dawn: ['#f3b58a', '#f7d9b8', '#e8d7c2'], noon: ['#8fc3e6', '#cfe6f3', '#e9f0e6'], dusk: ['#3d3a6b', '#c86b5a', '#f0b27a'], night: ['#0b1426', '#1d2c4a', '#34405a'],
+  };
+  const DIM = { dawn: 0.9, noon: 1, dusk: 0.75, night: 0.42 };
+  function shade(hex, k) { const n = parseInt(hex.slice(1), 16); const r = Math.round(((n >> 16) & 255) * k), g = Math.round(((n >> 8) & 255) * k), b = Math.round((n & 255) * k); return `rgb(${r},${g},${b})`; }
+  function draw() {
+    if (!good) return;
+    const { t, rw } = good;
+    const tree = P.kind === 'tree';
+    const deco = mulberry32((SEED ^ 0x51ed) >>> 0);
+    const k = tree ? DIM[tod] : 1;
+    // background
+    if (tree) {
+      const g = ctx.createLinearGradient(0, 0, 0, GROUND);
+      SKY[tod].forEach((c, i) => g.addColorStop(i / 2, c));
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      if (tod === 'night') { for (let i = 0; i < 90; i++) { ctx.fillStyle = `rgba(255,255,255,${0.3 + deco() * 0.6})`; ctx.fillRect(deco() * W, deco() * GROUND * 0.7, 1.5, 1.5); } ctx.fillStyle = '#f2efe0'; ctx.beginPath(); ctx.arc(W * 0.82, 80, 22, 0, 7); ctx.fill(); }
+      else { const sx = tod === 'dawn' ? W * 0.12 : tod === 'dusk' ? W * 0.88 : W * 0.7, sy = tod === 'noon' ? 70 : GROUND - 60; ctx.fillStyle = tod === 'noon' ? 'rgba(255,248,210,.95)' : 'rgba(255,214,150,.9)'; ctx.beginPath(); ctx.arc(sx, sy, tod === 'noon' ? 30 : 38, 0, 7); ctx.fill(); }
+      ctx.fillStyle = shade('#8c9a5b', k); ctx.fillRect(0, GROUND, W, H - GROUND);
+      ctx.fillStyle = shade('#6f7d45', k); for (let i = 0; i < 160; i++) ctx.fillRect(deco() * W, GROUND + deco() * (H - GROUND), 2, 5);
+    } else { ctx.fillStyle = '#fbfaf3'; ctx.fillRect(0, 0, W, H); }
+    // fit
+    const b = t.bounds;
+    const hang = tree ? 0.2 : 0;                                       // room below the limbs for moss
+    const spanX = Math.max(1e-6, b.maxX - b.minX), spanY = Math.max(1e-6, b.maxY - b.minY);
+    const availW = W * 0.9, availH = tree ? (GROUND - 30) : H * 0.86;
+    const sc = Math.min(availW / spanX, availH / (spanY * (1 + hang)));
+    const ox = W / 2 - ((b.minX + b.maxX) / 2) * sc;
+    const oy = tree ? GROUND - (0 - b.minY) * 0 : H / 2 + ((b.minY + b.maxY) / 2) * sc;
+    const X = (x) => ox + x * sc, Y = (y) => (tree ? GROUND - (y - Math.min(0, b.minY)) * sc : oy - y * sc);
+    // branches, thick first
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = tree ? shade('#3b2f25', k) : '#22281f';
+    const wScale = tree ? Math.max(0.5, sc / 4.5) : 1;
+    const segs = t.segs;
+    const order = tree ? segs.slice().sort((a, b2) => b2.w - a.w) : segs;
+    for (const s of order) {
+      ctx.lineWidth = Math.max(tree ? 0.8 : 1.2, s.w * wScale);
+      ctx.beginPath(); ctx.moveTo(X(s.x1), Y(s.y1)); ctx.lineTo(X(s.x2), Y(s.y2)); ctx.stroke();
+    }
+    // leaves: live oaks are evergreen; in spring old leaves yellow and drop as the new flush and catkins come
+    let leafN = 0;
+    if (tree) {
+      const pal = { winter: ['#3a5230', '#44603a'], spring: ['#9cc253', '#b9d86a', '#c4a13e', '#a8873a'], summer: ['#2f4b28', '#3c5b31', '#4a6b3b'], fall: ['#34502c', '#40603a', '#536f3f'] }[season];
+      const r0 = Math.max(3, Math.min(12, sc * 1.5));
+      for (const lf of t.leaves) {
+        leafN++;
+        const cx = X(lf.x), cy = Y(lf.y);
+        for (let j = 0; j < 6; j++) {
+          ctx.fillStyle = shade(pal[Math.floor(deco() * pal.length)], k);
+          ctx.beginPath(); ctx.ellipse(cx + (deco() - 0.5) * r0 * 3, cy + (deco() - 0.5) * r0 * 2, r0, r0 * 0.6, deco() * 3, 0, 7); ctx.fill();
+        }
+        if (season === 'spring' && deco() < 0.25) { ctx.strokeStyle = shade('#c9b04a', k); ctx.lineWidth = 1.2; for (let j = 0; j < 3; j++) { const x0 = cx + (deco() - 0.5) * r0 * 2; ctx.beginPath(); ctx.moveTo(x0, cy); ctx.lineTo(x0 + (deco() - 0.5) * 3, cy + r0 * 1.6); ctx.stroke(); } }
+        if (season === 'fall' && deco() < 0.18) { ctx.fillStyle = shade('#6b4a26', k); ctx.beginPath(); ctx.ellipse(cx + 3, cy + r0, 2.2, 3.2, 0, 0, 7); ctx.fill(); }
+      }
+      if (season === 'spring') {
+        for (let i = 0; i < 70; i++) { ctx.fillStyle = shade(['#c4a13e', '#a8873a', '#b58f3a'][i % 3], k); const x = X(b.minX) + deco() * (X(b.maxX) - X(b.minX)), y = GROUND - deco() * (GROUND * 0.55); ctx.beginPath(); ctx.ellipse(x, y, 3.5, 2, deco() * 3, 0, 7); ctx.fill(); }
+        for (let i = 0; i < 60; i++) { ctx.fillStyle = shade('#b0913e', k); ctx.beginPath(); ctx.ellipse(X(b.minX) + deco() * (X(b.maxX) - X(b.minX)), GROUND + 4 + deco() * 30, 3.5, 1.8, deco() * 3, 0, 7); ctx.fill(); }
+      }
+    }
+    // Spanish moss: drapes from the long, near-level limbs
+    const mrng = mulberry32((SEED ^ 0x3055) >>> 0);           // its own stream, so moss never shifts with the season
+    let moss = 0;
+    if (tree && mossOn) {
+      ctx.lineWidth = 1;
+      for (const s of segs) {
+        if (s.depth < 2) continue;
+        const dx = s.x2 - s.x1, dy = s.y2 - s.y1, L = Math.hypot(dx, dy);
+        if (!L || Math.abs(dy / L) > 0.55) continue;
+        if (mrng() > 0.34 || moss >= 320) continue;
+        moss++;
+        const f = mrng(), mx = X(s.x1 + dx * f), my = Y(s.y1 + dy * f);
+        const len = (14 + mrng() * 42) * Math.min(1.4, Math.max(0.6, sc / 8));
+        ctx.strokeStyle = tod === 'night' ? 'rgba(130,140,128,.6)' : 'rgba(150,160,140,.85)';
+        for (let j = 0; j < 4; j++) {
+          const off = (j - 1.5) * 2.2, l = len * (0.6 + mrng() * 0.5), sway = (mrng() - 0.5) * 8;
+          ctx.beginPath(); ctx.moveTo(mx + off, my);
+          ctx.quadraticCurveTo(mx + off + sway, my + l * 0.55, mx + off + sway * 0.4, my + l); ctx.stroke();
+        }
+      }
+    }
+    // readouts
+    const ratio = spanY > 0 ? spanX / spanY : 0;
+    let h = 2166136261;
+    for (const s of segs) for (const v of [s.x1, s.y1, s.x2, s.y2]) { const q = Math.round(v * 100); h ^= q & 0xffff; h = Math.imul(h, 16777619) >>> 0; h ^= (q >>> 16) & 0xffff; h = Math.imul(h, 16777619) >>> 0; }
+    last = { seed: SEED, preset, iterations: P.iter, angle: P.angle, randomness: P.rand, sprawl: P.sprawl, length: rw.str.length, lengths: rw.lengths, stopped: rw.stopped,
+      segments: segs.length, leaves: t.leaves.length, moss, hash: h.toString(16), end: t.end, bounds: t.bounds, ratio, season, tod, str: rw.str.length <= 4000 ? rw.str : null };
+    publish();
+  }
+  function publish() {
+    const L = last;
+    if (!L) return;
+    $('rSeed').textContent = L.seed; $('rLen').textContent = L.length.toLocaleString('en-US'); $('rSeg').textContent = L.segments.toLocaleString('en-US');
+    $('rLeaf').textContent = L.leaves; $('rMoss').textContent = L.moss; $('rRatio').textContent = L.ratio ? `${L.ratio.toFixed(2)} : 1` : '–';
+    $('warn').textContent = L.stopped !== null ? `Stopped after ${L.stopped} iteration${L.stopped === 1 ? '' : 's'}: the next would pass ${MAX_SYMBOLS.toLocaleString('en-US')} symbols.` : L.segments === 0 ? 'Nothing to draw: this string has no F or G symbols. The rewriting is still shown below.' : '';
+    $('lengths').textContent = L.lengths.map((n, i) => `n${i}: ${n}`).join(' · ');
+    const s = good.rw.str;
+    $('strOut').textContent = s.length > 3000 ? s.slice(0, 3000) + ` … (${(s.length - 3000).toLocaleString('en-US')} more)` : s;
+    const noun = P.kind === 'tree' ? (preset === 'oak' ? 'live oak' : 'plant') : 'curve';
+    cv.setAttribute('aria-label', `A generated ${noun}, seed ${L.seed}: ${L.segments} segments after ${L.lengths.length - 1} iterations${P.kind === 'tree' ? `, ${L.leaves} leaf clusters, ${L.moss} strands of Spanish moss, ${season} at ${tod === 'noon' ? 'midday' : tod}, about ${L.ratio.toFixed(1)} times as wide as it is tall` : ''}.`);
+    $('seasonNote').textContent = P.kind !== 'tree' ? '' : {
+      winter: 'Winter: still green. Live oaks are evergreen, holding their leaves through the cold.',
+      spring: 'Spring: live oaks drop last year\'s leaves as the new ones push out, so the yellowed old leaves fall while fresh green and catkins appear.',
+      summer: 'Summer: a dense, dark-green crown, the shade every Texas picnic table wants.',
+      fall: 'Fall: still green, with the season\'s acorns ripening among the leaves.',
+    }[season];
+  }
+
+  // ---------- explainer ----------
+  let ex = null;
+  function explainBuild() {
+    if (!good) return;
+    const n = Math.min(+$('exIter').value, P.iter);
+    const rw = rewrite(good.axiom, good.rules, n, SEED);
+    const str = rw.str.slice(0, 400);
+    const t = turtle(str, { angle: P.angle, heading: P.heading, len: 10, lenScale: P.lenScale, widthScale: 1, width: 1, jitter: 0, sprawl: 0 });
+    ex = { str, t, truncated: rw.str.length > 400, n };
+    const r = $('exStep');
+    r.max = Math.max(0, str.length - 1);
+    r.value = Math.max(0, str.length - 1);
+    const b = t.bounds, pad = 8;
+    const spanX = Math.max(10, b.maxX - b.minX), spanY = Math.max(10, b.maxY - b.minY);
+    $('exSvg').setAttribute('viewBox', `${b.minX - pad} ${-b.maxY - pad} ${spanX + 2 * pad} ${spanY + 2 * pad}`);
+    const sw = Math.max(spanX, spanY) / 160;
+    const segSvg = t.segs.map((s, j) => `<line x1="${s.x1.toFixed(2)}" y1="${(-s.y1).toFixed(2)}" x2="${s.x2.toFixed(2)}" y2="${(-s.y2).toFixed(2)}" data-i="${s.i}" data-testid="ex-seg" stroke-width="${(sw * 2.4).toFixed(3)}" stroke-linecap="round"><title>segment ${j + 1}, drawn by symbol ${s.i + 1} (${s.sym})</title></line>`).join('');
+    const leafSvg = t.leaves.map((l) => `<circle cx="${l.x.toFixed(2)}" cy="${(-l.y).toFixed(2)}" r="${(sw * 3).toFixed(3)}" data-i="${l.i}" class="lf"/>`).join('');
+    $('exSvg').innerHTML = `<g id="exSegs">${segSvg}</g><g id="exLeaves">${leafSvg}</g><circle id="exTurtle" r="${(sw * 4).toFixed(3)}" fill="#a3662b"/>`;
+    $('exSyms').innerHTML = [...str].map((c, i) => `<span data-i="${i}" class="${'FG'.includes(c) ? 'draw' : ''}">${c.replace('<', '&lt;')}</span>`).join('') + (ex.truncated ? ' …' : '');
+    exShow();
+  }
+  function exShow() {
+    if (!ex) return;
+    const k = +$('exStep').value, { str, t } = ex;
+    $('exStepOut').textContent = str.length ? `${k + 1} of ${str.length}${ex.truncated ? '+' : ''}` : '0';
+    const segs = $('exSegs').children;
+    let hot = null;
+    for (const el of segs) {
+      const i = +el.dataset.i;
+      el.setAttribute('stroke', i === k ? '#c0392b' : i < k ? '#3b2f25' : '#e1e3d8');
+      el.setAttribute('data-state', i === k ? 'hot' : i < k ? 'done' : 'todo');
+      if (i === k) { hot = el; el.setAttribute('data-testid', 'ex-hot'); } else el.setAttribute('data-testid', 'ex-seg');
+    }
+    for (const el of $('exLeaves').children) el.setAttribute('fill', +el.dataset.i <= k ? '#4a6b3b' : '#e1e3d8');
+    $('exSyms').querySelectorAll('span').forEach((sp) => { const i = +sp.dataset.i; sp.classList.toggle('done', i <= k); sp.classList.toggle('cur', i === k); if (i === k) sp.setAttribute('data-testid', 'ex-cur'); else sp.removeAttribute('data-testid'); });
+    // turtle position after symbol k
+    const pos = walkTo(k);
+    const tu = $('exTurtle'); tu.setAttribute('cx', pos.x.toFixed(2)); tu.setAttribute('cy', (-pos.y).toFixed(2));
+    const c = str[k];
+    const segNo = t.segs.findIndex((s) => s.i === k);
+    const desc = c === undefined ? 'Nothing to walk: the string is empty.'
+      : 'FG'.includes(c) ? `${c}: draw forward one step. That's segment ${segNo + 1} of ${t.segs.length}, shown in red.`
+      : c === 'f' ? 'f: move forward one step without drawing.'
+      : c === '+' ? `+: turn left ${P.angle}°. The heading is now ${pos.h.toFixed(0)}°.`
+      : c === '-' ? `−: turn right ${P.angle}°. The heading is now ${pos.h.toFixed(0)}°.`
+      : c === '[' ? `[: save the turtle's place and heading and start a branch (depth ${pos.depth}).`
+      : c === ']' ? `]: go back to the saved place: the branch is finished (depth ${pos.depth}).`
+      : c === '|' ? '|: turn round, 180°.'
+      : c === 'L' ? 'L: hang a leaf cluster here.'
+      : `${c}: draws nothing. It is only there to be rewritten at the next iteration.`;
+    $('exCap').textContent = `Symbol ${k + 1}, “${c ?? ''}”. ${desc}`;
+    ex.cur = { k, sym: c, seg: segNo, pos };
+  }
+  function walkTo(k) {
+    let x = 0, y = 0, h = P.heading, len = 10, depth = 0; const st = [];
+    for (let i = 0; i <= k && i < ex.str.length; i++) {
+      const c = ex.str[i];
+      if ('FGf'.includes(c)) { x += len * Math.cos(rad(h)); y += len * Math.sin(rad(h)); }
+      else if (c === '+') h += P.angle; else if (c === '-') h -= P.angle; else if (c === '|') h += 180;
+      else if (c === '[') { st.push([x, y, h, len, depth]); depth++; len *= P.lenScale; }
+      else if (c === ']') { if (st.length) [x, y, h, len, depth] = st.pop(); }
+    }
+    return { x, y, h: ((h % 360) + 360) % 360, depth };
+  }
+  $('exStep').addEventListener('input', exShow);
+  $('exPrev').addEventListener('click', () => { $('exStep').value = Math.max(0, +$('exStep').value - 1); exShow(); });
+  $('exNext').addEventListener('click', () => { $('exStep').value = Math.min(+$('exStep').max, +$('exStep').value + 1); exShow(); });
+  $('exEnd').addEventListener('click', () => { $('exStep').value = $('exStep').max; exShow(); });
+  $('exIter').addEventListener('change', explainBuild);
+  $('exSvg').addEventListener('click', (e) => { const l = e.target.closest('line'); if (!l) return; $('exStep').value = l.dataset.i; exShow(); $('exStep').focus(); });
+
+  // ---------- controls ----------
+  function syncControls() {
+    $('seed').value = SEED; $('iter').value = P.iter; $('angle').value = P.angle; $('rand').value = P.rand; $('sprawl').value = P.sprawl;
+    $('iterOut').textContent = P.iter; $('angleOut').textContent = P.angle + '°'; $('randOut').textContent = P.rand + '%'; $('sprawlOut').textContent = P.sprawl + '%';
+  }
+  function loadPreset(id) {
+    preset = id; Object.assign(P, PRESETS[id]);
+    $('axiom').value = P.axiom; $('rules').value = P.rules; $('preset').value = id;
+    syncControls(); build();
+  }
+  const bindRange = (id, key) => $(id).addEventListener('input', () => { P[key] = +$(id).value; syncControls(); build(); });
+  bindRange('iter', 'iter'); bindRange('angle', 'angle'); bindRange('rand', 'rand'); bindRange('sprawl', 'sprawl');
+  $('preset').addEventListener('change', () => loadPreset($('preset').value));
+  $('axiom').addEventListener('input', build);
+  $('rules').addEventListener('input', build);
+  function setSeed(s) {
+    SEED = (s >>> 0) || 1;
+    try { const u = new URL(location.href); u.searchParams.set('seed', SEED); history.replaceState(null, '', u); } catch (e) { /* ignore */ }
+    syncControls(); build();
+  }
+  $('seed').addEventListener('change', () => setSeed(parseInt($('seed').value, 10)));
+  $('reseed').addEventListener('click', () => setSeed(Math.floor(Math.random() * 999999) + 1));
+  $('season').addEventListener('change', () => { season = $('season').value; draw(); });
+  $('tod').addEventListener('change', () => { tod = $('tod').value; draw(); });
+  $('mossOn').addEventListener('change', () => { mossOn = $('mossOn').checked; draw(); });
+
+  window.__oak = {
+    get state() { return last ? JSON.parse(JSON.stringify(last)) : null; },
+    get explainer() { return ex ? JSON.parse(JSON.stringify({ str: ex.str, n: ex.n, segs: ex.t.segs.map((s) => ({ i: s.i, sym: s.sym })), cur: ex.cur })) : null; },
+    segments: () => (good ? good.t.segs.map((s) => [s.x1, s.y1, s.x2, s.y2].map((v) => Math.round(v * 1000) / 1000)) : []),
+    rewrite: (axiom, rulesText, n, seed = 1) => { const p = parseRules(rulesText); if (p.errors.length) return { errors: p.errors }; const r = rewrite(axiom, p.rules, n, seed); return { str: r.str.length <= 20000 ? r.str : null, length: r.str.length, lengths: r.lengths, stopped: r.stopped }; },
+    turtle: (str, angle, heading = 0) => { const t = turtle(str, { angle, heading, len: 1 }); return { segments: t.segs.length, end: t.end }; },
+    maxSymbols: MAX_SYMBOLS,
+  };
+  loadPreset('oak');
+})();
+</script>
+</body>
+</html>

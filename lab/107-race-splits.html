@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Race Splits — a pace planner for 5K to marathon</title>
+<meta name="description" content="Predict a race time from a recent result with Riegel's formula, T2 = T1 × (D2/D1)^1.06 (exponent editable), then build an even, negative or positive split plan with per-mile or per-kilometre splits in a chart and a table, cumulative times, and an optional altitude tip.">
+<style>
+  :root {
+    --tartan: #b8412c;
+    --tartan-2: #943220;
+    --infield: #2f6b3f;
+    --chalk: #fdfbf7;
+    --paper: #f4efe7;
+    --ink: #1d1b19;
+    --ink-2: #4b4640;
+    --muted: #756d63;
+    --lane: #e9e1d4;
+    --fast: #2f6b3f;
+    --slow: #b8412c;
+    --even: #3b5b8a;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --cond: "Bahnschrift", "DIN Alternate", "Arial Narrow", "Roboto Condensed", "Segoe UI", sans-serif;
+    --mono: "Consolas", "SFMono-Regular", "Menlo", "Liberation Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--paper); color: var(--ink); font: 15px/1.5 var(--sans); overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--even); outline-offset: 2px; }
+  a { color: var(--tartan-2); }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: var(--chalk); background: var(--ink); text-decoration: none; font: 600 13px/1 var(--sans); padding: 8px 12px; border-radius: 3px; }
+  a.back:hover { background: var(--tartan); }
+  .track { background: var(--tartan); color: var(--chalk); padding: 58px 16px 22px;
+    background-image: repeating-linear-gradient(180deg, transparent 0 34px, rgba(255,255,255,.55) 34px 36px); }
+  .track .in { max-width: 1120px; margin: 0 auto; }
+  .eyebrow { margin: 0; font: 700 12px/1.3 var(--cond); letter-spacing: .24em; text-transform: uppercase; }
+  h1 { margin: 6px 0 4px; font: 700 clamp(42px, 8vw, 84px)/.95 var(--cond); letter-spacing: -.01em; text-transform: uppercase; overflow-wrap: anywhere; }
+  .lede { margin: 6px 0 0; max-width: 62ch; background: rgba(0,0,0,.18); padding: 6px 10px; border-radius: 3px; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 18px 16px 40px; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr); gap: 18px; align-items: start; }
+  .card { background: var(--chalk); border: 1px solid var(--lane); border-top: 5px solid var(--ink); border-radius: 4px; padding: 14px 16px; min-width: 0; }
+  h2 { font: 700 20px/1.2 var(--cond); text-transform: uppercase; letter-spacing: .04em; margin: 0 0 10px; }
+  .fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px 12px; }
+  .field { min-width: 0; }
+  .field.full { grid-column: 1 / -1; }
+  label, .lbl { display: block; font: 700 11px/1.3 var(--cond); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+  input[type=text], input[type=number], select { width: 100%; min-width: 0; max-width: 100%; font: 16px var(--mono); padding: 7px 8px; border: 1px solid #bdb3a4; border-radius: 3px; background: #fff; color: var(--ink); }
+  select { font-family: var(--sans); }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .seg { min-height: 38px; padding: 6px 12px; border: 1px solid var(--ink); background: #fff; color: var(--ink); font: 700 13px/1 var(--cond); letter-spacing: .06em; text-transform: uppercase; cursor: pointer; border-radius: 3px; }
+  .seg[aria-pressed="true"] { background: var(--ink); color: var(--chalk); }
+  .btn { min-height: 38px; padding: 6px 12px; border: 1px solid var(--tartan-2); background: var(--tartan); color: #fff; font: 700 13px/1 var(--cond); letter-spacing: .06em; text-transform: uppercase; cursor: pointer; border-radius: 3px; }
+  .err { color: #a3261b; font-weight: 600; min-height: 1.3em; margin: 4px 0 0; font-size: 13px; }
+  .predict { margin-top: 12px; background: var(--ink); color: var(--chalk); border-radius: 4px; padding: 12px 14px; }
+  .predict small { display: block; font: 700 11px/1.3 var(--cond); letter-spacing: .14em; text-transform: uppercase; color: #f0b3a6; }
+  .predict b { display: block; font: 700 clamp(36px, 8vw, 52px)/1.05 var(--mono); letter-spacing: -.02em; overflow-wrap: anywhere; }
+  .predict .eq { font: 13px/1.5 var(--mono); color: #d9d2c7; overflow-wrap: anywhere; }
+  .tip { margin-top: 12px; border-left: 4px solid var(--even); background: #eef2f8; padding: 8px 10px; font-size: 14px; }
+  .tip[hidden] { display: none; }
+  .check { display: flex; gap: 8px; align-items: center; font-size: 14px; margin-top: 12px; }
+  .check input { width: 20px; height: 20px; }
+  .summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+  .sum { background: var(--paper); border-radius: 3px; padding: 6px 8px; min-width: 0; }
+  .sum small { display: block; font: 700 10px/1.3 var(--cond); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+  .sum b { font: 700 18px/1.3 var(--mono); overflow-wrap: anywhere; }
+  #chart { display: block; width: 100%; height: auto; }
+  .tablewrap { max-height: 420px; overflow: auto; margin-top: 10px; border: 1px solid var(--lane); }
+  table { border-collapse: collapse; width: 100%; font: 14px/1.3 var(--mono); }
+  th, td { padding: 5px 8px; border-bottom: 1px solid var(--lane); text-align: right; white-space: nowrap; }
+  th { position: sticky; top: 0; background: var(--ink); color: var(--chalk); font: 700 11px/1.2 var(--cond); letter-spacing: .1em; text-transform: uppercase; }
+  td:first-child, th:first-child { text-align: left; }
+  tr.half td { border-bottom: 2px solid var(--tartan); }
+  .note { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+  footer { margin-top: 24px; text-align: center; font-size: 13px; color: var(--muted); }
+  @media (max-width: 880px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 420px) { .fields { grid-template-columns: minmax(0, 1fr); } .summary { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } th, td { padding: 5px 5px; font-size: 13px; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<header class="track">
+  <div class="in">
+    <p class="eyebrow">Riegel prediction · split planner</p>
+    <h1>Race Splits</h1>
+    <p class="lede">Start from a race you ran recently. Riegel's formula scales it to a new distance; then pick how you want to spend the effort, and get a split for every mile or kilometre.</p>
+  </div>
+</header>
+<div class="wrap">
+  <div class="layout">
+    <section class="card" aria-labelledby="p-h">
+      <h2 id="p-h">Predict</h2>
+      <div class="fields">
+        <div class="field full">
+          <span class="lbl" id="u-l">Units</span>
+          <div class="row" role="group" aria-labelledby="u-l">
+            <button type="button" class="seg" data-testid="unit-mi" aria-pressed="true">Miles</button>
+            <button type="button" class="seg" data-testid="unit-km" aria-pressed="false">Kilometres</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="d1">Recent race</label>
+          <select id="d1" data-testid="d1"></select>
+        </div>
+        <div class="field">
+          <label for="t1">Its time (h:mm:ss or mm:ss)</label>
+          <input type="text" id="t1" data-testid="t1" inputmode="numeric" autocomplete="off" value="25:00" aria-describedby="t1-err">
+        </div>
+        <div class="field" data-testid="d1-custom-wrap" hidden>
+          <label for="d1c">Recent distance (<span class="uname">mi</span>)</label>
+          <input type="number" id="d1c" data-testid="d1-custom" min="0.1" step="0.01" value="4">
+        </div>
+        <div class="field">
+          <label for="d2">Target race</label>
+          <select id="d2" data-testid="d2"></select>
+        </div>
+        <div class="field">
+          <label for="k">Riegel exponent</label>
+          <input type="number" id="k" data-testid="k" min="1" max="1.2" step="0.01" value="1.06">
+        </div>
+        <div class="field" data-testid="d2-custom-wrap" hidden>
+          <label for="d2c">Target distance (<span class="uname">mi</span>)</label>
+          <input type="number" id="d2c" data-testid="d2-custom" min="0.1" step="0.01" value="8">
+        </div>
+      </div>
+      <p class="err" id="t1-err" data-testid="t1-err" role="alert"></p>
+      <div class="predict" aria-live="polite">
+        <small>Predicted time</small>
+        <b data-testid="predicted">--</b>
+        <div class="eq" data-testid="equation"></div>
+      </div>
+
+      <h2 style="margin-top:16px" id="g-h">Plan</h2>
+      <div class="fields">
+        <div class="field">
+          <label for="goal">Goal time</label>
+          <input type="text" id="goal" data-testid="goal" inputmode="numeric" autocomplete="off" aria-describedby="goal-err">
+        </div>
+        <div class="field" style="align-self:end">
+          <button type="button" class="btn" data-testid="use-prediction">Use prediction</button>
+        </div>
+        <div class="field full">
+          <span class="lbl" id="s-l">Strategy</span>
+          <div class="row" role="group" aria-labelledby="s-l">
+            <button type="button" class="seg" data-testid="strat-even" aria-pressed="true">Even</button>
+            <button type="button" class="seg" data-testid="strat-negative" aria-pressed="false">Negative</button>
+            <button type="button" class="seg" data-testid="strat-positive" aria-pressed="false">Positive</button>
+          </div>
+        </div>
+        <div class="field full">
+          <label for="strength">Split difference: second half vs first half (%)</label>
+          <input type="number" id="strength" data-testid="strength" min="0" max="10" step="0.5" value="2">
+        </div>
+      </div>
+      <p class="err" id="goal-err" data-testid="goal-err" role="alert"></p>
+      <label class="check"><input type="checkbox" id="alt" data-testid="alt"> Racing at altitude</label>
+      <div class="tip" data-testid="alt-tip" hidden>
+        <label for="elev">Race elevation (ft)</label>
+        <input type="number" id="elev" data-testid="elev" min="0" max="14000" step="100" value="5280">
+        <p style="margin:8px 0 4px" data-testid="alt-text" aria-live="polite"></p>
+        <button type="button" class="btn" data-testid="alt-apply">Add it to the goal</button>
+        <p class="note">This is the same rough rule of thumb as the Lab's <a href="../lab/009-thin-air.html" data-testid="thin-air-link">Thin Air altitude pace calculator</a>: about 0.1 % × (thousands of feet)². Acclimatisation, heat and the individual matter more than any formula.</p>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="sp-h">
+      <h2 id="sp-h">Splits</h2>
+      <div class="summary" aria-live="polite">
+        <div class="sum"><small>Goal</small><b data-testid="sum-goal">--</b></div>
+        <div class="sum"><small>Average pace</small><b data-testid="sum-pace">--</b></div>
+        <div class="sum"><small>Halves</small><b data-testid="sum-halves">--</b></div>
+      </div>
+      <svg id="chart" data-testid="chart" viewBox="0 0 640 260" role="img" aria-label="Split pace chart"></svg>
+      <div class="tablewrap">
+        <table data-testid="split-table">
+          <thead><tr><th scope="col">Split</th><th scope="col">At</th><th scope="col">Time</th><th scope="col">Pace</th><th scope="col">Elapsed</th></tr></thead>
+          <tbody id="split-body"></tbody>
+        </table>
+      </div>
+      <p class="note">Negative and positive plans change pace steadily from start to finish; the percentage is the gap between the two halves' times relative to the even half. Split times are rounded so that they always add up to the elapsed column.</p>
+    </section>
+  </div>
+  <footer>Built by Zac Corbett · Peter Riegel, "Athletic Records and Human Endurance", <cite>American Scientist</cite>, 1981</footer>
+</div>
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const tid = (id) => document.querySelector(`[data-testid="${id}"]`);
+  const MILE = 1609.344;
+  const RACES = [
+    { key: 'mile', name: '1 mile', m: MILE },
+    { key: '5k', name: '5K', m: 5000 },
+    { key: '10k', name: '10K', m: 10000 },
+    { key: '15k', name: '15K', m: 15000 },
+    { key: 'half', name: 'Half marathon', m: 21097.5 },
+    { key: 'marathon', name: 'Marathon', m: 42195 },
+    { key: 'custom', name: 'Custom…', m: null },
+  ];
+  for (const sel of ['#d1', '#d2']) for (const r of RACES) { const o = document.createElement('option'); o.value = r.key; o.textContent = r.name; $(sel).appendChild(o); }
+  $('#d1').value = '5k'; $('#d2').value = 'half';
+
+  // ---- time helpers ----
+  function parse(s) {
+    const t = String(s).trim();
+    if (!/^\d+(:\d{1,2}){0,2}$/.test(t)) return null;
+    const p = t.split(':').map(Number);
+    if (p.length > 1 && p.slice(1).some((v) => v > 59)) return null;
+    const sec = p.reduce((acc, v) => acc * 60 + v, 0);
+    return sec > 0 ? sec : null;
+  }
+  function fmt(sec) {
+    const s = Math.round(sec), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
+    return h ? `${h}:${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}` : `${m}:${String(r).padStart(2, '0')}`;
+  }
+  const riegel = (t1, d1, d2, k) => t1 * Math.pow(d2 / d1, k);
+
+  // ---- split plan: pace p(x) = avg · (1 + a·(1 − 2x/D)), which integrates to exactly the goal ----
+  function plan(goalSec, D, unitM, strategy, pct) {
+    const a = strategy === 'even' ? 0 : (strategy === 'negative' ? 1 : -1) * pct / 100;
+    const avg = goalSec / D;                                  // s per metre
+    const T = (x) => avg * (x + a * (x - (x * x) / D));       // elapsed time at distance x
+    const segs = [];
+    let x0 = 0, i = 0;
+    while (x0 < D - 1e-9) {
+      const x1 = Math.min(D, (i + 1) * unitM);
+      const exact = T(x1) - T(x0);
+      segs.push({ n: i + 1, from: x0, to: x1, len: x1 - x0, exact, cumExact: T(x1), pace: exact / (x1 - x0) * unitM });
+      x0 = x1; i++;
+    }
+    // round cumulative times, then difference them, so rounded splits add up exactly
+    let prev = 0;
+    for (const s of segs) { s.cum = Math.round(s.cumExact); s.sec = s.cum - prev; prev = s.cum; }
+    const firstHalf = T(D / 2), secondHalf = goalSec - firstHalf;
+    return { goalSec, D, unitM, strategy, a, segs, firstHalf, secondHalf, avgPace: avg * unitM };
+  }
+
+  // ---- state ----
+  const S = { unit: 'mi', strategy: 'even', goalAuto: true, goal: null, altApplied: 0 };
+  let last = null;
+  const unitM = () => (S.unit === 'mi' ? MILE : 1000);
+  function dist(which) {
+    const key = $(`#d${which}`).value;
+    if (key !== 'custom') return RACES.find((r) => r.key === key).m;
+    const v = parseFloat($(`#d${which}c`).value);
+    return Number.isFinite(v) && v > 0 ? v * unitM() : null;
+  }
+  const fmtDist = (m) => { const v = m / unitM(); return (Math.abs(v - Math.round(v)) < 1e-9 ? v.toFixed(0) : v.toFixed(2)) + ' ' + S.unit; };
+  const altPct = (ft) => 0.1 * Math.pow(Math.max(0, ft) / 1000, 2);
+
+  function render() {
+    tid('unit-mi').setAttribute('aria-pressed', String(S.unit === 'mi'));
+    tid('unit-km').setAttribute('aria-pressed', String(S.unit === 'km'));
+    document.querySelectorAll('.uname').forEach((e) => { e.textContent = S.unit; });
+    for (const s of ['even', 'negative', 'positive']) tid('strat-' + s).setAttribute('aria-pressed', String(S.strategy === s));
+    tid('d1-custom-wrap').hidden = $('#d1').value !== 'custom';
+    tid('d2-custom-wrap').hidden = $('#d2').value !== 'custom';
+    $('#strength').disabled = S.strategy === 'even';
+
+    const t1 = parse($('#t1').value), d1 = dist(1), d2 = dist(2);
+    let kv = parseFloat($('#k').value);
+    const errs = [];
+    if (t1 === null) errs.push('Enter the recent time as h:mm:ss or mm:ss, for example 25:00.');
+    if (!d1 || !d2) errs.push('Custom distances must be greater than zero.');
+    if (!(kv >= 1 && kv <= 1.2)) errs.push('Keep the exponent between 1.00 and 1.20 (Riegel used 1.06).');
+    tid('t1-err').textContent = errs.join(' ');
+    if (errs.length) { tid('predicted').textContent = '--'; tid('equation').textContent = ''; return; }
+
+    const pred = riegel(t1, d1, d2, kv);
+    tid('predicted').textContent = fmt(pred);
+    tid('equation').textContent = `${fmt(t1)} × (${fmtDist(d2)} ÷ ${fmtDist(d1)})^${kv} = ${fmt(pred)}`;
+    if (S.goalAuto) { S.goal = Math.round(pred); $('#goal').value = fmt(S.goal); }
+
+    const g = S.goal;
+    tid('goal-err').textContent = g ? '' : 'Enter a goal time as h:mm:ss or mm:ss.';
+    if (!g) return;
+    let pct = parseFloat($('#strength').value); if (!Number.isFinite(pct)) pct = 0; pct = Math.min(10, Math.max(0, pct));
+    const P = plan(g, d2, unitM(), S.strategy, pct);
+    last = { t1, d1, d2, k: kv, predicted: pred, plan: P, unit: S.unit, goalAuto: S.goalAuto };
+
+    tid('sum-goal').textContent = fmt(g);
+    tid('sum-pace').textContent = `${fmt(P.avgPace)}/${S.unit}`;
+    tid('sum-halves').textContent = `${fmt(P.firstHalf)} + ${fmt(P.secondHalf)}`;
+
+    const tb = $('#split-body'); tb.innerHTML = '';
+    const halfIdx = P.segs.findIndex((s) => s.to >= d2 / 2 - 1e-9);
+    P.segs.forEach((s, i) => {
+      const tr = document.createElement('tr'); tr.dataset.testid = 'split-row'; if (i === halfIdx && i < P.segs.length - 1) tr.className = 'half';
+      const partial = s.len < unitM() - 1e-6;
+      tr.innerHTML = `<td>${s.n}${partial ? ' (' + (s.len / unitM()).toFixed(2) + ')' : ''}</td><td>${fmtDist(s.to)}</td><td data-testid="split-${s.n}">${fmt(s.sec)}</td><td>${fmt(s.pace)}</td><td data-testid="cum-${s.n}">${fmt(s.cum)}</td>`;
+      tb.appendChild(tr);
+    });
+    drawChart(P);
+
+    // altitude
+    const elev = parseFloat($('#elev').value) || 0, p = altPct(elev);
+    tid('alt-tip').hidden = !$('#alt').checked;
+    tid('alt-text').textContent = `At ${Math.round(elev).toLocaleString('en-US')} ft, expect roughly ${p.toFixed(1)} % slower: about ${fmt(g * p / 100)} on a ${fmt(g)} goal, or ${fmt(g * (1 + p / 100))}.`;
+  }
+
+  // ---- chart ----
+  const svg = $('#chart'), NS = 'http://www.w3.org/2000/svg';
+  const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); (parent || svg).appendChild(e); return e; };
+  function drawChart(P) {
+    svg.innerHTML = '';
+    const X0 = 56, Y0 = 14, W = 570, H = 200;
+    const paces = P.segs.map((s) => s.pace);
+    let lo = Math.min(...paces, P.avgPace), hi = Math.max(...paces, P.avgPace);
+    const pad = Math.max(6, (hi - lo) * 0.3); lo -= pad; hi += pad;
+    const y = (v) => Y0 + H - ((v - lo) / (hi - lo)) * H;      // taller bar = slower pace
+    const g = mk('g', { 'font-family': 'Consolas, Menlo, monospace', 'font-size': 12, fill: '#4b4640' });
+    for (let k = 0; k <= 4; k++) {
+      const v = lo + (k / 4) * (hi - lo), yy = y(v);
+      mk('line', { x1: X0, x2: X0 + W, y1: yy, y2: yy, stroke: '#e9e1d4' }, g);
+      mk('text', { x: X0 - 6, y: yy + 4, 'text-anchor': 'end' }, g).textContent = fmt(v);
+    }
+    const n = P.segs.length, bw = W / n, total = P.D;
+    let x = X0;
+    P.segs.forEach((s) => {
+      const w = (s.len / total) * W;
+      const col = Math.abs(s.pace - P.avgPace) < 0.5 ? '#3b5b8a' : s.pace < P.avgPace ? '#2f6b3f' : '#b8412c';
+      const r = mk('rect', { x: (x + 1).toFixed(2), y: y(s.pace).toFixed(2), width: Math.max(1, w - 2).toFixed(2), height: (Y0 + H - y(s.pace)).toFixed(2), fill: col, 'data-testid': `bar-${s.n}` }, g);
+      mk('title', {}, r).textContent = `Split ${s.n}: ${fmt(s.sec)} (${fmt(s.pace)}/${S.unit})`;
+      if (n <= 16 || s.n % 5 === 0) mk('text', { x: (x + w / 2).toFixed(1), y: Y0 + H + 16, 'text-anchor': 'middle' }, g).textContent = s.n;
+      x += w;
+    });
+    const ya = y(P.avgPace);
+    mk('line', { x1: X0, x2: X0 + W, y1: ya, y2: ya, stroke: '#1d1b19', 'stroke-width': 2, 'stroke-dasharray': '6 4', 'data-testid': 'avg-line' }, g);
+    mk('text', { x: X0 + W, y: ya - 6, 'text-anchor': 'end', fill: '#1d1b19' }, g).textContent = `avg ${fmt(P.avgPace)}/${S.unit}`;
+    mk('text', { x: X0 + W / 2, y: Y0 + H + 36, 'text-anchor': 'middle' }, g).textContent = `${S.unit === 'mi' ? 'Mile' : 'Kilometre'} split · pace per ${S.unit} (taller is slower)`;
+    const fastest = P.segs.reduce((a, b) => (b.pace < a.pace ? b : a)), slowest = P.segs.reduce((a, b) => (b.pace > a.pace ? b : a));
+    svg.setAttribute('aria-label', `${P.strategy} split plan, ${P.segs.length} splits at ${fmt(P.avgPace)} per ${S.unit} on average; fastest split ${fastest.n} at ${fmt(fastest.pace)}, slowest split ${slowest.n} at ${fmt(slowest.pace)}.`);
+  }
+
+  // ---- events ----
+  for (const id of ['#t1', '#d1', '#d2', '#d1c', '#d2c', '#k', '#strength', '#elev', '#alt']) { $(id).addEventListener('input', render); $(id).addEventListener('change', render); }
+  $('#goal').addEventListener('input', () => { const v = parse($('#goal').value); S.goalAuto = false; S.goal = v; render(); });
+  tid('use-prediction').addEventListener('click', () => { S.goalAuto = true; render(); });
+  for (const s of ['even', 'negative', 'positive']) tid('strat-' + s).addEventListener('click', () => { S.strategy = s; render(); });
+  function setUnit(u) {
+    if (u === S.unit) return;
+    // keep custom distances the same physical length
+    const f = u === 'km' ? MILE / 1000 : 1000 / MILE;
+    for (const id of ['#d1c', '#d2c']) { const v = parseFloat($(id).value); if (Number.isFinite(v)) $(id).value = String(Math.round(v * f * 100) / 100); }
+    S.unit = u; render();
+  }
+  tid('unit-mi').addEventListener('click', () => setUnit('mi'));
+  tid('unit-km').addEventListener('click', () => setUnit('km'));
+  tid('alt-apply').addEventListener('click', () => {
+    if (!S.goal) return;
+    const p = altPct(parseFloat($('#elev').value) || 0);
+    S.goalAuto = false; S.goal = Math.round(S.goal * (1 + p / 100)); $('#goal').value = fmt(S.goal); render();
+  });
+
+  render();
+  window.__splits = { riegel, parse, fmt, plan, altPct, get last() { return last; }, get state() { return { ...S }; } };
+})();
+</script>
+</body>
+</html>

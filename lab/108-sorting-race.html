@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sorting Race — algorithms side by side</title>
+<meta name="description" content="Bubble, insertion, selection, merge, quick (Lomuto) and heap sort race on the same seeded array as animated bar lanes, one operation per step, with live counts of comparisons, swaps and writes. Try random, nearly sorted, reversed, few-unique and already-sorted inputs; add ?seed= for a repeatable race.">
+<style>
+  :root {
+    --asphalt: #16181b;
+    --asphalt-2: #1f2226;
+    --line: #34383e;
+    --paint: #f3f0e6;
+    --muted: #9aa0a8;
+    --flag: #ffd23f;
+    --cmp: #ffd23f;
+    --wr: #ff5d5d;
+    --l-bubble: #5ec8f2;
+    --l-insertion: #8be08b;
+    --l-selection: #f2a65e;
+    --l-merge: #c49bff;
+    --l-quick: #ff7fae;
+    --l-heap: #62e0cf;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --mono: "Cascadia Mono", "Consolas", "SFMono-Regular", "Menlo", "Liberation Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--asphalt); color: var(--paint); font: 15px/1.5 var(--sans); overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--flag); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: var(--asphalt); background: var(--flag); text-decoration: none; font: 700 13px/1 var(--sans); padding: 8px 12px; border-radius: 3px; }
+  a.back:hover { background: var(--paint); }
+  .flag { height: 16px; background: conic-gradient(var(--paint) 25%, var(--asphalt) 0 50%, var(--paint) 0 75%, var(--asphalt) 0) 0 0 / 16px 16px; opacity: .9; }
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 56px 16px 40px; }
+  .eyebrow { margin: 0; font: 700 12px/1.3 var(--mono); letter-spacing: .2em; text-transform: uppercase; color: var(--flag); }
+  h1 { margin: 4px 0 6px; font: 800 clamp(40px, 8vw, 80px)/.95 var(--sans); letter-spacing: -.02em; font-style: italic; text-transform: uppercase; overflow-wrap: anywhere; }
+  h1 span { color: var(--flag); }
+  .lede { margin: 0 0 16px; color: #c9ccd1; max-width: 70ch; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; background: var(--asphalt-2); border: 1px solid var(--line); border-radius: 6px; padding: 12px; }
+  .ctl { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  label, .lbl { font: 700 11px/1.3 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  select, input[type=number] { font: 15px var(--mono); padding: 6px 8px; min-width: 0; max-width: 100%; border-radius: 4px; border: 1px solid var(--line); background: var(--asphalt); color: var(--paint); }
+  input[type=number] { width: 6em; }
+  .btns { display: flex; flex-wrap: wrap; gap: 6px; }
+  .btn { min-height: 40px; padding: 6px 14px; border-radius: 4px; border: 1px solid var(--paint); background: transparent; color: var(--paint); font: 700 13px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
+  .btn.go { background: var(--flag); color: var(--asphalt); border-color: var(--flag); }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .status { margin: 10px 0 0; font: 14px/1.4 var(--mono); color: var(--muted); min-height: 1.4em; }
+  .lanes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+  .lane { background: var(--asphalt-2); border: 1px solid var(--line); border-left: 6px solid var(--c); border-radius: 6px; padding: 10px 12px; min-width: 0; position: relative; }
+  .lane.done { border-color: var(--c); }
+  .lane h2 { margin: 0; font: 800 18px/1.2 var(--sans); font-style: italic; text-transform: uppercase; letter-spacing: .02em; color: var(--c); display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+  .lane h2 small { font: 400 12px/1.2 var(--mono); color: var(--muted); font-style: normal; text-transform: none; letter-spacing: 0; }
+  .place { position: absolute; top: 8px; right: 10px; font: 800 20px/1 var(--mono); color: var(--flag); }
+  canvas { display: block; width: 100%; height: 110px; margin: 8px 0 6px; background: #121417; border-radius: 3px; }
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; font: 13px/1.3 var(--mono); }
+  .stats div { min-width: 0; }
+  .stats small { display: block; color: var(--muted); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+  .stats b { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 10px 0 0; font-size: 13px; color: var(--muted); }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  table { width: 100%; border-collapse: collapse; font: 13px/1.35 var(--mono); margin-top: 14px; }
+  th, td { padding: 5px 6px; border-bottom: 1px solid var(--line); text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+  .tablewrap { overflow-x: auto; }
+  .notes { margin-top: 16px; color: #c9ccd1; font-size: 14px; }
+  .notes li { margin: 4px 0; }
+  footer { margin-top: 24px; text-align: center; font-size: 13px; color: var(--muted); }
+  @media (max-width: 760px) { .lanes { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 380px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="flag" aria-hidden="true"></div>
+<div class="wrap">
+  <p class="eyebrow">Six lanes · one array · one operation per step</p>
+  <h1>Sorting <span>Race</span></h1>
+  <p class="lede">Every lane starts from the same seeded array. On each step each algorithm gets exactly one operation, a comparison or a swap or a write, so the lane that finishes first used the fewest operations. Change the input shape and watch the order change.</p>
+
+  <div class="controls" role="group" aria-label="Race settings">
+    <div class="ctl"><label for="shape">Input</label>
+      <select id="shape" data-testid="shape">
+        <option value="random">Random</option>
+        <option value="nearly">Nearly sorted</option>
+        <option value="reversed">Reversed</option>
+        <option value="few">Few unique</option>
+        <option value="sorted">Already sorted</option>
+      </select></div>
+    <div class="ctl"><label for="n">Bars</label><input type="number" id="n" data-testid="n" min="5" max="120" step="1" value="40"></div>
+    <div class="ctl"><label for="seed">Seed</label><input type="number" id="seed" data-testid="seed" min="1" step="1"></div>
+    <div class="ctl"><label for="speed">Speed</label>
+      <select id="speed" data-testid="speed">
+        <option value="1">1 op / tick</option>
+        <option value="4">4 ops / tick</option>
+        <option value="16" selected>16 ops / tick</option>
+        <option value="64">64 ops / tick</option>
+      </select></div>
+    <div class="btns">
+      <button type="button" class="btn go" data-testid="start">Start</button>
+      <button type="button" class="btn" data-testid="step">Step</button>
+      <button type="button" class="btn" data-testid="finish">Finish</button>
+      <button type="button" class="btn" data-testid="reset">Reset</button>
+    </div>
+  </div>
+  <p class="status" data-testid="status" aria-live="polite"></p>
+  <div class="legend" aria-hidden="true"><span><i style="background:var(--cmp)"></i>compared</span><span><i style="background:var(--wr)"></i>written / swapped</span></div>
+
+  <div class="lanes" id="lanes"></div>
+
+  <div class="tablewrap">
+    <table data-testid="results">
+      <caption style="text-align:left;color:var(--muted);font-size:13px;margin-bottom:4px">Results (updated as lanes finish)</caption>
+      <thead><tr><th scope="col">Algorithm</th><th scope="col">Place</th><th scope="col">Steps</th><th scope="col">Comparisons</th><th scope="col">Swaps</th><th scope="col">Writes</th></tr></thead>
+      <tbody id="res-body"></tbody>
+    </table>
+  </div>
+
+  <ul class="notes">
+    <li><b>Counting.</b> A comparison is one test between two elements. A swap exchanges two elements and counts as two writes; a write stores one element (insertion sort shifts, merge sort copies back). A step is any one of these.</li>
+    <li><b>Bubble</b> stops early after a pass with no swaps, and each pass ignores the sorted tail. <b>Insertion</b> shifts larger elements right and writes the key back only if it moved. <b>Selection</b> skips a swap when the minimum is already in place.</li>
+    <li><b>Merge</b> is top-down with an auxiliary array; the copy into the auxiliary array isn't counted, and each element written back is. <b>Quick</b> uses the <b>Lomuto</b> partition with the last element as pivot and skips self-swaps, which is why it is quadratic on sorted, reversed and few-unique input. <b>Heap</b> builds a max-heap bottom-up with sift-down, then extracts.</li>
+  </ul>
+  <footer>Built by Zac Corbett · deterministic: add <code>?seed=</code> for a repeatable race</footer>
+</div>
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const tid = (id) => document.querySelector(`[data-testid="${id}"]`);
+  const params = new URLSearchParams(location.search);
+  const TICK_MS = 50;
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+  function makeArray(seed, n, shape) {
+    const rnd = mulberry32(seed);
+    const a = Array.from({ length: n }, (_, i) => i + 1);
+    const shuffle = () => { for (let i = n - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } };
+    if (shape === 'random') shuffle();
+    else if (shape === 'reversed') a.reverse();
+    else if (shape === 'nearly') { const k = Math.max(1, Math.round(n / 10)); for (let t = 0; t < k; t++) { const i = Math.floor(rnd() * (n - 1)); [a[i], a[i + 1]] = [a[i + 1], a[i]]; } }
+    else if (shape === 'few') { const q = Math.max(1, Math.round(n / 4)); for (let i = 0; i < n; i++) a[i] = q * (1 + Math.floor(rnd() * 4)); }
+    return a;
+  }
+
+  // ---- algorithms: each yields ['c', i, j] (compare), ['s', i, j] (swap, already done), ['w', i] (write, already done) ----
+  function* bubble(a) {
+    const n = a.length;
+    for (let end = n - 1; end > 0; end--) {
+      let swapped = false;
+      for (let i = 0; i < end; i++) {
+        yield ['c', i, i + 1];
+        if (a[i] > a[i + 1]) { [a[i], a[i + 1]] = [a[i + 1], a[i]]; swapped = true; yield ['s', i, i + 1]; }
+      }
+      if (!swapped) return;
+    }
+  }
+  function* insertion(a) {
+    for (let i = 1; i < a.length; i++) {
+      const key = a[i]; let j = i - 1;
+      while (j >= 0) {
+        yield ['c', j, i];
+        if (a[j] > key) { a[j + 1] = a[j]; yield ['w', j + 1]; j--; } else break;
+      }
+      if (j + 1 !== i) { a[j + 1] = key; yield ['w', j + 1]; }
+    }
+  }
+  function* selection(a) {
+    const n = a.length;
+    for (let i = 0; i < n - 1; i++) {
+      let m = i;
+      for (let j = i + 1; j < n; j++) { yield ['c', j, m]; if (a[j] < a[m]) m = j; }
+      if (m !== i) { [a[i], a[m]] = [a[m], a[i]]; yield ['s', i, m]; }
+    }
+  }
+  function* merge(a) {
+    const aux = a.slice();
+    function* sort(lo, hi) {                         // inclusive bounds
+      if (hi <= lo) return;
+      const mid = (lo + hi) >> 1;
+      yield* sort(lo, mid); yield* sort(mid + 1, hi);
+      for (let k = lo; k <= hi; k++) aux[k] = a[k];
+      let i = lo, j = mid + 1;
+      for (let k = lo; k <= hi; k++) {
+        if (i > mid) { a[k] = aux[j++]; }
+        else if (j > hi) { a[k] = aux[i++]; }
+        else { yield ['c', i, j]; if (aux[j] < aux[i]) a[k] = aux[j++]; else a[k] = aux[i++]; }
+        yield ['w', k];
+      }
+    }
+    yield* sort(0, a.length - 1);
+  }
+  function* quick(a) {                                // Lomuto partition, pivot = last element
+    const stack = [[0, a.length - 1]];
+    while (stack.length) {
+      const [lo, hi] = stack.pop();
+      if (lo >= hi) continue;
+      const pivot = a[hi]; let i = lo;
+      for (let j = lo; j < hi; j++) {
+        yield ['c', j, hi];
+        if (a[j] < pivot) { if (i !== j) { [a[i], a[j]] = [a[j], a[i]]; yield ['s', i, j]; } i++; }
+      }
+      if (i !== hi) { [a[i], a[hi]] = [a[hi], a[i]]; yield ['s', i, hi]; }
+      stack.push([i + 1, hi], [lo, i - 1]);           // left part is processed first
+    }
+  }
+  function* heap(a) {
+    const n = a.length;
+    function* sift(root, size) {
+      for (;;) {
+        let c = 2 * root + 1;
+        if (c >= size) return;
+        if (c + 1 < size) { yield ['c', c, c + 1]; if (a[c] < a[c + 1]) c++; }
+        yield ['c', root, c];
+        if (a[root] < a[c]) { [a[root], a[c]] = [a[c], a[root]]; yield ['s', root, c]; root = c; } else return;
+      }
+    }
+    for (let s = Math.floor(n / 2) - 1; s >= 0; s--) yield* sift(s, n);
+    for (let end = n - 1; end > 0; end--) { [a[0], a[end]] = [a[end], a[0]]; yield ['s', 0, end]; yield* sift(0, end); }
+  }
+  const ALGOS = [
+    { key: 'bubble', name: 'Bubble', note: 'early exit', fn: bubble },
+    { key: 'insertion', name: 'Insertion', note: 'shifting', fn: insertion },
+    { key: 'selection', name: 'Selection', note: '', fn: selection },
+    { key: 'merge', name: 'Merge', note: 'top-down', fn: merge },
+    { key: 'quick', name: 'Quick', note: 'Lomuto, last pivot', fn: quick },
+    { key: 'heap', name: 'Heap', note: 'max-heap', fn: heap },
+  ];
+
+  // ---- lanes ----
+  const lanesEl = $('#lanes');
+  const L = {};
+  for (const al of ALGOS) {
+    const sec = document.createElement('section');
+    sec.className = 'lane'; sec.style.setProperty('--c', `var(--l-${al.key})`); sec.dataset.testid = 'lane-' + al.key;
+    sec.setAttribute('aria-labelledby', 'h-' + al.key);
+    sec.innerHTML = `<h2 id="h-${al.key}">${al.name}${al.note ? ` <small>${al.note}</small>` : ''}</h2><span class="place" data-testid="place-${al.key}"></span>
+      <canvas role="img" data-testid="canvas-${al.key}" aria-label="${al.name} sort lane"></canvas>
+      <div class="stats" aria-live="off">
+        <div><small>Steps</small><b data-testid="steps-${al.key}">0</b></div>
+        <div><small>Compares</small><b data-testid="cmp-${al.key}">0</b></div>
+        <div><small>Swaps</small><b data-testid="swaps-${al.key}">0</b></div>
+        <div><small>Writes</small><b data-testid="writes-${al.key}">0</b></div>
+      </div>`;
+    lanesEl.appendChild(sec);
+    L[al.key] = { al, el: sec, cv: sec.querySelector('canvas') };
+  }
+
+  const S = { seed: (parseInt(params.get('seed'), 10) >>> 0) || 42, n: 40, shape: 'random', speed: 16, running: false, timer: null, tick: 0, finishedCount: 0, initial: [] };
+  const sh = params.get('shape'); if (sh && [...$('#shape').options].some((o) => o.value === sh)) S.shape = sh;
+  const pn = parseInt(params.get('n'), 10); if (pn >= 5 && pn <= 120) S.n = pn;
+  $('#seed').value = S.seed; $('#n').value = S.n; $('#shape').value = S.shape;
+
+  function reset() {
+    stop();
+    S.initial = makeArray(S.seed, S.n, S.shape);
+    S.tick = 0; S.finishedCount = 0;
+    for (const al of ALGOS) {
+      const ln = L[al.key];
+      Object.assign(ln, { arr: S.initial.slice(), cmp: 0, swaps: 0, writes: 0, steps: 0, done: false, place: 0, hi: null, buf: null });
+      ln.it = al.fn(ln.arr);
+      ln.el.classList.remove('done');
+    }
+    renderAll(); status();
+  }
+  // Run up to k operations on one lane. Returns true if the lane's algorithm completed during this call.
+  function advance(ln, k) {
+    for (let t = 0; t < k && !ln.done; t++) {
+      const r = ln.buf || ln.it.next(); ln.buf = null;
+      if (r.done) { ln.done = true; ln.hi = null; return true; }
+      const op = r.value; ln.steps++;
+      if (op[0] === 'c') ln.cmp++; else if (op[0] === 's') { ln.swaps++; ln.writes += 2; } else ln.writes++;
+      ln.hi = op;
+    }
+    // a generator only reports completion when asked for another op, so look one ahead (at no cost):
+    // the lane then finishes on the step of its last real operation
+    if (!ln.done) {
+      ln.buf = ln.it.next();
+      if (ln.buf.done) { ln.done = true; ln.hi = null; ln.buf = null; return true; }
+    }
+    return false;
+  }
+  // Every running lane gets k operations. Since all running lanes have done the same number of operations,
+  // a lane's place is 1 + the number of finished lanes that needed strictly fewer steps (ties share a place).
+  function stepAll(k) {
+    const newly = [];
+    for (const al of ALGOS) { const ln = L[al.key]; if (!ln.done && advance(ln, k)) newly.push(ln); }
+    for (const ln of newly) {
+      ln.place = 1 + ALGOS.filter((al) => L[al.key].done && L[al.key].steps < ln.steps).length;
+      ln.el.classList.add('done');
+      S.finishedCount++;
+    }
+  }
+  function tick() {
+    S.tick++;
+    stepAll(S.speed);
+    renderAll(); status();
+    if (ALGOS.every((al) => L[al.key].done)) { stop(); status(); return; }
+    S.timer = setTimeout(tick, TICK_MS);
+  }
+  function start() { if (S.running || ALGOS.every((al) => L[al.key].done)) return; S.running = true; tid('start').textContent = 'Pause'; S.timer = setTimeout(tick, TICK_MS); status(); }
+  function stop() { S.running = false; clearTimeout(S.timer); S.timer = null; tid('start').textContent = 'Start'; }
+  function finishAll() { stop(); let guard = 0; while (!ALGOS.every((al) => L[al.key].done) && guard++ < 1e5) stepAll(1000); renderAll(); status(); }
+
+  // ---- drawing ----
+  function draw(ln) {
+    const cv = ln.cv, dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = Math.max(1, Math.round(cv.clientWidth * dpr)), h = Math.max(1, Math.round(cv.clientHeight * dpr));
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+    const ctx = cv.getContext('2d'); if (!ctx) return;
+    ctx.clearRect(0, 0, w, h);
+    const n = ln.arr.length, max = Math.max(...S.initial, 1), bw = w / n;
+    const col = getComputedStyle(ln.el).getPropertyValue('--c').trim() || '#ccc';
+    const laneColor = getComputedStyle(document.documentElement).getPropertyValue(`--l-${ln.al.key}`).trim() || col;
+    for (let i = 0; i < n; i++) {
+      let c = laneColor;
+      if (ln.hi) { if (ln.hi[0] === 'c' && (ln.hi[1] === i || ln.hi[2] === i)) c = '#ffd23f'; else if (ln.hi[0] !== 'c' && (ln.hi[1] === i || ln.hi[2] === i)) c = '#ff5d5d'; }
+      ctx.fillStyle = c;
+      const bh = (ln.arr[i] / max) * (h - 4);
+      ctx.fillRect(i * bw + (bw > 3 ? 0.5 : 0), h - bh, Math.max(1, bw - (bw > 3 ? 1 : 0)), bh);
+    }
+  }
+  const ord = (p) => p + (p % 10 === 1 && p % 100 !== 11 ? 'st' : p % 10 === 2 && p % 100 !== 12 ? 'nd' : p % 10 === 3 && p % 100 !== 13 ? 'rd' : 'th');
+  function renderAll() {
+    for (const al of ALGOS) {
+      const ln = L[al.key];
+      tid('steps-' + al.key).textContent = ln.steps.toLocaleString('en-US');
+      tid('cmp-' + al.key).textContent = ln.cmp.toLocaleString('en-US');
+      tid('swaps-' + al.key).textContent = ln.swaps.toLocaleString('en-US');
+      tid('writes-' + al.key).textContent = ln.writes.toLocaleString('en-US');
+      tid('place-' + al.key).textContent = ln.done ? ord(ln.place) : '';
+      ln.cv.setAttribute('aria-label', `${al.name} sort: ${ln.done ? `finished ${ord(ln.place)} after ${ln.steps} steps` : `${ln.steps} steps so far`}, ${ln.cmp} comparisons, ${ln.swaps} swaps, ${ln.writes} writes`);
+      draw(ln);
+    }
+    const tb = $('#res-body'); tb.innerHTML = '';
+    const rows = ALGOS.map((al) => L[al.key]).sort((a, b) => (a.done === b.done ? (a.done ? a.place - b.place : 0) : a.done ? -1 : 1));
+    for (const ln of rows) {
+      const tr = document.createElement('tr'); tr.dataset.testid = 'res-' + ln.al.key;
+      tr.innerHTML = `<td>${ln.al.name}</td><td>${ln.done ? ord(ln.place) : '…'}</td><td>${ln.steps}</td><td>${ln.cmp}</td><td>${ln.swaps}</td><td>${ln.writes}</td>`;
+      tb.appendChild(tr);
+    }
+  }
+  function status() {
+    const done = ALGOS.filter((al) => L[al.key].done).length;
+    const shapeName = $('#shape').selectedOptions[0].textContent.toLowerCase();
+    let msg;
+    if (done === ALGOS.length) {
+      const win = ALGOS.map((al) => L[al.key]).filter((l) => l.place === 1).map((l) => l.al.name).join(' and ');
+      msg = `Race over. ${win} won on ${S.n} bars (${shapeName}, seed ${S.seed}).`;
+    } else if (S.running) msg = `Racing: ${done} of 6 finished.`;
+    else msg = `Ready: ${S.n} bars, ${shapeName}, seed ${S.seed}.${done ? ` ${done} of 6 finished.` : ''}`;
+    tid('status').textContent = msg;
+  }
+
+  // ---- events ----
+  tid('start').addEventListener('click', () => (S.running ? (stop(), status()) : start()));
+  tid('step').addEventListener('click', () => { stop(); stepAll(1); renderAll(); status(); });
+  tid('finish').addEventListener('click', finishAll);
+  tid('reset').addEventListener('click', reset);
+  $('#shape').addEventListener('change', () => { S.shape = $('#shape').value; reset(); });
+  $('#speed').addEventListener('change', () => { S.speed = parseInt($('#speed').value, 10); });
+  $('#n').addEventListener('change', () => { const v = parseInt($('#n').value, 10); if (v >= 5 && v <= 120) { S.n = v; reset(); } else $('#n').value = S.n; });
+  $('#seed').addEventListener('change', () => { const v = parseInt($('#seed').value, 10) >>> 0; if (v) { S.seed = v; reset(); } else $('#seed').value = S.seed; });
+  let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(renderAll, 100); });
+
+  reset();
+  window.__sort = {
+    makeArray, TICK_MS,
+    get state() { return { seed: S.seed, n: S.n, shape: S.shape, speed: S.speed, running: S.running, tick: S.tick, initial: S.initial.slice() }; },
+    get lanes() { return ALGOS.map((al) => { const l = L[al.key]; return { key: al.key, arr: l.arr.slice(), cmp: l.cmp, swaps: l.swaps, writes: l.writes, steps: l.steps, done: l.done, place: l.place }; }); },
+    step: (k = 1) => { stepAll(k); renderAll(); status(); },
+  };
+})();
+</script>
+</body>
+</html>

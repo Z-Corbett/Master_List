@@ -1,0 +1,34 @@
+{
+  "id": "107",
+  "slug": "107-race-splits",
+  "file": "lab/107-race-splits.html",
+  "title": "Race Splits — a pace planner for 5K to marathon",
+  "category": "Data Viz",
+  "tags": ["running", "riegel", "svg", "calculator", "units"],
+  "description": "Enter a recent race, from a mile to a marathon or a custom distance, and Riegel's formula T2 = T1 × (D2/D1)^1.06 predicts a new distance. The exponent can be changed. The prediction becomes a goal you can edit, and the page turns it into an even, negative or positive split plan with a split for every mile or kilometre, a pace chart, a cumulative table, and an optional altitude tip that uses the same rule of thumb as the Lab's Thin Air page.",
+  "prompt": "Build a race pace planner for 5K to marathon. Predict race times from a recent race with Riegel's formula T2 = T1 × (D2/D1)^1.06, and let me edit the exponent. Build a split plan (even, negative split or positive), with per-mile or per-km splits in a chart and a table, cumulative time, and an optional altitude adjustment tip that links to the Lab's Thin Air page (../lab/009-thin-air.html). Add a mi/km toggle. The spec should check the Riegel math and that the splits add up to the goal time within 1 second.",
+  "qa": {
+    "methodology": [
+      "Formula oracle: the spec computes T1 × (D2/D1)^k itself for 5K→half, 10K→marathon and mile→5K, and at exponents 1.00, 1.06 and 1.08. At 1.00 the prediction must reduce to plain pace scaling, and an h:mm:ss input must parse to the right number of seconds.",
+      "Sum invariant: the spec adds up the split times shown in the table and requires them to equal the goal to within 1 s. It checks this through the UI for a half marathon in miles and in km and for a marathon, and through the plan hook for 450 combinations of goal, distance, unit and strategy. The page rounds cumulative times and takes differences, so the rounding error can't build up.",
+      "Segment structure: a half marathon has 13 full miles plus a 0.11 partial, or 21 km plus 0.10, and a marathon has 26 miles plus 0.22. Each even split must be within 1 s of goal ÷ distance, and the average pace readout must match (1:45:29 half → 5:00/km).",
+      "Strategy math: for the linear pace ramp p(x) = avg·(1 + a(1 − 2x/D)), the halves must be goal/2 × (1 ± a/2). With a 4 % negative split, a 4:00 marathon must split 2:02:24 + 1:57:36, each mile's pace must be quicker than the one before, and each split must be within 1 s of the spec's own integral. Positive splits must mirror this.",
+      "Edges: malformed times (25:75, words), an exponent outside 1.00–1.20 and a blank goal each give a specific message, and Use prediction clears them. Custom distances keep their physical length when the unit changes (8 mi → 12.87 km). The altitude tip must give 0.1 % × 5.28² ≈ 2.8 % at 5,280 ft, link to the Thin Air page, and add that time to the goal."
+    ],
+    "risks": [
+      "Rounding each split separately can make the splits add up to a few seconds more or less than the goal over 26 miles. The page rounds the cumulative times instead, and the spec checks the sum.",
+      "The partial final segment (0.11 mi, 0.22 mi, 0.10 km) is easy to leave out or to give a full unit's time.",
+      "Riegel's formula is an empirical fit for roughly 3.5 to 230 minutes. It overpredicts for runners who haven't trained for the longer distance, and the page doesn't claim otherwise.",
+      "The altitude model is a deliberately rough rule of thumb shared with Thin Air. Its label says so, and the spec checks the arithmetic, not whether it is physiologically right."
+    ],
+    "playwright": "Most assertions read the rendered table: the spec parses each split and elapsed cell and checks the arithmetic in Node, so a display-rounding bug can't hide behind correct internal numbers. The 450-case sum sweep runs inside one page.evaluate against window.__splits.plan, because doing that through the UI would be slow for no benefit. selectOption, fill and check behave the same on desktop Chrome and the Pixel 7 project, so there was no need for touch-specific code. Nothing on the page is timed, so page.clock isn't needed. The chart is only checked through its aria-label, which is a weak spot.",
+    "coverage": [
+      "Riegel predictions at three distance pairs and three exponents; h:mm:ss parsing",
+      "Even splits in miles and km: counts, partial segment, per-split and average pace, sum = goal",
+      "Negative and positive plans: halves formula, monotonic pace, per-split integral",
+      "450-case sum sweep through the plan hook",
+      "Validation messages, custom distances across unit changes, altitude tip, Thin Air link and apply"
+    ]
+  },
+  "a11y": "Every field is a labelled native input or select, and the unit and strategy choices are toggle buttons with aria-pressed. Validation messages are in alert regions, and the prediction and the summary are aria-live. The split table has column headers, and the chart's aria-label gives the plan type, the number of splits, the average pace and the fastest and slowest splits."
+}

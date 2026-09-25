@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prompt Cache Planner — order your prompt for prefix hits</title>
+<meta name="description" content="Arrange prompt segments (system prompt, tool definitions, reference docs, conversation history, user message), each with a token size and change frequency, and simulate 20 turns of prefix caching. See cached versus uncached tokens per turn and the relative cost under editable, illustrative price multipliers, then let Optimize put the stable segments first.">
+<style>
+  :root {
+    --ink: #0f141b;
+    --panel: #161d27;
+    --panel-2: #1d2633;
+    --line: #2b3747;
+    --text: #e4e9f0;
+    --muted: #93a1b3;
+    --hit: #37c6a4;
+    --hit-2: #1f8f75;
+    --miss: #f0a53a;
+    --miss-2: #b8741c;
+    --break: #ef5d6c;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, "SFMono-Regular", Menlo, monospace;
+    --sans: "Bahnschrift", "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--ink); color: var(--text); font: 15px/1.55 var(--sans); overflow-x: hidden;
+    background-image: linear-gradient(rgba(55,198,164,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(55,198,164,.05) 1px, transparent 1px);
+    background-size: 28px 28px; }
+  :focus-visible { outline: 3px solid var(--miss); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: var(--ink); background: var(--hit); text-decoration: none; font: 700 13px/1 var(--sans); padding: 8px 12px; border-radius: 4px; }
+  a.back:hover { background: var(--text); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 60px 18px 40px; }
+  .eyebrow { margin: 0; font: 600 12px/1.3 var(--mono); letter-spacing: .2em; text-transform: uppercase; color: var(--hit); }
+  h1 { font: 700 clamp(34px, 6vw, 62px)/1.02 var(--sans); margin: 6px 0 8px; letter-spacing: -.01em; overflow-wrap: anywhere; }
+  h1 span { color: var(--miss); }
+  .lede { margin: 0 0 20px; color: var(--muted); max-width: 70ch; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 20px; align-items: start; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; min-width: 0; }
+  h2 { font: 700 18px/1.2 var(--sans); margin: 0 0 10px; letter-spacing: .02em; }
+  h2 small { font: 500 12px var(--mono); color: var(--muted); letter-spacing: 0; }
+  ol.segs { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .seg { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px 10px; align-items: center; background: var(--panel-2); border: 1px solid var(--line); border-left: 6px solid var(--c); border-radius: 6px; padding: 8px 10px; min-width: 0; }
+  .seg.dragging { opacity: .75; border-style: dashed; }
+  .grip { width: 30px; height: 44px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); cursor: grab; touch-action: none; font: 18px/1 var(--mono); }
+  .grip:hover { background: var(--line); }
+  .seg .nm { font-weight: 700; overflow-wrap: anywhere; }
+  .seg .pos { font: 12px var(--mono); color: var(--muted); }
+  .seg .fields { grid-column: 2 / 3; display: flex; flex-wrap: wrap; gap: 6px 12px; min-width: 0; }
+  .seg .fields label { font: 12px var(--mono); color: var(--muted); display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; }
+  .moves { display: flex; flex-direction: column; gap: 4px; grid-row: 1 / 3; grid-column: 3; }
+  .mv { width: 40px; height: 34px; border-radius: 4px; border: 1px solid var(--line); background: var(--ink); color: var(--text); font: 16px/1 var(--mono); cursor: pointer; }
+  .mv:disabled { opacity: .3; cursor: default; }
+  .mv:not(:disabled):hover { border-color: var(--hit); }
+  .grip { grid-row: 1 / 3; }
+  input[type=number], select { font: 14px var(--mono); padding: 5px 7px; border-radius: 4px; border: 1px solid var(--line); background: var(--ink); color: var(--text); max-width: 100%; min-width: 0; }
+  input[type=number] { width: 7.5em; }
+  input[aria-invalid=true] { border-color: var(--break); }
+  .btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .btn { min-height: 40px; padding: 8px 14px; border-radius: 4px; border: 1px solid var(--hit); background: var(--hit); color: var(--ink); font: 700 14px/1 var(--sans); cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--hit); }
+  .prices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 8px; }
+  .prices label { display: block; font: 12px var(--mono); color: var(--muted); margin-bottom: 3px; }
+  .prices input { width: 100%; }
+  .tag { display: inline-block; font: 600 11px/1.4 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink); background: var(--miss); padding: 1px 6px; border-radius: 3px; }
+  .note { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+  .warn { color: var(--break); font-weight: 600; min-height: 1.3em; margin: 8px 0 0; }
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
+  .stat { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; min-width: 0; }
+  .stat small { display: block; font: 11px/1.3 var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .stat b { display: block; font: 700 21px/1.25 var(--mono); overflow-wrap: anywhere; }
+  .stat.hit b { color: var(--hit); } .stat.miss b { color: var(--miss); }
+  #chart { display: block; width: 100%; height: auto; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font: 12px var(--mono); color: var(--muted); margin: 0 0 6px; }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -2px; margin-right: 5px; }
+  .inspect { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 14px 0 8px; }
+  .inspect label { font: 13px var(--mono); color: var(--muted); }
+  .inspect input[type=range] { flex: 1 1 160px; min-width: 0; accent-color: var(--hit); }
+  .strip { display: flex; gap: 2px; min-width: 0; height: 58px; border-radius: 4px; overflow: hidden; }
+  .blk { min-width: 22px; display: flex; flex-direction: column; justify-content: center; padding: 0 6px; font: 11px/1.25 var(--mono); color: var(--ink); overflow: hidden; }
+  .blk span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .blk.hit { background: var(--hit); } .blk.miss { background: var(--miss); } .blk.changed { background: var(--break); color: #fff; }
+  .tablewrap { max-height: 320px; overflow: auto; margin-top: 12px; border: 1px solid var(--line); border-radius: 6px; }
+  table { width: 100%; border-collapse: collapse; font: 13px/1.35 var(--mono); font-variant-numeric: tabular-nums; }
+  th, td { padding: 5px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  th { position: sticky; top: 0; background: var(--panel-2); color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+  th:nth-child(4), td:nth-child(4) { text-align: left; }
+  tr.sel td { background: rgba(55,198,164,.12); }
+  .math { font: 13px/1.6 var(--mono); background: var(--ink); border-left: 3px solid var(--hit); padding: 8px 12px; border-radius: 0 4px 4px 0; margin: 10px 0; overflow-wrap: anywhere; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  footer { margin-top: 24px; text-align: center; font-size: 13px; color: var(--muted); }
+  @media (max-width: 920px) { .layout { grid-template-columns: minmax(0, 1fr); } .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 420px) { .prices { grid-template-columns: minmax(0, 1fr); } .seg { padding: 8px 6px; gap: 6px; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <p class="eyebrow">prefix caching · 20-turn simulation</p>
+  <h1>Prompt Cache <span>Planner</span></h1>
+  <p class="lede">A prefix cache can only reuse the prompt up to the first token that differs from last turn. Everything after that point is processed again, however stable it is. Put the segments in order, set how big each one is and how often it changes, and watch what twenty turns cost.</p>
+
+  <div class="layout">
+    <div style="display:grid;gap:20px;min-width:0">
+      <section class="card" aria-labelledby="h-order">
+        <h2 id="h-order">Prompt order <small>top = start of the prompt</small></h2>
+        <ol class="segs" id="segs" data-testid="segments" aria-describedby="order-help"></ol>
+        <p class="note" id="order-help">Drag a segment by its handle, or use its ↑ and ↓ buttons. A segment set to change every N turns is different on turns N, 2N, 3N…</p>
+        <p class="warn" id="warn" role="alert" data-testid="warn"></p>
+        <div class="btns">
+          <button type="button" class="btn" id="optimize" data-testid="optimize">Optimize: stable segments first</button>
+          <button type="button" class="btn ghost" id="reset" data-testid="reset">Reset</button>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="h-price">
+        <h2 id="h-price">Price multipliers <span class="tag" data-testid="illustrative">illustrative defaults</span></h2>
+        <p class="note" style="margin-top:0">Hypothetical numbers, relative to one uncached input token (= 1×). They are not any provider's price list: change them to match yours.</p>
+        <div class="prices">
+          <div><label for="pRead">Cache read (hit), × base</label><input id="pRead" type="number" min="0" max="10" step="0.05" value="0.1" data-testid="price-read"></div>
+          <div><label for="pWrite">Cache write (miss), × base</label><input id="pWrite" type="number" min="0" max="10" step="0.05" value="1.25" data-testid="price-write"></div>
+        </div>
+        <div class="math">turn cost = cached × read + uncached × write<br>no-cache cost = all tokens × 1</div>
+      </section>
+    </div>
+
+    <section class="card" aria-labelledby="h-sim">
+      <h2 id="h-sim">Twenty turns</h2>
+      <div class="stats" aria-live="polite" id="stats">
+        <div class="stat hit"><small>Cached tokens</small><b data-testid="tot-cached">–</b></div>
+        <div class="stat miss"><small>Uncached tokens</small><b data-testid="tot-uncached">–</b></div>
+        <div class="stat"><small>Cost vs no cache</small><b data-testid="rel-cost">–</b></div>
+        <div class="stat"><small>Optimized order</small><b data-testid="rel-best">–</b></div>
+      </div>
+      <p class="sr" aria-live="polite" id="announce" data-testid="announce"></p>
+      <div class="legend"><span><i style="background:var(--hit)"></i>cached (prefix hit)</span><span><i style="background:var(--miss)"></i>uncached (processed, then cached)</span><span><i style="background:var(--break)"></i>segment that changed</span></div>
+      <svg id="chart" viewBox="0 0 600 230" role="img" aria-label="Cached and uncached tokens per turn" data-testid="chart"></svg>
+      <div class="inspect">
+        <label for="turn">Inspect turn <b id="turnTxt" data-testid="turn-label">5</b></label>
+        <input id="turn" type="range" min="1" max="20" step="1" value="5" data-testid="turn">
+      </div>
+      <div class="strip" id="strip" data-testid="strip" role="img"></div>
+      <p class="note" id="stripTxt" data-testid="strip-text"></p>
+      <div class="tablewrap" tabindex="0" aria-label="Per-turn results, scrollable">
+        <table data-testid="turn-table"><thead><tr><th scope="col">Turn</th><th scope="col">Cached</th><th scope="col">Uncached</th><th scope="col">Prefix breaks at</th><th scope="col">Cost</th></tr></thead><tbody id="tbody"></tbody></table>
+      </div>
+      <p class="note">Model: turn 1 starts with an empty cache. On later turns the cache holds last turn's prompt, and the hit runs until the first segment that changed. Assumed: nothing expires within the 20 turns, there is no minimum cacheable length, and the uncached tail is written to the cache each turn. Real conversation history is usually append-only, so its older part can stay cached; here it is treated as one segment that changes, which is the pessimistic case.</p>
+    </section>
+  </div>
+  <footer>Built by Zac Corbett · a teaching model of prefix caching, provider-neutral · all prices are hypothetical multipliers you can edit</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const NS = 'http://www.w3.org/2000/svg';
+  const TURNS = 20;
+  const DEFAULTS = [
+    { id: 'docs', name: 'Reference docs', size: 7200, period: 5, c: '#8b7cf6' },
+    { id: 'sys', name: 'System prompt', size: 1800, period: 0, c: '#37c6a4' },
+    { id: 'hist', name: 'Conversation history', size: 3400, period: 1, c: '#5aa9e6' },
+    { id: 'tools', name: 'Tool definitions', size: 2600, period: 10, c: '#e6c35a' },
+    { id: 'user', name: 'User message', size: 150, period: 1, c: '#ef8a5d' },
+  ];
+  const FREQS = [[0, 'never'], [20, 'every 20 turns'], [10, 'every 10 turns'], [5, 'every 5 turns'], [4, 'every 4 turns'], [3, 'every 3 turns'], [2, 'every 2 turns'], [1, 'every turn']];
+  let segs, order, mult = { read: 0.1, write: 1.25 }, sel = 5, last = null;
+  const fmt = (n) => Math.round(n).toLocaleString('en-US');
+  const byId = (id) => segs.find((s) => s.id === id);
+
+  function reset() { segs = DEFAULTS.map((s) => ({ ...s })); order = DEFAULTS.map((s) => s.id); }
+
+  /** does segment s differ from the previous turn's copy on turn t? (turn 1 has no previous turn) */
+  const changes = (s, t) => s.period > 0 && t % s.period === 0;
+
+  function simulate(ord, m) {
+    const list = ord.map(byId);
+    const total = list.reduce((a, s) => a + s.size, 0);
+    const rows = [];
+    for (let t = 1; t <= TURNS; t++) {
+      let cached = 0, breakAt = null;
+      if (t === 1) breakAt = 'cold cache';
+      else for (const s of list) { if (changes(s, t)) { breakAt = s.id; break; } cached += s.size; }
+      const uncached = total - cached;
+      rows.push({ t, cached, uncached, breakAt, cost: cached * m.read + uncached * m.write, base: total });
+    }
+    const sum = (k) => rows.reduce((a, r) => a + r[k], 0);
+    const tot = { cached: sum('cached'), uncached: sum('uncached'), cost: sum('cost'), base: sum('base') };
+    tot.rel = tot.base ? tot.cost / tot.base : 0;
+    return { rows, tot };
+  }
+  /** stable first: sort by change rate (1/period, never = 0), ties keep their current order */
+  function optimized(ord) {
+    const rate = (id) => { const p = byId(id).period; return p > 0 ? 1 / p : 0; };
+    return ord.map((id, i) => ({ id, i })).sort((a, b) => rate(a.id) - rate(b.id) || a.i - b.i).map((x) => x.id);
+  }
+
+  // ---------- segment list ----------
+  function renderSegs(focusSel) {
+    const ol = $('segs');
+    ol.innerHTML = order.map((id, i) => {
+      const s = byId(id);
+      return `<li class="seg" data-id="${id}" data-testid="seg-${id}" style="--c:${s.c}">
+        <button type="button" class="grip" aria-label="Drag handle for ${s.name}. Use the arrow buttons to move with the keyboard." tabindex="-1" data-testid="grip-${id}">⋮⋮</button>
+        <div><span class="nm">${s.name}</span> <span class="pos" data-testid="pos-${id}">#${i + 1}</span></div>
+        <div class="moves">
+          <button type="button" class="mv" data-mv="-1" data-id="${id}" aria-label="Move ${s.name} up" data-testid="up-${id}" ${i === 0 ? 'disabled' : ''}>↑</button>
+          <button type="button" class="mv" data-mv="1" data-id="${id}" aria-label="Move ${s.name} down" data-testid="down-${id}" ${i === order.length - 1 ? 'disabled' : ''}>↓</button>
+        </div>
+        <div class="fields">
+          <label>tokens <input type="number" min="1" max="200000" step="1" value="${s.size}" data-f="size" data-id="${id}" data-testid="size-${id}" aria-label="${s.name} size in tokens"></label>
+          <label>changes <select data-f="period" data-id="${id}" data-testid="freq-${id}" aria-label="How often ${s.name} changes">${FREQS.map(([v, t]) => `<option value="${v}" ${v === s.period ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+        </div>
+      </li>`;
+    }).join('');
+    if (focusSel) {
+      let b = ol.querySelector(focusSel);
+      if (b && b.disabled) b = b.parentElement.querySelector('.mv:not(:disabled)');
+      if (b) b.focus();
+    }
+  }
+  function move(id, d) {
+    const i = order.indexOf(id), j = i + d;
+    if (j < 0 || j >= order.length) return;
+    [order[i], order[j]] = [order[j], order[i]];
+    renderSegs(`[data-testid="${d < 0 ? 'up' : 'down'}-${id}"]`);
+    say(`${byId(id).name} moved to position ${j + 1} of ${order.length}.`);
+    render();
+  }
+  function say(msg) { $('announce').textContent = msg; }
+
+  $('segs').addEventListener('click', (e) => {
+    const b = e.target.closest('.mv'); if (!b || b.disabled) return;
+    move(b.dataset.id, Number(b.dataset.mv));
+  });
+  $('segs').addEventListener('input', (e) => {
+    const f = e.target.dataset.f; if (!f) return;
+    const s = byId(e.target.dataset.id);
+    if (f === 'size') {
+      const v = Number(e.target.value);
+      const ok = e.target.value.trim() !== '' && Number.isInteger(v) && v >= 1 && v <= 200000;
+      e.target.setAttribute('aria-invalid', String(!ok));
+      if (ok) s.size = v;
+    } else s.period = Number(e.target.value);
+    render();
+  });
+  $('segs').addEventListener('change', (e) => { if (e.target.dataset.f === 'period') { byId(e.target.dataset.id).period = Number(e.target.value); render(); } });
+
+  // pointer drag on the handle (mouse, pen and touch)
+  let drag = null;
+  $('segs').addEventListener('pointerdown', (e) => {
+    const g = e.target.closest('.grip'); if (!g) return;
+    e.preventDefault();
+    const li = g.closest('.seg');
+    drag = { li, id: li.dataset.id, pid: e.pointerId };
+    li.classList.add('dragging');
+    try { g.setPointerCapture(e.pointerId); } catch (_) { /* synthetic events */ }
+  });
+  document.addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== drag.pid) return;
+    const ol = $('segs');
+    const others = [...ol.children].filter((c) => c !== drag.li);
+    const before = others.find((c) => { const r = c.getBoundingClientRect(); return e.clientY < r.top + r.height / 2; });
+    if (before) { if (drag.li.nextSibling !== before) ol.insertBefore(drag.li, before); }
+    else if (ol.lastChild !== drag.li) ol.appendChild(drag.li);
+  });
+  const endDrag = (e) => {
+    if (!drag || e.pointerId !== drag.pid) return;
+    const id = drag.id; drag = null;
+    const next = [...$('segs').children].map((c) => c.dataset.id);
+    const moved = next.join() !== order.join();
+    order = next; renderSegs(`[data-testid="up-${id}"]`);
+    if (moved) say(`${byId(id).name} moved to position ${order.indexOf(id) + 1} of ${order.length}.`);
+    render();
+  };
+  document.addEventListener('pointerup', endDrag);
+  document.addEventListener('pointercancel', endDrag);
+
+  $('optimize').addEventListener('click', () => {
+    const next = optimized(order);
+    const same = next.join() === order.join();
+    order = next; renderSegs(); render();
+    say(same ? 'Already optimal: the stable segments are first.' : `Reordered: ${order.map((id) => byId(id).name).join(', ')}.`);
+  });
+  $('reset').addEventListener('click', () => {
+    reset(); mult = { read: 0.1, write: 1.25 }; $('pRead').value = '0.1'; $('pWrite').value = '1.25';
+    renderSegs(); render(); say('Reset to the default segments, order and multipliers.');
+  });
+  for (const [id, k] of [['pRead', 'read'], ['pWrite', 'write']]) $(id).addEventListener('input', () => {
+    const v = Number($(id).value);
+    const ok = $(id).value.trim() !== '' && Number.isFinite(v) && v >= 0 && v <= 10;
+    $(id).setAttribute('aria-invalid', String(!ok));
+    if (ok) mult[k] = v;
+    render();
+  });
+  $('turn').addEventListener('input', () => { sel = Number($('turn').value); render(); });
+
+  // ---------- render ----------
+  function el(tag, a, p) { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; }
+  const pct = (x) => (x * 100).toFixed(1) + '%';
+  function render() {
+    const bad = [...document.querySelectorAll('#segs input, #pRead, #pWrite')].some((i) => i.getAttribute('aria-invalid') === 'true');
+    $('warn').textContent = bad ? 'Sizes must be whole numbers from 1 to 200,000 tokens, and multipliers between 0 and 10. The last valid value is being used.' : '';
+    const sim = simulate(order, mult);
+    const bestOrder = optimized(order), best = simulate(bestOrder, mult);
+    const { rows, tot } = sim;
+    $('stats').querySelector('[data-testid="tot-cached"]').textContent = fmt(tot.cached);
+    $('stats').querySelector('[data-testid="tot-uncached"]').textContent = fmt(tot.uncached);
+    $('stats').querySelector('[data-testid="rel-cost"]').textContent = pct(tot.rel);
+    $('stats').querySelector('[data-testid="rel-best"]').textContent = pct(best.tot.rel);
+    // chart
+    const svg = $('chart'); svg.innerHTML = '';
+    const W = 600, H = 230, m = { l: 52, r: 8, t: 10, b: 28 };
+    const maxT = Math.max(1, ...rows.map((r) => r.base));
+    const bw = (W - m.l - m.r) / TURNS;
+    const y = (v) => H - m.b - v / maxT * (H - m.t - m.b);
+    for (const f of [0, 0.5, 1]) {
+      el('line', { x1: m.l, x2: W - m.r, y1: y(maxT * f), y2: y(maxT * f), stroke: '#2b3747', 'stroke-width': 1 }, svg);
+      const t = el('text', { x: m.l - 6, y: y(maxT * f) + 4, 'text-anchor': 'end', 'font-size': 10, fill: '#93a1b3', 'font-family': 'Consolas, monospace' }, svg);
+      t.textContent = fmt(maxT * f);
+    }
+    for (const r of rows) {
+      const x = m.l + (r.t - 1) * bw + 3, w = bw - 6;
+      const g = el('g', { 'data-testid': `bar-${r.t}`, 'data-cached': r.cached, 'data-uncached': r.uncached }, svg);
+      el('rect', { x, y: y(r.cached), width: w, height: y(0) - y(r.cached), fill: '#37c6a4' }, g);
+      el('rect', { x, y: y(r.base), width: w, height: y(r.cached) - y(r.base), fill: '#f0a53a' }, g);
+      if (r.t === sel) el('rect', { x: x - 2, y: y(r.base) - 2, width: w + 4, height: y(0) - y(r.base) + 4, fill: 'none', stroke: '#e4e9f0', 'stroke-width': 1.5 }, g);
+      const t = el('text', { x: x + w / 2, y: H - m.b + 14, 'text-anchor': 'middle', 'font-size': 10, fill: '#93a1b3', 'font-family': 'Consolas, monospace' }, svg);
+      t.textContent = r.t;
+    }
+    const full = rows.filter((r) => r.t > 1 && r.uncached === 0).length;
+    svg.setAttribute('aria-label', `Tokens per turn for 20 turns: ${fmt(tot.cached)} cached and ${fmt(tot.uncached)} uncached in total; ${rows.filter((r) => r.t > 1 && r.cached === 0).length} turns after the first get no cache hit at all, ${full} are fully cached.`);
+    // table
+    $('tbody').innerHTML = rows.map((r) => `<tr data-testid="row-${r.t}" class="${r.t === sel ? 'sel' : ''}"><td>${r.t}</td><td data-testid="cached-${r.t}">${fmt(r.cached)}</td><td data-testid="uncached-${r.t}">${fmt(r.uncached)}</td><td data-testid="break-${r.t}">${r.breakAt === null ? '— (full hit)' : r.breakAt === 'cold cache' ? 'cold cache' : byId(r.breakAt).name}</td><td data-testid="cost-${r.t}">${pct(r.cost / r.base)}</td></tr>`).join('');
+    // strip for the selected turn
+    const R = rows[sel - 1];
+    $('turnTxt').textContent = sel;
+    let hitting = sel > 1;
+    $('strip').innerHTML = order.map((id) => {
+      const s = byId(id);
+      let cls;
+      if (hitting && changes(s, sel)) { hitting = false; cls = 'changed'; }
+      else cls = hitting ? 'hit' : 'miss';
+      return `<div class="blk ${cls}" style="flex:${s.size} 1 0" data-testid="blk-${id}" data-state="${cls}" title="${s.name}: ${fmt(s.size)} tokens"><span>${s.name}</span><span>${fmt(s.size)}</span></div>`;
+    }).join('');
+    const txt = sel === 1 ? 'Turn 1: the cache is empty, so every token is processed and written to the cache.'
+      : R.breakAt === null ? `Turn ${sel}: nothing changed, so the whole prompt (${fmt(R.cached)} tokens) is a cache hit.`
+      : `Turn ${sel}: ${byId(R.breakAt).name} changed, so the hit stops there. ${fmt(R.cached)} tokens are read from the cache and ${fmt(R.uncached)} are processed again.`;
+    $('stripTxt').textContent = txt;
+    $('strip').setAttribute('aria-label', txt);
+    last = { order: [...order], mult: { ...mult }, rows, tot, bestOrder, best: best.tot };
+  }
+
+  window.__cache = {
+    get state() { return JSON.parse(JSON.stringify(last)); },
+    get segments() { return JSON.parse(JSON.stringify(segs)); },
+    simulate: (ord, m) => JSON.parse(JSON.stringify(simulate(ord, m || mult))),
+  };
+  reset(); renderSegs(); render();
+})();
+</script>
+</body>
+</html>
