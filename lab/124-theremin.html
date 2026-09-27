@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Theremin — pitch by position, volume by height</title>
+<meta name="description" content="A playable Web Audio theremin. Move across the field and pitch rises exponentially, f = f0 · 2^(octaves · x); move up and it gets louder. Snap to a chromatic, major, pentatonic or blues scale, add vibrato, pick a waveform, and read the note name and cents offset (A4 = 440 Hz, 12-tone equal temperament). Arrow keys play it too, and it still works without audio.">
+<style>
+  :root {
+    --bg: #150d1f;
+    --bg-2: #211532;
+    --panel: #2a1b3f;
+    --line: #4a3566;
+    --text: #f3ecff;
+    --text-2: #c9b8e6;
+    --muted: #9a88b8;
+    --glow: #5ef2d6;
+    --glow-2: #2bb7a0;
+    --amber: #ffb454;
+    --pink: #ff6fae;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --deco: "Futura", "Century Gothic", "Trebuchet MS", "Segoe UI", sans-serif;
+    --mono: "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 15px/1.55 var(--sans); overflow-x: hidden;
+    background-image: radial-gradient(ellipse at 50% -20%, rgba(94,242,214,.14), transparent 55%), repeating-linear-gradient(90deg, transparent 0 46px, rgba(255,255,255,.018) 46px 47px); }
+  :focus-visible { outline: 3px solid var(--amber); outline-offset: 3px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: var(--bg); background: var(--glow); text-decoration: none; font: 700 13px/1 var(--sans); padding: 8px 12px; border-radius: 999px; }
+  a.back:hover { background: var(--amber); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 60px 18px 40px; }
+  header { text-align: center; margin-bottom: 18px; }
+  .eyebrow { margin: 0; font: 700 12px/1.3 var(--deco); letter-spacing: .4em; text-transform: uppercase; color: var(--glow); }
+  h1 { font: 400 clamp(40px, 8vw, 84px)/1 var(--deco); margin: 8px 0 6px; letter-spacing: .12em; text-transform: uppercase; text-shadow: 0 0 22px rgba(94,242,214,.35); overflow-wrap: anywhere; }
+  .lede { margin: 0 auto; color: var(--text-2); max-width: 64ch; }
+  .stage { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 300px); gap: 18px; align-items: start; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; min-width: 0; }
+  h2 { font: 700 13px/1.2 var(--deco); letter-spacing: .24em; text-transform: uppercase; color: var(--glow); margin: 0 0 10px; }
+  .readout { display: grid; grid-template-columns: minmax(0, 1.3fr) repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .ro { background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px; min-width: 0; }
+  .ro small { display: block; font: 700 10.5px/1.3 var(--deco); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  .ro b { display: block; font: 600 20px/1.25 var(--mono); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+  .ro.note b { font-size: 32px; color: var(--glow); }
+  .cents { color: var(--amber); }
+  .field-wrap { position: relative; }
+  #field { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; border-radius: 12px; background: linear-gradient(180deg, #2e1d48 0%, #1a1029 100%); border: 1px solid var(--line); touch-action: none; cursor: crosshair; user-select: none; -webkit-user-select: none; }
+  #field:focus-visible { outline: 3px solid var(--amber); outline-offset: 3px; }
+  .axis { display: flex; justify-content: space-between; font: 12px var(--mono); color: var(--muted); margin-top: 4px; gap: 8px; flex-wrap: wrap; }
+  .hint { font-size: 13px; color: var(--text-2); margin: 8px 0 0; }
+  kbd { font: 12px var(--mono); background: var(--bg-2); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
+  .ctl { display: grid; gap: 10px; }
+  label { display: block; font: 700 11px/1.3 var(--deco); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+  select, input[type=number] { width: 100%; min-width: 0; font: 14px var(--mono); padding: 7px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg-2); color: var(--text); color-scheme: dark; }
+  input[type=range] { width: 100%; min-width: 0; accent-color: var(--glow); }
+  .row2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+  output { font: 13px var(--mono); color: var(--text-2); }
+  .btn { min-height: 42px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--glow); background: transparent; color: var(--glow); font: 700 13px/1 var(--deco); letter-spacing: .14em; text-transform: uppercase; cursor: pointer; }
+  .btn[aria-pressed="true"] { background: var(--glow); color: var(--bg); }
+  .status { font-size: 13.5px; color: var(--amber); min-height: 1.4em; margin: 8px 0 0; }
+  .wave svg { display: block; width: 100%; height: auto; background: var(--bg-2); border-radius: 8px; border: 1px solid var(--line); }
+  .explain { margin-top: 18px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+  .math { font: 13px/1.7 var(--mono); background: var(--bg-2); border-left: 3px solid var(--glow); padding: 8px 12px; border-radius: 0 8px 8px 0; overflow-wrap: anywhere; }
+  .note { font-size: 13.5px; color: var(--text-2); margin: 8px 0 0; }
+  footer { margin-top: 26px; text-align: center; font-size: 13px; color: var(--muted); }
+  @media (max-width: 860px) { .stage, .explain { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 520px) { .readout { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Electronic instrument · 1920</p>
+    <h1>Theremin</h1>
+    <p class="lede">Léon Theremin's instrument is played without touching it: one hand sets the pitch, the other the volume. Here the field stands in for the air between the antennas. Left to right is pitch, bottom to top is volume.</p>
+  </header>
+
+  <div class="stage">
+    <section class="card" aria-labelledby="h-play">
+      <h2 id="h-play">Play</h2>
+      <div class="readout" aria-live="polite" id="readout" data-testid="readout">
+        <div class="ro note"><small>Note</small><b id="rNote" data-testid="note">–</b></div>
+        <div class="ro"><small>Cents</small><b id="rCents" class="cents" data-testid="cents">–</b></div>
+        <div class="ro"><small>Frequency</small><b id="rFreq" data-testid="freq">–</b></div>
+        <div class="ro"><small>Volume</small><b id="rVol" data-testid="volume">–</b></div>
+      </div>
+      <div class="field-wrap">
+        <svg id="field" viewBox="0 0 800 450" tabindex="0" role="application" aria-roledescription="theremin field" aria-label="Theremin field. Arrow keys move the hand, Space or Enter starts and stops the sound." aria-describedby="fieldHint" data-testid="field"></svg>
+      </div>
+      <div class="axis" aria-hidden="true"><span id="axLo">–</span><span>pitch →</span><span id="axHi">–</span></div>
+      <p class="hint" id="fieldHint">Press and drag in the field to play; lift to stop. Keyboard: <kbd>Space</kbd> or <kbd>Enter</kbd> sounds the note, <kbd>←</kbd> <kbd>→</kbd> move pitch, <kbd>↑</kbd> <kbd>↓</kbd> volume, <kbd>Shift</kbd> for bigger steps, <kbd>Home</kbd>/<kbd>End</kbd> jump to the ends, <kbd>Esc</kbd> stops.</p>
+      <p class="status" id="status" role="status" data-testid="status"></p>
+    </section>
+
+    <section class="card ctl" aria-labelledby="h-set">
+      <h2 id="h-set">Settings</h2>
+      <div class="row2">
+        <div><label for="base">Lowest note</label>
+          <select id="base" data-testid="base"><option value="65.41">C2 · 65.41 Hz</option><option value="110" selected>A2 · 110 Hz</option><option value="130.81">C3 · 130.81 Hz</option><option value="220">A3 · 220 Hz</option></select></div>
+        <div><label for="oct">Octaves</label><input id="oct" type="number" min="1" max="5" step="1" value="3" data-testid="octaves"></div>
+      </div>
+      <div class="row2">
+        <div><label for="scale">Snap to</label>
+          <select id="scale" data-testid="scale"><option value="off">Off (continuous)</option><option value="chromatic">Chromatic</option><option value="major">Major</option><option value="pentatonic">Major pentatonic</option><option value="blues">Blues</option></select></div>
+        <div><label for="root">Key</label>
+          <select id="root" data-testid="root"></select></div>
+      </div>
+      <div><label for="wave">Waveform</label>
+        <select id="wave" data-testid="wave"><option value="sine">Sine</option><option value="triangle">Triangle</option><option value="sawtooth">Sawtooth</option><option value="square">Square</option></select></div>
+      <div class="wave"><svg id="wavePrev" viewBox="0 0 240 60" role="img" aria-label="Waveform" data-testid="wave-preview"></svg></div>
+      <div><label for="vdepth">Vibrato depth <output id="vdepthOut" for="vdepth" data-testid="vdepth-out">0 ¢</output></label><input id="vdepth" type="range" min="0" max="60" step="1" value="0" data-testid="vdepth"></div>
+      <div><label for="vrate">Vibrato rate <output id="vrateOut" for="vrate" data-testid="vrate-out">5.5 Hz</output></label><input id="vrate" type="range" min="1" max="10" step="0.5" value="5.5" data-testid="vrate"></div>
+      <button type="button" class="btn" id="hold" aria-pressed="false" data-testid="hold">Sound on</button>
+    </section>
+  </div>
+
+  <div class="explain">
+    <section class="card" aria-labelledby="h-map">
+      <h2 id="h-map">The mapping</h2>
+      <div class="math">f = f₀ · 2^(octaves · x), &nbsp;x ∈ [0, 1] left → right<br>gain = 1 − y, &nbsp;y ∈ [0, 1] top → bottom<br>MIDI n = 69 + 12 · log₂(f / 440), &nbsp;cents = 100 · (n − round(n))</div>
+      <p class="note">Pitch is exponential in x because we hear ratios, not differences: equal steps across the field are equal musical intervals. Snapping picks the nearest allowed note by pitch (in cents), then plays its exact 12-tone equal-tempered frequency, 440 · 2^((n − 69)/12).</p>
+    </section>
+    <section class="card" aria-labelledby="h-scales">
+      <h2 id="h-scales">Scales</h2>
+      <p class="note"><b>Chromatic</b>: all 12 notes. <b>Major</b>: 0 2 4 5 7 9 11 semitones above the key. <b>Major pentatonic</b>: 0 2 4 7 9. <b>Blues</b>: 0 3 5 6 7 10 (minor pentatonic with the flat fifth). The real instrument has no frets at all, which is why theremin players practise pitch by ear; switch snapping off to hear that.</p>
+    </section>
+  </div>
+  <footer>Built by Zac Corbett · one oscillator, a vibrato LFO on its detune, and a gain node · no sound until you press or tap · no external requests</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const NAMES = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+  const SCALES = { chromatic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], major: [0, 2, 4, 5, 7, 9, 11], pentatonic: [0, 2, 4, 7, 9], blues: [0, 3, 5, 6, 7, 10] };
+  $('root').innerHTML = NAMES.map((n, i) => `<option value="${i}"${i === 0 ? ' selected' : ''}>${n}</option>`).join('');
+
+  const S = { x: 0.5, y: 0.35, f0: 110, octaves: 3, scale: 'off', root: 0, wave: 'sine', vibDepth: 0, vibRate: 5.5, playing: false, audio: 'none', pointer: false, hold: false };
+
+  // ---------- pitch maths ----------
+  const midiOf = (f) => 69 + 12 * Math.log2(f / 440);
+  const freqOf = (n) => 440 * 2 ** ((n - 69) / 12);
+  const rawFreq = (x) => S.f0 * 2 ** (S.octaves * x);
+  function quantize(f) {
+    if (S.scale === 'off') return f;
+    const pcs = SCALES[S.scale].map((p) => (p + S.root) % 12);
+    const m = midiOf(f);
+    let best = null;
+    for (let n = Math.floor(m) - 12; n <= Math.ceil(m) + 12; n++) {
+      if (!pcs.includes(((n % 12) + 12) % 12)) continue;
+      if (best === null || Math.abs(n - m) < Math.abs(best - m) - 1e-12) best = n;
+    }
+    return freqOf(best);
+  }
+  function noteOf(f) {
+    const m = midiOf(f), n = Math.round(m);
+    return { midi: n, name: NAMES[((n % 12) + 12) % 12] + (Math.floor(n / 12) - 1), cents: Math.round(100 * (m - n)) };
+  }
+
+  // ---------- audio (gesture-gated) ----------
+  let ctx = null, osc = null, amp = null, lfo = null, lfoGain = null;
+  const MAX_GAIN = 0.28;
+  function ensureAudio() {
+    if (ctx) { if (ctx.state !== 'running') { try { const r = ctx.resume(); if (r && r.catch) r.catch(() => {}); } catch (e) { /* ignore */ } } return; }
+    const Ctor = window.AudioContext || window.webkitAudioContext;
+    if (!Ctor) { S.audio = 'unavailable'; return; }
+    try { ctx = new Ctor(); } catch (e) { ctx = null; S.audio = 'unavailable'; return; }
+    osc = ctx.createOscillator(); osc.type = S.wave; osc.frequency.value = current().freq;
+    amp = ctx.createGain(); amp.gain.value = 0;
+    lfo = ctx.createOscillator(); lfo.frequency.value = S.vibRate;
+    lfoGain = ctx.createGain(); lfoGain.gain.value = S.vibDepth;
+    lfo.connect(lfoGain); lfoGain.connect(osc.detune);
+    osc.connect(amp); amp.connect(ctx.destination);
+    osc.start(); lfo.start();
+    ctx.onstatechange = () => { S.audio = ctx.state === 'running' ? 'running' : 'suspended'; say(); push(); };
+    S.audio = ctx.state === 'running' ? 'running' : 'suspended';
+    try { const r = ctx.resume(); if (r && r.catch) r.catch(() => {}); } catch (e) { /* ignore */ }
+  }
+  function push() {
+    if (!ctx) return;
+    const c = current(), t = ctx.currentTime;
+    osc.frequency.setTargetAtTime(c.freq, t, 0.008);
+    amp.gain.setTargetAtTime(S.playing ? c.gain * MAX_GAIN : 0, t, S.playing ? 0.02 : 0.05);
+    lfo.frequency.setTargetAtTime(S.vibRate, t, 0.02);
+    lfoGain.gain.setTargetAtTime(S.vibDepth, t, 0.02);
+    if (osc.type !== S.wave) osc.type = S.wave;
+  }
+  function say(msg) {
+    let m = msg;
+    if (!m) {
+      if (S.audio === 'unavailable') m = 'Web Audio is not available in this browser, so the theremin is silent. The field, readouts and scales still work.';
+      else if (S.audio === 'suspended') m = 'Audio is suspended by the browser. Press in the field or tap Sound on again to start it.';
+      else m = S.playing ? 'Playing.' : (S.audio === 'running' ? 'Silent. Press in the field, or Space, to play.' : '');
+    }
+    $('status').textContent = m;
+  }
+
+  // ---------- state and rendering ----------
+  function current() {
+    const raw = rawFreq(S.x), freq = quantize(raw), n = noteOf(freq);
+    return { raw, freq, gain: 1 - S.y, ...n };
+  }
+  const W = 800, H = 450;
+  function drawField() {
+    const lo = S.f0, n0 = Math.ceil(midiOf(lo) - 1e-9), n1 = Math.floor(midiOf(lo * 2 ** S.octaves) + 1e-9);
+    const pcs = S.scale === 'off' ? null : SCALES[S.scale].map((p) => (p + S.root) % 12);
+    let s = '';
+    for (let n = n0; n <= n1; n++) {
+      const x = (W * (midiOf(freqOf(n)) - midiOf(lo)) / (12 * S.octaves));
+      const pc = ((n % 12) + 12) % 12, inScale = !pcs || pcs.includes(pc), isC = pc === 0;
+      s += `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="0" y2="${H}" stroke="${inScale ? (isC ? 'rgba(94,242,214,.55)' : 'rgba(201,184,230,.28)') : 'rgba(201,184,230,.07)'}" stroke-width="${isC ? 1.6 : 1}"/>`;
+      if (isC || (pcs && inScale && S.octaves <= 3)) s += `<text x="${(x + 3).toFixed(1)}" y="${H - 8}" font-size="${isC ? 15 : 12}" fill="${isC ? '#5ef2d6' : '#9a88b8'}" font-family="Consolas, monospace">${NAMES[pc]}${isC ? Math.floor(n / 12) - 1 : ''}</text>`;
+    }
+    for (let v = 0.25; v < 1; v += 0.25) s += `<line x1="0" x2="${W}" y1="${H * v}" y2="${H * v}" stroke="rgba(255,255,255,.05)"/>`;
+    s += `<text x="10" y="22" font-size="13" fill="#9a88b8" font-family="Consolas, monospace">loud ↑</text><text x="10" y="${H * 0.75 + 20}" font-size="13" fill="#9a88b8" font-family="Consolas, monospace">quiet ↓</text>`;
+    const c = current();
+    const hx = S.x * W, hy = S.y * H, qx = W * (midiOf(c.freq) - midiOf(lo)) / (12 * S.octaves);
+    if (S.scale !== 'off') s += `<line x1="${qx.toFixed(1)}" x2="${qx.toFixed(1)}" y1="0" y2="${H}" stroke="#ffb454" stroke-width="2" stroke-dasharray="6 5" data-testid="snap-line"/>`;
+    s += `<circle cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="${S.playing ? 26 : 18}" fill="${S.playing ? 'rgba(94,242,214,.25)' : 'rgba(255,255,255,.06)'}" stroke="${S.playing ? '#5ef2d6' : '#c9b8e6'}" stroke-width="2" data-testid="hand"/>`;
+    s += `<circle cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="4" fill="${S.playing ? '#5ef2d6' : '#c9b8e6'}"/>`;
+    $('field').innerHTML = s;
+    $('axLo').textContent = `${S.f0.toFixed(2)} Hz`;
+    $('axHi').textContent = `${(S.f0 * 2 ** S.octaves).toFixed(2)} Hz`;
+  }
+  function drawWave() {
+    const pts = [];
+    for (let i = 0; i <= 240; i++) {
+      const ph = (i / 120) % 1;
+      const v = S.wave === 'sine' ? Math.sin(2 * Math.PI * ph) : S.wave === 'square' ? (ph < 0.5 ? 1 : -1) : S.wave === 'sawtooth' ? 2 * ph - 1 : 1 - 4 * Math.abs(((ph + 0.25) % 1) - 0.5);
+      pts.push(`${i},${(30 - 22 * v).toFixed(1)}`);
+    }
+    $('wavePrev').innerHTML = `<line x1="0" x2="240" y1="30" y2="30" stroke="rgba(255,255,255,.1)"/><polyline points="${pts.join(' ')}" fill="none" stroke="#ff6fae" stroke-width="2" data-wave="${S.wave}"/>`;
+    $('wavePrev').setAttribute('aria-label', `${S.wave} wave, two cycles`);
+  }
+  function render() {
+    const c = current();
+    $('rNote').textContent = c.name;
+    $('rCents').textContent = (c.cents > 0 ? '+' : c.cents < 0 ? '−' : '±') + Math.abs(c.cents) + ' ¢';
+    $('rFreq').textContent = `${c.freq.toFixed(2)} Hz`;
+    $('rVol').textContent = `${Math.round(c.gain * 100)}%`;
+    drawField();
+    push();
+  }
+  function moveTo(x, y) {
+    S.x = Math.min(1, Math.max(0, x));
+    S.y = Math.min(1, Math.max(0, y));
+    render();
+  }
+  function setPlaying(on) {
+    if (on) ensureAudio();
+    S.playing = on;
+    $('hold').setAttribute('aria-pressed', String(on));
+    $('hold').textContent = on ? 'Sound off' : 'Sound on';
+    say();
+    render();
+  }
+
+  // ---------- pointer ----------
+  const field = $('field');
+  function posFrom(e) {
+    const r = field.getBoundingClientRect();
+    return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height];
+  }
+  field.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    try { field.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointers */ }
+    field.focus({ preventScroll: true });
+    S.pointer = true;
+    const [x, y] = posFrom(e);
+    S.x = Math.min(1, Math.max(0, x)); S.y = Math.min(1, Math.max(0, y));
+    setPlaying(true);
+  });
+  field.addEventListener('pointermove', (e) => { if (!S.pointer) return; const [x, y] = posFrom(e); moveTo(x, y); });
+  const up = () => { if (!S.pointer) return; S.pointer = false; if (!S.hold) setPlaying(false); };
+  field.addEventListener('pointerup', up);
+  field.addEventListener('pointercancel', up);
+  field.addEventListener('lostpointercapture', up);
+
+  // ---------- keyboard ----------
+  field.addEventListener('keydown', (e) => {
+    const big = e.shiftKey ? 10 : 1, sx = 0.01 * big, sy = 0.02 * big;
+    switch (e.key) {
+      case 'ArrowLeft': moveTo(S.x - sx, S.y); break;
+      case 'ArrowRight': moveTo(S.x + sx, S.y); break;
+      case 'ArrowUp': moveTo(S.x, S.y - sy); break;
+      case 'ArrowDown': moveTo(S.x, S.y + sy); break;
+      case 'Home': moveTo(0, S.y); break;
+      case 'End': moveTo(1, S.y); break;
+      case ' ': case 'Enter': if (e.repeat) break; S.hold = !S.playing; setPlaying(!S.playing); break;
+      case 'Escape': S.hold = false; setPlaying(false); break;
+      default: return;
+    }
+    e.preventDefault();
+  });
+  $('hold').addEventListener('click', () => { S.hold = !S.playing; setPlaying(!S.playing); });
+
+  // ---------- settings ----------
+  $('base').addEventListener('change', () => { S.f0 = parseFloat($('base').value); render(); });
+  const readOct = () => { const v = Math.round(parseFloat($('oct').value)); if (Number.isFinite(v)) { S.octaves = Math.min(5, Math.max(1, v)); render(); } };
+  $('oct').addEventListener('input', readOct);
+  $('oct').addEventListener('change', () => { readOct(); $('oct').value = String(S.octaves); });
+  $('scale').addEventListener('change', () => { S.scale = $('scale').value; render(); });
+  $('root').addEventListener('change', () => { S.root = +$('root').value; render(); });
+  $('wave').addEventListener('change', () => { S.wave = $('wave').value; drawWave(); push(); });
+  $('vdepth').addEventListener('input', () => { S.vibDepth = +$('vdepth').value; $('vdepthOut').textContent = S.vibDepth ? `${S.vibDepth} ¢` : '0 ¢ (off)'; push(); });
+  $('vrate').addEventListener('input', () => { S.vibRate = +$('vrate').value; $('vrateOut').textContent = `${S.vibRate} Hz`; push(); });
+  $('vdepthOut').textContent = '0 ¢ (off)';
+
+  drawWave();
+  render();
+  say('Silent until you press in the field, tap Sound on, or press Space with the field focused.');
+
+  window.__theremin = {
+    get state() { const c = current(); return { ...S, freq: c.freq, rawFreq: c.raw, gain: c.gain, note: c.name, cents: c.cents, midi: c.midi }; },
+    moveTo,
+    node() { return osc ? { freq: osc.frequency.value, type: osc.type, depth: lfoGain.gain.value, rate: lfo.frequency.value, gain: amp.gain.value, state: ctx.state } : null; },
+  };
+})();
+</script>
+</body>
+</html>

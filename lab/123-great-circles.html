@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Great Circles — Austin to anywhere</title>
+<meta name="description" content="Pick two of 31 world cities, or type any coordinates, and get the great-circle distance (haversine, mean Earth radius 6371 km) in kilometres, miles and nautical miles, the initial and final bearings and the midpoint. The route is drawn on an equirectangular and a Mercator map side by side, with the rhumb line for comparison, to show why the shortest path looks curved.">
+<style>
+  :root {
+    --sea: #dfeaf0;
+    --sea-2: #c9dbe4;
+    --land: #efe6cf;
+    --land-edge: #b9a878;
+    --grat: #a9c0cc;
+    --ink: #10242f;
+    --ink-2: #3b5361;
+    --muted: #5f7482;
+    --gc: #c0392b;
+    --rh: #1d5f8a;
+    --card: #fbfaf5;
+    --line: #cbd6dc;
+    --accent: #c0392b;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --cond: "Bahnschrift", "Arial Narrow", "Segoe UI", Arial, sans-serif;
+    --mono: "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: #f3f1ea; color: var(--ink); font: 15px/1.55 var(--sans); overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: #fff; background: var(--ink); text-decoration: none; font: 600 13px/1 var(--sans); padding: 8px 12px; border-radius: 3px; }
+  a.back:hover { background: var(--accent); }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 60px 18px 40px; }
+  header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px 24px; align-items: end; margin-bottom: 18px; border-bottom: 2px solid var(--ink); padding-bottom: 12px; }
+  .eyebrow { margin: 0; font: 700 12px/1.3 var(--cond); letter-spacing: .3em; text-transform: uppercase; color: var(--accent); }
+  h1 { font: 700 clamp(38px, 6.6vw, 68px)/1 var(--cond); margin: 4px 0 6px; letter-spacing: -.01em; text-transform: uppercase; }
+  h1 span { color: var(--accent); }
+  .lede { margin: 0; color: var(--ink-2); max-width: 66ch; }
+  .compass { font: 700 13px/1.3 var(--mono); color: var(--muted); text-align: right; }
+  .top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 18px; align-items: start; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 4px; padding: 14px 16px; min-width: 0; }
+  h2 { font: 700 18px/1.2 var(--cond); letter-spacing: .06em; text-transform: uppercase; margin: 0 0 10px; }
+  .ends { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 10px; align-items: start; }
+  fieldset { border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px 10px; margin: 0; min-width: 0; }
+  legend { font: 700 12px/1 var(--cond); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); padding: 0 4px; }
+  label { display: block; font: 600 11.5px/1.3 var(--sans); color: var(--muted); margin: 6px 0 2px; }
+  select, input { width: 100%; min-width: 0; font: 14px var(--mono); padding: 7px 8px; border: 1px solid #aebdc6; border-radius: 3px; background: #fff; color: var(--ink); }
+  .ll { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; }
+  .btn { min-height: 40px; padding: 8px 12px; border-radius: 3px; border: 1px solid var(--ink); background: var(--ink); color: #fff; font: 700 13px/1 var(--cond); letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
+  .btn:hover { background: var(--accent); border-color: var(--accent); }
+  .swap { align-self: center; margin-top: 16px; }
+  .err { color: #9b1c1c; font-weight: 600; min-height: 1.3em; margin: 6px 0 0; font-size: 13.5px; }
+  .ro { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .cell { border: 1px solid var(--line); background: #fff; border-radius: 3px; padding: 7px 9px; min-width: 0; }
+  .cell small { display: block; font: 700 10.5px/1.3 var(--cond); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .cell b { display: block; font: 600 17px/1.3 var(--mono); overflow-wrap: anywhere; }
+  .cell.hero { grid-column: 1 / -1; border-left: 5px solid var(--gc); }
+  .cell.hero b { font-size: 24px; }
+  .cell.rh { border-left: 5px solid var(--rh); }
+  .maps { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; margin-top: 18px; }
+  .map { min-width: 0; }
+  .map svg { display: block; width: 100%; height: auto; background: var(--sea); border: 1px solid var(--sea-2); }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--ink-2); margin: 0 0 6px; }
+  .legend i { display: inline-block; width: 22px; height: 0; border-top: 2.5px solid var(--gc); vertical-align: 4px; margin-right: 6px; }
+  .legend i.rh { border-top: 2.5px dashed var(--rh); }
+  .schem { font: 600 11px/1.3 var(--mono); color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+  .note { font-size: 13.5px; color: var(--ink-2); margin: 8px 0 0; }
+  .math { font: 13px/1.6 var(--mono); background: #fff; border-left: 3px solid var(--gc); padding: 8px 12px; margin: 8px 0; overflow-wrap: anywhere; }
+  .why { margin-top: 18px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+  footer { margin-top: 26px; text-align: center; font-size: 13px; color: var(--muted); }
+  @media (max-width: 900px) { .top, .maps, .why { grid-template-columns: minmax(0, 1fr); } header { grid-template-columns: minmax(0, 1fr); } .compass { text-align: left; } }
+  @media (max-width: 520px) { .ends { grid-template-columns: minmax(0, 1fr); } .swap { margin-top: 0; } .ro { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <div>
+      <p class="eyebrow">Spherical navigation</p>
+      <h1>Great <span>Circles</span></h1>
+      <p class="lede">The shortest way between two places on a sphere is an arc of a great circle. On a flat map it bends toward the pole, and on a Mercator chart the straight line is the longer rhumb line of constant heading. Start in Austin and go anywhere.</p>
+    </div>
+    <p class="compass">R = 6371 km<br>1 mi = 1.609344 km<br>1 nmi = 1.852 km</p>
+  </header>
+
+  <div class="top">
+    <section class="card" aria-labelledby="h-route">
+      <h2 id="h-route">Route</h2>
+      <div class="ends">
+        <fieldset>
+          <legend>From</legend>
+          <label for="fromSel">City</label>
+          <select id="fromSel" data-testid="from"></select>
+          <div class="ll">
+            <div><label for="fromLat">Lat (° N +)</label><input id="fromLat" type="number" step="0.01" min="-90" max="90" data-testid="from-lat"></div>
+            <div><label for="fromLon">Lon (° E +)</label><input id="fromLon" type="number" step="0.01" min="-180" max="180" data-testid="from-lon"></div>
+          </div>
+        </fieldset>
+        <button type="button" class="btn swap" id="swap" data-testid="swap" aria-label="Swap origin and destination">⇄ Swap</button>
+        <fieldset>
+          <legend>To</legend>
+          <label for="toSel">City</label>
+          <select id="toSel" data-testid="to"></select>
+          <div class="ll">
+            <div><label for="toLat">Lat (° N +)</label><input id="toLat" type="number" step="0.01" min="-90" max="90" data-testid="to-lat"></div>
+            <div><label for="toLon">Lon (° E +)</label><input id="toLon" type="number" step="0.01" min="-180" max="180" data-testid="to-lon"></div>
+          </div>
+        </fieldset>
+      </div>
+      <p class="err" id="err" role="alert" data-testid="error"></p>
+      <p class="note">Editing a latitude or longitude switches that end to “Custom point”. Coordinates are city-centre values from GeoNames and Wikipedia, rounded to two decimals (about 1 km).</p>
+    </section>
+
+    <section class="card" aria-labelledby="h-num">
+      <h2 id="h-num">Numbers</h2>
+      <div class="ro" aria-live="polite" id="ro" data-testid="readout">
+        <div class="cell hero"><small>Great-circle distance</small><b id="dist" data-testid="dist">–</b></div>
+        <div class="cell"><small>Kilometres</small><b id="km" data-testid="km">–</b></div>
+        <div class="cell"><small>Statute miles</small><b id="mi" data-testid="mi">–</b></div>
+        <div class="cell"><small>Nautical miles</small><b id="nmi" data-testid="nmi">–</b></div>
+        <div class="cell"><small>Initial bearing</small><b id="brg" data-testid="bearing">–</b></div>
+        <div class="cell"><small>Final bearing</small><b id="fbrg" data-testid="final-bearing">–</b></div>
+        <div class="cell"><small>Midpoint</small><b id="mid" data-testid="midpoint">–</b></div>
+        <div class="cell rh"><small>Rhumb line</small><b id="rkm" data-testid="rhumb-km">–</b></div>
+        <div class="cell rh"><small>Rhumb heading</small><b id="rbrg" data-testid="rhumb-bearing">–</b></div>
+        <div class="cell rh"><small>Rhumb is longer by</small><b id="rex" data-testid="rhumb-extra">–</b></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="maps">
+    <section class="card map" aria-labelledby="h-eq">
+      <h2 id="h-eq">Equirectangular</h2>
+      <p class="legend"><span><i></i>Great circle (shortest)</span><span><i class="rh"></i>Rhumb line (constant heading)</span></p>
+      <svg id="eq" viewBox="0 0 360 180" role="img" aria-label="Equirectangular map" data-testid="map-eq"></svg>
+      <p class="schem">Schematic coastlines: hand-drawn outlines, not survey data</p>
+    </section>
+    <section class="card map" aria-labelledby="h-merc">
+      <h2 id="h-merc">Mercator</h2>
+      <p class="legend"><span><i></i>Great circle (shortest)</span><span><i class="rh"></i>Rhumb line (straight here)</span></p>
+      <svg id="merc" viewBox="0 0 360 279.2" role="img" aria-label="Mercator map" data-testid="map-merc"></svg>
+      <p class="schem">Schematic coastlines · cut at 80° N and S</p>
+    </section>
+  </div>
+
+  <div class="why">
+    <section class="card" aria-labelledby="h-why">
+      <h2 id="h-why">Why the shortest route looks curved</h2>
+      <p class="note">A flat map has to stretch the sphere somewhere. The equirectangular map stretches every parallel to the length of the equator, and Mercator also stretches north–south by the same factor, 1/cos φ, so that angles are kept. Lines of constant compass heading (rhumb lines, or loxodromes) become straight on Mercator, which is why sailors liked it. The great circle crosses each meridian at a different angle, so on these maps it arcs toward the nearer pole, where the stretched-out distances are really short.</p>
+      <p class="note">Going east–west along the equator, or due north–south, the two lines coincide. Everywhere else the rhumb line is longer, and for far-apart points at high latitude it can be much longer.</p>
+    </section>
+    <section class="card" aria-labelledby="h-math">
+      <h2 id="h-math">The formulas</h2>
+      <div class="math">a = sin²(Δφ/2) + cos φ₁ cos φ₂ sin²(Δλ/2)<br>d = 2R · asin(√a) &nbsp;(haversine), evaluated as 2R · atan2(√a, √(1 − a)) with 1 − a = sin²((φ₁+φ₂)/2) + cos φ₁ cos φ₂ cos²(Δλ/2), which stays exact near antipodes<br>θ₀ = atan2(sin Δλ cos φ₂, cos φ₁ sin φ₂ − sin φ₁ cos φ₂ cos Δλ)<br>Rhumb: Δψ = ln(tan(π/4 + φ₂/2) / tan(π/4 + φ₁/2)), q = Δφ/Δψ, d = R·√(Δφ² + q²Δλ²)</div>
+      <p class="note">A sphere is a model: the WGS-84 ellipsoid differs by up to about 0.5%. Bearings are from true north. Antipodal points have no single great circle, so their bearing and midpoint are undefined.</p>
+    </section>
+  </div>
+  <footer>Built by Zac Corbett · spherical Earth, mean radius 6371 km · both maps are drawn in the page from coordinates, no tiles or images</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const R = 6371, KM_MI = 1.609344, KM_NMI = 1.852;
+  const rad = (d) => (d * Math.PI) / 180, deg = (r) => (r * 180) / Math.PI;
+  const norm360 = (d) => ((d % 360) + 360) % 360;
+  const norm180 = (d) => { const x = norm360(d + 180) - 180; return x === -180 ? 180 : x; };
+
+  // City-centre coordinates (GeoNames / Wikipedia), rounded to 2 decimals
+  const CITIES = [
+    ['Austin', 30.27, -97.74], ['Anchorage', 61.22, -149.90], ['Auckland', -36.85, 174.76], ['Beijing', 39.90, 116.41],
+    ['Buenos Aires', -34.60, -58.38], ['Cairo', 30.04, 31.24], ['Cape Town', -33.92, 18.42], ['Dubai', 25.20, 55.27],
+    ['Honolulu', 21.31, -157.86], ['Istanbul', 41.01, 28.98], ['Lagos', 6.52, 3.38], ['Lima', -12.05, -77.04],
+    ['London', 51.51, -0.13], ['Los Angeles', 34.05, -118.24], ['Madrid', 40.42, -3.70], ['McMurdo Station', -77.85, 166.67],
+    ['Mexico City', 19.43, -99.13], ['Moscow', 55.76, 37.62], ['Mumbai', 19.08, 72.88], ['Nairobi', -1.29, 36.82],
+    ['New York', 40.71, -74.01], ['Paris', 48.86, 2.35], ['Perth', -31.95, 115.86], ['Reykjavík', 64.15, -21.94],
+    ['Rome', 41.90, 12.50], ['São Paulo', -23.55, -46.63], ['Seoul', 37.57, 126.98], ['Singapore', 1.35, 103.82],
+    ['Sydney', -33.87, 151.21], ['Tokyo', 35.68, 139.69], ['Vancouver', 49.28, -123.12],
+  ].map(([name, lat, lon]) => ({ name, lat, lon }));
+
+  // ---------- spherical geometry ----------
+  function haversine(a, b) {
+    const p1 = rad(a.lat), p2 = rad(b.lat), dp = p2 - p1, dl = rad(b.lon - a.lon);
+    const h = Math.sin(dp / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
+    // 1 − h computed directly (it is the haversine of the distance to b's antipode), because asin(√h) loses
+    // about 0.2 m near antipodal points when h rounds towards 1
+    const h1 = Math.sin((p1 + p2) / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.cos(dl / 2) ** 2;
+    return 2 * R * Math.atan2(Math.sqrt(h), Math.sqrt(h1));
+  }
+  const isSame = (a, b) => haversine(a, b) < 1e-6;
+  const isAntipodal = (a, b) => Math.abs(haversine(a, b) - Math.PI * R) < 1e-3;
+  function bearing(a, b) {
+    if (isSame(a, b) || isAntipodal(a, b)) return null;
+    const p1 = rad(a.lat), p2 = rad(b.lat), dl = rad(b.lon - a.lon);
+    return norm360(deg(Math.atan2(Math.sin(dl) * Math.cos(p2), Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(dl))));
+  }
+  function finalBearing(a, b) { const r = bearing(b, a); return r === null ? null : norm360(r + 180); }
+  function midpoint(a, b) {
+    if (isAntipodal(a, b)) return null;
+    const p1 = rad(a.lat), p2 = rad(b.lat), l1 = rad(a.lon), dl = rad(b.lon - a.lon);
+    const Bx = Math.cos(p2) * Math.cos(dl), By = Math.cos(p2) * Math.sin(dl);
+    const pm = Math.atan2(Math.sin(p1) + Math.sin(p2), Math.sqrt((Math.cos(p1) + Bx) ** 2 + By ** 2));
+    const lm = l1 + Math.atan2(By, Math.cos(p1) + Bx);
+    return { lat: deg(pm), lon: norm180(deg(lm)) };
+  }
+  /** Point a fraction f of the way along the great circle. */
+  function along(a, b, f) {
+    const d = haversine(a, b) / R;
+    if (d < 1e-12) return { lat: a.lat, lon: a.lon };
+    const p1 = rad(a.lat), l1 = rad(a.lon), p2 = rad(b.lat), l2 = rad(b.lon);
+    const A = Math.sin((1 - f) * d) / Math.sin(d), B = Math.sin(f * d) / Math.sin(d);
+    const x = A * Math.cos(p1) * Math.cos(l1) + B * Math.cos(p2) * Math.cos(l2);
+    const y = A * Math.cos(p1) * Math.sin(l1) + B * Math.cos(p2) * Math.sin(l2);
+    const z = A * Math.sin(p1) + B * Math.sin(p2);
+    return { lat: deg(Math.atan2(z, Math.hypot(x, y))), lon: deg(Math.atan2(y, x)) };
+  }
+  const psi = (latDeg) => Math.log(Math.tan(Math.PI / 4 + rad(latDeg) / 2));
+  function rhumb(a, b) {
+    const p1 = rad(a.lat), p2 = rad(b.lat), dp = p2 - p1;
+    let dl = rad(b.lon - a.lon);
+    if (Math.abs(dl) > Math.PI) dl = dl > 0 ? -(2 * Math.PI - dl) : 2 * Math.PI + dl;   // take the shorter way round
+    const clampPsi = (p) => Math.log(Math.tan(Math.PI / 4 + Math.max(-89.9999, Math.min(89.9999, deg(p))) * Math.PI / 360));
+    const dpsi = clampPsi(p2) - clampPsi(p1);
+    const q = Math.abs(dpsi) > 1e-12 ? dp / dpsi : Math.cos(p1);
+    const dist = Math.sqrt(dp * dp + q * q * dl * dl) * R;
+    const brg = dist < 1e-9 ? null : norm360(deg(Math.atan2(dl, dpsi)));
+    return { km: dist, bearing: brg, dl: deg(dl) };
+  }
+  function rhumbAlong(a, b, f) {
+    const r = rhumb(a, b);
+    const lat = a.lat + f * (b.lat - a.lat);
+    const P1 = psi(Math.max(-89.99, Math.min(89.99, a.lat))), P2 = psi(Math.max(-89.99, Math.min(89.99, b.lat)));
+    const lon = Math.abs(P2 - P1) > 1e-12 ? a.lon + r.dl * (psi(Math.max(-89.99, Math.min(89.99, lat))) - P1) / (P2 - P1) : a.lon + f * r.dl;
+    return { lat, lon: norm180(lon) };
+  }
+
+  // ---------- formatting ----------
+  const fmt = (x, d = 0) => x.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const POINTS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+  const compass = (b) => POINTS[Math.round(norm360(b) / 22.5) % 16];
+  const brgTxt = (b) => (b === null ? '—' : `${b.toFixed(1)}° ${compass(b)}`);
+  const llTxt = (p) => `${Math.abs(p.lat).toFixed(2)}° ${p.lat >= 0 ? 'N' : 'S'}, ${Math.abs(p.lon).toFixed(2)}° ${p.lon >= 0 ? 'E' : 'W'}`;
+
+  // ---------- schematic continents (rough, hand-drawn lon/lat outlines) ----------
+  const LAND = [
+    [[-168, 66], [-162, 70], [-140, 70], [-120, 74], [-95, 72], [-80, 73], [-62, 60], [-55, 52], [-66, 45], [-76, 35], [-81, 31], [-80, 25], [-84, 30], [-90, 29], [-97, 26], [-97, 22], [-92, 18], [-87, 21], [-83, 15], [-77, 8], [-80, 7], [-86, 12], [-92, 15], [-105, 20], [-110, 24], [-112, 30], [-117, 32], [-124, 40], [-124, 48], [-133, 56], [-148, 60], [-158, 57], [-166, 60]],
+    [[-72, 78], [-60, 82], [-30, 83], [-20, 78], [-22, 70], [-42, 60], [-52, 64], [-58, 74]],
+    [[-77, 8], [-60, 10], [-50, 0], [-35, -6], [-40, -22], [-48, -28], [-58, -38], [-65, -42], [-68, -55], [-74, -50], [-72, -30], [-70, -18], [-76, -14], [-81, -5], [-80, 1]],
+    [[-10, 36], [-9, 43], [-2, 44], [-5, 48], [3, 51], [8, 54], [10, 58], [5, 62], [15, 69], [28, 71], [40, 67], [60, 70], [80, 73], [105, 78], [140, 72], [160, 70], [180, 68], [180, 65], [170, 60], [162, 56], [155, 59], [143, 50], [135, 43], [128, 35], [122, 40], [121, 31], [117, 24], [108, 21], [106, 10], [100, 13], [101, 3], [98, 8], [94, 16], [88, 22], [80, 15], [77, 8], [72, 20], [66, 25], [57, 26], [56, 23], [59, 22], [52, 16], [44, 12], [40, 20], [35, 28], [34, 31], [36, 36], [27, 37], [26, 40], [23, 36], [20, 40], [16, 38], [12, 44], [8, 44], [3, 43], [-4, 37]],
+    [[-17, 21], [-10, 30], [-6, 36], [10, 37], [20, 31], [32, 31], [34, 28], [43, 12], [51, 11], [40, -3], [40, -15], [35, -24], [27, -34], [18, -34], [12, -17], [13, -5], [9, 4], [-5, 5], [-13, 8], [-17, 14]],
+    [[114, -22], [122, -18], [130, -12], [136, -12], [142, -11], [146, -19], [153, -26], [151, -34], [145, -39], [138, -35], [131, -31], [117, -35], [115, -33]],
+    [[-180, -90], [-180, -72], [-120, -73], [-60, -64], [0, -70], [60, -67], [120, -66], [180, -72], [180, -90]],
+    [[-5, 50], [1, 51], [2, 53], [-2, 57], [-5, 58], [-6, 56], [-3, 54], [-5, 52]],
+    [[130, 31], [135, 34], [140, 35], [142, 40], [141, 45], [140, 41], [136, 37], [130, 34]],
+    [[172, -34], [178, -38], [174, -41], [167, -46], [171, -41]],
+    [[109, 1], [117, 7], [119, 1], [116, -4], [110, -3]], [[95, 5], [106, -6], [102, -4]], [[44, -25], [50, -15], [49, -12], [43, -20]],
+  ];
+
+  // ---------- projections (x in 0..360) ----------
+  const MERC_MAX = 80, MERC_H = 279.2, SC = 360 / (2 * Math.PI), MERC_TOP = psi(MERC_MAX) * SC;
+  const PROJ = {
+    eq: (p) => [p.lon + 180, 90 - p.lat],
+    merc: (p) => [p.lon + 180, MERC_TOP - psi(Math.max(-MERC_MAX, Math.min(MERC_MAX, p.lat))) * SC],
+  };
+  /** Split a polyline into segments wherever it jumps across the antimeridian. */
+  function segments(pts) {
+    const segs = [[pts[0]]];
+    for (let i = 1; i < pts.length; i++) {
+      if (Math.abs(pts[i].lon - pts[i - 1].lon) > 180) segs.push([]);
+      segs[segs.length - 1].push(pts[i]);
+    }
+    return segs.filter((s) => s.length > 1);
+  }
+  const pathD = (segs, proj) => segs.map((s) => 'M' + s.map((p) => proj(p).map((v) => v.toFixed(2)).join(' ')).join('L')).join('');
+
+  function drawMap(svg, kind, a, b, gcPts, rhPts) {
+    const proj = PROJ[kind], H = kind === 'eq' ? 180 : MERC_H;
+    let s = '';
+    for (let lon = -180; lon <= 180; lon += 30) s += `<line x1="${lon + 180}" x2="${lon + 180}" y1="0" y2="${H}" stroke="var(--grat)" stroke-width=".4"/>`;
+    for (let lat = -60; lat <= 60; lat += 30) { const y = proj({ lat, lon: 0 })[1].toFixed(2); s += `<line x1="0" x2="360" y1="${y}" y2="${y}" stroke="var(--grat)" stroke-width="${lat === 0 ? .8 : .4}"/>`; }
+    for (const poly of LAND) s += `<path d="M${poly.map(([lon, lat]) => proj({ lat, lon }).map((v) => v.toFixed(1)).join(' ')).join('L')}Z" fill="var(--land)" stroke="var(--land-edge)" stroke-width=".4" stroke-linejoin="round"/>`;
+    for (const c of CITIES) { const [x, y] = proj(c); s += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.1" fill="var(--ink-2)"><title>${c.name}</title></circle>`; }
+    const rs = segments(rhPts), gs = segments(gcPts);
+    s += `<path d="${pathD(rs, proj)}" fill="none" stroke="var(--rh)" stroke-width="1.4" stroke-dasharray="3 2" data-testid="${kind}-rhumb" data-segments="${rs.length}"/>`;
+    s += `<path d="${pathD(gs, proj)}" fill="none" stroke="var(--gc)" stroke-width="1.8" stroke-linecap="round" data-testid="${kind}-gc" data-segments="${gs.length}"/>`;
+    for (const [p, lab] of [[a, 'A'], [b, 'B']]) { const [x, y] = proj(p); s += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="#fff" stroke="var(--gc)" stroke-width="1.5"/><text x="${(x + 4).toFixed(1)}" y="${(y - 4).toFixed(1)}" font-size="9" font-weight="700" fill="var(--ink)" font-family="var(--sans)" stroke="#fff" stroke-width="2" paint-order="stroke">${lab}</text>`; }
+    svg.innerHTML = s;
+  }
+
+  // ---------- UI ----------
+  const opts = CITIES.map((c, i) => `<option value="${i}">${c.name}</option>`).join('') + '<option value="custom">Custom point</option>';
+  $('fromSel').innerHTML = opts; $('toSel').innerHTML = opts;
+  const qs = new URLSearchParams(location.search);
+  const idx = (name, dflt) => { const i = CITIES.findIndex((c) => c.name.toLowerCase() === String(name || '').toLowerCase()); return i >= 0 ? i : dflt; };
+  const ends = {
+    from: { ...CITIES[idx(qs.get('from'), 0)], sel: String(idx(qs.get('from'), 0)) },
+    to: { ...CITIES[idx(qs.get('to'), 12)], sel: String(idx(qs.get('to'), 12)) },
+  };
+  const last = {};
+
+  function syncInputs() {
+    for (const k of ['from', 'to']) {
+      $(k + 'Sel').value = ends[k].sel;
+      $(k + 'Lat').value = String(ends[k].lat);
+      $(k + 'Lon').value = String(ends[k].lon);
+    }
+  }
+  function nameOf(e) { return e.sel === 'custom' ? llTxt(e) : CITIES[+e.sel].name; }
+
+  function render() {
+    const a = { lat: ends.from.lat, lon: ends.from.lon }, b = { lat: ends.to.lat, lon: ends.to.lon };
+    const km = haversine(a, b), br = bearing(a, b), fb = finalBearing(a, b), mid = midpoint(a, b), rh = rhumb(a, b);
+    const same = isSame(a, b), anti = isAntipodal(a, b);
+    $('dist').textContent = `${fmt(km)} km`;
+    $('km').textContent = fmt(km, 1);
+    $('mi').textContent = fmt(km / KM_MI, 1);
+    $('nmi').textContent = fmt(km / KM_NMI, 1);
+    $('brg').textContent = same ? '— (same point)' : anti ? 'any (antipodal)' : brgTxt(br);
+    $('fbrg').textContent = same ? '—' : anti ? 'any (antipodal)' : brgTxt(fb);
+    $('mid').textContent = same ? llTxt(a) : anti ? 'undefined (antipodal)' : llTxt(mid);
+    $('rkm').textContent = `${fmt(rh.km)} km`;
+    $('rbrg').textContent = rh.bearing === null ? '—' : brgTxt(rh.bearing);
+    $('rex').textContent = km < 1e-9 ? '0 km' : `${fmt(rh.km - km)} km (${fmt(100 * (rh.km / km - 1), 1)}%)`;
+    const N = 180;
+    const gcPts = anti ? [] : Array.from({ length: N + 1 }, (_, i) => along(a, b, i / N));
+    const rhPts = Array.from({ length: N + 1 }, (_, i) => rhumbAlong(a, b, i / N));
+    Object.assign(last, { a, b, km, mi: km / KM_MI, nmi: km / KM_NMI, bearing: br, finalBearing: fb, mid, rhumbKm: rh.km, rhumbBearing: rh.bearing, antipodal: anti, same,
+      gcMerc: gcPts.map(PROJ.merc), rhMerc: rhPts.map(PROJ.merc), gcEq: gcPts.map(PROJ.eq), rhEq: rhPts.map(PROJ.eq), from: nameOf(ends.from), to: nameOf(ends.to) });
+    if (anti) { drawMap($('eq'), 'eq', a, b, [a, a], rhPts); drawMap($('merc'), 'merc', a, b, [a, a], rhPts); }
+    else { drawMap($('eq'), 'eq', a, b, gcPts, rhPts); drawMap($('merc'), 'merc', a, b, gcPts, rhPts); }
+    const desc = `${nameOf(ends.from)} to ${nameOf(ends.to)}: great circle ${fmt(km)} km${br === null ? '' : `, setting off at ${br.toFixed(0)}°`}; rhumb line ${fmt(rh.km)} km`;
+    $('eq').setAttribute('aria-label', `Equirectangular map. ${desc}.`);
+    $('merc').setAttribute('aria-label', `Mercator map, where the rhumb line is straight. ${desc}.`);
+  }
+
+  function readLL(k) {
+    const lat = parseFloat($(k + 'Lat').value), lon = parseFloat($(k + 'Lon').value);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+      $('err').textContent = `${k === 'from' ? 'From' : 'To'}: latitude must be −90 to 90 and longitude −180 to 180.`;
+      return;
+    }
+    $('err').textContent = '';
+    Object.assign(ends[k], { lat, lon, sel: 'custom' });
+    $(k + 'Sel').value = 'custom';
+    render();
+  }
+  for (const k of ['from', 'to']) {
+    $(k + 'Sel').addEventListener('change', () => {
+      const v = $(k + 'Sel').value;
+      if (v === 'custom') { ends[k].sel = 'custom'; render(); return; }
+      ends[k] = { ...CITIES[+v], sel: v };
+      $('err').textContent = '';
+      syncInputs(); render();
+    });
+    $(k + 'Lat').addEventListener('input', () => readLL(k));
+    $(k + 'Lon').addEventListener('input', () => readLL(k));
+  }
+  $('swap').addEventListener('click', () => { [ends.from, ends.to] = [ends.to, ends.from]; syncInputs(); render(); });
+
+  syncInputs();
+  render();
+
+  window.__gc = { R, CITIES, haversine, bearing, finalBearing, midpoint, rhumb, along, get last() { return last; } };
+})();
+</script>
+</body>
+</html>

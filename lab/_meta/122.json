@@ -1,0 +1,37 @@
+{
+  "id": "122",
+  "slug": "122-benford-lab",
+  "file": "lab/122-benford-lab.html",
+  "title": "Benford's Law Lab — first digits, tested",
+  "category": "Data Viz",
+  "tags": ["statistics", "benford", "chi-square", "bigint", "svg-charts", "seeded-prng"],
+  "description": "Test a list of numbers against Benford's law. Paste your own, or load datasets computed exactly in the page (powers of 2, Fibonacci numbers and factorials with BigInt, and primes below 100,000) or seeded synthetic sets that are labelled as synthetic. It charts the observed first- and second-digit distributions against log10(1 + 1/d), and reports the chi-square statistic with its p-value and the mean absolute deviation, judged by Nigrini's conformity ranges. It also explains when Benford's law doesn't apply.",
+  "prompt": "Make a Benford's law lab. I paste numbers or pick bundled datasets. Label the synthetic ones as synthetic, and compute honest real ones in the page, like powers of 2, Fibonacci numbers and factorials. Plot the observed first-digit distribution against log10(1 + 1/d), add a second-digit test, a chi-square statistic and the mean absolute deviation, and use Nigrini's conformity ranges exactly as he defines them. Explain when Benford doesn't apply (assigned numbers, capped ranges). The spec should check the expected proportions (d = 1 is 30.103%), the exact first-digit counts for 2^1 to 2^1000 computed with BigInt in the test, and the chi-square maths.",
+  "qa": {
+    "methodology": [
+      "Exact oracle: the spec computes 2^1 … 2^1000 and F1 … F1000 itself with BigInt, counts their first and second digits (301, 176, 125, 97, 79, 69, 56, 52, 45 for the powers of 2), and requires the page's tables and hook to match exactly.",
+      "Formula checks: every expected proportion in both tables is compared with log10(1 + 1/d) and the second-digit sum computed in the test (30.103% and 11.968% among them). The page's chi-square and MAD for the Fibonacci set must match the test's own Σ(O − E)²/E and mean |O − E| to 1e-9.",
+      "p-values against published tables: 15.507 with 8 df and 16.919 with 9 df give 0.05, 20.090 with 8 df gives 0.01, and for 2 df the survival function must equal e^(−x/2) exactly.",
+      "Nigrini's ranges are probed at and just past every boundary (0.006, 0.012, 0.015 for first digits; 0.008, 0.010, 0.012 for second digits). Datasets that should fail (a capped uniform range, sequential account numbers, heights, primes) must be judged nonconforming.",
+      "Parsing: a pasted line mixes thousands separators, decimals below 1, exponent notation, a sign, a zero, junk text and a comma-separated pair. The expected digit counts and skip counts were worked out by hand."
+    ],
+    "risks": [
+      "Nigrini's tables are written as ranges ('0.006 to 0.012'); the page treats each upper bound as inclusive. A different reading only moves results that land exactly on a boundary.",
+      "Comma handling is a guess about intent: '1,234' is one number, but '5,7' is two. A European decimal comma would be misread.",
+      "The chi-square p-value relies on a hand-written incomplete-gamma routine. It's checked at four points, not over the whole range.",
+      "Synthetic datasets depend on the seeded PRNG; a change to the generator changes their counts, which is why the tests assert conformity classes for them rather than exact numbers."
+    ],
+    "playwright": "Most of the value came from plain page.evaluate: Node's BigInt in the test builds the reference data independently, and the page's hook hands back its counts for an exact toEqual. Table text is also read through locators, so the visible numbers are checked, not just the model. SVGGraphicsElement.getBBox() inside evaluateAll confirms bar heights are proportional to the counts (digit 1 over digit 9 ≈ 301/45) without screenshots. Keyboard tests use real Tab, Enter and Space presses on the dataset buttons. The whole spec passed on its first run, so it hasn't caught a regression yet; the parsing test is the one most likely to catch one.",
+    "coverage": [
+      "Expected first- and second-digit proportions, sums to 1",
+      "Powers of 2 exact first/second digit counts (BigInt)",
+      "Chi-square, MAD, df and p-values vs tables",
+      "Nigrini boundaries for first and second digits",
+      "Paste parsing, skipped zeros and junk, empty input",
+      "Nonconforming datasets, π(100 000) = 9592, factorials",
+      "Synthetic labels and ?seed reproducibility",
+      "Chart bars, expected curve, aria description; keyboard"
+    ]
+  },
+  "a11y": "Dataset choices are toggle buttons (aria-pressed) in labelled groups, each marked 'computed' or 'synthetic' in text, not only by colour. The results summary is a polite live region with the verdict in words. Each chart has an aria-label naming the biggest gap, every bar has a hover title, and full tables of counts and percentages sit under the charts. The textarea and buttons are native and labelled."
+}

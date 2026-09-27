@@ -1,0 +1,39 @@
+{
+  "id": "117",
+  "slug": "117-property-testing",
+  "file": "lab/117-property-testing.html",
+  "title": "Property-Based Testing Lab — generators, properties and shrinking",
+  "category": "QA & Testing",
+  "tags": ["property-based-testing", "shrinking", "generators", "seeded-prng", "quickcheck"],
+  "description": "A small property tester written from scratch in the spirit of QuickCheck and fast-check. It has seeded, size-scaled generators for ints, strings, arrays and records, and four functions with planted bugs: a sort that drops duplicates, a run-length encoder that misreads digits, a date-range overlap check with an off-by-one, and a bill split that loses cents. Pick a function and a property (round-trip, idempotence, invariant or oracle), run 100 cases, and watch the shrinker cut the counterexample down one step at a time. The fixed versions pass everything.",
+  "prompt": "Build a small property-based tester from scratch, like QuickCheck or fast-check. I want seeded generators for ints, strings, arrays and records, and a few deliberately buggy functions to test: a sort that drops duplicates, a naive run-length encoding, a date-range overlap check with an off-by-one, and a money split that loses cents. I pick a function and a property (round-trip, idempotence, invariant or oracle comparison), run 100 cases, and watch the shrinker minimise the counterexample step by step. The spec should check that shrinking reaches the known minimal counterexamples (for the dedup sort, [0,0] or equivalent), that runs are deterministic per seed, and that the correct functions pass.",
+  "qa": {
+    "methodology": [
+      "Known minima across seeds: for 25 seeds the dedup sort shrinks to exactly [0, 0] under both the oracle and the permutation property. For 20 seeds the encoder shrinks to \"0\", the overlap check to two one-day bookings on 1 January, and the split to 1 cent between 2 people.",
+      "Shrink-step oracle: every step of a shrink is re-run in the test against the buggy function and a reference written in the spec. Each step must still fail and must be strictly smaller than the one before, by a size measure defined in the test.",
+      "Fixed implementations: every property of every fixed function passes all 100 cases for 10 seeds. Properties that can't see a bug (idempotence and ordering on the dedup sort, symmetry of the overlap check, fairness of the split) are shown passing on the buggy code, which is part of the lesson.",
+      "Determinism: the same seed gives a deep-equal run. Each case has its own RNG stream, so case i equals a standalone sample of case i. Different seeds generate different inputs, and a reload with the URL seed reproduces the verdict.",
+      "The watch-it-shrink animation runs under page.clock: one step per 350 ms tick, and Step and Skip work by hand. Generator bounds and size growth are checked on 100 samples."
+    ],
+    "risks": [
+      "A greedy shrinker can get stuck in a local minimum. Without the Hypothesis-style pass that shrinks equal values together, [5, 5] and two bookings on the same later day could not reach their minima.",
+      "Halving-based integer shrinking skips values: from an odd number it only ever proposes even ones.",
+      "The buggy decoder can be handed a huge run count, so it throws past 1000 rather than allocating gigabytes. A throw counts as a failure.",
+      "Seeds that happen to fail on an already-minimal first case produce a one-step shrink, so tests that need several steps search for a seed rather than hard-coding one."
+    ],
+    "playwright": "Most of this spec runs inside page.evaluate: the tester is pure JavaScript, so the spec calls __pbt.run for hundreds of seed, function and property combinations and checks the results in Node against its own reference implementations. That was fast to write, but it means the heavy tests exercise the engine more than the UI, so separate tests drive the selects, the radio toggle, the case grid's roving keyboard focus and the shrink ladder. page.clock (installed before goto, then paused) steps the shrink animation one tick at a time, which avoided sleeps entirely. The first spec run caught a real shrinker bug: {cents: 63, ways: 2} was stuck because halving from 63 proposes only even amounts. The shrinker now also tries the values right next to the target. Candid cost: the multi-seed tests are CPU-heavy and ran slowly on a loaded machine, so the seed counts were trimmed.",
+    "coverage": [
+      "Dedup sort shrinks to [0, 0] for 25 seeds, two properties",
+      "RLE \"0\", overlap on 1 Jan, 1¢ split two ways: known minima for 20 seeds",
+      "Every shrink step still fails and gets smaller",
+      "Fixed functions pass every property for 10 seeds",
+      "Blind properties pass on buggy code",
+      "Seed determinism, per-case streams, URL seed",
+      "Generator bounds and size growth, int shrink candidates",
+      "Shrink animation under page.clock, Step and Skip",
+      "Case grid stops at first failure, keyboard navigation",
+      "Code, property and generator descriptions"
+    ]
+  },
+  "a11y": "Every control is a labelled native select, radio or button. The implementation toggle is a real radio group. The verdict is an aria-live status. The 100 case cells are buttons with aria-labels (held, falsified or not run), and a roving tabindex supports the arrow keys, Home and End. The shrink ladder marks the current step with aria-current, and Skip returns focus to Replay."
+}

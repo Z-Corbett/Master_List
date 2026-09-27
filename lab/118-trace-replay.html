@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trace Replay — step through a recorded test run</title>
+<meta name="description" content="Step through a recorded end-to-end test the way a trace viewer does: an action timeline, before and after DOM snapshots in a sandboxed frame, the network requests and console output of each step, and the one step that failed. Scrub with the keyboard, filter requests and deep-link to any step.">
+<style>
+  :root {
+    --bg: #15171b;
+    --panel: #1d2026;
+    --panel-2: #252932;
+    --line: #333844;
+    --text: #e6e2d8;
+    --muted: #9da3ae;
+    --amber: #f2a93b;
+    --amber-2: #ffcf7d;
+    --ok: #6cc28a;
+    --err: #ff6d5e;
+    --warn: #f2d15b;
+    --info: #7cb7ff;
+    --goto: #b69cff;
+    --click: #f2a93b;
+    --fill: #5fd3c6;
+    --expect: #9ed36a;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.5 var(--sans); overflow-x: hidden; }
+  :focus-visible { outline: 2px solid var(--amber-2); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 30; background: var(--amber); color: #1b1305; text-decoration: none; font: 700 13px/1 var(--sans); padding: 8px 12px; border-radius: 3px; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 56px 16px 32px; }
+  header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 8px 20px; margin-bottom: 12px; }
+  h1 { margin: 0; font: 700 clamp(24px, 4.4vw, 36px)/1.1 var(--mono); letter-spacing: -.01em; overflow-wrap: anywhere; }
+  h1 span { color: var(--amber); }
+  .lede { margin: 6px 0 0; color: var(--muted); max-width: 70ch; }
+  .runinfo { font: 12px/1.5 var(--mono); color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; min-width: 0; overflow-wrap: anywhere; }
+  .runinfo b { color: var(--text); }
+  .runinfo .bad { color: var(--err); font-weight: 700; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; min-width: 0; }
+  .panel > h2 { margin: 0; padding: 8px 12px; font: 700 11px/1.2 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; justify-content: space-between; }
+  /* timeline */
+  .tl { padding: 10px 12px 12px; }
+  .ruler { position: relative; height: 16px; font: 10px/16px var(--mono); color: var(--muted); }
+  .ruler span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+  .ruler span:first-child { transform: none; } .ruler span:last-child { transform: translateX(-100%); }
+  .track { position: relative; height: 34px; background: var(--panel-2); border-radius: 3px; cursor: pointer; touch-action: manipulation; }
+  .seg { position: absolute; top: 5px; bottom: 5px; border-radius: 2px; border-left: 1px solid var(--bg); opacity: .8; }
+  .seg.goto { background: var(--goto); } .seg.click { background: var(--click); } .seg.fill { background: var(--fill); } .seg.expect { background: var(--expect); }
+  .seg.failed { background: repeating-linear-gradient(135deg, var(--err) 0 6px, #b8392d 6px 12px); }
+  .seg.cur { opacity: 1; top: 1px; bottom: 1px; box-shadow: 0 0 0 2px var(--text); z-index: 1; }
+  .head { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text); pointer-events: none; z-index: 2; }
+  .tlmeta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; margin-top: 6px; font: 12px var(--mono); color: var(--muted); }
+  .tlmeta b { color: var(--text); }
+  .kbd { font: 11px var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 3px; padding: 0 4px; }
+  /* main grid */
+  .grid { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 12px; margin-top: 12px; align-items: start; }
+  .actions { list-style: none; margin: 0; padding: 4px; }
+  .act { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 8px; align-items: start; width: 100%; text-align: left; background: none; border: 0; border-radius: 3px; color: var(--text); padding: 6px 8px; cursor: pointer; font: 13px/1.35 var(--sans); }
+  .act:hover { background: var(--panel-2); }
+  .act[aria-current="step"] { background: #3a2f1c; box-shadow: inset 3px 0 0 var(--amber); }
+  .act .ic { width: 14px; height: 14px; border-radius: 50%; margin-top: 2px; background: var(--ok); }
+  .act.failed .ic { background: var(--err); }
+  .act .verb { font: 700 12px var(--mono); }
+  .act .sel { display: block; font: 12px var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+  .act .dur { font: 12px var(--mono); color: var(--muted); white-space: nowrap; }
+  .act.failed .verb { color: var(--err); }
+  .v-goto { color: var(--goto); } .v-click { color: var(--click); } .v-fill { color: var(--fill); } .v-expect { color: var(--expect); }
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+  .tab { background: var(--panel-2); color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 4px 10px; font: 700 12px var(--sans); cursor: pointer; letter-spacing: 0; text-transform: none; }
+  .tab[aria-selected="true"], .tab[aria-pressed="true"] { background: var(--amber); color: #1b1305; border-color: var(--amber); }
+  .snaps { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 10px; }
+  .snaps.side { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .snap { min-width: 0; }
+  .snap .cap { font: 11px var(--mono); color: var(--muted); margin-bottom: 4px; display: flex; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
+  .snap .cap b { color: var(--amber-2); }
+  .frame { border: 1px solid var(--line); border-radius: 4px; overflow: hidden; background: #fff; }
+  .frame .bar { background: #d9d6ce; color: #444; font: 11px var(--mono); padding: 3px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  iframe { display: block; width: 100%; height: 330px; border: 0; background: #fff; }
+  .current { padding: 10px 12px; border-bottom: 1px solid var(--line); font: 13px var(--mono); overflow-wrap: anywhere; }
+  .current .when { color: var(--muted); font-size: 12px; }
+  .error { margin: 10px; border: 1px solid var(--err); background: #2b1715; border-radius: 4px; padding: 10px 12px; }
+  .error h3 { margin: 0 0 6px; font: 700 13px var(--sans); color: var(--err); }
+  .error pre { margin: 0; font: 12px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; color: #ffd9d4; }
+  .error ol { margin: 8px 0 0; padding-left: 20px; font: 12px/1.5 var(--mono); color: var(--muted); }
+  .lower { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 12px; margin-top: 12px; align-items: start; }
+  .filters { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  .filters input[type=search] { flex: 1 1 140px; min-width: 0; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 3px; padding: 5px 8px; font: 13px var(--mono); }
+  .filters label { font-size: 12px; color: var(--muted); display: inline-flex; gap: 4px; align-items: center; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .count { font: 12px var(--mono); color: var(--muted); padding: 6px 12px; }
+  .scroller { overflow-x: auto; max-width: 100%; }
+  table { border-collapse: collapse; width: 100%; font: 12px/1.4 var(--mono); }
+  th, td { text-align: left; padding: 5px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 400; }
+  td.url { white-space: normal; overflow-wrap: anywhere; min-width: 160px; }
+  tr.bad td { color: var(--err); }
+  .empty { padding: 12px; color: var(--muted); font-size: 13px; }
+  .console { list-style: none; margin: 0; padding: 0; font: 12px/1.45 var(--mono); }
+  .console li { padding: 5px 12px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+  .console .lvl { display: inline-block; min-width: 4.6em; font-weight: 700; }
+  .console .error { margin: 0; border: 0; padding: 5px 12px; border-radius: 0; background: #2b1715; }
+  .lvl-log { color: var(--muted); } .lvl-info { color: var(--info); } .lvl-warning { color: var(--warn); } .lvl-error { color: var(--err); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  footer { margin-top: 22px; color: var(--muted); font-size: 12px; text-align: center; }
+  .jump { background: none; border: 1px solid var(--err); color: var(--err); border-radius: 3px; padding: 3px 8px; font: 700 12px var(--sans); cursor: pointer; }
+  @media (max-width: 900px) { .grid, .lower { grid-template-columns: minmax(0, 1fr); } .snaps.side { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <div style="min-width:0">
+      <h1>Trace <span>Replay</span></h1>
+      <p class="lede">A recorded end-to-end test of a made-up tea shop, replayed step by step: what the page looked like before and after each action, the requests it made and what it logged, up to the assertion that failed.</p>
+    </div>
+    <div class="runinfo" data-testid="runinfo">
+      <div><b>checkout.spec.ts</b> › guest can apply a promo code</div>
+      <div>chromium · 1280×720 · <span class="bad">1 failed</span> · <span id="totalTxt" data-testid="total"></span></div>
+      <div><button type="button" class="jump" id="jump" data-testid="jump-failure">Jump to the failure</button></div>
+    </div>
+  </header>
+
+  <section class="panel" aria-labelledby="h-tl">
+    <h2 id="h-tl"><span>Timeline</span><span style="letter-spacing:0;text-transform:none">Keys: <span class="kbd">←</span> <span class="kbd">→</span> step · <span class="kbd">Home</span> <span class="kbd">End</span></span></h2>
+    <div class="tl">
+      <div class="ruler" id="ruler" aria-hidden="true"></div>
+      <div class="track" id="track" data-testid="timeline" role="slider" tabindex="0" aria-label="Test timeline: choose an action" aria-valuemin="1"></div>
+      <div class="tlmeta"><span>Playhead <b id="playhead" data-testid="playhead">0 ms</b></span><span id="legend"></span></div>
+    </div>
+  </section>
+
+  <div class="grid">
+    <section class="panel" aria-labelledby="h-act">
+      <h2 id="h-act">Actions</h2>
+      <ol class="actions" id="actions" data-testid="actions"></ol>
+    </section>
+
+    <section class="panel" aria-labelledby="h-snap">
+      <h2 id="h-snap"><span>DOM snapshot</span>
+        <span class="tabs" role="tablist" aria-label="Snapshot">
+          <button type="button" class="tab" role="tab" id="tab-before" data-testid="tab-before" aria-selected="false" aria-controls="snaps">Before</button>
+          <button type="button" class="tab" role="tab" id="tab-after" data-testid="tab-after" aria-selected="true" aria-controls="snaps">After</button>
+          <button type="button" class="tab" id="side" data-testid="side-by-side" aria-pressed="false">Side by side</button>
+        </span>
+      </h2>
+      <div class="current" id="current" data-testid="current" aria-live="polite"></div>
+      <div class="error" id="err" data-testid="error" hidden>
+        <h3>Error</h3>
+        <pre id="errMsg" data-testid="error-message"></pre>
+        <ol id="callLog" aria-label="Call log"></ol>
+      </div>
+      <div class="snaps" id="snaps" role="tabpanel">
+        <div class="snap" id="snapBefore" data-testid="snap-before">
+          <div class="cap"><b>Before</b><span id="capBefore"></span></div>
+          <div class="frame"><div class="bar" id="urlBefore"></div><iframe sandbox="" title="Page before the action" id="fBefore"></iframe></div>
+        </div>
+        <div class="snap" id="snapAfter" data-testid="snap-after">
+          <div class="cap"><b>After</b><span id="capAfter"></span></div>
+          <div class="frame"><div class="bar" id="urlAfter"></div><iframe sandbox="" title="Page after the action" id="fAfter"></iframe></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="lower">
+    <section class="panel" aria-labelledby="h-net">
+      <h2 id="h-net">Network</h2>
+      <div class="filters">
+        <input type="search" id="q" data-testid="net-filter" placeholder="Filter URLs" aria-label="Filter requests by URL">
+        <label><input type="checkbox" id="all" data-testid="net-all"> All steps</label>
+        <label><input type="checkbox" id="errs" data-testid="net-errors"> Errors only</label>
+        <div class="chips" role="group" aria-label="Resource type" id="chips"></div>
+      </div>
+      <div class="count" id="netCount" data-testid="net-count" aria-live="polite"></div>
+      <div class="scroller"><table data-testid="net-table"><thead><tr><th scope="col">Step</th><th scope="col">Method</th><th scope="col">Status</th><th scope="col">Type</th><th scope="col">URL</th><th scope="col">Size</th><th scope="col">Time</th></tr></thead><tbody id="netBody"></tbody></table></div>
+    </section>
+    <section class="panel" aria-labelledby="h-con">
+      <h2 id="h-con"><span>Console</span><span id="conTotals" data-testid="console-totals" style="letter-spacing:0;text-transform:none"></span></h2>
+      <ul class="console" id="console" data-testid="console"></ul>
+    </section>
+  </div>
+  <p class="sr" id="live" aria-live="polite" data-testid="live"></p>
+  <footer>Built by Zac Corbett · the layout is inspired by Playwright's trace viewer; the recorded run, the shop and every request in it are made up · deep-link any step with <code>#step=N</code></footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  // ---------------- the recorded run (fictional) ----------------
+  const ORIGIN = 'https://mossgate-tea.test';
+  const S0 = { page: 'blank', cart: 0, added: false, email: '', promo: '', msg: '', total: '$18.00' };
+  const RAW = [
+    { type: 'goto', label: "page.goto('/')", target: null, dur: 612, change: { page: 'home' },
+      net: [['GET', '/', 200, 'document', 14200, 180], ['GET', '/assets/app.css', 200, 'stylesheet', 8100, 42], ['GET', '/assets/app.js', 200, 'script', 61800, 96], ['GET', '/img/hero.webp', 200, 'image', 48300, 120], ['GET', '/api/session', 200, 'fetch', 310, 38]],
+      console: [['log', '[app] booted in 212 ms']] },
+    { type: 'click', label: "getByRole('link', { name: 'Shop teas' }).click()", target: 'shop-link', dur: 348, change: { page: 'shop' },
+      net: [['GET', '/api/products?cat=tea', 200, 'fetch', 2240, 71], ['GET', '/img/hojicha.webp', 200, 'image', 21900, 64], ['GET', '/img/sencha.webp', 200, 'image', 23400, 66]],
+      console: [] },
+    { type: 'click', label: "getByRole('button', { name: 'Add Hojicha to cart' }).click()", target: 'add-hojicha', dur: 231, change: { cart: 1, added: true },
+      net: [['POST', '/api/cart', 201, 'fetch', 188, 83]],
+      console: [['info', 'cart: +1 hojicha-100g (1 item)']] },
+    { type: 'click', label: "getByRole('link', { name: /Cart/ }).click()", target: 'cart-link', dur: 402, change: { page: 'cart' },
+      net: [['GET', '/api/cart', 200, 'fetch', 402, 44], ['GET', '/api/shipping-rates?v=1', 200, 'fetch', 612, 131]],
+      console: [['warning', '[deprecation] shipping-rates v1 is deprecated; move to v2']] },
+    { type: 'expect', label: "expect(getByRole('heading', { name: 'Your cart' })).toBeVisible()", target: 'cart-heading', dur: 64, change: {},
+      net: [], console: [] },
+    { type: 'fill', label: "getByLabel('Email').fill('guest@example.test')", target: 'email', dur: 118, change: { email: 'guest@example.test' },
+      net: [], console: [] },
+    { type: 'fill', label: "getByLabel('Promo code').fill('LEAF10')", target: 'promo', dur: 96, change: { promo: 'LEAF10' },
+      net: [], console: [] },
+    { type: 'click', label: "getByRole('button', { name: 'Apply' }).click()", target: 'apply', dur: 540, change: { msg: 'This code has expired.' },
+      net: [['POST', '/api/promo', 422, 'fetch', 96, 212], ['POST', '/api/events', 204, 'other', 0, 35]],
+      console: [['error', 'Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)'], ['warning', 'promo: LEAF10 rejected (PROMO_EXPIRED)']] },
+    { type: 'expect', label: "expect(getByTestId('order-total')).toHaveText('$16.20')", target: 'total', dur: 5000, change: {}, failed: true,
+      error: 'Error: expect(locator).toHaveText(expected) failed\n\nLocator:  getByTestId(\'order-total\')\nExpected: "$16.20"\nReceived: "$18.00"\nTimeout:  5000ms',
+      callLog: ["waiting for getByTestId('order-total')", 'locator resolved to <strong data-testid="order-total">$18.00</strong>', 'unexpected value "$18.00"', 'retrying… 9 × unexpected value "$18.00"'],
+      net: [['GET', '/api/cart', 200, 'fetch', 402, 39]],
+      console: [] },
+  ];
+  // derive start times and before/after page states
+  let t = 0, st = S0;
+  const ACTIONS = RAW.map((a, i) => {
+    const before = st, after = { ...st, ...a.change };
+    st = after;
+    const out = { i: i + 1, type: a.type, label: a.label, target: a.target, start: t, dur: a.dur, failed: !!a.failed, error: a.error || null, callLog: a.callLog || [],
+      before, after,
+      network: a.net.map(([method, path, status, type, size, time], k) => ({ id: `${i + 1}.${k + 1}`, step: i + 1, method, url: ORIGIN + path, status, type, size, time })),
+      console: a.console.map(([level, text]) => ({ step: i + 1, level, text })) };
+    t += a.dur;
+    return out;
+  });
+  const TOTAL = t;
+  const ALL_NET = ACTIONS.flatMap((a) => a.network);
+  const ALL_CON = ACTIONS.flatMap((a) => a.console);
+
+  // ---------------- snapshot pages (static HTML, no scripts; shown in a sandboxed iframe) ----------------
+  function snapshot(s, hl) {
+    const H = (id) => (id === hl ? ' data-hl="1"' : '');
+    if (s.page === 'blank') return '<!doctype html><html><body style="margin:0;font:13px system-ui,sans-serif;color:#888;display:grid;place-items:center;height:100vh">about:blank</body></html>';
+    const css = `body{margin:0;font:14px/1.45 Georgia,serif;color:#2e2a24;background:#fbf7ef}header{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;justify-content:space-between;padding:10px 14px;background:#2f4a3a;color:#f3ead7}
+      .logo{font:700 16px Georgia,serif;letter-spacing:.02em}nav a{color:#f3ead7;margin-left:12px;font:13px system-ui,sans-serif}main{padding:14px}h1{font-size:20px;margin:0 0 8px}h2{font-size:18px;margin:0 0 8px}
+      .hero{background:#e9dcc1;border-radius:8px;padding:18px}.btn{display:inline-block;background:#b5552f;color:#fff;border:0;border-radius:4px;padding:6px 12px;font:13px system-ui,sans-serif;text-decoration:none}
+      .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}.card{background:#fff;border:1px solid #e3d7bf;border-radius:8px;padding:10px}.sw{height:40px;border-radius:4px;margin-bottom:6px}
+      label{display:block;font:12px system-ui,sans-serif;margin-top:8px}input{font:13px system-ui,sans-serif;padding:4px 6px;border:1px solid #bbb;border-radius:3px;width:100%;max-width:220px}
+      .line{display:flex;justify-content:space-between;border-bottom:1px dashed #cbbd9f;padding:4px 0}.msg{color:#b0261b;font:13px system-ui,sans-serif;margin:6px 0}.tot{font-size:16px;margin-top:8px}
+      [data-hl]{outline:3px solid #ff3b2f;outline-offset:2px;background-color:rgba(255,59,47,.12)}`;
+    let main = '';
+    if (s.page === 'home') main = `<div class="hero"><h1>Loose-leaf tea, roasted slow.</h1><p>Small-batch hojicha and sencha, packed the week they're roasted.</p><a class="btn" href="#"${H('shop-link')}>Shop teas</a></div>`;
+    if (s.page === 'shop') main = `<h2>Teas</h2><div class="cards"><div class="card"><div class="sw" style="background:#8b5a2b"></div><b>Hojicha</b> · 100 g<br>$18.00<br><button class="btn"${H('add-hojicha')}>${s.added ? 'Added ✓' : 'Add Hojicha to cart'}</button></div><div class="card"><div class="sw" style="background:#7c9a4a"></div><b>Sencha</b> · 100 g<br>$14.00<br><button class="btn">Add Sencha to cart</button></div></div>`;
+    if (s.page === 'cart') main = `<h2${H('cart-heading')}>Your cart</h2><div class="line"><span>Hojicha · 100 g × ${s.cart}</span><span>$18.00</span></div>
+      <label for="e">Email</label><input id="e" value="${esc(s.email)}"${H('email')}><label for="p">Promo code</label><input id="p" value="${esc(s.promo)}"${H('promo')}> <button class="btn"${H('apply')}>Apply</button>
+      ${s.msg ? `<p class="msg" role="alert">${esc(s.msg)}</p>` : ''}<p class="tot">Total: <strong data-testid="order-total"${H('total')}>${s.total}</strong></p>`;
+    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><style>${css}</style></head><body><header><span class="logo">Mossgate Tea Co.</span><nav><a href="#">Home</a><a href="#">Shop teas</a><a href="#"${H('cart-link')}>Cart (${s.cart})</a></nav></header><main>${main}</main></body></html>`;
+  }
+  const urlOf = (s) => (s.page === 'blank' ? 'about:blank' : ORIGIN + ({ home: '/', shop: '/shop', cart: '/cart' }[s.page]));
+
+  // ---------------- state ----------------
+  const S = { step: 1, snap: 'after', side: false, q: '', all: false, errors: false, type: 'all' };
+  const TYPES = ['all', 'document', 'fetch', 'script', 'stylesheet', 'image', 'other'];
+  const fmtMs = (ms) => (ms >= 1000 ? `${(ms / 1000).toFixed(2)} s` : `${ms} ms`);
+  const fmtSize = (b) => (b === 0 ? '0 B' : b < 1000 ? `${b} B` : `${(b / 1000).toFixed(1)} kB`);
+
+  function filterNet() {
+    const pool = S.all ? ALL_NET : ACTIONS[S.step - 1].network;
+    const q = S.q.trim().toLowerCase();
+    return { pool, rows: pool.filter((r) => (S.type === 'all' || r.type === S.type) && (!S.errors || r.status >= 400) && (!q || r.url.toLowerCase().includes(q))) };
+  }
+
+  // ---------------- build static UI ----------------
+  const track = $('track');
+  track.setAttribute('aria-valuemax', ACTIONS.length);
+  track.innerHTML = ACTIONS.map((a) => `<div class="seg ${a.type}${a.failed ? ' failed' : ''}" data-testid="seg-${a.i}" data-start="${a.start}" data-dur="${a.dur}" style="left:${(100 * a.start / TOTAL).toFixed(4)}%;width:${(100 * a.dur / TOTAL).toFixed(4)}%"></div>`).join('') + '<div class="head" id="head"></div>';
+  const ticks = [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000].filter((x) => x < TOTAL - 500);
+  $('ruler').innerHTML = ticks.map((x) => `<span style="left:${100 * x / TOTAL}%">${x / 1000}s</span>`).join('') + `<span style="left:100%">${fmtMs(TOTAL)}</span>`;
+  $('legend').innerHTML = ['goto', 'click', 'fill', 'expect'].map((k) => `<span class="v-${k}">■ ${k}</span>`).join(' ');
+  $('totalTxt').textContent = `${ACTIONS.length} actions · ${fmtMs(TOTAL)}`;
+  $('actions').innerHTML = ACTIONS.map((a) => `<li><button type="button" class="act${a.failed ? ' failed' : ''}" data-i="${a.i}" data-testid="action-${a.i}" data-start="${a.start}" data-dur="${a.dur}">
+      <span class="ic" aria-hidden="true"></span><span><span class="verb v-${a.type}">${a.type}</span>${a.failed ? ' <span class="sr">(failed)</span>' : ''}<span class="sel">${esc(a.label)}</span></span><span class="dur">${fmtMs(a.dur)}</span></button></li>`).join('');
+  $('chips').innerHTML = TYPES.map((k) => `<button type="button" class="tab" data-type="${k}" data-testid="type-${k}" aria-pressed="${k === 'all'}">${k === 'all' ? 'All' : k === 'fetch' ? 'Fetch/XHR' : k[0].toUpperCase() + k.slice(1)}</button>`).join('');
+  const errs = ALL_CON.filter((c) => c.level === 'error').length, warns = ALL_CON.filter((c) => c.level === 'warning').length;
+  $('conTotals').textContent = `whole run: ${errs} error, ${warns} warnings`;
+
+  // ---------------- render ----------------
+  function render(announce) {
+    const a = ACTIONS[S.step - 1];
+    document.querySelectorAll('.seg').forEach((s, k) => s.classList.toggle('cur', k === S.step - 1));
+    $('head').style.left = `${(100 * (a.start + a.dur) / TOTAL).toFixed(4)}%`;
+    $('playhead').textContent = `${fmtMs(a.start + a.dur)} of ${fmtMs(TOTAL)}`;
+    track.setAttribute('aria-valuenow', S.step);
+    track.setAttribute('aria-valuetext', `Step ${S.step} of ${ACTIONS.length}: ${a.type}${a.failed ? ', failed' : ''}`);
+    document.querySelectorAll('.act').forEach((b) => (+b.dataset.i === S.step ? b.setAttribute('aria-current', 'step') : b.removeAttribute('aria-current')));
+    $('current').innerHTML = `<div>${S.step}. <span class="verb v-${a.type}">${a.type}</span> ${esc(a.label)}</div><div class="when">starts at ${fmtMs(a.start)} · took ${fmtMs(a.dur)} · ${a.failed ? '<span style="color:var(--err)">failed</span>' : 'passed'}</div>`;
+    $('err').hidden = !a.failed;
+    if (a.failed) { $('errMsg').textContent = a.error; $('callLog').innerHTML = a.callLog.map((l) => `<li>${esc(l)}</li>`).join(''); }
+    // snapshots
+    const fb = $('fBefore'), fa = $('fAfter');
+    const sb = snapshot(a.before, a.target), sa = snapshot(a.after, a.target);
+    if (fb.dataset.src !== sb) { fb.srcdoc = sb; fb.dataset.src = sb; }
+    if (fa.dataset.src !== sa) { fa.srcdoc = sa; fa.dataset.src = sa; }
+    $('urlBefore').textContent = urlOf(a.before); $('urlAfter').textContent = urlOf(a.after);
+    $('capBefore').textContent = `at ${fmtMs(a.start)}`; $('capAfter').textContent = `at ${fmtMs(a.start + a.dur)}`;
+    $('snaps').classList.toggle('side', S.side);
+    $('snapBefore').hidden = !S.side && S.snap !== 'before';
+    $('snapAfter').hidden = !S.side && S.snap !== 'after';
+    $('tab-before').setAttribute('aria-selected', String(S.snap === 'before')); $('tab-after').setAttribute('aria-selected', String(S.snap === 'after'));
+    $('side').setAttribute('aria-pressed', String(S.side));
+    renderNet(); renderConsole();
+    if (announce) $('live').textContent = `Step ${S.step}: ${a.type} ${a.label}${a.failed ? ' (failed)' : ''}`;
+  }
+  function renderNet() {
+    const { pool, rows } = filterNet();
+    $('netBody').innerHTML = rows.map((r) => `<tr class="${r.status >= 400 ? 'bad' : ''}" data-testid="req"><td>${r.step}</td><td>${r.method}</td><td>${r.status}</td><td>${r.type}</td><td class="url">${esc(r.url.replace(ORIGIN, ''))}</td><td>${fmtSize(r.size)}</td><td>${r.time} ms</td></tr>`).join('')
+      || `<tr><td colspan="7" class="empty">No requests match.</td></tr>`;
+    $('netCount').textContent = `Showing ${rows.length} of ${pool.length} requests ${S.all ? 'in the whole run' : `in step ${S.step}`}`;
+    document.querySelectorAll('#chips .tab').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.type === S.type)));
+  }
+  function renderConsole() {
+    const list = ACTIONS[S.step - 1].console;
+    $('console').innerHTML = list.length ? list.map((c) => `<li class="${c.level === 'error' ? 'error' : ''}" data-testid="log" data-level="${c.level}"><span class="lvl lvl-${c.level}">${c.level}</span> ${esc(c.text)}</li>`).join('') : '<li class="empty" style="border:0">Nothing logged during this step.</li>';
+  }
+
+  function go(n, opts = {}) {
+    const step = Math.max(1, Math.min(ACTIONS.length, n | 0 || 1));
+    S.step = step;
+    if (opts.snap) S.snap = opts.snap;
+    if (!opts.fromHash) {
+      const h = `#step=${step}${S.snap === 'before' ? '&snap=before' : ''}`;
+      if (location.hash !== h) history.replaceState(null, '', h);
+    }
+    render(!opts.quiet);
+  }
+  function fromHash() {
+    const p = new URLSearchParams(location.hash.slice(1));
+    const n = parseInt(p.get('step'), 10);
+    if (p.get('snap') === 'before' || p.get('snap') === 'after') S.snap = p.get('snap');
+    go(Number.isFinite(n) ? n : 1, { fromHash: true, quiet: true });
+  }
+
+  // ---------------- events ----------------
+  $('actions').addEventListener('click', (e) => { const b = e.target.closest('.act'); if (b) go(+b.dataset.i); });
+  $('actions').addEventListener('keydown', (e) => {
+    const d = { ArrowDown: 1, ArrowUp: -1 }[e.key];
+    if (!d) return;
+    const from = e.target.closest('.act');                  // move from the focused row, which may not be the selected one
+    e.preventDefault(); go((from ? +from.dataset.i : S.step) + d);
+    document.querySelector(`.act[data-i="${S.step}"]`).focus();
+  });
+  track.addEventListener('keydown', (e) => {
+    const k = e.key;
+    const n = k === 'ArrowRight' || k === 'ArrowDown' ? S.step + 1 : k === 'ArrowLeft' || k === 'ArrowUp' ? S.step - 1 : k === 'Home' ? 1 : k === 'End' ? ACTIONS.length : k === 'PageDown' ? S.step + 3 : k === 'PageUp' ? S.step - 3 : null;
+    if (n === null) return;
+    e.preventDefault(); go(n);
+  });
+  track.addEventListener('click', (e) => {
+    const r = track.getBoundingClientRect();
+    const ms = Math.max(0, Math.min(TOTAL - 1, ((e.clientX - r.left) / r.width) * TOTAL));
+    const a = ACTIONS.find((x) => ms >= x.start && ms < x.start + x.dur);
+    go(a.i); track.focus();
+  });
+  $('tab-before').addEventListener('click', () => { S.side = false; go(S.step, { snap: 'before' }); });
+  $('tab-after').addEventListener('click', () => { S.side = false; go(S.step, { snap: 'after' }); });
+  $('side').addEventListener('click', () => { S.side = !S.side; render(false); });
+  $('snaps').parentElement.querySelector('[role=tablist]').addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    if (!e.target.matches('[role=tab]')) return;
+    e.preventDefault();
+    const next = S.snap === 'before' ? 'after' : 'before';
+    S.side = false; go(S.step, { snap: next }); $(`tab-${next}`).focus();
+  });
+  $('q').addEventListener('input', () => { S.q = $('q').value; renderNet(); });
+  $('all').addEventListener('change', () => { S.all = $('all').checked; renderNet(); });
+  $('errs').addEventListener('change', () => { S.errors = $('errs').checked; renderNet(); });
+  $('chips').addEventListener('click', (e) => { const b = e.target.closest('[data-type]'); if (b) { S.type = b.dataset.type; renderNet(); } });
+  $('jump').addEventListener('click', () => { go(ACTIONS.find((a) => a.failed).i); track.focus(); });
+  addEventListener('hashchange', fromHash);
+
+  fromHash();
+
+  window.__trace = {
+    actions: ACTIONS, total: TOTAL, origin: ORIGIN,
+    get state() { return { ...S }; },
+    visibleRequests: () => filterNet().rows.map((r) => r.id),
+  };
+})();
+</script>
+</body>
+</html>

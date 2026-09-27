@@ -1,0 +1,38 @@
+{
+  "id": "120",
+  "slug": "120-judge-bias-lab",
+  "file": "lab/120-judge-bias-lab.html",
+  "title": "Judge Bias Lab — position and length bias in LLM-as-judge",
+  "category": "AI & Agents",
+  "tags": ["llm-as-judge", "evaluation", "cohens-kappa", "simulation", "bias"],
+  "description": "A simulation, with no real model. A synthetic judge compares answers from two invented systems, Alder and Birch, with tunable position bias, verbosity bias and noise, over 120 seeded prompts with hidden ground truth. See how far the judge's win rate drifts from the truth, then apply the fixes: swap order and average, length-controlled comparison, and a majority vote of several judges. Every setup shows its agreement with the truth and Cohen's kappa between two judge runs, and a small calculator works kappa out by hand.",
+  "prompt": "Build a simulation, with no real model. A synthetic judge scores pairwise comparisons with tunable position bias, verbosity bias and noise. I run a tournament over seeded answer pairs, see the win rates, and then apply the mitigations: swap order and average, length-controlled comparison, and multiple judges with majority vote. Show agreement with ground truth, and Cohen's kappa between judge runs. The spec should check the kappa computation against textbook examples, that swap-averaging removes pure position bias (the expected win rate returns to the truth), and seed determinism. State clearly on the page that it's a simulation.",
+  "qa": {
+    "methodology": [
+      "Kappa against worked examples: Wikipedia's grant-proposal table (20/5/10/15 gives κ = 0.4), two hand-worked 2×2 tables (0.06/0.46 and 0.14/0.54), perfect agreement (1), exact chance (0), total disagreement (−1) and a three-category case (0.5). The calculator on the page shows the same numbers.",
+      "Pure position bias: with no noise or verbosity, for 4 seeds × 3 bias levels the naive win rate equals the test's own count of Δ + b > 0, which is above the truth, and the swapped win rate equals the ground truth exactly, with 100% agreement.",
+      "With noise: the swapped verdicts at b = 0.9 are identical to those at b = 0. Averaged over 60 judge runs, the naive and swapped win rates match the closed forms mean Φ((Δ + b)/σ) and mean Φ(√2·Δ/σ) to within 0.02, using an Abramowitz–Stegun Φ in the spec.",
+      "Length control: the fitted slope equals v plus the sample slope of Δ on log length ratio, computed by an OLS written in the test, and it improves both agreement and win-rate error. A majority of 5 judges beats 1 judge on agreement averaged over 20 seeds, but it leaves a shared position bias in place.",
+      "Kappa between runs is 1 with no noise and falls as noise grows, and it equals the test's own kappa over the two verdict vectors. Seeds are deterministic, and the URL seed and a reload reproduce the numbers."
+    ],
+    "risks": [
+      "The judge is a linear score with Gaussian noise. That makes swap-averaging cancel position bias exactly, which is cleaner than in real judges, whose bias interacts with content. The page says so.",
+      "Lengths are drawn independently of quality. If longer answers were really better, length control would remove real signal too.",
+      "Monte Carlo comparisons need a tolerance; 60 runs × 120 pairs keeps the standard error well under the 0.02 bound.",
+      "Kappa is undefined when both raters use a single category (pₑ = 1); the page shows n/a rather than dividing by zero."
+    ],
+    "playwright": "Everything testable lives in pure functions behind __judge, so page.evaluate can run hundreds of tournaments while the spec keeps its own kappa, Φ and OLS as oracles. The UI tests set the range sliders with fill(), tick the swap checkbox, choose a judge count, and then check the KPI tiles, the ablation row marked current, and the count of 'wrong' cells in the pair strip against the hook's verdicts. The spec passed on its first run. That is less reassuring than it sounds: the closed-form Φ checks are the ones that would catch a model error, and they were written from the maths, not copied from the page. Candid: most of the numbers are checked through the hook, and the bar chart's widths are covered only through its aria-label.",
+    "coverage": [
+      "Kappa: Wikipedia example, hand-worked 2×2s, 1/0/−1, three categories, calculator UI",
+      "Swap removes pure position bias exactly, 12 configurations",
+      "Noise: bias-independent swapped verdicts; Monte Carlo vs Φ closed forms",
+      "Length control slope and accuracy",
+      "Majority vote vs noise and vs shared bias",
+      "Kappa between runs vs noise, independent recomputation",
+      "Seed determinism, URL seed, reload",
+      "Controls drive KPIs, ablation and pair strip",
+      "Simulation disclosure"
+    ]
+  },
+  "a11y": "Sliders, checkboxes, the judge-count select and the kappa inputs are all labelled native controls, and each slider shows its value in an output. The KPI tiles are in an aria-live region. The win-rate bars and the 120-cell pair strip are role=img with aria-labels that state the numbers. The ablation table has column headers and marks the current setup in text as well as colour. The simulation disclosure is plain text at the top of the page."
+}

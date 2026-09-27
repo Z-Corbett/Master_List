@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Polyrhythm Metronome — tap tempo, 3:2, 4:3 and beyond</title>
+<meta name="description" content="A metronome with accents and subdivisions, plus a polyrhythm mode that plays m beats against n in one cycle. A circular dial draws each voice as a polygon under a sweeping hand, tap tempo averages your last few taps, and a lookahead scheduler keeps every click on the audio clock.">
+<style>
+  :root {
+    --paper: #f1ebdf;
+    --paper-2: #e6ddcc;
+    --ink: #151515;
+    --muted: #5d574d;
+    --red: #cf3a2b;
+    --red-d: #9e2518;
+    --blue: #1f4f9e;
+    --blue-d: #153a78;
+    --yellow: #f0b41c;
+    --line: #c9bfad;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --geo: "Gill Sans", "Gill Sans MT", "Century Gothic", "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  [hidden] { display: none !important; }
+  body { background: var(--paper); color: var(--ink); font: 16px/1.5 var(--geo); overflow-x: hidden; overflow-wrap: break-word; min-height: 100vh;
+    background-image: linear-gradient(var(--paper-2) 1px, transparent 1px), linear-gradient(90deg, var(--paper-2) 1px, transparent 1px); background-size: 32px 32px; }
+  :focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+  a.back { position: fixed; top: 12px; left: 12px; z-index: 30; background: var(--ink); color: var(--paper); text-decoration: none; font: 600 13px/1 var(--geo);
+    padding: 9px 12px; border-radius: 0; box-shadow: 4px 4px 0 var(--red); }
+  a.back:hover { background: var(--blue); }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 62px 16px 40px; min-width: 0; }
+  header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 24px; align-items: end; margin-bottom: 20px; }
+  h1 { margin: 0; font: 700 clamp(38px, 7.5vw, 76px)/.92 var(--geo); letter-spacing: -.02em; text-transform: uppercase; }
+  h1 .a { color: var(--red); } h1 .b { color: var(--blue); }
+  .lede { margin: 10px 0 0; max-width: 60ch; color: var(--muted); }
+  .shapes { display: flex; gap: 8px; align-items: end; }
+  .shapes i { display: block; width: 34px; height: 34px; }
+  .shapes .c { background: var(--yellow); border-radius: 50%; }
+  .shapes .s { background: var(--blue); }
+  .shapes .t { width: 0; height: 0; border-left: 19px solid transparent; border-right: 19px solid transparent; border-bottom: 34px solid var(--red); }
+
+  .stage { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 20px; align-items: start; }
+  .panel { background: #fbf8f1; border: 2px solid var(--ink); padding: 16px; min-width: 0; box-shadow: 6px 6px 0 var(--ink); }
+  .dialbox { display: flex; flex-direction: column; gap: 10px; }
+  #dial { width: 100%; max-width: 440px; height: auto; display: block; margin: 0 auto; }
+  .readout { font: 600 13px/1.5 var(--mono); color: var(--muted); margin: 0; min-height: 3em; }
+  .strip { display: grid; gap: 3px; }
+  .strip .lane { display: grid; gap: 2px; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); align-items: stretch; }
+  .strip .lane span { height: 14px; background: var(--paper-2); min-width: 0; }
+  .strip .lane.A span.on { background: var(--red); }
+  .strip .lane.B span.on { background: var(--blue); }
+  .strip .lane.M span.on { background: var(--ink); }
+  .strip .lane.M span.acc { background: var(--yellow); outline: 1px solid var(--ink); }
+  .strip .lane.M span.sub { background: #9c9384; }
+
+  .row { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; margin-bottom: 14px; min-width: 0; }
+  .ctrl { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .ctrl > label, .lbl, legend { font: 700 11px/1.2 var(--geo); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); padding: 0; }
+  fieldset { border: 0; margin: 0 0 14px; padding: 0; min-width: 0; }
+  .grow { flex: 1 1 160px; }
+  .modes { display: flex; border: 2px solid var(--ink); width: max-content; max-width: 100%; }
+  .modes label { position: relative; display: flex; }
+  .modes input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .modes span { padding: 10px 16px; min-height: 44px; display: flex; align-items: center; font: 700 14px/1 var(--geo); letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
+  .modes input:checked + span { background: var(--ink); color: var(--paper); }
+  .modes input:focus-visible + span { outline: 3px solid var(--blue); outline-offset: -5px; }
+  button { font: 700 13px/1.1 var(--geo); letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
+  .play { min-height: 56px; min-width: 120px; padding: 0 18px; border: 2px solid var(--ink); background: var(--red); color: #fff; font-size: 17px; box-shadow: 4px 4px 0 var(--ink); }
+  .play:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--ink); }
+  .play[aria-pressed="true"] { background: var(--ink); color: var(--yellow); }
+  .tap { min-height: 56px; min-width: 96px; padding: 0 16px; border: 2px solid var(--ink); background: var(--yellow); color: var(--ink); font-size: 17px; box-shadow: 4px 4px 0 var(--ink); }
+  .tap.flash { background: #fff; }
+  .btn { min-height: 44px; padding: 6px 12px; border: 2px solid var(--ink); background: #fff; color: var(--ink); max-width: 100%; }
+  .btn[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  .btn:hover { border-color: var(--red); }
+  input[type=number], select { min-height: 44px; font: 600 16px/1 var(--mono); padding: 6px 8px; border: 2px solid var(--ink); background: #fff; color: var(--ink); border-radius: 0; max-width: 100%; }
+  input[type=number] { width: 5.6em; }
+  input[type=range] { width: 100%; min-width: 0; accent-color: var(--red); height: 30px; margin: 0; }
+  .big { font: 700 40px/1 var(--mono); font-variant-numeric: tabular-nums; min-width: 3ch; }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; }
+  .accents { display: flex; flex-wrap: wrap; gap: 6px; }
+  .accents .btn { min-width: 44px; font-family: var(--mono); }
+  .accents .btn[aria-pressed="true"] { background: var(--yellow); color: var(--ink); }
+  .vA { color: var(--red-d); } .vB { color: var(--blue-d); }
+  .status { font: 600 14px/1.5 var(--geo); margin: 4px 0 0; min-height: 1.5em; }
+  .tapout { font: 600 13px/1.4 var(--mono); color: var(--muted); margin: 0; min-height: 1.4em; }
+  .note { font-size: 13px; color: var(--muted); margin: 10px 0 0; }
+  kbd { font: 12px/1 var(--mono); background: #fff; border: 1px solid var(--ink); border-bottom-width: 2px; padding: 2px 5px; }
+  footer { margin-top: 26px; text-align: center; font-size: 13px; color: var(--muted); }
+
+  #dial .hand { transition: none; }
+  #dial .vx.lit { stroke: var(--yellow); stroke-width: 5; }
+
+  @media (max-width: 860px) { .stage { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 520px) {
+    header { grid-template-columns: minmax(0, 1fr); }
+    .shapes { display: none; }
+    .panel { padding: 12px; box-shadow: 4px 4px 0 var(--ink); }
+    .modes span { padding: 10px 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .play:active { transform: none; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <div>
+      <h1><span class="a">Poly</span><span class="b">rhythm</span><br>Metronome</h1>
+      <p class="lede">A click with accents and subdivisions, or two voices at once: m beats against n in every cycle. The dial draws each voice as a polygon, and the hand sweeps once per cycle, so you can see where they meet.</p>
+    </div>
+    <div class="shapes" aria-hidden="true"><i class="t"></i><i class="s"></i><i class="c"></i></div>
+  </header>
+
+  <div class="stage">
+    <section class="panel dialbox" aria-label="Dial">
+      <svg id="dial" viewBox="0 0 320 320" role="img" data-testid="dial" aria-label="Dial"></svg>
+      <div class="strip" id="strip" aria-hidden="true" data-testid="strip"></div>
+      <p class="readout" id="desc" data-testid="desc"></p>
+    </section>
+
+    <section class="panel" aria-label="Controls">
+      <fieldset>
+        <legend>Mode</legend>
+        <div class="modes">
+          <label data-testid="mode-metro"><input type="radio" name="mode" value="metro"><span>Metronome</span></label>
+          <label data-testid="mode-poly"><input type="radio" name="mode" value="poly" checked><span>Polyrhythm</span></label>
+        </div>
+      </fieldset>
+
+      <div class="row">
+        <div class="ctrl"><span class="lbl" id="lbl-transport">Transport</span>
+          <button type="button" class="play" id="play" data-testid="play" aria-pressed="false" aria-describedby="lbl-transport">Play</button></div>
+        <div class="ctrl"><label for="bpm">Tempo (BPM)</label>
+          <input type="number" id="bpm" min="30" max="300" step="1" value="90" data-testid="bpm"></div>
+        <div class="ctrl"><span class="lbl" id="lbl-tap">Tap tempo</span>
+          <button type="button" class="tap" id="tap" data-testid="tap" aria-describedby="lbl-tap tapOut">Tap</button></div>
+      </div>
+      <div class="row">
+        <div class="ctrl grow"><label for="bpmRange">Tempo slider</label>
+          <input type="range" id="bpmRange" min="30" max="300" step="1" value="90" data-testid="bpm-range"></div>
+        <div class="ctrl"><label for="tapN">Average the last</label>
+          <select id="tapN" data-testid="tap-n">
+            <option value="3">3 taps</option><option value="4" selected>4 taps</option><option value="5">5 taps</option>
+            <option value="6">6 taps</option><option value="8">8 taps</option>
+          </select></div>
+      </div>
+      <p class="tapout" id="tapOut" aria-live="polite" data-testid="tap-out">Tap four times, or press <kbd>T</kbd>. A pause of 2 s starts a new count.</p>
+
+      <div id="polyPanel" data-testid="poly-panel">
+        <div class="row">
+          <div class="ctrl"><label for="polyM" class="vA">Voice A beats (m)</label>
+            <select id="polyM" data-testid="poly-m"></select></div>
+          <div class="ctrl"><label for="polyN" class="vB">Voice B beats (n)</label>
+            <select id="polyN" data-testid="poly-n"></select></div>
+          <div class="ctrl"><span class="lbl" id="lbl-mute">Voices</span>
+            <div class="presets" role="group" aria-labelledby="lbl-mute">
+              <button type="button" class="btn" id="muteA" aria-pressed="false" data-testid="mute-a">Mute A</button>
+              <button type="button" class="btn" id="muteB" aria-pressed="false" data-testid="mute-b">Mute B</button>
+            </div></div>
+        </div>
+        <div class="ctrl"><span class="lbl" id="lbl-pre">Presets</span>
+          <div class="presets" role="group" aria-labelledby="lbl-pre" id="presets"></div></div>
+        <p class="note">Tempo counts voice B, the ground beat: one cycle lasts n beats, and voice A fits m evenly spaced beats into the same span.</p>
+      </div>
+
+      <div id="metroPanel" data-testid="metro-panel" hidden>
+        <div class="row">
+          <div class="ctrl"><label for="beats">Beats per bar</label>
+            <select id="beats" data-testid="beats"></select></div>
+          <div class="ctrl"><label for="subdiv">Subdivision</label>
+            <select id="subdiv" data-testid="subdiv">
+              <option value="1">None (quarters)</option><option value="2">Eighths (2)</option><option value="3">Triplets (3)</option><option value="4">Sixteenths (4)</option>
+            </select></div>
+        </div>
+        <div class="ctrl"><span class="lbl" id="lbl-acc">Accents (press a beat to toggle)</span>
+          <div class="accents" role="group" aria-labelledby="lbl-acc" id="accents" data-testid="accents"></div></div>
+      </div>
+
+      <p class="status" id="status" role="status" aria-live="polite" data-testid="status">Stopped. Sound starts when you press Play.</p>
+    </section>
+  </div>
+  <footer>Built by Zac Corbett · Web Audio clicks on a lookahead scheduler · no samples, no network</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const LOOKAHEAD = 0.1, TICK_MS = 25, START_DELAY = 0.05, TAP_RESET_MS = 2000, MIN_BPM = 30, MAX_BPM = 300;
+  const $ = (s) => document.querySelector(s);
+  const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+  const lcm = (a, b) => (a / gcd(a, b)) * b;
+  const SUBNAME = { 1: 'no subdivision', 2: 'eighths', 3: 'triplets', 4: 'sixteenths' };
+  const PRESETS = [[3, 2], [4, 3], [5, 4], [5, 3], [7, 4], [7, 5]];
+
+  let mode = 'poly', bpm = 90, m = 4, n = 3, beats = 4, subdiv = 1, accents = [true, false, false, false];
+  let muteA = false, muteB = false, tapN = 4;
+
+  const clampBpm = (v) => Math.min(MAX_BPM, Math.max(MIN_BPM, Math.round(v)));
+  const params = () => ({ mode, bpm, m, n, beats, subdiv, accents: accents.slice() });
+
+  // ---------- rhythm (pure) ----------
+  // Poly: a cycle of n ground beats; voice A on every (L/m)-th slot and voice B on every (L/n)-th slot of an L = lcm(m, n) grid.
+  function hitsFor(a, b) {
+    const L = lcm(a, b), sa = L / a, sb = L / b, out = [];
+    for (let j = 0; j < L; j++) {
+      const hitA = j % sa === 0, hitB = j % sb === 0;
+      if (hitA || hitB) out.push({ slot: j, a: hitA ? j / sa : null, b: hitB ? j / sb : null });
+    }
+    return { L, hits: out };
+  }
+  function pattern(p = params()) {
+    if (p.mode === 'poly') {
+      const { L, hits } = hitsFor(p.m, p.n), cycle = (p.n * 60) / p.bpm;
+      return { cycle, L, events: hits.map((h) => ({ pos: h.slot / L, slot: h.slot, a: h.a, b: h.b,
+        voice: h.a !== null && h.b !== null ? 'AB' : h.a !== null ? 'A' : 'B', accent: h.slot === 0 })) };
+    }
+    const steps = p.beats * p.subdiv, cycle = (p.beats * 60) / p.bpm;
+    return { cycle, L: steps, events: Array.from({ length: steps }, (_, k) => {
+      const beat = Math.floor(k / p.subdiv), sub = k % p.subdiv, acc = sub === 0 && !!p.accents[beat];
+      return { pos: k / steps, slot: k, beat, sub, kind: sub ? 'sub' : acc ? 'accent' : 'beat', accent: acc };
+    }) };
+  }
+  function plan(count, p) {
+    const P = pattern(p ? { ...params(), ...p } : params()), E = P.events, out = [];
+    for (let k = 0; k < count; k++) {
+      const i = k % E.length, c = Math.floor(k / E.length);
+      out.push({ n: k, cycle: c, ...E[i], t: c * P.cycle + E[i].pos * P.cycle });
+    }
+    return out;
+  }
+
+  // ---------- audio ----------
+  let ctx = null, master = null, audioNote = 'none', triggered = 0;
+  function ensureAudio() {
+    if (ctx) { if (ctx.state !== 'running' && ctx.resume) { try { ctx.resume().catch(() => {}); } catch (e) {} } return; }
+    const Ctor = window.AudioContext || window.webkitAudioContext;
+    if (!Ctor) { audioNote = 'unavailable'; return; }
+    try { ctx = new Ctor(); } catch (e) { ctx = null; audioNote = 'unavailable'; return; }
+    master = ctx.createGain(); master.gain.value = 0.8; master.connect(ctx.destination);
+    ctx.onstatechange = onAudioState;
+    try { const r = ctx.resume(); if (r && r.catch) r.catch(() => {}); } catch (e) {}
+    onAudioState();
+  }
+  const audioRunning = () => !!ctx && ctx.state === 'running';
+  function blip(t, freq, peak, type, dur) {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.02);
+  }
+  // which sounds an event makes (also what the log reports as "voices")
+  function voicesOf(e) {
+    if (mode === 'poly') { const v = []; if (e.a !== null && !muteA) v.push('A'); if (e.b !== null && !muteB) v.push('B'); return v; }
+    return [e.kind];
+  }
+  function sound(e, t) {
+    if (!audioRunning()) return false;
+    try {
+      const at = Math.max(t, ctx.currentTime);
+      for (const v of voicesOf(e)) {
+        if (v === 'A') blip(at, e.accent ? 1320 : 990, e.accent ? 0.6 : 0.4, 'square', 0.05);
+        else if (v === 'B') blip(at, e.accent ? 660 : 440, e.accent ? 0.9 : 0.6, 'sine', 0.09);
+        else if (v === 'accent') blip(at, 1500, 0.9, 'triangle', 0.07);
+        else if (v === 'beat') blip(at, 1000, 0.6, 'triangle', 0.05);
+        else blip(at, 750, 0.25, 'sine', 0.03);
+      }
+      triggered++; return true;
+    } catch (err) { return false; }
+  }
+
+  // ---------- transport + lookahead scheduler ----------
+  let playing = false, clockKind = 'silent', t0 = 0, nextT = 0, k = 0, cycleNo = 0, stepN = 0, timer = 0, log = [], queue = [], vis = null;
+  const perfNow = () => performance.now() / 1000;
+  const now = () => (clockKind === 'audio' ? ctx.currentTime : perfNow());
+  function scheduler() {
+    const limit = now() + LOOKAHEAD;
+    while (nextT < limit) {
+      const P = pattern(), E = P.events;
+      if (k >= E.length) { k = 0; cycleNo++; }
+      const e = E[k];
+      const sounded = sound(e, nextT);
+      const entry = { n: stepN, t: +(nextT - t0).toFixed(9), cycle: cycleNo, slot: e.slot, accent: e.accent, bpm, mode, voices: voicesOf(e), sounded };
+      if (mode === 'poly') Object.assign(entry, { a: e.a, b: e.b, voice: e.voice, shape: [m, n] });
+      else Object.assign(entry, { beat: e.beat, sub: e.sub, kind: e.kind });
+      log.push(entry); if (log.length > 1024) log.shift();
+      queue.push({ at: nextT, cycleStartAt: nextT - e.pos * P.cycle, cycle: P.cycle, e });
+      const nextPos = k + 1 < E.length ? E[k + 1].pos : 1;
+      nextT += (nextPos - e.pos) * P.cycle;
+      k++; stepN++;
+    }
+  }
+  function restartCycle() { if (playing) k = Infinity; }   // a new shape starts cleanly at the next click
+  function start() {
+    ensureAudio();
+    clockKind = audioRunning() ? 'audio' : 'silent';
+    t0 = now() + START_DELAY; nextT = t0; k = 0; cycleNo = 0; stepN = 0; log = []; queue = []; vis = null;
+    playing = true;
+    scheduler();
+    timer = setInterval(scheduler, TICK_MS);
+    requestAnimationFrame(draw);
+    renderTransport();
+  }
+  function stop() {
+    playing = false; clearInterval(timer); timer = 0; queue = []; vis = null; paintHand(0); paintLit(null); renderTransport();
+  }
+  function onAudioState() {
+    if (playing && clockKind === 'silent' && audioRunning()) {
+      const off = ctx.currentTime - perfNow();
+      t0 += off; nextT += off; queue.forEach((q) => { q.at += off; q.cycleStartAt += off; }); if (vis) vis.cycleStartAt += off; clockKind = 'audio';
+    } else if (playing && clockKind === 'audio' && !audioRunning()) {
+      const off = perfNow() - ctx.currentTime;
+      t0 += off; nextT += off; queue.forEach((q) => { q.at += off; q.cycleStartAt += off; }); if (vis) vis.cycleStartAt += off; clockKind = 'silent';
+    }
+    renderTransport();
+  }
+  // where the hand is right now: 0 at the top of a cycle, 1 all the way round
+  function phaseNow() {
+    if (!playing) return 0;
+    const t = now();
+    while (queue.length && queue[0].at <= t) vis = queue.shift();
+    if (!vis) return 0;
+    const p = (t - vis.cycleStartAt) / vis.cycle;
+    return Math.min(0.999999, Math.max(0, p));
+  }
+  let lastLit = null;
+  function draw() {
+    if (!playing) return;
+    const p = phaseNow();
+    paintHand(p);
+    if (vis && vis.e !== lastLit) paintLit(vis.e);
+    requestAnimationFrame(draw);
+  }
+
+  // ---------- tap tempo ----------
+  let taps = [], tapRaw = null;
+  function tapIntervals() { const out = []; for (let i = 1; i < taps.length; i++) out.push(taps[i] - taps[i - 1]); return out; }
+  function tap() {
+    const t = performance.now();
+    let reset = false;
+    if (taps.length && t - taps[taps.length - 1] > TAP_RESET_MS) { taps = []; tapRaw = null; reset = true; }
+    taps.push(t);
+    if (taps.length > tapN) taps = taps.slice(-tapN);
+    const iv = tapIntervals();
+    const b = $('#tap'); b.classList.add('flash'); setTimeout(() => b.classList.remove('flash'), 90);
+    if (!iv.length) {
+      $('#tapOut').textContent = reset ? 'New count started. Keep tapping.' : 'Keep tapping…';
+      return;
+    }
+    const mean = iv.reduce((s, x) => s + x, 0) / iv.length;
+    tapRaw = 60000 / mean;
+    setBpm(tapRaw, true);
+    $('#tapOut').textContent = `${iv.length} interval${iv.length === 1 ? '' : 's'}, mean ${mean.toFixed(1)} ms → ${tapRaw.toFixed(2)} BPM, set to ${bpm}.`;
+  }
+
+  // ---------- drawing ----------
+  const C = 160, R = 128;
+  const pt = (frac, r = R) => { const a = frac * 2 * Math.PI - Math.PI / 2; return [C + r * Math.cos(a), C + r * Math.sin(a)]; };
+  const f2 = (v) => v.toFixed(2);
+  function polygon(count, cls, color, fill, voice) {
+    let h = '';
+    const pts = Array.from({ length: count }, (_, i) => pt(i / count));
+    if (count >= 3) h += `<polygon points="${pts.map(([x, y]) => f2(x) + ',' + f2(y)).join(' ')}" fill="${fill}" stroke="${color}" stroke-width="3" stroke-linejoin="round" data-testid="poly-${voice}"/>`;
+    else if (count === 2) h += `<line x1="${f2(pts[0][0])}" y1="${f2(pts[0][1])}" x2="${f2(pts[1][0])}" y2="${f2(pts[1][1])}" stroke="${color}" stroke-width="3" data-testid="poly-${voice}"/>`;
+    pts.forEach(([x, y], i) => {
+      h += `<circle class="vx ${cls}" cx="${f2(x)}" cy="${f2(y)}" r="${voice === 'B' ? 9 : 7}" fill="${color}" stroke="#151515" stroke-width="2" data-testid="vx-${voice}-${i}" data-angle="${(360 * i / count).toFixed(4)}"/>`;
+    });
+    return h;
+  }
+  function renderDial() {
+    const P = pattern();
+    let h = `<circle cx="${C}" cy="${C}" r="${R + 14}" fill="#fbf8f1" stroke="#151515" stroke-width="3"/>`;
+    for (let j = 0; j < P.L; j++) {
+      const [x1, y1] = pt(j / P.L, R + 14), [x2, y2] = pt(j / P.L, R + 6);
+      h += `<line x1="${f2(x1)}" y1="${f2(y1)}" x2="${f2(x2)}" y2="${f2(y2)}" stroke="#8a8173" stroke-width="1.5"/>`;
+    }
+    if (mode === 'poly') {
+      h += polygon(n, 'b', '#1f4f9e', 'rgba(31,79,158,.10)', 'B');
+      h += polygon(m, 'a', '#cf3a2b', 'rgba(207,58,43,.12)', 'A');
+    } else {
+      if (subdiv > 1) for (let j = 0; j < P.L; j++) if (j % subdiv) { const [x, y] = pt(j / P.L); h += `<circle cx="${f2(x)}" cy="${f2(y)}" r="3" fill="#8a8173" data-testid="sub-dot"/>`; }
+      const pts = Array.from({ length: beats }, (_, i) => pt(i / beats));
+      if (beats >= 3) h += `<polygon points="${pts.map(([x, y]) => f2(x) + ',' + f2(y)).join(' ')}" fill="rgba(240,180,28,.14)" stroke="#151515" stroke-width="3" stroke-linejoin="round" data-testid="poly-M"/>`;
+      pts.forEach(([x, y], i) => { h += `<circle class="vx" cx="${f2(x)}" cy="${f2(y)}" r="${accents[i] ? 11 : 7}" fill="${accents[i] ? '#f0b41c' : '#151515'}" stroke="#151515" stroke-width="2" data-testid="vx-M-${i}" data-angle="${(360 * i / beats).toFixed(4)}"/>`; });
+    }
+    h += `<g id="hand" data-testid="hand" data-angle="0"><line x1="${C}" y1="${C}" x2="${C}" y2="${C - R - 4}" stroke="#151515" stroke-width="4" stroke-linecap="round"/><circle cx="${C}" cy="${C}" r="8" fill="#151515"/></g>`;
+    h += `<text x="${C}" y="${C + 44}" text-anchor="middle" font-family="ui-monospace, Consolas, monospace" font-size="22" font-weight="700" fill="#151515">${mode === 'poly' ? `${m}:${n}` : `${beats}/${subdiv > 1 ? beats * subdiv : beats}`}</text>`;
+    $('#dial').innerHTML = h;
+    lastLit = null;
+    paintHand(playing ? phaseNow() : 0);
+  }
+  function paintHand(p) {
+    const g = document.getElementById('hand'); if (!g) return;
+    const deg = p * 360;
+    g.setAttribute('transform', `rotate(${deg.toFixed(3)} ${C} ${C})`);
+    g.setAttribute('data-angle', deg.toFixed(3));
+  }
+  function paintLit(e) {
+    lastLit = e;
+    document.querySelectorAll('#dial .vx.lit').forEach((c) => c.classList.remove('lit'));
+    if (!e) return;
+    const ids = mode === 'poly' ? [e.a !== null ? `vx-A-${e.a}` : null, e.b !== null ? `vx-B-${e.b}` : null] : [e.sub === 0 ? `vx-M-${e.beat}` : null];
+    ids.filter(Boolean).forEach((id) => { const c = document.querySelector(`[data-testid="${id}"]`); if (c) c.classList.add('lit'); });
+  }
+  function renderStrip() {
+    const P = pattern(), s = $('#strip');
+    const lane = (cls, on) => `<div class="lane ${cls}" style="grid-template-columns:repeat(${P.L},minmax(0,1fr))">${Array.from({ length: P.L }, (_, j) => `<span class="${on(j)}"></span>`).join('')}</div>`;
+    if (mode === 'poly') {
+      const L = P.L;
+      s.innerHTML = lane('A', (j) => (j % (L / m) === 0 ? 'on' : '')) + lane('B', (j) => (j % (L / n) === 0 ? 'on' : ''));
+    } else {
+      s.innerHTML = lane('M', (j) => (j % subdiv ? 'sub' : accents[j / subdiv] ? 'acc' : 'on'));
+    }
+  }
+  function describe() {
+    const P = pattern();
+    if (mode === 'poly') {
+      const g = gcd(m, n), L = P.L;
+      return `${m} against ${n} at ${bpm} BPM: one cycle is ${n} beats, ${P.cycle.toFixed(3)} s. Voice A clicks every ${(P.cycle / m * 1000).toFixed(1)} ms, ` +
+        `voice B every ${(P.cycle / n * 1000).toFixed(1)} ms. On a ${L}-slot grid A plays every ${L / m} and B every ${L / n}; ` +
+        (g === 1 ? 'they land together once per cycle, on the downbeat.' : `they land together ${g} times per cycle.`);
+    }
+    const acc = accents.map((a, i) => (a ? i + 1 : 0)).filter(Boolean);
+    return `${beats} beat${beats === 1 ? '' : 's'} per bar at ${bpm} BPM, ${SUBNAME[subdiv]}: a beat is ${(60000 / bpm).toFixed(1)} ms and clicks are ${(60000 / bpm / subdiv).toFixed(1)} ms apart. ` +
+      (acc.length ? `Accents on beat${acc.length > 1 ? 's' : ''} ${acc.join(', ')}.` : 'No accents.');
+  }
+
+  // ---------- UI ----------
+  function say(t) { $('#status').textContent = t; }
+  function audioMessage() {
+    if (audioNote === 'unavailable') return 'Web Audio is not available here, so it runs silently; the dial still keeps time.';
+    if (ctx && ctx.state !== 'running') return 'Audio is suspended by the browser, so it runs silently; the dial still keeps time.';
+    return '';
+  }
+  function renderTransport() {
+    const p = $('#play'); p.setAttribute('aria-pressed', String(playing)); p.textContent = playing ? 'Stop' : 'Play';
+    if (!playing) { say('Stopped.'); return; }
+    const a = audioMessage();
+    say(`Playing ${mode === 'poly' ? `${m}:${n}` : `${beats} beats${subdiv > 1 ? ', ' + SUBNAME[subdiv] : ''}`} at ${bpm} BPM.` + (a ? ' ' + a : ''));
+  }
+  function renderAccents() {
+    const box = $('#accents');
+    box.innerHTML = Array.from({ length: beats }, (_, i) => `<button type="button" class="btn" data-beat="${i}" aria-pressed="${!!accents[i]}" aria-label="Accent beat ${i + 1}" data-testid="accent-${i}">${i + 1}</button>`).join('');
+  }
+  function renderAll() {
+    $('#bpm').value = bpm; $('#bpmRange').value = bpm;
+    $('#polyM').value = m; $('#polyN').value = n; $('#beats').value = beats; $('#subdiv').value = subdiv;
+    document.querySelector(`input[name=mode][value=${mode}]`).checked = true;
+    $('#polyPanel').hidden = mode !== 'poly'; $('#metroPanel').hidden = mode !== 'metro';
+    $('#muteA').setAttribute('aria-pressed', String(muteA)); $('#muteB').setAttribute('aria-pressed', String(muteB));
+    document.querySelectorAll('#presets .btn').forEach((b) => b.setAttribute('aria-pressed', String(+b.dataset.m === m && +b.dataset.n === n)));
+    renderDial(); renderStrip();
+    const d = describe(); $('#desc').textContent = d; $('#dial').setAttribute('aria-label', d);
+  }
+  function setBpm(v, fromTap) {
+    if (!Number.isFinite(v)) { renderAll(); return; }
+    bpm = clampBpm(v); renderAll();
+    if (playing) renderTransport(); else if (!fromTap) say(`Tempo ${bpm} BPM.`);
+  }
+  function setShape(fn) { fn(); restartCycle(); renderAll(); if (playing) renderTransport(); }
+
+  for (let i = 2; i <= 9; i++) { $('#polyM').insertAdjacentHTML('beforeend', `<option value="${i}">${i}</option>`); $('#polyN').insertAdjacentHTML('beforeend', `<option value="${i}">${i}</option>`); }
+  for (let i = 1; i <= 12; i++) $('#beats').insertAdjacentHTML('beforeend', `<option value="${i}">${i}</option>`);
+  $('#presets').innerHTML = PRESETS.map(([a, b]) => `<button type="button" class="btn" data-m="${a}" data-n="${b}" aria-pressed="false" data-testid="preset-${a}-${b}">${a}:${b}</button>`).join('');
+
+  $('#play').addEventListener('click', () => (playing ? stop() : start()));
+  $('#bpm').addEventListener('change', (e) => setBpm(+e.target.value));
+  $('#bpmRange').addEventListener('input', (e) => setBpm(+e.target.value));
+  $('#tap').addEventListener('click', tap);
+  $('#tapN').addEventListener('change', (e) => { tapN = +e.target.value; });
+  document.querySelectorAll('input[name=mode]').forEach((r) => r.addEventListener('change', () => { if (r.checked) setShape(() => { mode = r.value; }); }));
+  $('#polyM').addEventListener('change', (e) => setShape(() => { m = +e.target.value; }));
+  $('#polyN').addEventListener('change', (e) => setShape(() => { n = +e.target.value; }));
+  $('#presets').addEventListener('click', (e) => { const b = e.target.closest('[data-m]'); if (!b) return; setShape(() => { m = +b.dataset.m; n = +b.dataset.n; }); if (!playing) say(`${m} against ${n}.`); });
+  $('#muteA').addEventListener('click', () => { muteA = !muteA; renderAll(); say(`Voice A ${muteA ? 'muted' : 'on'}.`); });
+  $('#muteB').addEventListener('click', () => { muteB = !muteB; renderAll(); say(`Voice B ${muteB ? 'muted' : 'on'}.`); });
+  $('#beats').addEventListener('change', (e) => setShape(() => { beats = +e.target.value; accents = Array.from({ length: beats }, (_, i) => (i < accents.length ? accents[i] : false)); renderAccents(); }));
+  $('#subdiv').addEventListener('change', (e) => setShape(() => { subdiv = +e.target.value; }));
+  $('#accents').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-beat]'); if (!b) return;
+    const i = +b.dataset.beat; accents[i] = !accents[i];
+    b.setAttribute('aria-pressed', String(accents[i]));
+    renderAll(); say(`Beat ${i + 1} ${accents[i] ? 'accented' : 'unaccented'}.`);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+    if (e.target.closest && e.target.closest('input, select, textarea')) return;
+    if (e.key === 't' || e.key === 'T') { e.preventDefault(); tap(); }
+  });
+
+  renderAccents(); renderAll();
+
+  window.__poly = {
+    get state() {
+      return { mode, bpm, m, n, beats, subdiv, accents: accents.slice(), muteA, muteB, tapN, playing, clock: clockKind,
+        audio: ctx ? ctx.state : (audioNote === 'unavailable' ? 'unavailable' : 'none'), triggered,
+        cycle: pattern().cycle, phase: phaseNow(), hand: +document.getElementById('hand').getAttribute('data-angle'),
+        scheduled: log.map((e) => e.t),
+        tap: { count: taps.length, intervals: tapIntervals(), raw: tapRaw } };
+    },
+    get log() { return log.map((e) => ({ ...e, voices: e.voices.slice() })); },
+    plan, hitsFor, LOOKAHEAD, START_DELAY, TICK_MS, TAP_RESET_MS,
+  };
+})();
+</script>
+</body>
+</html>

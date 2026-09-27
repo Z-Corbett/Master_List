@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Talavera Tiles — a generative symmetric tile designer</title>
+<meta name="description" content="Generative tiles inspired by the Talavera ceramics of Puebla and Tlaxcala. A seeded motif is drawn in one fundamental region, then copied by a wallpaper-group symmetry (p4m, p4g, p2mm or hexagonal p6m) into a tile and a tiled wall, in a limited palette of cobalt, yellow, green and terracotta on a white glaze. Edit the seed, lock the colours and download the tile or wall as SVG.">
+<style>
+  :root {
+    --glaze: #f7f2e4;
+    --cobalt: #1f3f94;
+    --yellow: #e8b422;
+    --green: #3f7d3a;
+    --terra: #b8532c;
+    --ink: #1a2238;
+    --clay: #7a5a45;
+    --page: #efe6d2;
+    --card: #fbf7ec;
+    --rule: #d8c8a8;
+    --serif: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--page); color: var(--ink); font: 16px/1.55 var(--sans); overflow-x: hidden;
+    background-image: linear-gradient(45deg, rgba(31,63,148,.05) 25%, transparent 25%, transparent 75%, rgba(31,63,148,.05) 75%), linear-gradient(45deg, rgba(31,63,148,.05) 25%, transparent 25%, transparent 75%, rgba(31,63,148,.05) 75%);
+    background-size: 40px 40px; background-position: 0 0, 20px 20px; }
+  :focus-visible { outline: 3px solid var(--terra); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: var(--glaze); background: var(--cobalt); text-decoration: none; font: 700 13px/1 var(--sans); padding: 8px 12px; border-radius: 4px; border: 2px solid var(--glaze); }
+  a.back:hover { background: var(--terra); }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 60px 16px 40px; }
+  header { text-align: center; }
+  header h1 { font: 700 clamp(34px, 7vw, 60px)/1.05 var(--serif); color: var(--cobalt); margin: 0; letter-spacing: .01em; overflow-wrap: anywhere; }
+  header h1 em { color: var(--terra); font-style: italic; }
+  .sub { font: italic 18px/1.4 var(--serif); color: var(--clay); margin: 6px 0 0; }
+  .lede { max-width: 68ch; margin: 12px auto 0; color: #3b3a3a; }
+  .layout { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 18px; margin-top: 20px; align-items: start; }
+  .card { background: var(--card); border: 2px solid var(--cobalt); border-radius: 6px; padding: 14px 16px; min-width: 0; box-shadow: 4px 4px 0 rgba(31,63,148,.18); }
+  .card + .card { margin-top: 16px; }
+  .card h2 { font: 700 20px/1.2 var(--serif); color: var(--cobalt); margin: 0 0 10px; }
+  .field { margin-bottom: 12px; min-width: 0; }
+  .field > label, .lbl { display: block; font: 700 12px/1.3 var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--clay); margin-bottom: 4px; }
+  .seedrow { display: flex; gap: 6px; flex-wrap: wrap; }
+  .seedrow input { flex: 1 1 110px; min-width: 0; font: 16px var(--sans); padding: 7px 9px; border: 1px solid var(--rule); border-radius: 4px; background: #fff; color: var(--ink); }
+  .btn { min-height: 40px; padding: 8px 14px; border: 2px solid var(--cobalt); border-radius: 4px; background: var(--cobalt); color: var(--glaze); font: 700 14px/1.1 var(--sans); cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--cobalt); }
+  .btn:hover { background: var(--terra); border-color: var(--terra); color: var(--glaze); }
+  fieldset { border: 0; padding: 0; margin: 0 0 12px; min-width: 0; }
+  legend { padding: 0; font: 700 12px/1.3 var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--clay); margin-bottom: 6px; }
+  .syms { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .syms label { display: flex; gap: 6px; align-items: flex-start; padding: 6px 8px; border: 1px solid var(--rule); border-radius: 4px; background: #fff; cursor: pointer; font-size: 14px; min-width: 0; overflow-wrap: anywhere; }
+  .syms label:has(input:checked) { border-color: var(--cobalt); box-shadow: inset 0 0 0 1px var(--cobalt); }
+  .syms small { display: block; color: var(--clay); font-size: 12px; }
+  .check { display: flex; gap: 8px; align-items: center; font-size: 15px; }
+  .check input { width: 18px; height: 18px; accent-color: var(--cobalt); }
+  .swatches { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 0; padding: 0; list-style: none; }
+  .swatches li { display: flex; align-items: center; gap: 5px; font-size: 13px; }
+  .swatches i { width: 18px; height: 18px; border-radius: 3px; border: 1px solid rgba(0,0,0,.25); display: inline-block; }
+  .views { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 16px; }
+  figure { margin: 0; min-width: 0; }
+  figcaption { font: italic 15px/1.3 var(--serif); color: var(--clay); margin-top: 6px; text-align: center; }
+  .frame { background: var(--card); border: 2px solid var(--cobalt); border-radius: 6px; padding: 10px; box-shadow: 4px 4px 0 rgba(31,63,148,.18); }
+  .frame svg { display: block; width: 100%; height: auto; }
+  .status { font-size: 14px; color: var(--ink); margin: 10px 0 0; min-height: 1.4em; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .notes p { margin: 0 0 10px; font-size: 15px; }
+  .notes p:last-child { margin: 0; }
+  footer { text-align: center; margin-top: 26px; font-size: 13px; color: var(--clay); }
+  code { font: 13px Consolas, monospace; }
+  @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 620px) { .views { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <h1>Talavera <em>Tiles</em></h1>
+    <p class="sub">one small motif, repeated by symmetry</p>
+    <p class="lede">Each design starts as a handful of shapes in one small region of the tile. A wallpaper-group symmetry reflects and rotates that region until it fills the tile, and the tile repeats into a wall. Change the seed for a new motif, or the symmetry to see the same motif arranged another way.</p>
+  </header>
+
+  <div class="layout">
+    <div>
+      <section class="card" aria-labelledby="h-design">
+        <h2 id="h-design">Design</h2>
+        <div class="field">
+          <label for="seed">Seed</label>
+          <div class="seedrow">
+            <input type="number" id="seed" data-testid="seed" min="1" max="999999999" step="1" inputmode="numeric">
+            <button type="button" class="btn ghost" id="prev" data-testid="prev" aria-label="Previous seed">−1</button>
+            <button type="button" class="btn ghost" id="next" data-testid="next" aria-label="Next seed">+1</button>
+          </div>
+        </div>
+        <p class="row" style="margin:0 0 12px"><button type="button" class="btn" id="roll" data-testid="roll">New design</button></p>
+        <fieldset>
+          <legend>Symmetry</legend>
+          <div class="syms" role="radiogroup" aria-label="Wallpaper group">
+            <label><input type="radio" name="sym" value="p4m" data-testid="sym-p4m"><span>p4m<small>square, mirrors on every axis</small></span></label>
+            <label><input type="radio" name="sym" value="p4g" data-testid="sym-p4g"><span>p4g<small>square, pinwheel with diagonal mirrors</small></span></label>
+            <label><input type="radio" name="sym" value="p2mm" data-testid="sym-p2mm"><span>p2mm<small>rectangle, two mirrors</small></span></label>
+            <label><input type="radio" name="sym" value="p6m" data-testid="sym-p6m"><span>p6m<small>hexagon, six-fold with mirrors</small></span></label>
+          </div>
+        </fieldset>
+        <label class="check"><input type="checkbox" id="lock" data-testid="lock"> Lock colours while the shapes change</label>
+        <ul class="swatches" aria-label="Palette">
+          <li><i style="background:var(--glaze)"></i>white glaze</li><li><i style="background:var(--cobalt)"></i>cobalt</li><li><i style="background:var(--yellow)"></i>yellow</li><li><i style="background:var(--green)"></i>green</li><li><i style="background:var(--terra)"></i>terracotta</li>
+        </ul>
+        <p class="status" id="status" data-testid="status" role="status" aria-live="polite"></p>
+      </section>
+      <section class="card" aria-labelledby="h-export">
+        <h2 id="h-export">Export</h2>
+        <p class="row" style="margin:0"><button type="button" class="btn" id="dlTile" data-testid="download-tile">Download tile (SVG)</button><button type="button" class="btn ghost" id="dlWall" data-testid="download-wall">Download wall (SVG)</button></p>
+      </section>
+    </div>
+    <div>
+      <div class="views">
+        <figure>
+          <div class="frame" id="tileBox" data-testid="tile"></div>
+          <figcaption id="tileCap">One tile</figcaption>
+        </figure>
+        <figure>
+          <div class="frame" id="wallBox" data-testid="wall"></div>
+          <figcaption>The tile repeated as a wall</figcaption>
+        </figure>
+      </div>
+      <section class="card notes" aria-labelledby="h-about" style="margin-top:16px">
+        <h2 id="h-about">About Talavera</h2>
+        <p>Talavera poblana is tin-glazed earthenware made in the Mexican states of Puebla and Tlaxcala since colonial times. It grew out of Spanish majolica, named after Talavera de la Reina in Spain, and absorbed Moorish, Italian and Chinese influences along the way. Pieces are thrown or moulded by hand and painted by hand over a milky white glaze, with cobalt blue as the classic colour.</p>
+        <p>The name is protected: genuine Talavera comes from certified workshops in the region and follows traditional methods and a short list of colours. This page is a digital homage to the look, not an imitation of any workshop's designs.</p>
+        <p>The symmetry names come from crystallography. There are exactly 17 wallpaper groups; p4m, p4g, p2mm and p6m are four of them, and tile makers were using all four long before they had names.</p>
+      </section>
+    </div>
+  </div>
+  <footer>Built by Zac Corbett · inline SVG, seeded with mulberry32 · <code>?seed=</code>, <code>&amp;sym=</code> and <code>&amp;colors=</code> set the design</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const PALETTE = { glaze: '#f7f2e4', cobalt: '#1f3f94', yellow: '#e8b422', green: '#3f7d3a', terracotta: '#b8532c' };
+  const FILLS = ['cobalt', 'yellow', 'green', 'terracotta'];
+  const R3 = Math.sqrt(3);
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+  // ---------- symmetry groups: a fundamental region and the transforms that copy it over one tile ----------
+  // matrices [a, b, c, d, e, f] as in SVG: x' = a·x + c·y + e, y' = b·x + d·y + f
+  const rot = (deg) => { const t = deg * Math.PI / 180, c = Math.cos(t), s = Math.sin(t); return [c, s, -s, c, 0, 0]; };
+  const MIRX = [1, 0, 0, -1, 0, 0];                                         // reflect in the x-axis
+  const mul = (A, B) => [A[0] * B[0] + A[2] * B[1], A[1] * B[0] + A[3] * B[1], A[0] * B[2] + A[2] * B[3], A[1] * B[2] + A[3] * B[3], A[0] * B[4] + A[2] * B[5] + A[4], A[1] * B[4] + A[3] * B[5] + A[5]];
+  const apply = (M, [x, y]) => [M[0] * x + M[2] * y + M[4], M[1] * x + M[3] * y + M[5]];
+  const GROUPS = {
+    p4m: { cell: 'square', w: 2, h: 2, region: [[0, 0], [1, 0], [1, 1]],
+      ops: [0, 90, 180, 270].flatMap((k) => [rot(k), mul(rot(k), MIRX)]) },
+    p4g: { cell: 'square', w: 2, h: 2, region: [[0, 0], [1, 0], [0, 1]],
+      ops: [0, 90, 180, 270].flatMap((k) => [rot(k), mul(rot(k), [0, -1, -1, 0, 1, 1])]) },        // σ: reflect in x + y = 1
+    p2mm: { cell: 'rect', w: 2, h: 1.5, region: [[0, 0], [1, 0], [1, 0.75], [0, 0.75]],
+      ops: [[1, 0, 0, 1, 0, 0], [-1, 0, 0, 1, 0, 0], [1, 0, 0, -1, 0, 0], [-1, 0, 0, -1, 0, 0]] },
+    p6m: { cell: 'hex', region: [[0, 0], [1, 0], [0.75, R3 / 4]],
+      ops: [0, 60, 120, 180, 240, 300].flatMap((k) => [rot(k), mul(rot(k), MIRX)]) },
+  };
+  const HEX = [0, 60, 120, 180, 240, 300].map((d) => [Math.cos(d * Math.PI / 180), Math.sin(d * Math.PI / 180)]);
+  function outline(g) { const G = GROUPS[g]; return G.cell === 'hex' ? HEX : [[-G.w / 2, -G.h / 2], [G.w / 2, -G.h / 2], [G.w / 2, G.h / 2], [-G.w / 2, G.h / 2]]; }
+
+  // ---------- motif ----------
+  function inside(poly, [x, y], m) {                                         // convex, counter-clockwise, with margin m
+    for (let i = 0; i < poly.length; i++) {
+      const [ax, ay] = poly[i], [bx, by] = poly[(i + 1) % poly.length];
+      const ex = bx - ax, ey = by - ay, len = Math.hypot(ex, ey);
+      if ((ex * (y - ay) - ey * (x - ax)) / len < m) return false;
+    }
+    return true;
+  }
+  function shapePoints(kind, cx, cy, size, ang, r) {
+    const pts = [], ca = Math.cos(ang), sa = Math.sin(ang);
+    const put = (u, v) => pts.push([cx + u * ca - v * sa, cy + u * sa + v * ca]);
+    if (kind === 'dot') for (let i = 0; i < 16; i++) { const t = i / 16 * 2 * Math.PI; put(size * Math.cos(t), size * Math.sin(t)); }
+    else if (kind === 'petal') for (let i = 0; i < 20; i++) { const t = i / 20 * 2 * Math.PI; put(size * Math.cos(t), size * 0.42 * Math.sin(t) * (1 - 0.45 * Math.cos(t))); }
+    else if (kind === 'leaf') for (let i = 0; i < 20; i++) { const t = i / 20 * 2 * Math.PI, s = Math.sin(t); put(size * Math.cos(t), size * 0.38 * Math.sign(s) * Math.pow(Math.abs(s), 1.7)); }
+    else if (kind === 'lozenge') { put(size, 0); put(0, size * 0.55); put(-size, 0); put(0, -size * 0.55); }
+    else if (kind === 'star') for (let i = 0; i < 16; i++) { const t = i / 16 * 2 * Math.PI, q = i % 2 ? 0.45 : 1; put(size * q * Math.cos(t), size * q * Math.sin(t)); }
+    return pts;
+  }
+  const KINDS = ['petal', 'dot', 'leaf', 'lozenge', 'star', 'petal', 'leaf'];
+  function makeMotif(seed, g) {
+    const r = mulberry32(seed * 7919 + 17), F = GROUPS[g].region, M = 0.02;
+    const xs = F.map((p) => p[0]), ys = F.map((p) => p[1]);
+    const box = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+    const cen = [xs.reduce((a, b) => a + b) / F.length, ys.reduce((a, b) => a + b) / F.length];
+    const n = 6 + Math.floor(r() * 4);
+    const shapes = [];
+    for (let i = 0, tries = 0; shapes.length < n && tries < 400; tries++, i++) {
+      const kind = shapes.length === 0 ? 'petal' : KINDS[Math.floor(r() * KINDS.length)];
+      let cx, cy, ang;
+      if (shapes.length === 0) {                                               // the rosette petal: points out from the tile centre
+        const d = Math.hypot(cen[0], cen[1]); ang = Math.atan2(cen[1], cen[0]);
+        cx = Math.cos(ang) * d * 0.62; cy = Math.sin(ang) * d * 0.62;
+      } else {
+        cx = box[0] + r() * (box[2] - box[0]); cy = box[1] + r() * (box[3] - box[1]); ang = r() * Math.PI;
+      }
+      if (!inside(F, [cx, cy], M * 2)) continue;
+      let size = (shapes.length === 0 ? 0.32 : 0.06 + r() * 0.2) * (g === 'p2mm' ? 0.9 : 1);
+      let pts = null;
+      for (let k = 0; k < 24; k++) { const p = shapePoints(kind, cx, cy, size, ang, r); if (p.every((q) => inside(F, q, M))) { pts = p; break; } size *= 0.82; }
+      if (!pts || size < 0.025) continue;
+      shapes.push({ kind, size, pts });
+    }
+    shapes.sort((a, b) => b.size - a.size);                                   // big shapes first, small ones on top
+    return shapes;
+  }
+  function colourFor(colourSeed, n) {
+    const r = mulberry32(colourSeed * 104729 + 3);
+    const out = [];
+    for (let i = 0; i < 16; i++) out.push(FILLS[Math.floor(r() * FILLS.length)]);
+    out[0] = 'cobalt';                                                        // cobalt always leads, as in the tradition
+    for (let i = 1; i < 16; i++) if (out[i] === out[i - 1]) out[i] = FILLS[(FILLS.indexOf(out[i]) + 1 + Math.floor(r() * 3)) % 4];
+    return out.slice(0, Math.max(n, 1));
+  }
+
+  // ---------- state ----------
+  const params = new URLSearchParams(location.search);
+  const posInt = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) && n > 0 && n <= 999999999 ? n : null; };
+  let seed = posInt(params.get('seed')) || 1531;
+  let sym = GROUPS[params.get('sym')] ? params.get('sym') : 'p4m';
+  let colourSeed = posInt(params.get('colors')) || seed;
+  let locked = params.has('colors');
+  let D = null;
+
+  function build() {
+    if (!locked) colourSeed = seed;
+    const G = GROUPS[sym];
+    const motif = makeMotif(seed, sym);
+    const colours = colourFor(colourSeed, motif.length);
+    motif.forEach((s, i) => { s.fill = colours[i % colours.length]; });
+    const shapes = [];
+    G.ops.forEach((op, oi) => motif.forEach((s, si) => shapes.push({ op: oi, motif: si, kind: s.kind, fill: s.fill, pts: s.pts.map((p) => apply(op, p)) })));
+    D = { seed, sym, colourSeed, locked, cell: G.cell, region: G.region, outline: outline(sym), motif: motif.map((s) => ({ kind: s.kind, fill: s.fill, pts: s.pts })), shapes, copies: G.ops.length };
+    return D;
+  }
+
+  // ---------- SVG ----------
+  const f4 = (n) => (Math.round(n * 10000) / 10000).toString();
+  const ptsAttr = (pts) => pts.map(([x, y]) => `${f4(x)},${f4(y)}`).join(' ');
+  function tileMarkup(d, id) {
+    const parts = [`<g${id ? ` id="${id}"` : ''}>`, `<polygon points="${ptsAttr(d.outline)}" fill="${PALETTE.glaze}" stroke="${PALETTE.cobalt}" stroke-width="0.03" stroke-linejoin="round"/>`];
+    for (const s of d.shapes) parts.push(`<polygon points="${ptsAttr(s.pts)}" fill="${PALETTE[s.fill]}" stroke="${PALETTE.cobalt}" stroke-width="0.012" stroke-linejoin="round"/>`);
+    parts.push('</g>');
+    return parts.join('');
+  }
+  function wallCentres(d, cols, rows) {
+    const out = [];
+    if (d.cell === 'hex') { for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) out.push([1.5 * i, R3 * j + (i % 2 ? R3 / 2 : 0)]); }
+    else { const G = GROUPS[d.sym]; for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) out.push([G.w * i, G.h * j]); }
+    return out;
+  }
+  function wallBox(d, cols, rows) {
+    if (d.cell === 'hex') return [0.5, R3 / 2, 1.5 * (cols - 1) - 1, R3 * (rows - 1) - R3 / 2];
+    const G = GROUPS[d.sym]; return [-G.w / 2, -G.h / 2, G.w * cols, G.h * rows];
+  }
+  function svgTile(d, standalone) {
+    const b = d.cell === 'hex' ? [-1.06, -1.06, 2.12, 2.12] : (() => { const G = GROUPS[d.sym]; return [-G.w / 2 - 0.05, -G.h / 2 - 0.05, G.w + 0.1, G.h + 0.1]; })();
+    const size = standalone ? ` width="${Math.round(b[2] * 300)}" height="${Math.round(b[3] * 300)}"` : '';
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${b.map(f4).join(' ')}"${size} role="img" aria-labelledby="tt-${standalone ? 'x' : 'v'}"><title id="tt-${standalone ? 'x' : 'v'}">Talavera-style tile, seed ${d.seed}, ${d.sym} symmetry</title>${tileMarkup(d)}</svg>`;
+  }
+  function svgWall(d, standalone) {
+    const [cols, rows] = d.cell === 'hex' ? [6, 5] : d.cell === 'rect' ? [4, 5] : [4, 4];
+    const b = wallBox(d, cols, rows);
+    const size = standalone ? ` width="${Math.round(b[2] * 150)}" height="${Math.round(b[3] * 150)}"` : '';
+    const uses = wallCentres(d, cols, rows).map(([x, y]) => `<use href="#tl" transform="translate(${f4(x)} ${f4(y)})"/>`).join('');
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${b.map(f4).join(' ')}"${size} role="img" aria-labelledby="tw-${standalone ? 'x' : 'v'}"><title id="tw-${standalone ? 'x' : 'v'}">Wall of ${d.sym} tiles, seed ${d.seed}</title><defs>${tileMarkup(d, 'tl')}</defs>${uses}</svg>`;
+  }
+
+  // ---------- UI ----------
+  const names = { p4m: 'p4m: four-fold rotation with mirrors in both axes and both diagonals', p4g: 'p4g: four-fold pinwheel, mirrors only on the diagonals between the rotation centres', p2mm: 'p2mm: two perpendicular mirrors on a rectangle', p6m: 'p6m: six-fold rotation with six mirrors, on a hexagon' };
+  function render(msg) {
+    build();
+    $('tileBox').innerHTML = svgTile(D, false);
+    $('wallBox').innerHTML = svgWall(D, false);
+    $('seed').value = String(seed);
+    document.querySelectorAll('input[name=sym]').forEach((r) => { r.checked = r.value === sym; });
+    $('lock').checked = locked;
+    $('tileCap').textContent = `One tile · ${D.motif.length} shapes × ${D.copies} copies`;
+    $('status').textContent = (msg ? msg + ' ' : '') + `Seed ${seed}, ${names[sym]}.`;
+    try {
+      const u = new URL(location.href);
+      u.searchParams.set('seed', seed); u.searchParams.set('sym', sym);
+      if (locked) u.searchParams.set('colors', colourSeed); else u.searchParams.delete('colors');
+      history.replaceState(null, '', u);
+    } catch (e) { /* ignore */ }
+  }
+  function setSeed(n, msg) { const v = posInt(n); if (!v) { $('status').textContent = 'The seed must be a whole number from 1 to 999,999,999.'; $('seed').value = String(seed); return; } seed = v; render(msg); }
+  $('seed').addEventListener('change', () => setSeed($('seed').value));
+  $('seed').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); setSeed($('seed').value); } });
+  $('prev').addEventListener('click', () => setSeed(seed > 1 ? seed - 1 : 999999999));
+  $('next').addEventListener('click', () => setSeed(seed < 999999999 ? seed + 1 : 1));
+  $('roll').addEventListener('click', () => setSeed(1 + Math.floor(Math.random() * 999999), locked ? 'New shapes, same colours.' : 'New design.'));
+  document.querySelectorAll('input[name=sym]').forEach((r) => r.addEventListener('change', () => { if (r.checked) { sym = r.value; render(); } }));
+  $('lock').addEventListener('change', () => { locked = $('lock').checked; if (locked) colourSeed = seed; render(locked ? `Colours locked to seed ${colourSeed}.` : 'Colours follow the seed again.'); });
+
+  function download(name, text) {
+    const url = URL.createObjectURL(new Blob([text], { type: 'image/svg+xml' }));
+    const a = document.createElement('a'); a.href = url; a.download = name; document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    $('status').textContent = `Saved ${name}.`;
+  }
+  const xml = (s) => `<?xml version="1.0" encoding="UTF-8"?>\n${s}\n`;
+  $('dlTile').addEventListener('click', () => download(`talavera-${sym}-${seed}.svg`, xml(svgTile(D, true))));
+  $('dlWall').addEventListener('click', () => download(`talavera-wall-${sym}-${seed}.svg`, xml(svgWall(D, true))));
+
+  window.__talavera = {
+    get state() { return JSON.parse(JSON.stringify(D)); },
+    palette: { ...PALETTE },
+    svg: (which) => xml(which === 'wall' ? svgWall(D, true) : svgTile(D, true)),
+  };
+  render();
+})();
+</script>
+</body>
+</html>

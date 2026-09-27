@@ -1,0 +1,35 @@
+{
+  "id": "128",
+  "slug": "128-pecan-street-books",
+  "file": "lab/128-pecan-street-books.html",
+  "title": "Pecan Street Books — a fictional Austin used bookstore",
+  "category": "Landing Pages",
+  "tags": ["landing-page", "search-filter", "page-clock", "time-zones", "forms", "responsive"],
+  "description": "A landing page for an invented used bookstore in Austin, in deep green and pecan brown with library-card hold slips and red date stamps. A shelf of 40 made-up books can be searched by title or author and filtered by section, format, price and staff pick. Any copy can be put on hold: three holds per reader, each lapsing 48 hours later and stamped with its deadline in US Central time. There are also staff picks, a fall events calendar, and a sell-us-your-books estimator that prices a stack by rules written out beside it. A footer says plainly that it is all fictional.",
+  "prompt": "Build a landing page for a fictional used bookstore in Austin called Pecan Street Books. Give it its own look, not a copy of the supper club page. I want a searchable, filterable catalogue of about 40 invented titles and authors (don't use real books), a hold-this-book flow that lives in memory, with at most 3 holds and holds that expire, plus staff picks, events and a sell-us-your-books estimator whose rules are explained on the page. Add a footer saying it's fictional. The spec should cover search and filter counts, the hold limit and expiry under page.clock, the estimator math, keyboard access to the catalogue and the mobile layout.",
+  "qa": {
+    "methodology": [
+      "Filter oracle: the spec reads the raw catalogue from window.__books, applies its own copy of the shelf rules (case-insensitive substring on title or author, AND of section, format, price cap and staff pick), and compares both the count line and the exact list of rendered book ids for eight combinations. Three have hand-known answers: 'armadillo' gives 2, '  QUADE ' gives 1, Kids gives 5.",
+      "Hold expiry under page.clock: the clock is installed before navigation and paused at 15:00 UTC. Two holds placed an hour apart must both survive to one minute before the first deadline, then lapse one at a time, each exactly 48 hours after it was placed (runFor(HOUR − 1) shows the second is not a millisecond early).",
+      "Time-zone oracle: hold deadlines are shown in America/Chicago, built from Intl formatToParts. A hold placed at 10 AM CDT on Saturday, October 31, 2026 must read 'Mon Nov 2, 9:00 AM CST', because US daylight saving ends at 2 AM on November 1. Two more instants check CDT in July and CST at New Year's midnight.",
+      "Estimator arithmetic in cents: the spec re-implements the written rules (30/20/10% of cover by condition, +50¢ hardcover, round down to 25¢ with a 25¢ floor, damaged pays nothing, credit = ⌊1.5 × cash⌋) and checks every line, the cash total and the credit. Invalid prices, fractional or out-of-range copies, and the 20-book visit cap are rejected with focus on the field.",
+      "Keyboard and layout: '/' jumps to search, a roving tab stop moves through the shelf with the arrow keys, Home and End, Enter opens the hold form with focus in it, Escape returns focus to the book, and Space releases a held book. setViewportSize checks three columns at 1200 px and one stacked column with 44 px targets at 390 px."
+    ],
+    "risks": [
+      "Intl time-zone data comes from the browser's ICU. Chromium's is current, but an old engine with stale DST rules would put the deadline an hour off near the November change.",
+      "Holds live only in memory, so a reload wipes them; a real shop would need a server clock, not the visitor's, to decide when a hold has lapsed.",
+      "The countdown text refreshes on a one-minute interval, so it can lag a real deadline by up to a minute; the sweep that actually removes a hold uses its own timeout set to the exact expiry.",
+      "The estimator's rates are a plausible policy I invented, not an industry standard; the tests only prove the page follows its own stated rules."
+    ],
+    "playwright": "page.clock carried the hold tests: install before goto, pauseAt a known UTC instant, then runFor to walk 48 simulated hours in well under a second, which also drives the minute-by-minute countdown interval. Pausing mattered because the hold timestamps are compared exactly (placed at 15:00:00.000, expiring 172 800 000 ms later). Because the page formats the deadline with an explicit America/Chicago zone, the assertions hold on any machine; the DST-crossing case is the one most likely to catch a naive 'add 48 hours to the local wall clock' bug. The window.__books hook exposes the raw catalogue and holds so the filter oracle can compare id lists rather than scraping card text. It did catch one real problem. A single run passed everywhere, but --repeat-each=3 failed the hold tests on the Pixel 7 project about one time in three: 'element is not stable', a Place hold click that never landed, and a form that stayed open. The cause was the page's smooth scrolling. On a phone the hold card sits below 40 books, so focusing its name field started a long smooth scroll while the fake clock was paused, and clicks landed on a moving target. The page now scrolls the form into view instantly, which also suits reduced-motion users. The weakness is the same as other landing pages here: no screenshot assertions, so the library-card styling could regress unnoticed.",
+    "coverage": [
+      "40 invented books, five per section, staff-pick stamps",
+      "Search and filter combinations vs a spec-side filter, empty state",
+      "Hold validation, Central-time slip, escaping, no network",
+      "Three-hold cap, release from slip and shelf, staggered 48-hour expiry, DST crossing",
+      "Shelf keyboard: '/', arrows, Home/End, Enter, Escape, Space",
+      "Estimator math and validation, event weekdays, responsive layout, fiction notices"
+    ]
+  },
+  "a11y": "The search and filters are labelled native controls in a search landmark, and the result count is a polite live region. The shelf is a list with a single roving tab stop: arrows, Home and End move between books, and each button is a toggle (aria-pressed) whose name says whether it holds or releases that title. Opening a hold moves focus to the name field, Escape or 'Never mind' returns it to the book, and errors use aria-invalid with a described-by message. Hold results and expiries are announced; each slip's Release button names its slip code and book. The estimator totals are live, and its rules are a real ordered list with a data table of rates."
+}

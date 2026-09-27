@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meeting Planner — find the overlap across time zones</title>
+<meta name="description" content="Pick cities or IANA time zones and see each one's day as a 24-hour strip with working hours marked and the shared window suggested. Offsets come from Intl.DateTimeFormat for the date you choose, so daylight saving, the weeks when the US and Europe are out of step, India's half-hour offset and Lord Howe Island's 30-minute clock change are all handled. Shareable link and copy-as-text.">
+<style>
+  :root {
+    --paper: #f4f1ea;
+    --card: #fffdf8;
+    --ink: #17233b;
+    --muted: #5b6477;
+    --rule: #d9d3c5;
+    --night: #26324d;
+    --dusk: #7b86a3;
+    --day: #eef0f4;
+    --work: #f2b544;
+    --work-ink: #3d2a00;
+    --fit: #10857a;
+    --fit-soft: #c9ece6;
+    --pick: #c23b52;
+    --mono: "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--paper); color: var(--ink); font: 15px/1.5 var(--sans); overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--pick); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: var(--card); background: var(--ink); text-decoration: none; font: 700 13px/1 var(--sans); padding: 8px 12px; border-radius: 6px; }
+  a.back:hover { background: var(--pick); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 60px 16px 40px; }
+  header h1 { font: 800 clamp(30px, 6vw, 50px)/1.05 var(--sans); letter-spacing: -.02em; margin: 0; overflow-wrap: anywhere; }
+  header h1 span { color: var(--fit); }
+  .kicker { font: 700 12px/1.3 var(--mono); letter-spacing: .18em; text-transform: uppercase; color: var(--pick); margin: 0 0 6px; }
+  .lede { max-width: 70ch; color: var(--muted); margin: 8px 0 0; }
+  .panel { background: var(--card); border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px; margin-top: 16px; min-width: 0; box-shadow: 0 1px 0 var(--rule); }
+  .panel h2 { font: 700 13px/1.3 var(--mono); letter-spacing: .14em; text-transform: uppercase; margin: 0 0 10px; color: var(--muted); }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .field label { font: 700 12px/1.2 var(--sans); color: var(--muted); }
+  input, select, button, textarea { font: 15px var(--sans); }
+  input[type=date], input[type=text], select { padding: 7px 9px; border: 1px solid var(--rule); border-radius: 6px; background: #fff; color: var(--ink); max-width: 100%; min-width: 0; }
+  .btn { min-height: 38px; padding: 7px 14px; border-radius: 6px; border: 1px solid var(--ink); background: var(--ink); color: #fff; font-weight: 700; cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--ink); }
+  .btn.small { min-height: 30px; padding: 3px 9px; font-size: 13px; }
+  .msg { font-size: 13px; color: var(--pick); min-height: 1.3em; margin: 6px 0 0; }
+  .zones { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+  .zone { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; padding: 8px 10px; border: 1px solid var(--rule); border-radius: 8px; background: #fff; min-width: 0; }
+  .zone .nm { font-weight: 800; min-width: 0; overflow-wrap: anywhere; }
+  .zone .id { font: 12px var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+  .zone .off { font: 700 14px var(--mono); }
+  .zone .badge { font: 700 11px/1 var(--mono); padding: 3px 6px; border-radius: 4px; background: var(--fit-soft); color: #064e47; }
+  .zone .badge.std { background: #e7e3d8; color: var(--muted); }
+  .zone .next { flex-basis: 100%; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+  .zone .tools { margin-left: auto; display: flex; gap: 4px; flex-wrap: wrap; }
+  .gridwrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 8px; background: #fff; -webkit-overflow-scrolling: touch; }
+  table.grid { border-collapse: separate; border-spacing: 0; font: 12px/1 var(--mono); }
+  table.grid th.rowh { position: sticky; left: 0; z-index: 2; background: var(--card); text-align: left; padding: 6px 8px; min-width: 112px; max-width: 132px; border-right: 1px solid var(--rule); font: 700 12px/1.2 var(--sans); overflow-wrap: anywhere; }
+  table.grid th.rowh small { display: block; font: 11px var(--mono); color: var(--muted); }
+  table.grid td { width: 26px; min-width: 26px; height: 40px; text-align: center; padding: 0; border-bottom: 1px solid #fff; color: var(--ink); position: relative; }
+  td.night { background: var(--night); color: #cfd6ea; }
+  td.dusk { background: var(--dusk); color: #fff; }
+  td.day { background: var(--day); }
+  td.work { background: var(--work); color: var(--work-ink); font-weight: 700; }
+  td.half { border-left: 1px dashed rgba(0,0,0,.18); }
+  td.newday::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--pick); }
+  td.pick { box-shadow: inset 0 3px 0 var(--pick), inset 0 -3px 0 var(--pick); }
+  tr.fitrow td { height: 22px; background: #fff; }
+  tr.fitrow td.fit { background: var(--fit); }
+  tr.fitrow td.now::after { content: '▲'; position: absolute; left: 0; right: 0; bottom: -2px; color: var(--pick); font-size: 10px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .legend i { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: -3px; margin-right: 4px; }
+  .suggest { font-size: 16px; margin: 0; }
+  .suggest b { color: var(--fit); }
+  .warn { background: #fff2dc; border: 1px solid #f2c774; border-radius: 8px; padding: 8px 10px; margin: 8px 0 0; font-size: 14px; }
+  .pickrow { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin-top: 10px; }
+  .pickrow input[type=range] { flex: 1 1 220px; min-width: 0; accent-color: var(--pick); }
+  textarea { width: 100%; min-height: 150px; font: 13px/1.45 var(--mono); padding: 8px; border: 1px solid var(--rule); border-radius: 6px; background: #fbfaf6; color: var(--ink); resize: vertical; }
+  .share { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .share input { flex: 1 1 240px; font: 12px var(--mono); }
+  .cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+  .facts { font-size: 14px; color: var(--ink); }
+  .facts p { margin: 0 0 8px; }
+  footer { margin-top: 24px; font-size: 13px; color: var(--muted); text-align: center; }
+  code { font: 13px var(--mono); overflow-wrap: anywhere; }
+  @media (max-width: 760px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <p class="kicker">Time zones · daylight saving aware</p>
+    <h1>Meeting <span>Planner</span></h1>
+    <p class="lede">Add the places you need to meet with. Each gets a strip for your chosen day, with its working hours in amber. The teal bar shows the half-hours when everyone is at work. Offsets are looked up for that exact date, so clock changes are handled.</p>
+  </header>
+
+  <section class="panel" aria-labelledby="h-set">
+    <h2 id="h-set">Day and hours</h2>
+    <div class="controls">
+      <div class="field"><label for="date">Date (in the first zone)</label><input type="date" id="date" data-testid="date"></div>
+      <div class="field"><label for="from">Working from</label><select id="from" data-testid="from"></select></div>
+      <div class="field"><label for="to">Working until</label><select id="to" data-testid="to"></select></div>
+      <div class="field"><label for="dur">Meeting length</label>
+        <select id="dur" data-testid="duration"><option value="1">30 minutes</option><option value="2" selected>1 hour</option><option value="3">1 hour 30</option><option value="4">2 hours</option></select></div>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-zones">
+    <h2 id="h-zones">Places</h2>
+    <div class="controls">
+      <div class="field"><label for="city">Add a city</label><select id="city" data-testid="city"></select></div>
+      <button type="button" class="btn" id="addCity" data-testid="add-city">Add city</button>
+      <div class="field"><label for="iana">…or any IANA zone</label><input type="text" id="iana" data-testid="iana" placeholder="e.g. America/Phoenix" autocomplete="off" spellcheck="false"></div>
+      <button type="button" class="btn ghost" id="addIana" data-testid="add-iana">Add zone</button>
+    </div>
+    <p class="msg" id="msg" data-testid="msg" role="alert"></p>
+    <ul class="zones" id="zones" data-testid="zones"></ul>
+    <div id="sync" data-testid="sync"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-grid">
+    <h2 id="h-grid">The day, side by side</h2>
+    <p class="suggest" id="suggest" data-testid="suggest" aria-live="polite"></p>
+    <div class="gridwrap" style="margin-top:10px"><table class="grid" id="grid" data-testid="grid" aria-describedby="gridNote"></table></div>
+    <p class="legend" id="gridNote"><span><i style="background:var(--night)"></i>night</span><span><i style="background:var(--day);border:1px solid var(--rule)"></i>day</span><span><i style="background:var(--work)"></i>working hours</span><span><i style="background:var(--fit)"></i>everyone working</span><span><i style="background:var(--pick)"></i>new local day starts</span></p>
+    <div class="pickrow">
+      <label for="slot"><b>Meeting starts</b></label>
+      <input type="range" id="slot" data-testid="slot" min="0" max="47" value="0">
+      <output id="slotOut" for="slot" data-testid="slot-out"></output>
+    </div>
+  </section>
+
+  <div class="cols">
+    <section class="panel" aria-labelledby="h-copy">
+      <h2 id="h-copy">Copy and share</h2>
+      <label for="text" class="field" style="margin-bottom:6px"><span style="font:700 12px var(--sans);color:var(--muted)">Meeting as text</span></label>
+      <textarea id="text" data-testid="copy-text" readonly></textarea>
+      <div class="share" style="margin-top:8px">
+        <button type="button" class="btn" id="copy" data-testid="copy">Copy as text</button>
+        <span id="copied" data-testid="copied" role="status" aria-live="polite" style="font-size:13px;color:var(--fit)"></span>
+      </div>
+      <div class="share" style="margin-top:10px">
+        <label for="link" style="font:700 12px var(--sans);color:var(--muted)">Shareable link</label>
+        <input type="text" id="link" data-testid="share-link" readonly>
+      </div>
+    </section>
+    <section class="panel facts" aria-labelledby="h-how">
+      <h2 id="h-how">How it works</h2>
+      <p>Offsets are never typed in. For each half-hour the page asks <code>Intl.DateTimeFormat</code> with a <code>timeZone</code> what the wall clock reads there, which draws on the browser's copy of the IANA time zone database, daylight saving rules included.</p>
+      <p>The US moves its clocks on the second Sunday in March and the first Sunday in November; the EU on the last Sundays of March and October. For two or three weeks each spring and one each autumn the gap between New York and London is 4 hours instead of 5.</p>
+      <p>India stays at UTC+5:30 all year. Lord Howe Island, off New South Wales, runs at UTC+10:30 and moves only half an hour in summer, to UTC+11.</p>
+    </section>
+  </div>
+  <footer>Built by Zac Corbett · no hard-coded offsets · try <code>?zones=America/New_York,Europe/London&amp;date=2026-03-16</code></footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const CITIES = [
+    ['Honolulu', 'Pacific/Honolulu'], ['Anchorage', 'America/Anchorage'], ['Los Angeles', 'America/Los_Angeles'], ['Phoenix', 'America/Phoenix'],
+    ['Denver', 'America/Denver'], ['Chicago', 'America/Chicago'], ['Austin', 'America/Chicago'], ['New York', 'America/New_York'], ['São Paulo', 'America/Sao_Paulo'],
+    ['London', 'Europe/London'], ['Dublin', 'Europe/Dublin'], ['Lagos', 'Africa/Lagos'], ['Paris', 'Europe/Paris'], ['Berlin', 'Europe/Berlin'],
+    ['Johannesburg', 'Africa/Johannesburg'], ['Cairo', 'Africa/Cairo'], ['Istanbul', 'Europe/Istanbul'], ['Dubai', 'Asia/Dubai'], ['Kolkata', 'Asia/Kolkata'],
+    ['Singapore', 'Asia/Singapore'], ['Tokyo', 'Asia/Tokyo'], ['Sydney', 'Australia/Sydney'], ['Lord Howe Island', 'Australia/Lord_Howe'], ['Auckland', 'Pacific/Auckland'], ['UTC', 'UTC'],
+  ];
+  const NAME = Object.fromEntries(CITIES.map(([n, z]) => [z, n]).reverse());
+  const HOUR = 3600000, SLOT = 30 * 60000;
+
+  // ---------- time zone arithmetic, all from Intl ----------
+  const fmtCache = new Map();
+  function dtf(zone) {
+    if (!fmtCache.has(zone)) fmtCache.set(zone, new Intl.DateTimeFormat('en-US', { timeZone: zone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', weekday: 'short' }));
+    return fmtCache.get(zone);
+  }
+  function wall(zone, ms) {
+    const p = {}; for (const x of dtf(zone).formatToParts(new Date(ms))) p[x.type] = x.value;
+    return { y: +p.year, mo: +p.month, d: +p.day, h: +p.hour % 24, mi: +p.minute, s: +p.second, wd: p.weekday };
+  }
+  function offsetMin(zone, ms) {
+    const w = wall(zone, ms);
+    const asUTC = Date.UTC(w.y, w.mo - 1, w.d, w.h, w.mi, w.s);
+    return Math.round((asUTC - Math.floor(ms / 1000) * 1000) / 60000);
+  }
+  function zonedMidnight(zone, y, mo, d) {
+    const base = Date.UTC(y, mo - 1, d);
+    let t = base;
+    for (let i = 0; i < 4; i++) t = base - offsetMin(zone, t) * 60000;
+    return t;
+  }
+  function validZone(z) { try { new Intl.DateTimeFormat('en-US', { timeZone: z }); return true; } catch (e) { return false; } }
+  // Chromium resolves some zones to their legacy ICU ids (Asia/Kolkata -> Asia/Calcutta), so keep the name as given and only fix its case.
+  function resolved(z) { try { return new Intl.DateTimeFormat("en-US", { timeZone: z }).resolvedOptions().timeZone; } catch (e) { return z; } }
+  function canonical(z) { const r = resolved(z); return r.toLowerCase() === z.toLowerCase() ? r : (CITIES.find(([, c]) => c.toLowerCase() === z.toLowerCase()) || [0, z])[1]; }
+  const sameZone = (a, b) => a === b || resolved(a) === resolved(b);
+  const pad = (n) => String(n).padStart(2, '0');
+  function fmtOff(min) { const s = min < 0 ? '-' : '+', a = Math.abs(min); return `${s}${Math.floor(a / 60)}:${pad(a % 60)}`; }
+  function abbr(zone, ms) {
+    try { const p = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'short' }).formatToParts(new Date(ms)).find((x) => x.type === 'timeZoneName'); return p ? p.value : ''; } catch (e) { return ''; }
+  }
+  const hhmm = (w) => `${pad(w.h)}:${pad(w.mi)}`;
+  function dayLabel(w) { return `${w.wd} ${w.d} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][w.mo - 1]} ${w.y}`; }
+  function isDST(zone, ms) {
+    const y = wall(zone, ms).y;
+    const jan = offsetMin(zone, Date.UTC(y, 0, 15)), jul = offsetMin(zone, Date.UTC(y, 6, 15));
+    return jan !== jul && offsetMin(zone, ms) === Math.max(jan, jul);
+  }
+  /** The next instant (to the minute) after `from` when the zone's offset changes, searched up to a year ahead. */
+  function nextChange(zone, from) {
+    let a = from, o = offsetMin(zone, a);
+    for (let day = 0; day < 370; day++) {
+      const b = a + 24 * HOUR;
+      if (offsetMin(zone, b) !== o) {
+        let lo = a, hi = b;
+        while (hi - lo > 60000) { const mid = lo + Math.floor((hi - lo) / 120000) * 60000; if (offsetMin(zone, mid) === o) lo = mid; else hi = mid; }
+        return { at: hi, before: o, after: offsetMin(zone, hi) };
+      }
+      a = b;
+    }
+    return null;
+  }
+
+  // ---------- state ----------
+  const params = new URLSearchParams(location.search);
+  let zones = (params.get('zones') || 'America/New_York,Europe/London,Asia/Kolkata').split(',').map((z) => z.trim()).filter(Boolean).filter(validZone).map(canonical);
+  zones = zones.filter((z, i) => zones.findIndex((y) => sameZone(y, z)) === i);
+  if (!zones.length) zones = ['UTC'];
+  let from = clampH(params.get('from'), 9), to = clampH(params.get('to'), 17);
+  if (to <= from) { from = 9; to = 17; }
+  let date = /^\d{4}-\d{2}-\d{2}$/.test(params.get('date') || '') ? params.get('date') : null;
+  if (!date) { const w = wall(zones[0], Date.now()); date = `${w.y}-${pad(w.mo)}-${pad(w.d)}`; }
+  let dur = Math.min(4, Math.max(1, parseInt(params.get('dur'), 10) || 2));
+  let slot = null;                                         // chosen start slot; null = follow the suggestion
+  if (params.has('at')) slot = Math.max(0, parseInt(params.get('at'), 10) || 0);
+  let model = null, lastCopy = '';
+
+  function clampH(v, d) { const n = parseFloat(v); return Number.isFinite(n) && n >= 0 && n <= 24 && Math.round(n * 2) === n * 2 ? n : d; }
+
+  function compute() {
+    const [y, mo, d] = date.split('-').map(Number);
+    const ref = zones[0];
+    const start = zonedMidnight(ref, y, mo, d);
+    const nd = new Date(Date.UTC(y, mo - 1, d + 1));
+    const end = zonedMidnight(ref, nd.getUTCFullYear(), nd.getUTCMonth() + 1, nd.getUTCDate());
+    const n = Math.round((end - start) / SLOT);
+    const slots = [];
+    for (let i = 0; i < n; i++) {
+      const t = start + i * SLOT;
+      const cells = zones.map((z) => {
+        const w = wall(z, t), hour = w.h + w.mi / 60;
+        return { local: hhmm(w), date: `${w.y}-${pad(w.mo)}-${pad(w.d)}`, wd: w.wd, hour, work: hour >= from && hour < to, off: offsetMin(z, t) };
+      });
+      slots.push({ i, utc: new Date(t).toISOString(), t, cells, fit: cells.every((c) => c.work) });
+    }
+    // longest run of shared working time
+    let best = null, run = null;
+    slots.forEach((s, i) => {
+      if (s.fit) { if (!run) run = { start: i, len: 0 }; run.len++; if (!best || run.len > best.len) best = { ...run }; } else run = null;
+    });
+    const noon = start + 12 * HOUR;
+    const info = zones.map((z) => {
+      const off = offsetMin(z, noon), nc = nextChange(z, start);
+      return { zone: z, name: NAME[z] || z.split('/').pop().replace(/_/g, ' '), off, offText: fmtOff(off), abbr: abbr(z, noon), dst: isDST(z, noon),
+        next: nc && { at: new Date(nc.at).toISOString(), before: nc.before, after: nc.after, shift: nc.after - nc.before, localBefore: hhmm(wall('UTC', nc.at + nc.before * 60000)) } };
+    });
+    // pairs whose gap today is neither their January nor their July gap: clocks out of step
+    const yr = y, sync = [];
+    for (let a = 0; a < zones.length; a++) for (let b = a + 1; b < zones.length; b++) {
+      const gap = info[b].off - info[a].off;
+      const jan = offsetMin(zones[b], Date.UTC(yr, 0, 15)) - offsetMin(zones[a], Date.UTC(yr, 0, 15));
+      const jul = offsetMin(zones[b], Date.UTC(yr, 6, 15)) - offsetMin(zones[a], Date.UTC(yr, 6, 15));
+      if (gap !== jan && gap !== jul) sync.push({ a: zones[a], b: zones[b], gap, usual: [jan, jul] });
+    }
+    return { start, end, n, slots, best, info, sync, ref };
+  }
+
+  const gapText = (m) => { const a = Math.abs(m), h = Math.floor(a / 60), r = a % 60; return h ? `${h} h${r ? ' ' + r + ' min' : ''}` : `${r} min`; };
+
+  function render() {
+    model = compute();
+    const M = model;
+    // zones
+    $('zones').innerHTML = '';
+    M.info.forEach((z, k) => {
+      const li = document.createElement('li');
+      li.className = 'zone'; li.dataset.zone = z.zone; li.setAttribute('data-testid', `zone-${k}`);
+      const nx = z.next ? (() => {
+        const w = wall(z.zone, Date.parse(z.next.at));
+        const dir = z.next.shift > 0 ? 'forward' : 'back';
+        return `Next clock change: ${dayLabel(w)}, at ${z.next.localBefore} local the clocks go ${dir} ${gapText(z.next.shift)} (UTC${fmtOff(z.next.before)} → UTC${fmtOff(z.next.after)}).`;
+      })() : 'No clock changes in the next year.';
+      li.innerHTML = `<span class="nm"></span><span class="id"></span><span class="off" data-testid="offset-${k}"></span><span class="badge"></span><span class="tools"></span><span class="next" data-testid="next-${k}"></span>`;
+      li.querySelector('.nm').textContent = (k === 0 ? '★ ' : '') + z.name;
+      li.querySelector('.id').textContent = z.zone;
+      li.querySelector('.off').textContent = `UTC${z.offText}`;
+      const bd = li.querySelector('.badge'); bd.textContent = z.dst ? `${z.abbr} · summer time` : `${z.abbr} · standard`; bd.classList.toggle('std', !z.dst);
+      li.querySelector('.next').textContent = nx;
+      const tools = li.querySelector('.tools');
+      if (k > 0) tools.append(mkBtn('First', `Make ${z.name} the first zone`, () => { zones.splice(k, 1); zones.unshift(z.zone); slot = null; say(`${z.name} is now the first zone; the day follows its calendar.`); render(); }, `first-${k}`));
+      if (zones.length > 1) tools.append(mkBtn('Remove', `Remove ${z.name}`, () => { zones.splice(k, 1); say(`Removed ${z.name}.`); render(); const f = document.querySelector('[data-testid="zone-0"] button') || $('city'); f.focus({ preventScroll: true }); }, `remove-${k}`));
+      $('zones').append(li);
+    });
+    $('sync').innerHTML = '';
+    for (const s of M.sync) {
+      const p = document.createElement('p'); p.className = 'warn'; p.setAttribute('data-testid', 'out-of-sync');
+      const na = NAME[s.a] || s.a, nb = NAME[s.b] || s.b;
+      p.textContent = `Out of step: ${na} and ${nb} are ${gapText(s.gap)} apart on this date, but usually ${[...new Set(s.usual)].map(gapText).join(' or ')}. One of them has changed its clocks and the other hasn't yet.`;
+      $('sync').append(p);
+    }
+    // grid
+    const g = $('grid'); g.innerHTML = '';
+    const cap = document.createElement('caption'); cap.style.cssText = 'text-align:left;padding:6px 8px;font:12px var(--sans);color:var(--muted)';
+    cap.textContent = `${M.n / 2} hours of ${date} in ${NAME[M.ref] || M.ref}, in half-hour steps`;
+    g.append(cap);
+    const tb = document.createElement('tbody');
+    M.info.forEach((z, k) => {
+      const tr = document.createElement('tr');
+      const th = document.createElement('th'); th.className = 'rowh'; th.scope = 'row';
+      th.innerHTML = `<span></span><small></small>`; th.firstChild.textContent = z.name; th.lastChild.textContent = `UTC${z.offText}`;
+      tr.append(th);
+      let prevDate = null;
+      M.slots.forEach((s) => {
+        const c = s.cells[k], td = document.createElement('td');
+        const h = c.hour;
+        td.className = c.work ? 'work' : (h < 6 || h >= 21) ? 'night' : (h < 7.5 || h >= 19) ? 'dusk' : 'day';
+        if (c.local.endsWith(':30') || (c.local.slice(3) !== '00')) td.classList.add('half');
+        if (prevDate && c.date !== prevDate) td.classList.add('newday');
+        prevDate = c.date;
+        td.textContent = c.local.slice(3) === '00' ? String(+c.local.slice(0, 2)) : '';
+        td.dataset.local = c.local; td.dataset.date = c.date; td.dataset.utc = s.utc;
+        td.title = `${z.name}: ${c.wd} ${c.local}`;
+        tr.append(td);
+      });
+      tb.append(tr);
+    });
+    const fr = document.createElement('tr'); fr.className = 'fitrow';
+    const fth = document.createElement('th'); fth.className = 'rowh'; fth.scope = 'row'; fth.textContent = 'Everyone'; fr.append(fth);
+    const nowT = Date.now();
+    M.slots.forEach((s) => { const td = document.createElement('td'); if (s.fit) td.className = 'fit'; if (nowT >= s.t && nowT < s.t + SLOT) td.classList.add('now'); td.setAttribute('data-testid', `fit-${s.i}`); fr.append(td); });
+    tb.append(fr); g.append(tb);
+    // suggestion
+    if (M.best) {
+      const a = M.slots[M.best.start], z = M.best.len * 30;
+      const parts = M.info.map((zi, k) => `${zi.name} ${a.cells[k].local}–${hhmm(wall(zi.zone, a.t + z * 60000))}`);
+      $('suggest').innerHTML = `Everyone overlaps for <b data-testid="overlap-len">${gapText(z)}</b>: ${parts.map(esc).join(' · ')}.`;
+    } else {
+      $('suggest').innerHTML = `<b data-testid="overlap-len">No shared working hours</b> on this day. Someone will need to start early or stay late; the strips show who.`;
+    }
+    const slotEl = $('slot');
+    slotEl.max = String(Math.max(0, M.n - dur));
+    if (slot === null) slot = M.best ? M.best.start : Math.min(M.n - dur, 18);
+    slot = Math.max(0, Math.min(slot, M.n - dur));
+    slotEl.value = String(slot);
+    renderPick();
+  }
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  function mkBtn(label, aria, fn, tid) { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ghost small'; b.textContent = label; b.setAttribute('aria-label', aria); b.setAttribute('data-testid', tid); b.addEventListener('click', fn); return b; }
+
+  function meetingText() {
+    const M = model, s = M.slots[slot], len = dur * 30, t1 = s.t + len * 60000;
+    const w0 = wall(M.ref, s.t);
+    const lines = [`Meeting · ${dayLabel(w0)} (${NAME[M.ref] || M.ref}) · ${gapText(len)}`];
+    const width = Math.max(...M.info.map((z) => z.name.length));
+    M.info.forEach((z) => {
+      const a = wall(z.zone, s.t), b = wall(z.zone, t1);
+      const off = offsetMin(z.zone, s.t);
+      const dayNote = `${a.y}-${pad(a.mo)}-${pad(a.d)}` !== date ? ` (${a.wd} ${a.d})` : '';
+      lines.push(`${z.name.padEnd(width)}  ${hhmm(a)}–${hhmm(b)}${dayNote}  UTC${fmtOff(off)}${s.cells[M.info.indexOf(z)].work ? '' : '  outside working hours'}`);
+    });
+    lines.push(`UTC ${s.utc.slice(0, 16).replace('T', ' ')}`);
+    return lines.join('\n');
+  }
+  function shareURL() {
+    const u = new URL(location.href);
+    u.search = '';
+    u.searchParams.set('zones', zones.join(','));
+    u.searchParams.set('date', date);
+    u.searchParams.set('from', String(from)); u.searchParams.set('to', String(to));
+    u.searchParams.set('dur', String(dur)); u.searchParams.set('at', String(slot));
+    return u.toString();
+  }
+  function renderPick() {
+    const M = model;
+    document.querySelectorAll('#grid td.pick').forEach((td) => td.classList.remove('pick'));
+    document.querySelectorAll('#grid tbody tr:not(.fitrow)').forEach((tr) => { for (let i = slot; i < slot + dur; i++) { const td = tr.children[i + 1]; if (td) td.classList.add('pick'); } });
+    const s = M.slots[slot];
+    $('slotOut').textContent = `${s.cells[0].local} in ${M.info[0].name}${M.slots.slice(slot, slot + dur).every((x) => x.fit) ? ' · everyone at work' : ' · outside someone\'s hours'}`;
+    $('slot').setAttribute('aria-valuetext', $('slotOut').textContent);
+    $('text').value = meetingText();
+    const link = shareURL();
+    $('link').value = link;
+    try { history.replaceState(null, '', link); } catch (e) { /* file:// or sandbox */ }
+  }
+  const say = (t) => { $('msg').textContent = t; };
+
+  // ---------- controls ----------
+  for (let h = 0; h <= 24; h += 0.5) {
+    const label = `${pad(Math.floor(h))}:${h % 1 ? '30' : '00'}`;
+    if (h < 24) $('from').append(new Option(label, String(h)));
+    if (h > 0) $('to').append(new Option(label, String(h)));
+  }
+  CITIES.forEach(([n, z]) => $('city').append(new Option(`${n} (${z})`, z)));
+  $('city').value = 'Australia/Lord_Howe';
+  $('date').value = date; $('from').value = String(from); $('to').value = String(to); $('dur').value = String(dur);
+
+  function addZone(z, label) {
+    if (!validZone(z)) { say(`"${z}" isn't a time zone this browser knows. Try a name like America/Phoenix or Asia/Tokyo.`); return false; }
+    z = canonical(z);
+    if (zones.some((y) => sameZone(y, z))) { say(`${label || z} is already on the list.`); return false; }
+    zones.push(z); say(`Added ${label || z}.`); render(); return true;
+  }
+  $('addCity').addEventListener('click', () => addZone($('city').value, $('city').selectedOptions[0].textContent));
+  $('addIana').addEventListener('click', () => { const v = $('iana').value.trim(); if (!v) { say('Type an IANA zone name first.'); $('iana').focus(); return; } if (addZone(v)) $('iana').value = ''; });
+  $('iana').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('addIana').click(); } });
+  $('date').addEventListener('change', () => { if (/^\d{4}-\d{2}-\d{2}$/.test($('date').value)) { date = $('date').value; slot = null; render(); } });
+  $('from').addEventListener('change', () => { const f = +$('from').value; if (f >= to) { say('Working hours must start before they end.'); $('from').value = String(from); return; } from = f; slot = null; say(''); render(); });
+  $('to').addEventListener('change', () => { const t = +$('to').value; if (t <= from) { say('Working hours must end after they start.'); $('to').value = String(to); return; } to = t; slot = null; say(''); render(); });
+  $('dur').addEventListener('change', () => { dur = +$('dur').value; render(); });
+  $('slot').addEventListener('input', () => { slot = +$('slot').value; renderPick(); });
+  $('copy').addEventListener('click', async () => {
+    lastCopy = $('text').value;
+    let ok = false;
+    try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(lastCopy); ok = true; } } catch (e) { ok = false; }
+    if (!ok) { $('text').focus(); $('text').select(); }
+    $('copied').textContent = ok ? 'Copied to the clipboard.' : 'Selected: press Ctrl+C (or ⌘C) to copy.';
+  });
+
+  window.__meet = {
+    get state() { return JSON.parse(JSON.stringify({ zones, date, from, to, dur, slot, n: model.n, best: model.best, info: model.info, sync: model.sync, text: $('text').value, lastCopy, link: $('link').value })); },
+    offset: (zone, iso) => offsetMin(zone, Date.parse(iso)),
+    slots: () => JSON.parse(JSON.stringify(model.slots.map((s) => ({ utc: s.utc, fit: s.fit, cells: s.cells })))),
+  };
+  render();
+})();
+</script>
+</body>
+</html>

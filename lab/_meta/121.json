@@ -1,0 +1,37 @@
+{
+  "id": "121",
+  "slug": "121-moon-phases",
+  "file": "lab/121-moon-phases.html",
+  "title": "Moon Phases — a lunar calendar",
+  "category": "Data Viz",
+  "tags": ["astronomy", "meeus", "svg", "page-clock", "utc"],
+  "description": "A lunar calendar that works everything out in UTC. New, first-quarter, full and last-quarter moons come from Meeus's Astronomical Algorithms, chapter 49, with its periodic and planetary correction terms and a ΔT table to convert to UTC. The phase angle and illuminated fraction for any instant come from chapter 48. There's a month calendar of SVG moon glyphs, the next four principal phases, and a year strip with an illumination curve, every new and full moon, and calendar-month blue moons. A note explains why the ecclesiastical full moon used for Easter isn't the astronomical one.",
+  "prompt": "Build a lunar calendar. Compute new and full moons with Meeus's algorithm from Astronomical Algorithms chapter 49, including the main periodic correction terms, plus the phase and illuminated fraction for any date. Show a month calendar with moon glyphs drawn in SVG, the next four principal phases, and a year strip. Use UTC explicitly, in the page and in the spec. Check against published values: new moon 2026-01-18 about 19:52 UTC, full moon 2026-01-03 about 10:03 UTC, and Meeus's example 49.a (the new moon of 1977 Feb 18 at JDE 2443192.65118), with a few minutes of tolerance. Add a note that the ecclesiastical full moon used for Easter differs from the astronomical one and link to the Easter page.",
+  "qa": {
+    "methodology": [
+      "Published oracles: Meeus's example 49.a must come out at JDE 2443192.65118 to within 2e-5 days. The four January 2026 phases (full 3 Jan 10:03, last quarter 10 Jan 15:48, new 18 Jan 19:52, first quarter 26 Jan 04:47 UTC), the 3 March 2026 eclipse full moon, the 8 April 2024 eclipse new moon and both May 2026 full moons must each be within 3 minutes of the USNO/NASA times.",
+      "Illuminated fraction: below 0.003 at the published new moon, above 0.997 at the full moon, 0.5 ± 0.02 at the quarters with the right waxing and waning flags. Meeus's example 48.a (1992 April 12, 0h TD) must give 0.6786 ± 0.003, and the page does this through its date and time inputs as well as through the hook.",
+      "Time-zone independence: one test opens the page in fresh browser contexts set to Pacific/Kiritimati (UTC+14) and Pacific/Honolulu (UTC−10) at an instant that falls on different local dates. The readout, the date inputs and the calendar must still say 18 Jan 20:30 UTC.",
+      "Year structure: 2026 must have 13 full moons and 12 new moons, with exactly one calendar-month blue moon (31 May), and 2025 none. The strip's markers, the table and the aria-label must agree.",
+      "Interaction: month and year navigation across a year boundary, arrow keys with a single roving tab stop in the calendar grid, Enter selecting a day, and the Now button returning to the pinned clock."
+    ],
+    "risks": [
+      "ΔT: Meeus's times are Terrestrial Time. The page subtracts ΔT from a small measured table (about 69 s now) and extrapolates after 2025, so years far from the present can drift by tens of seconds or more. The tests stay between 1977 and 2026.",
+      "The instantaneous phase uses Meeus's short chapter-48 series, not the full lunar theory, so the fraction is good to about 0.002. The tests allow for that and don't compare it exactly with the chapter-49 instants.",
+      "Phase names are a convention. The page names a principal phase only within 12 hours of it and says 'Waxing Gibbous' and so on otherwise; other almanacs use a day-level rule.",
+      "The reference instants in the spec were typed in from published tables; a typo there would pass or fail for the wrong reason. Several were cross-checked against a second source (eclipse dates)."
+    ],
+    "playwright": "page.clock.install() before goto, then pauseAt(), fixes 'now', so the next four phases and the selected day are deterministic. browser.newContext({ timezoneId }) was the most useful feature: it proves the page never uses local-time getters, which a single-zone CI run would never show. Most astronomy checks call the page's functions through the __moon hook and compare them with published times, and a smaller set goes through the UI (inputs, calendar labels, aria-label text) to show the UI shows the same numbers. The first full run failed on one test assumption, not the page: clicking the Easter link lands on 106-easter-dates.html?year=2026, because that page writes its own query string, so the URL assertion now allows a query. Before that, a stray comment in the page swallowed the rest of a line and broke the whole script. Every test failed at once, which is noisy but at least unmistakable.",
+    "coverage": [
+      "Meeus 49.a JDE, ΔT sanity",
+      "January 2026 phases vs USNO within 3 minutes, calendar event labels",
+      "Next four phases, order and spacing",
+      "Illuminated fraction at the phases, Meeus 48.a",
+      "Phase name, age from the previous new moon, glyph data",
+      "Year strip: 13 full moons, blue moon 31 May 2026, none in 2025",
+      "UTC in UTC+14 and UTC−10 browser zones",
+      "Month/year navigation, grid keyboard, Now button, Easter link"
+    ]
+  },
+  "a11y": "Date and time inputs are labelled as UTC. The current phase is in a polite live region, and the large glyph's aria-label gives the phase name, percentage and waxing or waning. The calendar is a grid of buttons with a single roving tab stop and arrow-key movement, and each day's label states its illumination and any principal phase with its UTC time. The year strip has a text summary and a full table of new and full moons, so nothing depends on reading the chart."
+}

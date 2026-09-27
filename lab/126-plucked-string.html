@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plucked String — Karplus–Strong synthesis</title>
+<meta name="description" content="Karplus–Strong string synthesis written out in plain JavaScript: a seeded noise burst circulates in a delay line of about sampleRate/f samples through an averaging lowpass. Pluck six guitar strings in standard tuning, strum chords, and see the waveform and a DFT spectrum computed in the page.">
+<style>
+  :root {
+    --spruce: #f1e4c8;
+    --spruce-2: #e6d3ad;
+    --rose: #2b1812;
+    --rose-2: #3b231a;
+    --rose-3: #52321f;
+    --brass: #d3a54a;
+    --brass-2: #b6862c;
+    --nickel: #d9dde0;
+    --pearl: #f4efe6;
+    --ink: #221510;
+    --muted: #6e5846;
+    --red: #b8432b;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --serif: "Hoefler Text", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --sans: "Gill Sans", "Gill Sans MT", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--spruce); color: var(--ink); font: 16px/1.55 var(--sans); overflow-x: hidden; overflow-wrap: break-word;
+    background-image: repeating-linear-gradient(90deg, rgba(120,80,30,.05) 0 1px, transparent 1px 9px), repeating-linear-gradient(90deg, rgba(120,80,30,.04) 0 2px, transparent 2px 23px); min-height: 100vh; }
+  [hidden] { display: none !important; }
+  :focus-visible { outline: 3px solid #1f6fd1; outline-offset: 2px; }
+  a.back { position: fixed; top: 12px; left: 12px; z-index: 30; color: var(--pearl); background: var(--rose); text-decoration: none; font: 600 13px/1 var(--sans);
+    padding: 9px 12px; border-radius: 20px; border: 1px solid var(--brass-2); }
+  a.back:hover { background: var(--rose-3); }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 60px 16px 40px; min-width: 0; }
+  header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 24px; align-items: end; margin-bottom: 20px; }
+  h1 { font: 400 clamp(38px, 7vw, 68px)/1 var(--serif); margin: 0; letter-spacing: -.01em; }
+  h1 i { color: var(--red); }
+  .lede { max-width: 62ch; margin: 10px 0 0; color: #4d3b2c; }
+  .rosette { width: 96px; height: 96px; }
+  h2 { font: 600 13px/1.2 var(--sans); letter-spacing: .18em; text-transform: uppercase; margin: 0 0 10px; color: var(--muted); }
+
+  .neck { background: linear-gradient(180deg, var(--rose-2), var(--rose)); border-radius: 12px; padding: 14px 12px; color: var(--pearl); box-shadow: 0 24px 50px -30px rgba(43,24,18,.9); min-width: 0; }
+  .neck h2 { color: #c9ad86; }
+  .strings { display: flex; flex-direction: column; gap: 4px; position: relative; }
+  .str { display: grid; grid-template-columns: 7.2em minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; min-height: 46px; padding: 4px 10px;
+    background: transparent; border: 1px solid transparent; border-radius: 6px; color: var(--pearl); font: 600 15px/1.2 var(--sans); cursor: pointer; text-align: left; touch-action: manipulation; }
+  .str:hover { border-color: rgba(211,165,74,.5); }
+  .str .nm { font: 600 15px/1.1 var(--mono); overflow-wrap: anywhere; }
+  .str .nm small { display: block; font: 12px/1.2 var(--sans); color: #c9ad86; }
+  .str .wire { height: var(--g, 2px); background: linear-gradient(180deg, #fff, var(--nickel) 40%, #8b9197); border-radius: 2px; box-shadow: 0 2px 2px rgba(0,0,0,.5); min-width: 0; }
+  .str.wound .wire { background: repeating-linear-gradient(90deg, #e0c28a 0 2px, #9c7a3e 2px 3px); }
+  .str.ring .wire { animation: ring .5s ease-out; }
+  @keyframes ring { 0% { transform: translateY(-3px); } 20% { transform: translateY(3px); } 40% { transform: translateY(-2px); } 60% { transform: translateY(1px); } 100% { transform: none; } }
+  .str .hz { font: 13px/1 var(--mono); color: var(--brass); }
+  .key { font: 11px/1 var(--mono); border: 1px solid #7e5d44; border-bottom-width: 2px; border-radius: 3px; padding: 2px 5px; color: #c9ad86; margin-left: 6px; }
+
+  .chords { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .chord { min-height: 48px; min-width: 64px; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--brass-2); background: var(--rose-3); color: var(--pearl);
+    font: 600 17px/1.1 var(--serif); cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; touch-action: manipulation; max-width: 100%; }
+  .chord small { font: 11px/1 var(--mono); color: var(--brass); letter-spacing: .08em; }
+  .chord[aria-pressed="true"] { background: var(--brass); color: var(--rose); }
+  .chord[aria-pressed="true"] small { color: var(--rose); }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 14px 24px; margin-top: 16px; padding-top: 14px; border-top: 1px solid #5a3b27; }
+  .ctl { display: flex; flex-direction: column; gap: 4px; flex: 1 1 220px; min-width: 0; }
+  .ctl label { font: 600 13px/1.3 var(--sans); color: #e7d5b8; }
+  .ctl output { font: 13px/1 var(--mono); color: var(--brass); }
+  input[type=range] { width: 100%; min-width: 0; accent-color: var(--brass); height: 28px; margin: 0; }
+  .status { margin: 12px 0 0; min-height: 1.5em; font-size: 15px; color: var(--pearl); }
+
+  .panels { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-top: 18px; }
+  .panel { background: var(--pearl); border: 1px solid var(--spruce-2); border-radius: 10px; padding: 14px; min-width: 0; }
+  .panel canvas { display: block; width: 100%; height: 180px; background: #fbf7ef; border-radius: 6px; border: 1px solid var(--spruce-2); }
+  .readout { font: 13px/1.5 var(--mono); color: var(--muted); margin: 8px 0 0; }
+  .readout b { color: var(--ink); font-weight: 600; }
+
+  .explain { background: var(--pearl); border: 1px solid var(--spruce-2); border-radius: 10px; padding: 16px; margin-top: 16px; }
+  .explain p { margin: 0 0 10px; max-width: 72ch; }
+  .explain code { font: 14px var(--mono); background: var(--spruce); padding: 1px 5px; border-radius: 3px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--spruce-2); }
+  th { font-weight: 600; color: var(--muted); }
+  td.n { font-family: var(--mono); }
+  .tablewrap { overflow-x: auto; max-width: 100%; }
+  footer { text-align: center; font-size: 13px; color: var(--muted); margin-top: 22px; }
+
+  @media (max-width: 760px) {
+    .panels { grid-template-columns: minmax(0, 1fr); }
+    header { grid-template-columns: minmax(0, 1fr); }
+    .rosette { display: none; }
+  }
+  @media (max-width: 480px) {
+    .str { grid-template-columns: 5.4em minmax(0, 1fr); }
+    .str .hz { grid-column: 1 / -1; display: none; }
+    .key { display: none; }
+    .panel canvas { height: 150px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .str.ring .wire { animation: none; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Plucked <i>String</i></h1>
+      <p class="lede">A burst of noise goes round a short delay line. Each trip it is averaged with its neighbour and loses a little energy, so the hiss settles into a pitched, decaying tone. That is the whole Karplus–Strong algorithm (1983), computed here sample by sample in JavaScript.</p>
+    </div>
+    <svg class="rosette" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="46" fill="none" stroke="#b6862c" stroke-width="3"/><circle cx="50" cy="50" r="40" fill="none" stroke="#2b1812" stroke-width="4" stroke-dasharray="2 3"/><circle cx="50" cy="50" r="33" fill="none" stroke="#b6862c" stroke-width="2"/><circle cx="50" cy="50" r="28" fill="#2b1812"/></svg>
+  </header>
+
+  <section class="neck" aria-labelledby="h-strings">
+    <h2 id="h-strings">Six strings, standard tuning</h2>
+    <div class="strings" id="strings" role="group" aria-labelledby="h-strings" data-testid="strings"></div>
+    <h2 style="margin-top:16px" id="h-chords">Strum a chord</h2>
+    <div class="chords" id="chords" role="group" aria-labelledby="h-chords" data-testid="chords"></div>
+    <div class="controls">
+      <div class="ctl"><label for="decay">Sustain, loop gain ρ <output id="decayOut" for="decay" data-testid="decay-out"></output></label>
+        <input type="range" id="decay" min="0.99" max="0.9995" step="0.0005" value="0.996" data-testid="decay"></div>
+      <div class="ctl"><label for="bright">Brightness of the pluck <output id="brightOut" for="bright" data-testid="bright-out"></output></label>
+        <input type="range" id="bright" min="0.05" max="1" step="0.05" value="0.6" data-testid="bright"></div>
+    </div>
+    <p class="status" id="status" role="status" aria-live="polite" data-testid="status">Pick a string. Sound starts on your first tap.</p>
+  </section>
+
+  <div class="panels">
+    <section class="panel" aria-labelledby="h-wave">
+      <h2 id="h-wave">Waveform</h2>
+      <canvas id="wave" role="img" data-testid="wave" aria-label="Waveform"></canvas>
+      <p class="readout" id="waveText" data-testid="wave-text"></p>
+    </section>
+    <section class="panel" aria-labelledby="h-spec">
+      <h2 id="h-spec">Spectrum (DFT, Hann window)</h2>
+      <canvas id="spec" role="img" data-testid="spec" aria-label="Spectrum"></canvas>
+      <p class="readout" id="specText" data-testid="spec-text"></p>
+    </section>
+  </div>
+
+  <section class="explain" aria-labelledby="h-how">
+    <h2 id="h-how">How it works</h2>
+    <p>For a string at <code>f</code> Hz the delay line holds <code>N = round(sampleRate / f − ½)</code> samples, filled with seeded white noise that the brightness control smooths with a one-pole lowpass. Every output sample is fed back as <code>y[n] = ρ · ½ (y[n−N] + y[n−N−1])</code>. The two-point average is a lowpass that also adds half a sample of delay, so the loop is <code>N + ½</code> samples long and the pitch is <code>sampleRate / (N + ½)</code>. Rounding N to a whole sample leaves a small tuning error, shown in cents under the spectrum.</p>
+    <p>Higher partials are cut more on every trip, so the tone darkens as it fades. The fundamental loses a factor of <code>ρ·cos(π f₀ / sampleRate)</code> per period, which gives the decay time below.</p>
+    <div class="tablewrap">
+      <table data-testid="tuning-table">
+        <caption class="readout" style="text-align:left;caption-side:bottom">Equal temperament from A4 = 440 Hz: key n of an 88-key piano sounds 440 · 2^((n − 49)/12) Hz.</caption>
+        <thead><tr><th scope="col">String</th><th scope="col">Note</th><th scope="col">Hz</th><th scope="col">N</th><th scope="col">Pitch played</th></tr></thead>
+        <tbody id="tuneBody"></tbody>
+      </table>
+    </div>
+  </section>
+  <footer>Built by Zac Corbett · Karplus–Strong in plain JavaScript, rendered to an AudioBuffer · add <code>?seed=</code> for repeatable plucks · keys <kbd>1</kbd>–<kbd>6</kbd> pluck strings 1 (high E) to 6 (low E)</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  const SEED = (parseInt(params.get('seed'), 10) >>> 0) || 1983;
+  const SECONDS = 2.5, STRUM_MS = 28, FALLBACK_SR = 44100;
+
+  // Standard tuning, low to high. key = piano key number (A4 = 49).
+  const STRINGS = [
+    { num: 6, note: 'E2', key: 20, hz: 82.41 }, { num: 5, note: 'A2', key: 25, hz: 110.00 }, { num: 4, note: 'D3', key: 30, hz: 146.83 },
+    { num: 3, note: 'G3', key: 35, hz: 196.00 }, { num: 2, note: 'B3', key: 39, hz: 246.94 }, { num: 1, note: 'E4', key: 44, hz: 329.63 },
+  ];
+  // frets low E → high E, null = not played
+  const CHORDS = {
+    E: [0, 2, 2, 1, 0, 0], Em: [0, 2, 2, 0, 0, 0], A: [null, 0, 2, 2, 2, 0], Am: [null, 0, 2, 2, 1, 0],
+    D: [null, null, 0, 2, 3, 2], G: [3, 2, 0, 0, 0, 3], C: [null, 3, 2, 0, 1, 0],
+  };
+  const chordFreqs = (name) => CHORDS[name].map((f, i) => (f === null ? null : STRINGS[i].hz * Math.pow(2, f / 12)));
+
+  // ---------- DSP (pure) ----------
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const delayLength = (freq, sampleRate) => Math.max(2, Math.round(sampleRate / freq - 0.5));
+  function ks({ freq, sampleRate, seconds = SECONDS, decay = 0.996, brightness = 0.6, seed = 1 }) {
+    const N = delayLength(freq, sampleRate), rnd = mulberry32(seed >>> 0), buf = new Float64Array(N);
+    // excitation: white noise through a one-pole lowpass (brightness = its coefficient), zero mean, peak 1
+    let e = 0, mean = 0;
+    for (let i = 0; i < N; i++) { e += brightness * ((rnd() * 2 - 1) - e); buf[i] = e; mean += e; }
+    mean /= N; let pk = 0;
+    for (let i = 0; i < N; i++) { buf[i] -= mean; pk = Math.max(pk, Math.abs(buf[i])); }
+    for (let i = 0; i < N; i++) buf[i] /= pk || 1;
+    const L = Math.round(seconds * sampleRate), out = new Float32Array(L);
+    let p = 0, prev = 0;
+    for (let n = 0; n < L; n++) {               // y[n+N] = ρ · ½ (y[n] + y[n−1])
+      const cur = buf[p]; out[n] = cur; buf[p] = decay * 0.5 * (cur + prev); prev = cur; p = (p + 1) % N;
+    }
+    return { N, f0: sampleRate / (N + 0.5), samples: out, sampleRate };
+  }
+  function strum(freqs, opts) {
+    const sr = opts.sampleRate, L = Math.round(SECONDS * sr), out = new Float32Array(L), notes = [];
+    let k = 0;
+    freqs.forEach((f, i) => {
+      if (f === null) return;
+      const seed = (opts.seedBase + 7919 * (opts.count + k)) >>> 0;
+      const r = ks({ ...opts, freq: f, seed }), off = Math.round(k * STRUM_MS / 1000 * sr);
+      for (let n = 0; n + off < L; n++) out[n + off] += 0.28 * r.samples[n];
+      notes.push({ string: STRINGS[i].num, freq: f, N: r.N, f0: r.f0, onset: off / sr, seed }); k++;
+    });
+    return { samples: out, notes, used: k };
+  }
+  // DFT magnitude on a Hann-windowed slice; fundamental = the lowest local peak within 20 dB of the strongest
+  function spectrum(x, sr, start, len, maxHz) {
+    const bin = sr / len, K = Math.min(Math.floor(maxHz / bin), len / 2), mag = new Float64Array(K + 1), w = new Float64Array(len);
+    for (let n = 0; n < len; n++) w[n] = 0.5 - 0.5 * Math.cos(2 * Math.PI * n / (len - 1));
+    for (let k = 0; k <= K; k++) {
+      let re = 0, im = 0; const d = -2 * Math.PI * k / len;
+      for (let n = 0; n < len; n++) { const v = w[n] * (x[start + n] || 0); re += v * Math.cos(d * n); im += v * Math.sin(d * n); }
+      mag[k] = Math.hypot(re, im);
+    }
+    return { mag, bin };
+  }
+  function fundamental(mag, bin, minHz = 50) {
+    let g = 0; for (let k = 1; k < mag.length; k++) g = Math.max(g, mag[k]);
+    for (let k = Math.max(1, Math.round(minHz / bin)); k < mag.length - 1; k++) {
+      if (mag[k] >= 0.1 * g && mag[k] >= mag[k - 1] && mag[k] >= mag[k + 1]) {
+        const a = mag[k - 1], b = mag[k], c = mag[k + 1], den = a - 2 * b + c, d = den ? 0.5 * (a - c) / den : 0;
+        return { bin: k, hz: k * bin, refined: (k + d) * bin };
+      }
+    }
+    return null;
+  }
+  const t60 = (f0, sr, rho) => -3 / (f0 * Math.log10(rho * Math.cos(Math.PI * f0 / sr)));
+  const cents = (a, b) => 1200 * Math.log2(a / b);
+
+  // ---------- audio ----------
+  let ctx = null, audioNote = 'none', played = 0;
+  function ensureAudio() {
+    if (ctx) { if (ctx.state !== 'running') { try { const r = ctx.resume(); if (r && r.catch) r.catch(() => {}); } catch (e) {} } return; }
+    const Ctor = window.AudioContext || window.webkitAudioContext;
+    if (!Ctor) { audioNote = 'unavailable'; return; }
+    try { ctx = new Ctor(); } catch (e) { ctx = null; audioNote = 'unavailable'; return; }
+    try { const r = ctx.resume(); if (r && r.catch) r.catch(() => {}); } catch (e) {}
+  }
+  function play(samples, sr) {
+    if (!ctx || ctx.state === 'closed') return false;
+    try {
+      const b = ctx.createBuffer(1, samples.length, sr);
+      if (b.copyToChannel) b.copyToChannel(samples, 0); else b.getChannelData(0).set(samples);
+      const s = ctx.createBufferSource(), g = ctx.createGain(); g.gain.value = 0.8;
+      s.buffer = b; s.connect(g); g.connect(ctx.destination); s.start(ctx.currentTime + 0.01); played++; return true;
+    } catch (e) { return false; }
+  }
+  function audioMessage() {
+    if (audioNote === 'unavailable') return 'Web Audio is not available here, so the pluck is drawn but not heard.';
+    if (ctx && ctx.state !== 'running') return 'Audio is waiting for the browser; the pluck is drawn below.';
+    return '';
+  }
+
+  // ---------- state + drawing ----------
+  let decay = 0.996, bright = 0.6, count = 0, last = null, active = null;
+  function sr() { return ctx ? ctx.sampleRate : FALLBACK_SR; }
+  function sizeCanvas(c) {
+    const dpr = Math.min(2, window.devicePixelRatio || 1), w = Math.max(10, c.clientWidth), h = Math.max(10, c.clientHeight);
+    c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+    const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); return { g, w, h };
+  }
+  function drawWave(x, rate) {
+    const c = $('wave'); const { g, w, h } = sizeCanvas(c);
+    g.clearRect(0, 0, w, h); g.strokeStyle = '#e6d3ad'; g.beginPath(); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke();
+    let pk = 0; for (let i = 0; i < x.length; i++) pk = Math.max(pk, Math.abs(x[i])); pk = pk || 1;
+    const per = x.length / w; g.fillStyle = '#52321f';
+    for (let px = 0; px < w; px++) {
+      let lo = 0, hi = 0; const a = Math.floor(px * per), b = Math.min(x.length, Math.floor((px + 1) * per));
+      for (let i = a; i < b; i++) { if (x[i] < lo) lo = x[i]; if (x[i] > hi) hi = x[i]; }
+      const y1 = h / 2 - (hi / pk) * (h / 2 - 6), y2 = h / 2 - (lo / pk) * (h / 2 - 6); g.fillRect(px, y1, 1, Math.max(1, y2 - y1));
+    }
+    g.fillStyle = '#6e5846'; g.font = '11px ui-monospace, monospace'; g.fillText('0 s', 4, h - 6); g.textAlign = 'right'; g.fillText((x.length / rate).toFixed(1) + ' s', w - 4, h - 6);
+  }
+  function drawSpec(mag, bin, fund, maxHz) {
+    const c = $('spec'); const { g, w, h } = sizeCanvas(c);
+    g.clearRect(0, 0, w, h);
+    let m = 0; for (let k = 1; k < mag.length; k++) m = Math.max(m, mag[k]); m = m || 1;
+    const X = (hz) => (hz / maxHz) * w, Y = (v) => { const db = Math.max(-60, 20 * Math.log10(v / m || 1e-9)); return 8 + (-db / 60) * (h - 26); };
+    g.strokeStyle = '#e6d3ad'; g.fillStyle = '#6e5846'; g.font = '11px ui-monospace, monospace';
+    for (let hz = 0; hz <= maxHz; hz += 250) { g.beginPath(); g.moveTo(X(hz), 0); g.lineTo(X(hz), h - 16); g.stroke(); g.fillText(String(hz), Math.min(w - 26, X(hz) + 2), h - 4); }
+    g.strokeStyle = '#b6862c'; g.lineWidth = 1.5; g.beginPath();
+    for (let k = 0; k < mag.length; k++) { const px = X(k * bin), py = Y(mag[k]); if (k) g.lineTo(px, py); else g.moveTo(px, py); } g.stroke();
+    if (fund) { g.strokeStyle = '#b8432b'; g.setLineDash([4, 3]); g.beginPath(); g.moveTo(X(fund.refined), 0); g.lineTo(X(fund.refined), h - 16); g.stroke(); g.setLineDash([]); }
+  }
+
+  const MAXHZ = 1500;
+  function render(kind, label, freqs, base) {
+    const rate = sr(), opts = { sampleRate: rate, decay, brightness: bright, seedBase: SEED, count: base };
+    const r = strum(freqs, opts);
+    const x = r.samples, start = Math.round(0.15 * rate), len = 4096;
+    const { mag, bin } = spectrum(x, rate, start, len, MAXHZ), fund = fundamental(mag, bin);
+    drawWave(x, rate); drawSpec(mag, bin, fund, MAXHZ);
+    // per-period RMS envelope of the lowest note, sampled every 2N samples
+    const N0 = r.notes[0].N, W = 2 * N0, env = [];
+    for (let s = 0; s + W <= x.length && env.length < 400; s += W) { let q = 0; for (let i = s; i < s + W; i++) q += x[i] * x[i]; env.push(Math.sqrt(q / W)); }
+    last = { kind, label, freqs, base, sampleRate: rate, decay, brightness: bright, notes: r.notes, length: x.length, head: Array.from(x.slice(0, 64)),
+      peakHz: fund ? fund.hz : null, refinedHz: fund ? fund.refined : null, binHz: bin, window: { start, len }, env };
+    const n0 = r.notes[0], single = r.notes.length === 1;
+    const wt = single
+      ? `${label}: delay line N = ${n0.N} samples at ${rate} Hz, so the loop is ${n0.N}.5 samples and the pitch ${n0.f0.toFixed(2)} Hz. Fundamental decays by 60 dB in ${t60(n0.f0, rate, decay).toFixed(2)} s.`
+      : `${label}: ${r.notes.length} strings strummed ${STRUM_MS} ms apart, lowest ${n0.freq.toFixed(2)} Hz (N = ${n0.N}).`;
+    $('waveText').textContent = wt; $('wave').setAttribute('aria-label', 'Waveform. ' + wt);
+    const st = fund ? `Lowest strong peak ${fund.refined.toFixed(1)} Hz (bin ${fund.bin}, ${bin.toFixed(2)} Hz per bin).` + (single ? ` Target ${n0.freq.toFixed(2)} Hz, played ${n0.f0.toFixed(2)} Hz (${cents(n0.f0, n0.freq) >= 0 ? '+' : ''}${cents(n0.f0, n0.freq).toFixed(1)} cents).` : '') : 'No clear peak.';
+    $('specText').textContent = st; $('spec').setAttribute('aria-label', 'Spectrum up to 1500 Hz. ' + st);
+    return x;
+  }
+  function trigger(kind, label, freqs, el) {
+    ensureAudio();
+    const x = render(kind, label, freqs, count);
+    count += last.notes.length;
+    const ok = ctx && ctx.state === 'running' ? play(x, last.sampleRate) : false;
+    if (!ok && ctx && ctx.state !== 'running') {       // resume may settle a moment later; play then if it does
+      const want = played;
+      try { ctx.resume().then(() => { if (played === want && ctx.state === 'running') play(x, last.sampleRate); }).catch(() => {}); } catch (e) {}
+    }
+    if (el) { el.classList.remove('ring'); void el.offsetWidth; el.classList.add('ring'); }
+    const a = audioMessage();
+    $('status').textContent = `${label}.` + (a ? ' ' + a : '');
+  }
+  function pluckString(i) {
+    const s = STRINGS[i]; active = null; paintChords();
+    trigger('string', `String ${s.num}, ${s.note} ${s.hz.toFixed(2)} Hz`, STRINGS.map((_, j) => (j === i ? s.hz : null)), document.querySelector(`[data-s="${i}"]`));
+  }
+  function strumChord(name) {
+    active = name; paintChords();
+    const fr = CHORDS[name].map((f) => (f === null ? 'x' : f)).join('');
+    trigger('chord', `${name} chord (${fr})`, chordFreqs(name), null);
+    document.querySelectorAll('.str').forEach((el, i) => { if (CHORDS[name][i] !== null) { el.classList.remove('ring'); void el.offsetWidth; el.classList.add('ring'); } });
+  }
+
+  // ---------- UI ----------
+  const strEl = $('strings');
+  STRINGS.slice().reverse().forEach((s) => {
+    const i = STRINGS.indexOf(s), b = document.createElement('button');
+    b.type = 'button'; b.className = 'str' + (i < 3 ? ' wound' : ''); b.dataset.s = i; b.style.setProperty('--g', (3.4 - i * 0.4).toFixed(1) + 'px');
+    b.setAttribute('data-testid', 'string-' + s.num); b.setAttribute('aria-label', `Pluck string ${s.num}, ${s.note}, ${s.hz.toFixed(2)} hertz`);
+    b.innerHTML = `<span class="nm">${s.note}<small>string ${s.num}<span class="key" aria-hidden="true">${s.num}</span></small></span><span class="wire" aria-hidden="true"></span><span class="hz" aria-hidden="true">${s.hz.toFixed(2)} Hz</span>`;
+    b.addEventListener('click', () => pluckString(i));
+    strEl.appendChild(b);
+  });
+  const chEl = $('chords');
+  Object.keys(CHORDS).forEach((name) => {
+    const b = document.createElement('button'), fr = CHORDS[name].map((f) => (f === null ? 'x' : f)).join('');
+    b.type = 'button'; b.className = 'chord'; b.dataset.c = name; b.setAttribute('aria-pressed', 'false'); b.setAttribute('data-testid', 'chord-' + name);
+    b.setAttribute('aria-label', `Strum ${name.replace('m', ' minor')}${name.includes('m') ? '' : ' major'}, frets ${fr.split('').join(' ')}`);
+    b.innerHTML = `${name}<small aria-hidden="true">${fr}</small>`;
+    b.addEventListener('click', () => strumChord(name));
+    chEl.appendChild(b);
+  });
+  function paintChords() { document.querySelectorAll('.chord').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.c === active))); }
+  $('tuneBody').innerHTML = STRINGS.map((s) => { const N = delayLength(s.hz, FALLBACK_SR), f0 = FALLBACK_SR / (N + 0.5);
+    return `<tr data-testid="tune-${s.num}"><td>${s.num}</td><td>${s.note}</td><td class="n">${s.hz.toFixed(2)}</td><td class="n">${N}</td><td class="n">${f0.toFixed(2)} Hz (${cents(f0, s.hz) >= 0 ? '+' : ''}${cents(f0, s.hz).toFixed(1)}¢)</td></tr>`; }).join('');
+
+  function syncControls() {
+    $('decayOut').textContent = decay.toFixed(4); $('brightOut').textContent = bright.toFixed(2);
+    $('decay').value = decay; $('bright').value = bright;
+  }
+  $('decay').addEventListener('input', (e) => { decay = Math.min(0.9995, Math.max(0.99, +e.target.value)); syncControls(); });
+  $('bright').addEventListener('input', (e) => { bright = Math.min(1, Math.max(0.05, +e.target.value)); syncControls(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+    const t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) return;
+    const n = +e.key; if (n >= 1 && n <= 6) { e.preventDefault(); pluckString(6 - n); }
+  });
+
+  syncControls();
+  render('preview', 'Preview of string 5, A2', STRINGS.map((s, j) => (j === 1 ? s.hz : null)), 0);
+  $('status').textContent = 'Pick a string. Sound starts on your first tap.';
+  let resizeT = 0;
+  window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (last) render(last.kind, last.label, last.freqs, last.base); }, 150); });   // redraw, same seeds
+
+  window.__pluck = {
+    ks: (o) => { const r = ks(o); return { N: r.N, f0: r.f0, sampleRate: r.sampleRate, samples: Array.from(r.samples) }; },
+    delayLength, chordFreqs, t60,
+    fundamentalOf: (samples, rate, start, len) => fundamental(...Object.values(spectrum(Float32Array.from(samples), rate, start, len, MAXHZ))),
+    STRINGS: STRINGS.map((s) => ({ ...s })), CHORDS: JSON.parse(JSON.stringify(CHORDS)), SEED, STRUM_MS,
+    get state() { return JSON.parse(JSON.stringify({ seed: SEED, decay, brightness: bright, count, played, audio: ctx ? ctx.state : (audioNote === 'unavailable' ? 'unavailable' : 'none'), active, last })); },
+  };
+})();
+</script>
+</body>
+</html>

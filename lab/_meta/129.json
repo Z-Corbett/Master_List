@@ -1,0 +1,41 @@
+{
+  "id": "129",
+  "slug": "129-rodeo-rope",
+  "file": "lab/129-rodeo-rope.html",
+  "title": "Rodeo Rope — a lasso physics game",
+  "category": "Games",
+  "tags": ["canvas", "verlet-physics", "fixed-timestep", "point-in-polygon", "seeded-prng"],
+  "description": "A top-down lasso game on a Texas ranch. The rope is a Verlet-integrated chain of 30 points with distance constraints, and its loop closes into a stiff ring. Hold to swing it overhead, aim with the pointer or the arrow keys, and let go to throw at a seeded herd of wandering calves. A catch counts only when the landed loop encloses a calf's head, judged by a point-in-polygon test. Sixty seconds on the clock, three difficulties, distance bonuses and double points for a streak.",
+  "prompt": "Make a lasso physics game. Use a Verlet-integrated rope with distance constraints: the player swings a lasso and throws it at seeded, wandering calves on a Texas ranch. Judge a catch geometrically, when the loop encloses the calf's head point. Add a timer, a score and difficulty levels. Run the simulation on a fixed timestep with a manual step hook, like Prairie Pinball's __pinball.manual/frames, so tests can step the physics deterministically. Controls are pointer drag and keyboard. The spec should check that rope segment lengths stay within tolerance after N steps, determinism per seed, the catch geometry (point-in-polygon), scoring and game over.",
+  "qa": {
+    "methodology": [
+      "Manual stepping: __rodeo.manual(true) stops the animation loop, and __rodeo.step(n) advances exactly n physics steps of 1/120 s. Every physics assertion runs on known step counts, and one test checks the real-time loop separately under page.clock (120 ± 2 steps per fake second).",
+      "Constraint health: the worst link error against the rest length is sampled every 20 steps through a keyboard-driven swing, the throw and the landing, and must stay under 2%. The rest layout is checked exactly: a straight stem, then a regular K-gon of side L with R = L / (2 sin(π/K)) for each difficulty.",
+      "Independent geometry oracle: the page's even-odd ray cast is compared with a winding-number test written in the spec, on a 21 × 21 grid of probes around a thrown, deformed loop and on a concave star.",
+      "Determinism used as a tool: a dry-run throw records where the loop lands, then the same seed and inputs are replayed with a calf placed there (caught) or with its head 6 px beyond the rim and its body under the rope (a miss). The same trick drives four catches in a row to check the streak doubling against a score rule written in the test.",
+      "Game over at exactly 7200 steps, even mid-swing; nothing moves after the buzzer, and Ride again restores focus to the pasture."
+    ],
+    "risks": [
+      "Stiff constraints under a fast-moving pinned hand can stretch links; the swing speed and 16 relaxation passes were chosen to keep errors under 1%, and the test bounds them at 2%.",
+      "The loop is held open by a radial 'honda' constraint, which is a game simplification rather than real rope physics.",
+      "Floating-point order matters for bit-for-bit replays, so the rope never reads calf state and the herd consumes the RNG in a fixed order each step.",
+      "Pointer input is mapped from CSS pixels to the canvas's 720 × 460 world; a layout change that stretched the canvas unevenly would skew the aim."
+    ],
+    "playwright": "The manual step hook is the core: page.evaluate runs a scripted throw (key down, n steps, key up, step until the rope lands) inside one round trip, so the flight is exact and fast. Real input is still covered: keyboard.down/up(' ') holds a swing across several step calls, and page.mouse press, move and release drives the drag-to-aim path on both projects. page.clock only matters for the one real-time test, where it proves the accumulator takes 120 steps per second. Designing the replay tests exposed a determinism flaw before they ran: the coiled rope was still being integrated, so a throw made after a pause would start from a slightly different layout. The coiled rope now lies still. The first run then caught a float bug: swing time was summed 1/120 at a time, so full charge came out as 0.9999999999999981. Charge is now counted in whole steps.",
+    "coverage": [
+      "Rope layout and loop radius for all three difficulties",
+      "Link lengths through swing, throw and landing",
+      "Fixed timestep and bit-for-bit determinism per seed",
+      "Point-in-polygon vs winding number, concave star",
+      "Catch and score with a staged calf",
+      "Head outside, body inside: a miss",
+      "Streak doubling from the third catch",
+      "Game over at 60 s, replay",
+      "Real-time stepping under page.clock",
+      "Pointer drag aim and throw direction",
+      "Keyboard aim limits, Space to swing and throw",
+      "Difficulty, herd bounds, reseed"
+    ]
+  },
+  "a11y": "The pasture is a focusable canvas with role=application and instructions in its label: the arrow keys aim in 5° steps, and holding Space (or Enter) swings, releasing it throws. Catches, misses, the aim angle and the final score are announced in a polite live region. Start and Ride again are real buttons that hand focus to the pasture, and the difficulty is a labelled select."
+}

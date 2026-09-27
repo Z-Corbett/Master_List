@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Judge Bias Lab — position and length bias in LLM-as-judge</title>
+<meta name="description" content="A simulation, with no real model: a synthetic judge compares answers from two made-up systems with tunable position bias, verbosity bias and noise. Run a seeded tournament, see how far the judge's win rates drift from the ground truth, then apply swap-and-average, length control and a majority vote of several judges. Agreement with the truth and Cohen's kappa between judge runs are shown for each.">
+<style>
+  :root {
+    --bg: #eef1f5;
+    --card: #ffffff;
+    --ink: #14213d;
+    --muted: #5b6478;
+    --line: #d5dbe5;
+    --alder: #e76f51;
+    --birch: #3d5a80;
+    --gold: #e9a23b;
+    --ok: #2a9d6f;
+    --bad: #c9303e;
+    --serif: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--sans); overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 20; background: var(--ink); color: #fff; text-decoration: none; font: 700 13px/1 var(--sans); padding: 8px 12px; border-radius: 6px; }
+  .wrap { max-width: 1140px; margin: 0 auto; padding: 60px 16px 40px; }
+  .sim { display: inline-block; background: var(--gold); color: #2b1a00; font: 800 12px/1 var(--sans); letter-spacing: .16em; text-transform: uppercase; padding: 6px 10px; border-radius: 4px; }
+  h1 { margin: 10px 0 0; font: 700 clamp(28px, 5vw, 46px)/1.08 var(--serif); overflow-wrap: anywhere; }
+  h1 .a { color: var(--alder); } h1 .b { color: var(--birch); }
+  .lede { max-width: 74ch; color: var(--muted); margin: 8px 0 0; }
+  .simnote { margin: 12px 0 0; padding: 10px 12px; border-left: 4px solid var(--gold); background: #fff7e8; border-radius: 0 8px 8px 0; font-size: 14px; max-width: 80ch; }
+  .layout { display: grid; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); gap: 16px; margin-top: 18px; align-items: start; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; min-width: 0; }
+  .card + .card { margin-top: 16px; }
+  .card h2 { margin: 0 0 10px; font: 700 20px/1.2 var(--serif); }
+  .field { margin-bottom: 12px; }
+  .field label, .lbl { display: flex; justify-content: space-between; gap: 8px; font: 700 13px/1.3 var(--sans); margin-bottom: 4px; }
+  .field output { font: 700 13px var(--mono); color: var(--birch); }
+  .field small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+  input[type=range] { width: 100%; accent-color: var(--birch); }
+  input[type=number], select { font: 15px var(--sans); padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); max-width: 100%; }
+  fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 0 0 12px; }
+  legend { font: 700 13px var(--sans); padding: 0 4px; }
+  .check { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0; font-size: 14px; }
+  .check input { margin-top: 4px; accent-color: var(--alder); }
+  .check small { display: block; color: var(--muted); font-size: 12px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .btn { font: 700 13px var(--sans); padding: 7px 12px; border-radius: 6px; border: 2px solid var(--ink); background: #fff; color: var(--ink); cursor: pointer; }
+  .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .kpi { background: #f6f8fb; border: 1px solid var(--line); border-radius: 10px; padding: 10px; min-width: 0; }
+  .kpi small { display: block; font-size: 12px; color: var(--muted); }
+  .kpi b { display: block; font: 700 24px/1.2 var(--serif); font-variant-numeric: tabular-nums; }
+  .kpi span { font-size: 12px; color: var(--muted); }
+  .bars { margin-top: 14px; }
+  .bar { display: grid; grid-template-columns: minmax(0, 9em) minmax(0, 1fr) 4.2em; gap: 8px; align-items: center; margin: 6px 0; font-size: 13px; }
+  .track { position: relative; height: 18px; background: var(--birch); border-radius: 4px; overflow: hidden; }
+  .track i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--alder); }
+  .track .mid { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 2px; background: #fff; opacity: .8; }
+  .track .truth { position: absolute; top: 0; bottom: 0; width: 3px; background: var(--gold); }
+  .bar .v { font: 700 13px var(--mono); text-align: right; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); }
+  .legend i { display: inline-block; width: 12px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+  .strip { display: grid; grid-template-columns: repeat(40, minmax(0, 1fr)); gap: 2px; margin: 8px 0; }
+  .strip span { aspect-ratio: 1 / 1.6; border-radius: 2px; background: var(--birch); min-width: 0; }
+  .strip span.A { background: var(--alder); }
+  .strip span.wrong { box-shadow: inset 0 0 0 2px #111; opacity: .55; }
+  .strip span.edge { margin-left: 2px; box-shadow: -3px 0 0 var(--gold); }
+  .scroller { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; white-space: normal; }
+  th { font-size: 12px; color: var(--muted); font-weight: 700; }
+  tr.cur td { background: #fff4de; }
+  .kc { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); gap: 6px; align-items: center; max-width: 360px; font-size: 13px; }
+  .kc input { width: 100%; }
+  .kc .h { font-weight: 700; color: var(--muted); font-size: 12px; }
+  .kout { font: 14px var(--mono); margin-top: 8px; overflow-wrap: anywhere; }
+  .note { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+  footer { margin-top: 26px; text-align: center; font-size: 13px; color: var(--muted); }
+  @media (max-width: 880px) { .layout { grid-template-columns: minmax(0, 1fr); } .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 520px) { .strip { grid-template-columns: repeat(20, minmax(0, 1fr)); } .bar { grid-template-columns: minmax(0, 6.5em) minmax(0, 1fr) 3.8em; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <span class="sim" data-testid="sim-badge">Simulation</span>
+  <h1>Judge Bias Lab: <span class="a">Alder</span> vs <span class="b">Birch</span></h1>
+  <p class="lede">When one language model grades another's answers side by side, it tends to favour whichever answer it reads first, and whichever is longer. This lab puts numbers on both, and on the usual fixes.</p>
+  <p class="simnote" data-testid="sim-note"><b>This is a simulation. No language model is called.</b> "Alder" and "Birch" are invented systems, and every answer is reduced to a hidden quality score and a word count drawn from a seeded random generator. The "judge" is a formula: it prefers the better answer, plus a bonus for the first position, plus a bonus for length, plus noise. That formula is what lets the page show the ground truth.</p>
+
+  <div class="layout">
+    <div>
+      <section class="card" aria-labelledby="h-judge">
+        <h2 id="h-judge">The judge</h2>
+        <div class="field"><label for="bias">Position bias <output id="biasOut" data-testid="bias-out"></output></label><input type="range" id="bias" data-testid="bias" min="0" max="2" step="0.05" value="0.6"><small>Bonus for the answer shown first, in quality units.</small></div>
+        <div class="field"><label for="verb">Verbosity bias <output id="verbOut" data-testid="verb-out"></output></label><input type="range" id="verb" data-testid="verb" min="0" max="2" step="0.05" value="0.8"><small>Bonus per unit of log length ratio.</small></div>
+        <div class="field"><label for="noise">Noise σ <output id="noiseOut" data-testid="noise-out"></output></label><input type="range" id="noise" data-testid="noise" min="0" max="2" step="0.05" value="0.7"><small>Standard deviation of each verdict's random error.</small></div>
+        <fieldset>
+          <legend>Mitigations</legend>
+          <label class="check"><input type="checkbox" id="swap" data-testid="swap"><span>Swap order and average<small>Judge both orders; average the two scores.</small></span></label>
+          <label class="check"><input type="checkbox" id="lc" data-testid="lc"><span>Length-controlled comparison<small>Regress the score on log length ratio and remove that part.</small></span></label>
+          <div class="field" style="margin:8px 0 0"><label for="k">Judges (majority vote)</label><select id="k" data-testid="judges"><option value="1">1 judge</option><option value="3">3 judges</option><option value="5">5 judges</option></select></div>
+        </fieldset>
+        <div class="row"><label for="seed" class="lbl" style="margin:0">Seed</label><input type="number" id="seed" data-testid="seed" min="0" step="1" value="1" style="width:7em"><button type="button" class="btn" id="reseed" data-testid="reseed">New tournament</button></div>
+        <p class="note">Alder is shown first unless order is swapped. Birch writes longer answers on average; lengths are independent of quality.</p>
+      </section>
+    </div>
+
+    <div>
+      <section class="card" aria-labelledby="h-res">
+        <h2 id="h-res">Tournament: <span id="nPairs" data-testid="n-pairs"></span> prompts</h2>
+        <div class="kpis" aria-live="polite" id="kpis">
+          <div class="kpi"><small>Ground truth</small><b data-testid="truth-rate"></b><span>Alder's real win rate</span></div>
+          <div class="kpi"><small>Judge says</small><b data-testid="judge-rate"></b><span>Alder's win rate</span></div>
+          <div class="kpi"><small>Agreement</small><b data-testid="agreement"></b><span>verdicts matching the truth</span></div>
+          <div class="kpi"><small>Cohen's κ</small><b data-testid="kappa-runs"></b><span id="kappaLbl" data-testid="kappa-label">run 1 vs run 2</span></div>
+        </div>
+        <div class="bars" role="img" id="barsFig" data-testid="bars">
+          <div class="bar"><span>Ground truth</span><div class="track"><i data-testid="bar-truth"></i><span class="mid"></span></div><span class="v" data-testid="bar-truth-v"></span></div>
+          <div class="bar"><span>Naive judge</span><div class="track"><i data-testid="bar-naive"></i><span class="mid"></span><span class="truth" data-testid="truth-mark-naive"></span></div><span class="v" data-testid="bar-naive-v"></span></div>
+          <div class="bar"><span>With mitigations</span><div class="track"><i data-testid="bar-mit"></i><span class="mid"></span><span class="truth"></span></div><span class="v" data-testid="bar-mit-v"></span></div>
+          <div class="legend" aria-hidden="true"><span><i style="background:var(--alder)"></i>Alder wins</span><span><i style="background:var(--birch)"></i>Birch wins</span><span><i style="background:var(--gold)"></i>true rate</span></div>
+        </div>
+        <h3 style="font:700 14px var(--sans);margin:16px 0 0">Every prompt, sorted by how much better Alder really is</h3>
+        <div class="strip" id="strip" data-testid="strip" role="img"></div>
+        <p class="note">Left: Birch's answer is truly better. Right: Alder's is. The gold edge is where the truth flips. Colour is the judge's verdict; faded, outlined cells are wrong.</p>
+      </section>
+
+      <section class="card" aria-labelledby="h-abl">
+        <h2 id="h-abl">Which fix does what</h2>
+        <div class="scroller"><table data-testid="ablation">
+          <thead><tr><th scope="col">Setup (same judge, same seed)</th><th scope="col">Alder win rate</th><th scope="col">Agreement</th><th scope="col">κ run 1 vs 2</th></tr></thead>
+          <tbody id="abl"></tbody>
+        </table></div>
+        <p class="note">Swapping cancels position bias exactly, because the bonus goes to Alder in one order and to Birch in the other. Length control removes the verbosity slope. Majority voting cuts the noise, but it can't remove a bias every judge shares.</p>
+      </section>
+
+      <section class="card" aria-labelledby="h-kc">
+        <h2 id="h-kc">Cohen's kappa, by hand</h2>
+        <p class="note" style="margin-top:0">κ = (p<sub>o</sub> − p<sub>e</sub>) / (1 − p<sub>e</sub>): observed agreement corrected for the agreement two raters would reach by chance with the same yes/no rates. Enter a 2×2 table of counts.</p>
+        <div class="kc" style="margin-top:8px">
+          <span></span><span class="h">Rater 2: yes</span><span class="h">Rater 2: no</span>
+          <span class="h">Rater 1: yes</span><input type="number" min="0" id="kyy" data-testid="k-yy" value="20" aria-label="Rater 1 yes, rater 2 yes"><input type="number" min="0" id="kyn" data-testid="k-yn" value="5" aria-label="Rater 1 yes, rater 2 no">
+          <span class="h">Rater 1: no</span><input type="number" min="0" id="kny" data-testid="k-ny" value="10" aria-label="Rater 1 no, rater 2 yes"><input type="number" min="0" id="knn" data-testid="k-nn" value="15" aria-label="Rater 1 no, rater 2 no">
+        </div>
+        <div class="kout" id="kout" data-testid="k-out" aria-live="polite"></div>
+      </section>
+    </div>
+  </div>
+  <footer>Built by Zac Corbett · a simulation for building intuition, not a benchmark of any real model · <code>?seed=</code> repeats a tournament exactly</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const hash = (...xs) => xs.reduce((h, x) => Math.imul(h ^ (x >>> 0), 0x85EBCA6B) ^ (h >>> 13), 0x9E3779B9) >>> 0;
+  const gauss = (r) => Math.sqrt(-2 * Math.log(1 - r())) * Math.cos(2 * Math.PI * r());
+
+  const N = 120;
+  // ---------------- the tournament: hidden qualities and lengths ----------------
+  function makePairs(seed) {
+    const r = mulberry32(hash(seed, 7));
+    return Array.from({ length: N }, (_, k) => {
+      const qA = 0.25 + gauss(r), qB = gauss(r);                      // Alder is a little better on average
+      const lenA = Math.round(Math.exp(Math.log(180) + 0.35 * gauss(r)));
+      const lenB = Math.round(Math.exp(Math.log(260) + 0.35 * gauss(r)));   // Birch is wordier
+      return { k, delta: qA - qB, lenA, lenB, L: Math.log(lenA / lenB), truth: qA > qB ? 'A' : 'B' };
+    });
+  }
+
+  // ---------------- the judge ----------------
+  // score > 0 means "Alder's answer is better", from Alder's point of view.
+  // order AB (Alder first) earns Alder +bias; order BA gives the bonus to Birch.
+  function judgeScores(pairs, cfg, run, j) {
+    const r = mulberry32(hash(cfg.seed, 1000 + run * 16 + j));
+    return pairs.map((p) => {
+      const e1 = gauss(r), e2 = gauss(r);                              // both draws always taken, so b and the mitigations never shift the noise
+      const ab = p.delta + cfg.bias + cfg.verb * p.L + cfg.noise * e1;
+      const ba = p.delta - cfg.bias + cfg.verb * p.L + cfg.noise * e2;
+      return cfg.swap ? (ab + ba) / 2 : ab;
+    });
+  }
+  function ols(x, y) {
+    const n = x.length, mx = x.reduce((a, b) => a + b, 0) / n, my = y.reduce((a, b) => a + b, 0) / n;
+    let sxy = 0, sxx = 0;
+    for (let i = 0; i < n; i++) { sxy += (x[i] - mx) * (y[i] - my); sxx += (x[i] - mx) ** 2; }
+    return sxx ? sxy / sxx : 0;
+  }
+  function verdicts(pairs, cfg, run) {
+    const votes = [];
+    const slopes = [];
+    for (let j = 0; j < cfg.judges; j++) {
+      let s = judgeScores(pairs, cfg, run, j);
+      if (cfg.lc) { const c = ols(pairs.map((p) => p.L), s); slopes.push(c); s = s.map((x, i) => x - c * pairs[i].L); }
+      votes.push(s.map((x) => (x > 0 ? 1 : 0)));
+    }
+    return { v: pairs.map((_, i) => (votes.reduce((a, vs) => a + vs[i], 0) * 2 > cfg.judges ? 'A' : 'B')), slopes };
+  }
+  function kappa(a, b) {
+    const n = a.length, cats = [...new Set([...a, ...b])];
+    let agree = 0;
+    for (let i = 0; i < n; i++) if (a[i] === b[i]) agree++;
+    const po = agree / n;
+    const pe = cats.reduce((s, c) => s + (a.filter((x) => x === c).length / n) * (b.filter((x) => x === c).length / n), 0);
+    return { po, pe, kappa: pe === 1 ? NaN : (po - pe) / (1 - pe) };
+  }
+  function kappaTable(yy, yn, ny, nn) {
+    const a = [], b = [];
+    const push = (n, x, y) => { for (let i = 0; i < n; i++) { a.push(x); b.push(y); } };
+    push(yy, 'yes', 'yes'); push(yn, 'yes', 'no'); push(ny, 'no', 'yes'); push(nn, 'no', 'no');
+    return a.length ? kappa(a, b) : { po: NaN, pe: NaN, kappa: NaN };
+  }
+  const landisKoch = (k) => (Number.isNaN(k) ? 'undefined' : k < 0 ? 'poor (worse than chance)' : k <= 0.2 ? 'slight' : k <= 0.4 ? 'fair' : k <= 0.6 ? 'moderate' : k <= 0.8 ? 'substantial' : 'almost perfect');
+
+  function evaluate(cfg) {
+    const pairs = makePairs(cfg.seed);
+    const truth = pairs.map((p) => p.truth);
+    const r1 = verdicts(pairs, cfg, 1), r2 = verdicts(pairs, cfg, 2);
+    const rate = (v) => v.filter((x) => x === 'A').length / v.length;
+    const agree = r1.v.filter((x, i) => x === truth[i]).length / N;
+    return { cfg, pairs, truth, verdicts: r1.v, verdicts2: r2.v, slopes: r1.slopes, truthRate: rate(truth), winRate: rate(r1.v), agreement: agree, kappaRuns: kappa(r1.v, r2.v).kappa, kappaTruth: kappa(r1.v, truth).kappa };
+  }
+
+  // ---------------- UI ----------------
+  const cfg = () => ({ seed: seedVal(), bias: +$('bias').value, verb: +$('verb').value, noise: +$('noise').value, swap: $('swap').checked, lc: $('lc').checked, judges: +$('k').value });
+  function seedVal() { const s = parseInt($('seed').value, 10); return Number.isFinite(s) && s >= 0 ? s : 0; }
+  const pct = (x) => `${(100 * x).toFixed(1)}%`;
+  const k3 = (k) => (Number.isNaN(k) ? 'n/a' : k.toFixed(3));
+  let last = null;
+
+  function draw() {
+    const c = cfg();
+    $('biasOut').textContent = c.bias.toFixed(2); $('verbOut').textContent = c.verb.toFixed(2); $('noiseOut').textContent = c.noise.toFixed(2);
+    const R = evaluate(c);
+    const naive = evaluate({ ...c, swap: false, lc: false, judges: 1 });
+    last = { R, naive };
+    $('nPairs').textContent = N;
+    document.querySelector('[data-testid=truth-rate]').textContent = pct(R.truthRate);
+    document.querySelector('[data-testid=judge-rate]').textContent = pct(R.winRate);
+    document.querySelector('[data-testid=agreement]').textContent = pct(R.agreement);
+    document.querySelector('[data-testid=kappa-runs]').textContent = k3(R.kappaRuns);
+    $('kappaLbl').textContent = `run 1 vs run 2 · ${landisKoch(R.kappaRuns)}`;
+    const setBar = (id, x) => { document.querySelector(`[data-testid=${id}]`).style.width = pct(x); document.querySelector(`[data-testid=${id}-v]`).textContent = pct(x); };
+    setBar('bar-truth', R.truthRate); setBar('bar-naive', naive.winRate); setBar('bar-mit', R.winRate);
+    document.querySelectorAll('.track .truth').forEach((t) => { t.style.left = `calc(${pct(R.truthRate)} - 1px)`; });
+    $('barsFig').setAttribute('aria-label', `Alder's win rate: ground truth ${pct(R.truthRate)}, naive judge ${pct(naive.winRate)}, with the chosen mitigations ${pct(R.winRate)}.`);
+    // strip sorted by true quality gap
+    const order = R.pairs.map((p, i) => i).sort((a, b) => R.pairs[a].delta - R.pairs[b].delta);
+    let edgeDone = false;
+    $('strip').innerHTML = order.map((i) => {
+      const p = R.pairs[i], v = R.verdicts[i];
+      const edge = !edgeDone && p.delta > 0 ? (edgeDone = true) : false;
+      return `<span class="${v}${v !== p.truth ? ' wrong' : ''}${edge ? ' edge' : ''}" data-v="${v}" data-truth="${p.truth}"></span>`;
+    }).join('');
+    const wrong = R.verdicts.filter((v, i) => v !== R.truth[i]).length;
+    $('strip').setAttribute('aria-label', `${N} prompts: the judge got ${N - wrong} right and ${wrong} wrong.`);
+    // ablation
+    const rows = [
+      ['No mitigation', { swap: false, lc: false, judges: 1 }],
+      ['Swap and average', { swap: true, lc: false, judges: 1 }],
+      ['Length control', { swap: false, lc: true, judges: 1 }],
+      ['Majority of 5 judges', { swap: false, lc: false, judges: 5 }],
+      ['Swap + length control', { swap: true, lc: true, judges: 1 }],
+      ['All three', { swap: true, lc: true, judges: 5 }],
+    ];
+    $('abl').innerHTML = rows.map(([name, o], i) => {
+      const E = evaluate({ ...c, ...o });
+      const cur = o.swap === c.swap && o.lc === c.lc && o.judges === c.judges;
+      return `<tr class="${cur ? 'cur' : ''}" data-testid="abl-${i}"><td>${name}${cur ? ' <small>(current)</small>' : ''}</td><td>${pct(E.winRate)}</td><td>${pct(E.agreement)}</td><td>${k3(E.kappaRuns)}</td></tr>`;
+    }).join('') + `<tr data-testid="abl-truth"><td><b>Ground truth</b></td><td><b>${pct(R.truthRate)}</b></td><td>100.0%</td><td>–</td></tr>`;
+  }
+  function drawKappa() {
+    const v = ['kyy', 'kyn', 'kny', 'knn'].map((id) => Math.max(0, parseInt($(id).value, 10) || 0));
+    const r = kappaTable(...v);
+    $('kout').textContent = `n = ${v.reduce((a, b) => a + b, 0)} · pₒ = ${Number.isNaN(r.po) ? 'n/a' : r.po.toFixed(4)} · pₑ = ${Number.isNaN(r.pe) ? 'n/a' : r.pe.toFixed(4)} · κ = ${k3(r.kappa)} (${landisKoch(r.kappa)})`;
+    $('kout').dataset.kappa = String(r.kappa);
+  }
+
+  ['bias', 'verb', 'noise'].forEach((id) => $(id).addEventListener('input', draw));
+  ['swap', 'lc', 'k'].forEach((id) => $(id).addEventListener('change', draw));
+  $('seed').addEventListener('change', () => { const u = new URL(location.href); u.searchParams.set('seed', seedVal()); history.replaceState(null, '', u); draw(); });
+  $('reseed').addEventListener('click', () => { $('seed').value = Math.floor(Math.random() * 100000); $('seed').dispatchEvent(new Event('change')); });
+  ['kyy', 'kyn', 'kny', 'knn'].forEach((id) => $(id).addEventListener('input', drawKappa));
+
+  const s0 = parseInt(params.get('seed'), 10);
+  if (Number.isFinite(s0) && s0 >= 0) $('seed').value = s0;
+  draw(); drawKappa();
+
+  window.__judge = { N, makePairs, evaluate, runVerdicts: (c, run) => verdicts(makePairs(c.seed), c, run).v, kappa, kappaTable, ols, landisKoch, get last() { return last; }, get cfg() { return cfg(); } };
+})();
+</script>
+</body>
+</html>

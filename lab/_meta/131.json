@@ -1,0 +1,38 @@
+{
+  "id": "131",
+  "slug": "131-meeting-planner",
+  "file": "lab/131-meeting-planner.html",
+  "title": "Meeting Planner — find the overlap across time zones",
+  "category": "Tools",
+  "tags": ["time-zones", "intl", "daylight-saving", "page-clock", "share-url"],
+  "description": "Pick cities or IANA time zones and see each one's day as a strip of half-hours, with working hours in amber and the stretch when everyone is at work suggested. Offsets come from Intl.DateTimeFormat for the date you pick, never from a table, so it handles daylight saving, the spring and autumn weeks when the US and Europe are out of step, India's UTC+5:30 and Lord Howe Island's half-hour clock change. It lists each zone's next clock change, and the plan can be shared as a link or copied as text.",
+  "prompt": "Build a meeting planner for time zones. I pick cities or IANA zones and see a 24-hour grid per zone, with working hours highlighted and the overlap suggested. It must be DST-aware: use Intl.DateTimeFormat with timeZone, no hard-coded offsets, and handle the weeks when the US and EU are out of sync (between the second Sunday in March and the last Sunday in March, for example). Include a shareable URL, copy-as-text, a half-hour-offset zone (Asia/Kolkata), and Australia/Lord_Howe's 30-minute DST shift as a fun edge case. The spec should pin dates with page.clock and check offsets for known dates: New York to London is 4 hours in mid-March 2026 and 5 in July, Kolkata is +5:30, and Lord Howe is +10:30 or +11.",
+  "qa": {
+    "methodology": [
+      "Published rules as the oracle: the spec computes the second Sunday in March, the first Sunday in November and the last Sundays of March and October itself, then checks that the page's next clock change for New York and London lands on those exact UTC instants (07:00 and 01:00 UTC in March 2026).",
+      "Known offsets on pinned dates: New York to London is 4 h on 16 March 2026 and 5 h on 15 July, Kolkata is +5:30 on both, Phoenix stays at −7:00, and Lord Howe is +10:30 in July and +11:00 in January, with its April change a 30-minute step at 15:00 UTC on the Saturday.",
+      "Every grid cell is checked: its local time must equal the slot's UTC instant plus the known offset, for all 48 half-hours and three zones. Day length follows the clocks too: 46 half-hours on 8 March 2026 in New York, 50 on 1 November (with the repeated 01:00 hour), 48 otherwise.",
+      "Overlap oracle: the test intersects the working-hour windows as UTC intervals from fixed offsets (4 h in March, 3 h in July, none once Kolkata joins, 3 h again when hours widen to 07:30–20:00) and compares with the page's suggestion.",
+      "Machine independence and round-trips: the same checks run in contexts set to Pacific/Auckland and America/Los_Angeles, and a share link opened in a new page must restore the zones, date, hours, slot and copied text."
+    ],
+    "risks": [
+      "Browsers ship their own copy of the time zone database; a stale one could disagree with a recent rule change. The spec only pins long-standing rules.",
+      "Midnight lookups on DST days: the first zone's day is found by iterating the offset, which would misbehave in the few zones that change clocks exactly at midnight.",
+      "The grid works in half-hours, so a zone with a 45-minute offset (Kathmandu, Chatham) would be judged at the start of each slot rather than to the minute.",
+      "The clipboard API can be refused; the page falls back to selecting the text and says so, and the test accepts either message."
+    ],
+    "playwright": "page.clock.install() with a fixed UTC instant decides what 'today' is, so the default date is deterministic without mocking Date by hand. browser.newContext({ timezoneId }) was the most useful feature here: running the same assertions under Auckland and Los Angeles proves the page never reads the machine's zone. A second page in the same context opens the share link to check the round-trip. The first run caught a real bug: the page normalised zone names through resolvedOptions(), and Chromium's ICU hands back the legacy id Asia/Calcutta for Asia/Kolkata, so the suggestion read 'Calcutta'. The page now keeps the name as given and compares zones by their resolved id only to spot duplicates. Writing the copy-as-text assertion also exposed a 30-minute meeting being described as '0 h 30 min', and the spec now pins the exact lines. The weak spot is the clipboard: headless permissions differ between projects, so the spec checks the page's own record of what it copied rather than reading the system clipboard.",
+    "coverage": [
+      "Mid-March and July offsets, out-of-step warning",
+      "Next clock changes vs US and EU rules, spring and autumn",
+      "Lord Howe +10:30/+11 and its 30-minute change",
+      "46/48/50 half-hours on DST days",
+      "Every grid cell vs UTC + offset, Kolkata half-hour labels",
+      "Overlap vs interval intersection, custom working hours",
+      "Share link and copy-as-text round-trip",
+      "Adding by city or IANA name, invalid zones, reorder, remove",
+      "Independence from the machine time zone"
+    ]
+  },
+  "a11y": "Every control is a labelled native input, select or button, and the meeting start is a range slider with a spoken value. The grid is a real table with a caption and row headers, and each cell carries its local time as a title. The overlap suggestion is in an aria-live region, errors are announced through role=alert, and removing a zone moves focus to a neighbouring control."
+}

@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Signal Box — a railway interlocking puzzle</title>
+<meta name="description" content="Work the signal box at Mesquite Junction, a small fictional station with two platforms, three sets of points and a branch line. Set routes for arriving and departing trains while the interlocking refuses anything unsafe: a signal clears only when its points are set, detected and locked, its track circuits are clear and no conflicting route is set. Routes release section by section behind each train. Score for punctuality against the timetable.">
+<style>
+  :root {
+    --panel: #20262b;
+    --panel-2: #2b3238;
+    --bezel: #11151a;
+    --idle: #6f7b85;
+    --route: #f4f1d0;
+    --occ: #ff4d3d;
+    --green: #3ddc84;
+    --amber: #ffb627;
+    --text: #e8ecef;
+    --muted: #a9b4bd;
+    --paper: #e9e4d4;
+    --paper-ink: #22252a;
+    --mono: "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: #171b1f; color: var(--text); font: 15px/1.5 var(--sans); overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: var(--bezel); background: var(--amber); text-decoration: none; font: 700 13px/1 var(--sans); padding: 8px 12px; border-radius: 2px; }
+  a.back:hover { background: var(--route); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 60px 16px 40px; }
+  header h1 { font: 700 clamp(28px, 6vw, 48px)/1.05 var(--mono); margin: 0; letter-spacing: .02em; text-transform: uppercase; overflow-wrap: anywhere; }
+  header h1 span { color: var(--amber); }
+  .plate { display: inline-block; font: 700 12px/1 var(--mono); letter-spacing: .2em; text-transform: uppercase; color: var(--bezel); background: var(--paper); padding: 5px 8px; border-radius: 2px; margin-bottom: 8px; }
+  .lede { color: var(--muted); max-width: 72ch; margin: 8px 0 0; }
+  .box { background: var(--panel); border: 6px solid var(--bezel); border-radius: 6px; padding: 12px; margin-top: 16px; min-width: 0; box-shadow: inset 0 0 0 1px #3a434b; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; justify-content: space-between; font: 700 14px/1.3 var(--mono); }
+  .bar b { color: var(--amber); font-variant-numeric: tabular-nums; }
+  .diagram { margin-top: 10px; background: var(--panel-2); border-radius: 4px; }
+  .diagram { overflow-x: auto; }
+  .diagram svg { display: block; width: 100%; min-width: 620px; height: auto; }
+  .btn { min-height: 40px; padding: 8px 14px; border: 2px solid var(--amber); border-radius: 3px; background: var(--amber); color: var(--bezel); font: 700 14px/1.1 var(--mono); cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--amber); }
+  .btn[disabled] { opacity: .45; cursor: not-allowed; }
+  .grid2 { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; margin-top: 16px; }
+  .card { background: var(--panel); border: 1px solid #39424a; border-radius: 6px; padding: 12px 14px; min-width: 0; }
+  .card h2 { font: 700 14px/1.2 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--amber); margin: 0 0 10px; }
+  .groups { display: grid; gap: 10px; }
+  .group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; }
+  .group .sig { font: 700 13px var(--mono); color: var(--muted); min-width: 52px; }
+  .rbtn { min-height: 38px; padding: 6px 10px; border-radius: 3px; border: 2px solid #56616b; background: var(--bezel); color: var(--text); font: 700 13px/1 var(--mono); cursor: pointer; }
+  .rbtn[aria-pressed="true"] { border-color: var(--route); background: #3b3a2b; color: var(--route); }
+  .rbtn.clear { border-color: var(--green); color: var(--green); }
+  .pts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .msg { font: 14px/1.4 var(--mono); margin: 10px 0 0; min-height: 2.8em; color: var(--route); overflow-wrap: anywhere; }
+  .msg.refused { color: var(--occ); }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; font: 12px/1.3 var(--mono); }
+  th, td { padding: 4px 6px; border-bottom: 1px solid #39424a; text-align: left; white-space: nowrap; }
+  th { color: var(--muted); font-weight: 700; }
+  td.late { color: var(--occ); } td.ok { color: var(--green); }
+  table.matrix td, table.matrix th { text-align: center; padding: 3px 4px; border: 1px solid #39424a; }
+  table.matrix td.x { color: var(--occ); font-weight: 700; }
+  table.matrix td.self { background: #2f363c; }
+  .explain { background: var(--paper); color: var(--paper-ink); border-radius: 4px; padding: 14px 16px; margin-top: 16px; }
+  .explain h2 { font: 700 16px/1.2 var(--mono); margin: 0 0 8px; text-transform: uppercase; letter-spacing: .08em; }
+  .explain dl { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .explain dt { font-weight: 700; }
+  .explain dd { margin: 0 0 4px; }
+  .overlay { margin-top: 10px; background: var(--bezel); border: 2px solid var(--amber); border-radius: 4px; padding: 12px; }
+  footer { margin-top: 24px; font-size: 13px; color: var(--muted); text-align: center; }
+  code { font: 13px var(--mono); }
+  @media (max-width: 820px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <span class="plate">Mesquite Junction · fictional</span>
+    <h1>Signal <span>Box</span></h1>
+    <p class="lede">You are the signaller. Set a route and the interlocking checks it first: it moves and locks the points, makes sure the track is clear and that nothing else is routed across it. Only then does the signal show green. Trains move by the timetable; keep them on time.</p>
+  </header>
+
+  <section class="box" aria-labelledby="h-panel">
+    <h2 id="h-panel" class="plate" style="margin:0 0 8px">Panel</h2>
+    <div class="bar">
+      <span>Time <b id="clock" data-testid="clock">07:00:00</b></span>
+      <span>Score <b id="score" data-testid="score">0</b></span>
+      <span>Right time <b id="ppm" data-testid="ppm">–</b></span>
+      <span class="row" style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn" id="start" data-testid="start">Open the box</button>
+        <button type="button" class="btn ghost" id="fast" data-testid="fast" aria-pressed="false">Speed ×1</button>
+      </span>
+    </div>
+    <div class="diagram" id="diagram" data-testid="diagram" role="img" aria-label="Track diagram"></div>
+    <p class="msg" id="msg" data-testid="msg" role="status" aria-live="polite">The box is closed. Open it to start the timetable.</p>
+    <div class="overlay" id="done" data-testid="done" hidden>
+      <b>End of the shift.</b> <span id="doneLine" data-testid="done-line"></span>
+    </div>
+  </section>
+
+  <div class="grid2">
+    <section class="card" aria-labelledby="h-routes">
+      <h2 id="h-routes">Routes (entrance → exit)</h2>
+      <div class="groups" id="routes"></div>
+      <h2 style="margin-top:14px">Points (only when free)</h2>
+      <div class="pts" id="points"></div>
+    </section>
+    <section class="card" aria-labelledby="h-tt">
+      <h2 id="h-tt">Timetable</h2>
+      <div class="scroll"><table id="tt" data-testid="timetable"></table></div>
+    </section>
+  </div>
+
+  <section class="card" style="margin-top:16px" aria-labelledby="h-ct">
+    <h2 id="h-ct">Control table: conflicting routes</h2>
+    <p style="margin:0 0 8px;color:var(--muted);font-size:14px">✕ marks pairs that can never be set together: they share a track section or need the same points lying different ways. The interlocking derives this from the route definitions below.</p>
+    <div class="scroll"><table class="matrix" id="matrix" data-testid="matrix"></table></div>
+    <div class="scroll" style="margin-top:10px"><table id="ctable" data-testid="control-table"></table></div>
+  </section>
+
+  <section class="explain" aria-labelledby="h-ex">
+    <h2 id="h-ex">How an interlocking keeps trains apart</h2>
+    <dl>
+      <dt>Interlocking</dt><dd>Signals and points are linked so that they can only be set in safe combinations. The idea dates from the mid-19th century, when it was done with mechanical locking in lever frames. Relays followed in the 20th century, and today it is mostly done in software.</dd>
+      <dt>Route setting and locking</dt><dd>Setting a route calls its points to the right position and locks them. The signal can clear only when the points are detected in position, every track circuit in the route is clear, and no conflicting route is set.</dd>
+      <dt>Track circuits</dt><dd>A low current runs through the rails of each section. A train's wheels and axles short it out, and the section shows occupied. The design is fail-safe: a broken rail or a power failure also shows occupied.</dd>
+      <dt>Signal replacement</dt><dd>Once a train has passed a signal, the signal returns to danger automatically, so the next train can't follow it into the route.</dd>
+      <dt>Approach locking</dt><dd>If a train is approaching a signal that has cleared, cancelling the route puts the signal back to danger at once, but the points stay locked for a timed period (30 s here) in case the driver has already passed it.</dd>
+      <dt>Sectional route release</dt><dd>The route is released behind the train, section by section, as it clears each track circuit. Points unlock as soon as their section is released.</dd>
+      <dt>What this model leaves out</dt><dd>Real routes also lock an overlap beyond the next stop signal and use flank protection so that other movements can't run into the side of the route. Real release times, speeds and signal aspects vary by railway. Mesquite Junction is invented.</dd>
+    </dl>
+  </section>
+  <footer>Built by Zac Corbett · the timetable runs on setInterval and performance.now(), so Playwright's page.clock drives it</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+
+  // ---------- the layout ----------
+  const SECTIONS = { TW: 400, T1: 120, P1: 200, P2: 200, T2: 120, T3: 120, TE: 400, TN: 400 };
+  const POINTS_IN = { 1: 'T1', 2: 'T2', 3: 'T3' };
+  const APPROACH = { W: 'TW', E: 'TE', N: 'TN' };
+  const SIGNALS = { WA: 'West home', EA: 'East home', NA: 'Branch home', P1W: 'P1 west starter', P2W: 'P2 west starter', P1E: 'P1 east starter', P2E: 'P2 east starter' };
+  const ROUTES = [
+    { id: 'W-P1', signal: 'WA', sections: ['T1', 'P1'], points: { 1: 'N' } },
+    { id: 'W-P2', signal: 'WA', sections: ['T1', 'P2'], points: { 1: 'R' } },
+    { id: 'E-P1', signal: 'EA', sections: ['T3', 'T2', 'P1'], points: { 3: 'N', 2: 'N' } },
+    { id: 'E-P2', signal: 'EA', sections: ['T3', 'T2', 'P2'], points: { 3: 'N', 2: 'R' } },
+    { id: 'N-P1', signal: 'NA', sections: ['T3', 'T2', 'P1'], points: { 3: 'R', 2: 'N' } },
+    { id: 'N-P2', signal: 'NA', sections: ['T3', 'T2', 'P2'], points: { 3: 'R', 2: 'R' } },
+    { id: 'P1-W', signal: 'P1W', sections: ['T1', 'TW'], points: { 1: 'N' } },
+    { id: 'P2-W', signal: 'P2W', sections: ['T1', 'TW'], points: { 1: 'R' } },
+    { id: 'P1-E', signal: 'P1E', sections: ['T2', 'T3', 'TE'], points: { 2: 'N', 3: 'N' } },
+    { id: 'P2-E', signal: 'P2E', sections: ['T2', 'T3', 'TE'], points: { 2: 'R', 3: 'N' } },
+    { id: 'P1-N', signal: 'P1E', sections: ['T2', 'T3', 'TN'], points: { 2: 'N', 3: 'R' } },
+    { id: 'P2-N', signal: 'P2E', sections: ['T2', 'T3', 'TN'], points: { 2: 'R', 3: 'R' } },
+  ];
+  const RT = Object.fromEntries(ROUTES.map((r) => [r.id, r]));
+  const kindOf = (r) => (r.id.startsWith('P') ? 'dep' : 'arr');
+  const fromOf = (r) => r.id.split('-')[0], toOf = (r) => r.id.split('-')[1];
+  /** Why two routes conflict, or null: a shared section, or the same points lying different ways. */
+  function conflictReason(a, b) {
+    const shared = a.sections.filter((s) => b.sections.includes(s));
+    const pts = Object.keys(a.points).filter((p) => p in b.points && a.points[p] !== b.points[p]);
+    if (!shared.length && !pts.length) return null;
+    return shared.length ? `both need ${shared.join(' and ')}` : `points ${pts.join(', ')} must lie differently`;
+  }
+  const MATRIX = ROUTES.map((a) => ROUTES.map((b) => (a === b ? null : !!conflictReason(a, b))));
+
+  const SPEED = 20, TRAIN = 80, STOP = 140, POINT_MS = 4000, APPROACH_LOCK_MS = 30000, END_MS = 480000;
+  const TIMETABLE = [
+    { id: '1A01', from: 'W', to: 'E', appear: 0, due: 45, dep: 75 },
+    { id: '1B02', from: 'E', to: 'W', appear: 20, due: 70, dep: 110 },
+    { id: '2N03', from: 'N', to: 'N', appear: 60, due: 110, dep: 150 },
+    { id: '1A04', from: 'W', to: 'N', appear: 120, due: 165, dep: 200 },
+    { id: '1B05', from: 'E', to: 'E', appear: 170, due: 220, dep: 260 },
+    { id: '2N06', from: 'N', to: 'W', appear: 230, due: 280, dep: 320 },
+  ];
+  const dirOfArrival = (from) => (from === 'W' ? 'E' : 'W');
+  const dirOfDeparture = (to) => (to === 'W' ? 'W' : 'E');
+
+  // ---------- state ----------
+  let S;
+  function reset() {
+    S = {
+      mode: 'closed', ms: 0, speed: 1, lastReal: 0, timer: 0,
+      points: { 1: { pos: 'N', moving: false, until: 0 }, 2: { pos: 'N', moving: false, until: 0 }, 3: { pos: 'N', moving: false, until: 0 } },
+      routes: [],                                                        // active routes
+      trains: TIMETABLE.map((t) => ({ ...t, state: 'offstage', path: null, s: 0, route: null, platform: null, arrivedAt: null, departedAt: null, appearedAt: null })),
+      occupied: {}, events: [], score: 0, log: [],
+    };
+  }
+  reset();
+  const tSec = () => S.ms / 1000;
+  // points stay locked while a set route needs them, until the train has released their section
+  const locksOn = (p) => S.routes.find((r) => p in RT[r.id].points && !r.released.includes(POINTS_IN[p]));
+  const lockedSections = () => new Set(S.routes.flatMap((r) => RT[r.id].sections.filter((s) => !r.released.includes(s))));
+  function say(t, refused) { $('msg').textContent = t; $('msg').classList.toggle('refused', !!refused); S.log.push({ t: tSec(), msg: t }); }
+
+  // ---------- the interlocking ----------
+  function request(id) {
+    const R = RT[id];
+    if (!R) return { ok: false, reason: 'No such route.' };
+    if (S.mode !== 'open') return { ok: false, reason: 'Open the box first.' };
+    if (S.routes.some((r) => r.id === id)) return { ok: false, reason: `${id} is already set.` };
+    for (const r of S.routes) {
+      // only the part of a route still locked counts: sections a train has already released are free again
+      const X = RT[r.id], live = { sections: X.sections.filter((s) => !r.released.includes(s)), points: Object.fromEntries(Object.entries(X.points).filter(([p]) => !r.released.includes(POINTS_IN[p]))) };
+      const why = conflictReason(R, live);
+      if (why) return { ok: false, reason: `Refused: ${id} conflicts with ${r.id} (${why}).` };
+    }
+    const busy = R.sections.find((s) => S.occupied[s]);
+    if (busy) return { ok: false, reason: `Refused: track circuit ${busy} is occupied.` };
+    const r = { id, state: 'setting', clear: false, released: [], seen: [], train: null, setAt: S.ms, cancelAt: null };
+    for (const [p, want] of Object.entries(R.points)) {
+      const P = S.points[p];
+      if (P.pos !== want || P.moving) { P.target = want; P.moving = true; P.until = S.ms + POINT_MS; P.pos = want; P.detected = false; }
+    }
+    S.routes.push(r);
+    tryClear(r);
+    return { ok: true, reason: r.clear ? `${id} set: points locked, signal ${R.signal} clear.` : `${id} set: points moving, ${R.signal} will clear when they are detected.` };
+  }
+  function pointsDetected(R) { return Object.keys(R.points).every((p) => !S.points[p].moving && S.points[p].pos === R.points[p]); }
+  function tryClear(r) {
+    const R = RT[r.id];
+    if (r.state !== 'setting') return;
+    if (pointsDetected(R) && R.sections.every((s) => !S.occupied[s])) { r.state = 'set'; r.clear = true; }
+  }
+  function trainApproaching(R) {
+    if (kindOf(R) === 'arr') return S.trains.find((t) => t.state === 'approach' && t.from === fromOf(R) && t.s <= SECTIONS[APPROACH[t.from]]);
+    return S.trains.find((t) => t.state === 'platform' && t.platform === fromOf(R));
+  }
+  function cancel(id) {
+    const r = S.routes.find((x) => x.id === id);
+    if (!r) return { ok: false, reason: `${id} is not set.` };
+    if (r.state === 'occupied') return { ok: false, reason: `A train is in ${id}; it releases behind the train, section by section.` };
+    if (r.state === 'cancelling') return { ok: false, reason: `${id} is already approach locked; it releases at ${fmt(r.cancelAt)}.` };
+    const R = RT[id], near = trainApproaching(R);
+    r.clear = false;
+    if (near && (r.state === 'set')) {
+      r.state = 'cancelling'; r.cancelAt = S.ms + APPROACH_LOCK_MS;
+      return { ok: true, reason: `${R.signal} back to danger. ${near.id} is approaching, so ${id} stays approach locked for 30 s.` };
+    }
+    release(r);
+    return { ok: true, reason: `${id} cancelled and released.` };
+  }
+  function release(r) {
+    S.routes = S.routes.filter((x) => x !== r);
+    const t = S.trains.find((x) => x.route === r.id && x.state === 'approach' && !x.passed);
+    if (t) { t.route = null; t.path = t.path.slice(0, 1); t.platform = null; }       // it never got past the signal
+  }
+  function swing(p) {
+    if (S.mode !== 'open') return { ok: false, reason: 'Open the box first.' };
+    const P = S.points[p], lock = locksOn(p);
+    if (lock) return { ok: false, reason: `Refused: points ${p} are locked by route ${lock.id}.` };
+    if (S.occupied[POINTS_IN[p]]) return { ok: false, reason: `Refused: points ${p} can't move under a train (${POINTS_IN[p]} occupied).` };
+    P.pos = P.pos === 'N' ? 'R' : 'N'; P.moving = true; P.until = S.ms + POINT_MS;
+    return { ok: true, reason: `Points ${p} swinging to ${P.pos === 'N' ? 'normal' : 'reverse'}.` };
+  }
+
+  // ---------- trains ----------
+  const pathLen = (path) => path.reduce((a, e) => a + e.len, 0);
+  function sectionAt(t, x) {
+    if (x < 0) return t.path[0].sec;
+    let acc = 0;
+    for (const e of t.path) { if (x < acc + e.len) return e.sec; acc += e.len; }
+    return null;
+  }
+  function occupiedBy(t) {
+    if (!t.path || t.state === 'gone' || t.state === 'offstage') return [];
+    const out = new Set(), rear = t.s - TRAIN, front = t.s;
+    let acc = 0;
+    if (rear < 0) out.add(t.path[0].sec);
+    for (const e of t.path) { if (rear < acc + e.len && front > acc) out.add(e.sec); acc += e.len; }
+    if (front <= 0) out.add(t.path[0].sec);
+    return [...out];
+  }
+  function score(late) { return late <= 60 ? 100 : Math.max(0, 100 - 20 * Math.ceil((late - 60) / 60)); }
+  function event(t, kind, sched, actual) {
+    const late = Math.max(0, Math.round((actual - sched) * 10) / 10), pts = score(late);
+    S.events.push({ train: t.id, kind, sched, actual, late, points: pts });
+    S.score += pts;
+  }
+
+  function tick() {
+    const now = performance.now();
+    S.ms += Math.round((now - S.lastReal) * S.speed); S.lastReal = now;
+    const t = tSec();
+    // points reach the end of their travel and are detected
+    for (const P of Object.values(S.points)) if (P.moving && S.ms >= P.until) P.moving = false;
+    for (const r of S.routes) tryClear(r);
+    // move trains
+    for (const tr of S.trains) {
+      if (tr.state === 'approach') {
+        const A = SECTIONS[APPROACH[tr.from]];
+        if (!tr.route && tr.s <= A) {                                  // look for a cleared route from the home signal
+          const r = S.routes.find((x) => x.clear && RT[x.id].signal === ({ W: 'WA', E: 'EA', N: 'NA' })[tr.from]);
+          if (r) { tr.route = r.id; r.train = tr.id; tr.path = [tr.path[0], ...RT[r.id].sections.map((s) => ({ sec: s, len: SECTIONS[s], dir: tr.dir }))]; tr.platform = toOf(RT[r.id]); }
+        }
+        const r = tr.route && S.routes.find((x) => x.id === tr.route);
+        const passed = tr.s > A;
+        const auth = passed || (r && r.clear) ? pathLen(tr.path.slice(0, -1)) + STOP : A;
+        tr.s = Math.min(auth, tr.s + SPEED * (S.ms - tr.lastMs) / 1000);
+        tr.lastMs = S.ms;
+        if (!passed && tr.s > A && r) { r.clear = false; r.state = 'occupied'; tr.passed = true; }
+        if (tr.route && tr.s >= pathLen(tr.path.slice(0, -1)) + STOP) {
+          tr.state = 'platform'; tr.arrivedAt = t; tr.passed = false; tr.route = null;
+          event(tr, 'arr', tr.due, t);
+          say(`${tr.id} arrived in platform ${tr.platform.slice(1)} ${tr.arrivedAt - tr.due > 0 ? (tr.arrivedAt - tr.due).toFixed(0) + ' s late' : 'on time'}.`);
+        }
+      } else if (tr.state === 'platform') {
+        tr.lastMs = S.ms;
+        if (t >= tr.dep) {
+          const r = S.routes.find((x) => x.clear && fromOf(RT[x.id]) === tr.platform && toOf(RT[x.id]) === tr.to);
+          if (r) {
+            const dir = dirOfDeparture(tr.to);
+            tr.path = [{ sec: tr.platform, len: SECTIONS[tr.platform] - STOP, dir, start: dir === 'E' ? STOP : SECTIONS[tr.platform] - STOP }, ...RT[r.id].sections.map((s) => ({ sec: s, len: SECTIONS[s], dir }))];
+            tr.s = 0; tr.state = 'departing'; tr.route = r.id; r.train = tr.id; r.clear = false; r.state = 'occupied'; tr.departedAt = t;
+            event(tr, 'dep', tr.dep, t);
+            say(`${tr.id} departed towards ${({ W: 'the west', E: 'the east', N: 'the branch' })[tr.to]}${t - tr.dep > 0 ? `, ${(t - tr.dep).toFixed(0)} s late` : ' on time'}.`);
+          }
+        }
+      } else if (tr.state === 'departing') {
+        tr.s += SPEED * (S.ms - tr.lastMs) / 1000; tr.lastMs = S.ms;
+        if (tr.s - TRAIN >= pathLen(tr.path)) tr.state = 'gone';
+      }
+    }
+    // new trains enter an approach line only when it is clear and not locked in a route (block working)
+    const locked = lockedSections();
+    for (const tr of S.trains) {
+      if (tr.state !== 'offstage' || tr.appear > t) continue;
+      const A = APPROACH[tr.from];
+      const busy = S.trains.some((o) => o !== tr && occupiedBy(o).includes(A)) || locked.has(A);
+      if (busy) continue;
+      tr.state = 'approach'; tr.dir = dirOfArrival(tr.from); tr.s = 0; tr.lastMs = S.ms; tr.appearedAt = t;
+      tr.path = [{ sec: A, len: SECTIONS[A], dir: tr.dir }];
+    }
+    // track circuits
+    S.occupied = {};
+    for (const tr of S.trains) for (const s of occupiedBy(tr)) S.occupied[s] = tr.id;
+    // sectional release behind trains
+    for (const r of [...S.routes]) {
+      if (r.state === 'cancelling') { if (S.ms >= r.cancelAt) release(r); continue; }
+      if (r.state !== 'occupied') continue;
+      const R = RT[r.id], tr = S.trains.find((x) => x.id === r.train);
+      for (const s of R.sections) {
+        if (S.occupied[s] === r.train && !r.seen.includes(s)) r.seen.push(s);
+        if (r.seen.includes(s) && S.occupied[s] !== r.train && !r.released.includes(s)) r.released.push(s);
+      }
+      const done = kindOf(R) === 'arr' ? tr.state === 'platform' && R.sections.slice(0, -1).every((s) => r.released.includes(s)) : R.sections.every((s) => r.released.includes(s));
+      if (done) { S.routes = S.routes.filter((x) => x !== r); }
+    }
+    if (S.trains.every((x) => x.state === 'gone') || S.ms >= END_MS) finish();
+    render();
+  }
+  function finish() {
+    S.mode = 'done'; clearInterval(S.timer);
+    const miss = S.trains.reduce((a, t) => a + (t.arrivedAt == null ? 1 : 0) + (t.departedAt == null ? 1 : 0), 0);
+    $('doneLine').textContent = `Score ${S.score} of ${TIMETABLE.length * 200}. ${S.events.filter((e) => e.late <= 60).length} of ${S.events.length} movements right time${miss ? `, ${miss} never ran` : ''}.`;
+    $('done').hidden = false;
+    $('start').textContent = 'New shift'; $('start').disabled = false;
+    say('End of the shift.');
+  }
+  function start() {
+    clearInterval(S.timer);
+    const speed = S.speed;
+    reset(); S.speed = speed;
+    S.mode = 'open'; S.lastReal = performance.now();
+    $('done').hidden = true; $('start').textContent = 'Box open'; $('start').disabled = true;
+    S.timer = setInterval(tick, 100);
+    tick();
+    say('Box open. 1A01 is approaching from the west.');
+    const first = document.querySelector('#routes .rbtn'); if (first) first.focus({ preventScroll: true });
+  }
+
+  // ---------- drawing ----------
+  const GEO = {
+    TW: [[[20, 150], [200, 150]]],
+    T1: { N: [[200, 150], [215, 150], [280, 110]], R: [[200, 150], [215, 150], [280, 190]] },
+    P1: [[[280, 110], [520, 110]]], P2: [[[280, 190], [520, 190]]],
+    T2: { N: [[520, 110], [585, 150], [600, 150]], R: [[520, 190], [585, 150], [600, 150]] },
+    T3: { N: [[600, 150], [615, 150], [670, 150]], R: [[600, 150], [615, 150], [670, 85]] },
+    TE: [[[670, 150], [780, 150]]], TN: [[[670, 85], [780, 40]]],
+  };
+  const PTS_OF = { T1: 1, T2: 2, T3: 3 };
+  const SIGPOS = { WA: [190, 138, 'E'], EA: [680, 162, 'W'], NA: [684, 96, 'W'], P1W: [292, 98, 'W'], P2W: [292, 202, 'W'], P1E: [508, 98, 'E'], P2E: [508, 202, 'E'] };
+  function polyline(sec) { const g = GEO[sec]; return Array.isArray(g) ? g[0] : g[S.points[PTS_OF[sec]].pos]; }
+  function along(pts, f) {                                             // point at fraction f along a polyline
+    const segs = []; let tot = 0;
+    for (let i = 1; i < pts.length; i++) { const l = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); segs.push(l); tot += l; }
+    let d = Math.max(0, Math.min(1, f)) * tot;
+    for (let i = 0; i < segs.length; i++) { if (d <= segs[i] || i === segs.length - 1) { const k = segs[i] ? d / segs[i] : 0; return [pts[i][0] + (pts[i + 1][0] - pts[i][0]) * k, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * k]; } d -= segs[i]; }
+    return pts[0];
+  }
+  function trainXY(tr) {
+    let x = Math.max(0, tr.s), acc = 0;
+    for (const e of tr.path) {
+      if (x <= acc + e.len || e === tr.path[tr.path.length - 1]) {
+        const d = x - acc, L = SECTIONS[e.sec];
+        const start = e.start ?? (e.dir === 'E' ? 0 : L);
+        const c = e.dir === 'E' ? start + d : start - d;
+        return along(polyline(e.sec), c / L);
+      }
+      acc += e.len;
+    }
+    return [0, 0];
+  }
+  function render() {
+    const locked = lockedSections();
+    const parts = [`<svg viewBox="0 0 800 240" xmlns="http://www.w3.org/2000/svg">`];
+    for (const [sec, g] of Object.entries(GEO)) {
+      const lines = Array.isArray(g) ? [[g[0], true]] : [['N', 'R'].map((k) => [g[k], S.points[PTS_OF[sec]].pos === k])].flat();
+      for (const [pts, active] of lines) {
+        const col = S.occupied[sec] && active ? 'var(--occ)' : locked.has(sec) && active ? 'var(--route)' : active ? 'var(--idle)' : '#3c454d';
+        parts.push(`<polyline points="${pts.map((p) => p.join(',')).join(' ')}" fill="none" stroke="${col}" stroke-width="${active ? 6 : 3}" stroke-linecap="round" stroke-linejoin="round" data-sec="${sec}"/>`);
+      }
+      const mid = along(polyline(sec), 0.5);
+      parts.push(`<text x="${mid[0]}" y="${mid[1] + (sec === 'P1' ? -10 : 20)}" fill="var(--muted)" font-size="11" font-family="monospace" text-anchor="middle">${sec}</text>`);
+    }
+    for (const p of [1, 2, 3]) { const P = S.points[p], at = { 1: [215, 150], 2: [585, 150], 3: [615, 150] }[p]; parts.push(`<text x="${at[0]}" y="${at[1] + 30}" fill="${locksOn(p) ? 'var(--route)' : 'var(--amber)'}" font-size="11" font-family="monospace" text-anchor="middle">${p}${P.pos}${P.moving ? '…' : ''}${locksOn(p) ? ' L' : ''}</text>`); }
+    for (const [sig, [x, y, dir]] of Object.entries(SIGPOS)) {
+      const clear = S.routes.some((r) => r.clear && RT[r.id].signal === sig);
+      parts.push(`<g data-signal="${sig}"><line x1="${x}" y1="${y}" x2="${x + (dir === 'E' ? -10 : 10)}" y2="${y}" stroke="var(--muted)" stroke-width="2"/><circle cx="${x}" cy="${y}" r="6" fill="${clear ? 'var(--green)' : 'var(--occ)'}" stroke="#000"/><text x="${x}" y="${y - 10}" fill="var(--text)" font-size="10" font-family="monospace" text-anchor="middle">${sig}</text></g>`);
+    }
+    for (const tr of S.trains) {
+      if (!tr.path || tr.state === 'gone' || tr.state === 'offstage') continue;
+      const [x, y] = trainXY(tr);
+      parts.push(`<g><rect x="${x - 17}" y="${y - 9}" width="34" height="18" rx="4" fill="var(--amber)" stroke="#000"/><text x="${x}" y="${y + 4}" font-size="10" font-weight="700" font-family="monospace" text-anchor="middle" fill="#11151a">${tr.id}</text></g>`);
+    }
+    parts.push('</svg>');
+    $('diagram').innerHTML = parts.join('');
+    $('diagram').setAttribute('aria-label', `Track diagram. ${Object.keys(S.occupied).length ? 'Occupied: ' + Object.entries(S.occupied).map(([s, t]) => `${s} by ${t}`).join(', ') + '. ' : 'All track clear. '}${S.routes.length ? 'Routes set: ' + S.routes.map((r) => r.id + (r.clear ? ' (signal clear)' : '')).join(', ') + '.' : 'No routes set.'}`);
+    $('clock').textContent = fmt(S.ms);
+    $('score').textContent = S.score;
+    $('ppm').textContent = S.events.length ? `${Math.round((100 * S.events.filter((e) => e.late <= 60).length) / S.events.length)}%` : '–';
+    document.querySelectorAll('.rbtn').forEach((b) => {
+      const r = S.routes.find((x) => x.id === b.dataset.route);
+      b.setAttribute('aria-pressed', r ? 'true' : 'false');
+      b.classList.toggle('clear', !!(r && r.clear));
+    });
+    for (const p of [1, 2, 3]) { const b = $(`pts${p}`), P = S.points[p]; b.textContent = `Points ${p}: ${P.pos === 'N' ? 'normal' : 'reverse'}${P.moving ? ' (moving)' : ''}${locksOn(p) ? ' · locked' : ''}`; }
+    renderTimetable();
+  }
+  function fmt(ms) { const s = Math.floor(ms / 1000) + 7 * 3600; return `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; }
+  function renderTimetable() {
+    const rows = S.trains.map((t) => {
+      const a = S.events.find((e) => e.train === t.id && e.kind === 'arr'), d = S.events.find((e) => e.train === t.id && e.kind === 'dep');
+      const cell = (e) => (e ? `<td class="${e.late <= 60 ? 'ok' : 'late'}">${fmt(e.actual * 1000)}${e.late ? ` +${Math.round(e.late)}s` : ''}</td>` : '<td>–</td>');
+      return `<tr data-train="${t.id}"><td>${t.id}</td><td>${t.from}→${t.to}</td><td>${fmt(t.due * 1000)}</td>${cell(a)}<td>${fmt(t.dep * 1000)}</td>${cell(d)}<td>${t.state}</td></tr>`;
+    });
+    $('tt').innerHTML = `<thead><tr><th scope="col">Train</th><th scope="col">Route</th><th scope="col">Due</th><th scope="col">Arrived</th><th scope="col">Dep</th><th scope="col">Departed</th><th scope="col">Now</th></tr></thead><tbody>${rows.join('')}</tbody>`;
+  }
+
+  // ---------- controls ----------
+  const bySignal = {};
+  ROUTES.forEach((r) => (bySignal[r.signal] = bySignal[r.signal] || []).push(r));
+  for (const [sig, rs] of Object.entries(bySignal)) {
+    const g = document.createElement('div'); g.className = 'group'; g.setAttribute('role', 'group'); g.setAttribute('aria-label', `${SIGNALS[sig]} signal ${sig}`);
+    g.innerHTML = `<span class="sig" aria-hidden="true">${sig}</span>`;
+    for (const r of rs) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'rbtn'; b.dataset.route = r.id; b.setAttribute('data-testid', `route-${r.id}`);
+      b.textContent = `${fromOf(r)} → ${toOf(r)}`; b.setAttribute('aria-label', `Route ${r.id} from signal ${sig}`); b.setAttribute('aria-pressed', 'false');
+      b.addEventListener('click', () => {
+        const active = S.routes.some((x) => x.id === r.id);
+        const res = active ? cancel(r.id) : request(r.id);
+        say(res.reason, !res.ok); render();
+      });
+      g.append(b);
+    }
+    $('routes').append(g);
+  }
+  for (const p of [1, 2, 3]) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'rbtn'; b.id = `pts${p}`; b.setAttribute('data-testid', `points-${p}`);
+    b.addEventListener('click', () => { const res = swing(p); say(res.reason, !res.ok); render(); });
+    $('points').append(b);
+  }
+  // control table and conflict matrix, derived from the route definitions
+  $('matrix').innerHTML = `<thead><tr><th scope="col"><span class="sr" style="position:absolute;left:-9999px">Route</span></th>${ROUTES.map((r) => `<th scope="col">${r.id}</th>`).join('')}</tr></thead><tbody>${ROUTES.map((a, i) => `<tr><th scope="row">${a.id}</th>${ROUTES.map((b, j) => (i === j ? '<td class="self">·</td>' : `<td class="${MATRIX[i][j] ? 'x' : ''}" data-testid="conflict-${a.id}-${b.id}" title="${MATRIX[i][j] ? a.id + ' and ' + b.id + ': ' + conflictReason(a, b) : 'compatible'}">${MATRIX[i][j] ? '✕' : ''}</td>`)).join('')}</tr>`).join('')}</tbody>`;
+  $('ctable').innerHTML = `<thead><tr><th scope="col">Route</th><th scope="col">Signal</th><th scope="col">Track circuits clear</th><th scope="col">Points set and locked</th></tr></thead><tbody>${ROUTES.map((r) => `<tr data-testid="ct-${r.id}"><td>${r.id}</td><td>${r.signal}</td><td>${r.sections.join(', ')}</td><td>${Object.entries(r.points).map(([p, v]) => p + v).join(', ')}</td></tr>`).join('')}</tbody>`;
+
+  $('start').addEventListener('click', start);
+  $('fast').addEventListener('click', () => { S.speed = S.speed === 1 ? 4 : 1; $('fast').textContent = `Speed ×${S.speed}`; $('fast').setAttribute('aria-pressed', S.speed > 1); say(S.speed > 1 ? 'Fast time: four seconds of timetable every second.' : 'Real time.'); });
+
+  window.__signal = {
+    get state() {
+      return JSON.parse(JSON.stringify({ mode: S.mode, t: tSec(), score: S.score, events: S.events, points: S.points, occupied: S.occupied,
+        routes: S.routes.map((r) => ({ id: r.id, state: r.state, clear: r.clear, released: r.released, train: r.train, cancelAt: r.cancelAt })),
+        signals: Object.fromEntries(Object.keys(SIGNALS).map((s) => [s, S.routes.some((r) => r.clear && RT[r.id].signal === s) ? 'clear' : 'danger'])),
+        trains: S.trains.map((t) => ({ id: t.id, state: t.state, s: t.s, platform: t.platform, route: t.route, arrivedAt: t.arrivedAt, departedAt: t.departedAt, appearedAt: t.appearedAt, sections: occupiedBy(t) })) }));
+    },
+    routes: JSON.parse(JSON.stringify(ROUTES)),
+    sections: { ...SECTIONS },
+    timetable: JSON.parse(JSON.stringify(TIMETABLE)),
+    matrix: MATRIX,
+    request: (id) => { const r = request(id); say(r.reason, !r.ok); render(); return r; },
+    cancel: (id) => { const r = cancel(id); say(r.reason, !r.ok); render(); return r; },
+    swing: (p) => { const r = swing(p); say(r.reason, !r.ok); render(); return r; },
+  };
+  render();
+})();
+</script>
+</body>
+</html>

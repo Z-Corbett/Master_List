@@ -1,0 +1,35 @@
+{
+  "id": "126",
+  "slug": "126-plucked-string",
+  "file": "lab/126-plucked-string.html",
+  "title": "Plucked String — Karplus–Strong synthesis",
+  "category": "Audio",
+  "tags": ["web-audio", "karplus-strong", "dsp", "dft", "seeded-rng", "synthesis"],
+  "description": "Karplus–Strong string synthesis written out in plain JavaScript. A seeded noise burst fills a delay line of N = round(sampleRate/f − ½) samples and is fed back through a two-point average with a loop gain, so it settles into a decaying, darkening pitched tone. The page renders each pluck to an AudioBuffer, draws the waveform and a Hann-windowed DFT spectrum, and reports the delay length, the pitch actually played, its tuning error in cents and the fundamental's decay time. Six strings in standard tuning can be plucked alone or strummed as seven open chords.",
+  "prompt": "Implement Karplus–Strong in JavaScript: a noise burst into a delay line of length N ≈ sampleRate/f, with an averaging lowpass and decay and brightness controls. Render it to an AudioBuffer and play it, only after a user gesture. Draw the waveform and the spectrum, with the DFT computed in the page on a short window. Give me a six-string guitar in standard tuning (E2 82.41, A2 110.00, D3 146.83, G3 196.00, B3 246.94, E4 329.63 Hz) that plays chords. Seed the noise with ?seed=N. The spec should run the DSP function directly with a fixed seed and a small sample rate and check the delay-line length, the fundamental found by spectrum peak detection (within a bin), monotonic decay of the envelope and the tuning frequencies, and it must still work with no AudioContext.",
+  "qa": {
+    "methodology": [
+      "Recurrence oracle: at 8 kHz with seed 7, the spec checks every output sample after the first period against y[n] = ρ·½(y[n−N] + y[n−N−1]) to 1e-6, and checks N = round(sr/f − ½) for six rate and frequency pairs, with the loop length N + ½ within half a sample of sr/f.",
+      "Spectrum oracle: the test has its own Hann-windowed DFT, written from the definition. For all six strings at two brightness settings, the lowest strong peak (a local maximum of at least 10% of the largest) must be within one bin (3.91 Hz, a 2048-point window) of sr/(N + ½). The page's own detector must agree with it to within a bin.",
+      "Tuning from first principles: each string must match 440 · 2^((n − 49)/12) for its piano key n to within 0.005 Hz. Chord notes are checked the same way (G major's low string is G2 = 98.00 Hz, C major's B string is middle C = 261.63 Hz), and muted strings must be absent.",
+      "Envelope: the RMS over two-period windows must fall strictly for every string, and never more slowly than the fundamental's own ρ·cos(π f0/sr) loss per period. A higher loop gain must leave more energy at 1.5 s. Seeds must reproduce samples exactly, and a brighter pluck must have a higher spectral centroid.",
+      "Audio paths: with AudioContext deleted by an init script, a pluck is still rendered, drawn and described, and the displayed N, pitch, cents error and T60 match the test's own formulas. With real Web Audio, no context exists until the first click, and after that the buffer is built at the context's sample rate and played."
+    ],
+    "risks": [
+      "Integer delay lengths detune the strings. At 44.1 kHz, E4 plays 330.34 Hz (+3.7 cents). There's no allpass fractional delay, so the tuning error is shown on the page and bounded in the spec instead of being fixed.",
+      "The fundamental detector is a heuristic. With a very bright pluck the 4th or 5th harmonic of the low E can be louder than the fundamental, so 'largest peak' would be wrong; the lowest-strong-peak rule held for every string, seed and brightness tried, but it's not guaranteed for every seed.",
+      "The whole pluck (2.5 s, 110,000 or more samples, times six for a chord) is rendered on the main thread before playing, which could stall a slow phone for a few frames.",
+      "The monotonic-decay check uses two-period windows. Windows that don't line up with the period can wobble slightly, so the property really is about that window choice."
+    ],
+    "playwright": "Most of the spec never touches the UI. page.evaluate calls the pure ks() function on window.__pluck at 8 kHz with seed 7, and the analysis (DFT, RMS windows, centroid) runs in Node inside the test, so the oracles don't share code with the page. addInitScript deleted AudioContext for the fallback test, and expect.poll waited for the real context to reach 'running' after a click. The first spec run failed two of my own thresholds, not the page. I expected the low E to fall below 20% of its starting RMS within 1.5 s, but at 8 kHz it keeps about 24%, so that assertion now uses the fundamental's decay formula. A 1.5× centroid ratio was just short (1.47×) and is now 1.3×. Before the spec existed, a Node prototype of the same DFT check caught a real bug: I had averaged with the next sample instead of the previous one, making the loop N − ½ long and every note sharp. Speed was a real problem. With 4096-point windows and trig calls in the inner loop, the spectrum test hit the 30 s timeout under machine load during --repeat-each=3. Halving the window and using a precomputed sine table fixed it, at the cost of a coarser bin. Sending sample arrays through evaluate is still slow on the mobile project.",
+    "coverage": [
+      "Standard tuning vs equal temperament; tuning table",
+      "Delay-line length rule; sample-exact Karplus–Strong recurrence; excitation zero mean and unit peak",
+      "DFT fundamental within one bin for six strings × two brightness settings; page detector agreement",
+      "Monotonic envelope, decay bound, loop-gain ordering, seeded determinism, brightness vs centroid",
+      "Chord fret maths, 28 ms strum onsets, muted strings",
+      "No-AudioContext fallback, gesture-gated real audio, keyboard shortcuts, sliders, phone layout"
+    ]
+  },
+  "a11y": "Every string and chord is a native button with a spoken name (for example 'Pluck string 1, E4, 329.63 hertz' or 'Strum G major, frets 3 2 0 0 0 3'), and chords show their pressed state with aria-pressed. The digits 1–6 pluck strings unless a form control has focus. Both sliders are labelled and show their values in outputs. Each pluck is announced in a polite live region, including when audio is unavailable. Both canvases have aria-labels that repeat the text readouts, and the string animation is turned off under prefers-reduced-motion."
+}

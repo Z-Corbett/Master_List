@@ -1,0 +1,36 @@
+{
+  "id": "124",
+  "slug": "124-theremin",
+  "file": "lab/124-theremin.html",
+  "title": "Theremin — pitch by position, volume by height",
+  "category": "Audio",
+  "tags": ["web-audio", "synthesis", "music-theory", "pointer-events", "keyboard"],
+  "description": "A playable Web Audio theremin. Press and drag across the field: pitch rises exponentially from left to right, f = f0 · 2^(octaves · x), over one to five octaves, and volume rises from bottom to top. An optional quantizer snaps to chromatic, major, major-pentatonic or blues scales in any key. There's vibrato on the oscillator's detune, a choice of four waveforms with a preview, and a live readout of the note name, cents offset and frequency (A4 = 440 Hz, 12-tone equal temperament). Arrow keys move a virtual hand, and the page still works when Web Audio is missing.",
+  "prompt": "Make a theremin. Pointer x maps exponentially to frequency across a chosen number of octaves, and pointer y maps to gain. Add an optional scale quantizer (chromatic, major, pentatonic, blues), vibrato, a waveform choice, and a pitch readout with the note name and cents offset. Use Web Audio, only after a user gesture, and the page has to work when AudioContext is unavailable. For keyboard access, arrow keys move the virtual hand. The spec should check the mapping f = f0 · 2^(octaves · x), that the quantizer snaps to the right note frequencies (A4 = 440, 12-TET), the note-name and cents readout, and the no-audio fallback.",
+  "qa": {
+    "methodology": [
+      "Mapping oracle: Home and End must give exactly f0 and f0 · 2^octaves (110 and 880 Hz for A2 over three octaves, 2093.12 Hz for C2 over five). Arrow steps of 0.01 and Shift steps of 0.1 must land on 110 · 2^(3x). A pointer click a quarter of the way across must give x = 0.25 within two pixels, with the frequency following the formula.",
+      "Quantizer oracle: the test has its own 12-TET model (440 · 2^((n − 69)/12)) and its own nearest-note search. It sweeps 60 positions for chromatic, and 25 positions × 2 keys for each of major, pentatonic and blues, requiring an exact match and a pitch class inside the scale. Hand-picked cases pin the published frequencies: A4 440, C4 261.63, E4 329.63, G4 392.00, C5 523.25.",
+      "Readout: the note name and cents are checked at frequencies built from cents offsets (+20, −40, +49, −12, +1, 0), including B3 against C4 to prove the octave number changes at C.",
+      "Audio paths: with AudioContext deleted by an init script, Space must still 'play' (state, readouts, status message) with no page errors. With real Web Audio, the test asserts there's no context before the gesture, then polls the live oscillator's frequency, type, vibrato depth and gain as the hand and settings change.",
+      "Keyboard: Space and Enter toggle the sound, Escape stops it, arrows clamp at 0 and 1, and the hand marker's radius shows the playing state."
+    ],
+    "risks": [
+      "Ties in the quantizer: a pitch exactly halfway between two allowed notes goes to the lower one. The sweeps use offsets chosen to avoid exact ties, so that rule is documented but only lightly tested.",
+      "Real-audio assertions depend on the AudioContext clock advancing in headless Chromium; they use expect.poll with tolerances because setTargetAtTime approaches its target smoothly and never jumps.",
+      "On touch screens the field uses touch-action: none so dragging plays instead of scrolling; this means the page can't be scrolled by dragging on the field itself.",
+      "Volume is linear in height (gain = 1 − y), as the prompt asks. Ears hear loudness roughly logarithmically, so the top of the field changes less than the bottom."
+    ],
+    "playwright": "addInitScript deleting AudioContext before load gives the no-audio fallback a real test, not a mocked one. The real-audio test relies on expect.poll against the live OscillatorNode's frequency.value, which shows the audio graph actually follows the hand. A pixel check couldn't show that, and page.clock can't move the audio clock. The sweeps call the page's own moveTo() through the hook, which is also what the arrow keys call, so hundreds of positions run quickly, while the pointer and keyboard tests prove the real input paths reach that function. On the Pixel 7 project, click() on the SVG field fires touch pointer events and pointerup ends the note, so one test covers both. The spec passed on its first full run, so it hasn't caught a regression yet.",
+    "coverage": [
+      "f = f0 · 2^(oct · x) at the ends, by arrow steps, with a changed range; octave clamping",
+      "Pointer x and y, gain = 1 − y, note stops on release",
+      "Chromatic snapping to 12-TET, 60-point sweep",
+      "Major, pentatonic, blues in several keys vs an oracle",
+      "Note name and cents readout, octave boundary at C",
+      "No AudioContext fallback; real Web Audio after a gesture",
+      "Waveform preview, vibrato controls, keyboard and focus"
+    ]
+  },
+  "a11y": "The field is a focusable element with role=application, a role description, and instructions linked through aria-describedby. Arrow keys, Shift, Home, End, Space, Enter and Escape play it without a pointer. The note, cents, frequency and volume readouts are a polite live region, and audio problems are announced through role=status. Sound on is a toggle button with aria-pressed. Every setting is a native, labelled control, and the vibrato sliders have output elements showing their values."
+}

@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Property-Based Testing Lab — generators, properties and shrinking</title>
+<meta name="description" content="A small property tester written from scratch, in the spirit of QuickCheck and fast-check: seeded generators for ints, strings, arrays and records, four deliberately buggy functions, four kinds of property, 100 cases a run, and a shrinker you can watch minimise each counterexample step by step.">
+<style>
+  :root {
+    --paper: #f6f3ea;
+    --grid: rgba(40, 80, 140, .09);
+    --ink: #1c2a4f;
+    --ink-2: #4a5677;
+    --pen: #c3312a;
+    --pass: #2d7a4c;
+    --hl: #ffe98a;
+    --card: #fffdf7;
+    --rule: #cfc8b4;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+    --serif: Georgia, "Iowan Old Style", "Times New Roman", serif;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { color: var(--ink); font: 15px/1.55 var(--sans); overflow-x: hidden; background-color: var(--paper);
+    background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 22px 22px; }
+  :focus-visible { outline: 3px solid #2f6fd6; outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 20; background: var(--ink); color: var(--paper); text-decoration: none; font: 700 13px/1 var(--sans); padding: 8px 12px; border-radius: 4px; box-shadow: 2px 2px 0 var(--pen); }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 60px 16px 40px; }
+  header { border-left: 4px solid var(--pen); padding-left: 14px; margin-bottom: 18px; }
+  h1 { font: 700 clamp(28px, 5vw, 44px)/1.1 var(--serif); margin: 0; overflow-wrap: anywhere; }
+  h1 em { color: var(--pen); font-style: italic; }
+  .lede { max-width: 72ch; color: var(--ink-2); margin: 8px 0 0; }
+  .layout { display: grid; grid-template-columns: minmax(0, 360px) minmax(0, 1fr); gap: 16px; align-items: start; }
+  .card { background: var(--card); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 16px; box-shadow: 3px 3px 0 rgba(28, 42, 79, .08); min-width: 0; }
+  .card + .card { margin-top: 16px; }
+  .card h2 { font: 700 13px/1.2 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--pen); margin: 0 0 10px; }
+  label, .lbl { display: block; font: 700 12px/1.3 var(--sans); color: var(--ink-2); margin: 10px 0 4px; }
+  select, input[type=number] { width: 100%; max-width: 100%; font: 15px var(--sans); padding: 7px 9px; border: 1px solid var(--rule); border-radius: 4px; background: #fff; color: var(--ink); }
+  fieldset { border: 0; margin: 10px 0 0; padding: 0; min-width: 0; }
+  legend { font: 700 12px/1.3 var(--sans); color: var(--ink-2); padding: 0; margin-bottom: 4px; }
+  .seg { display: flex; flex-wrap: wrap; gap: 0; border: 1px solid var(--ink); border-radius: 4px; overflow: hidden; }
+  .seg label { flex: 1 1 0; margin: 0; min-width: 0; }
+  .seg input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .seg span { display: block; text-align: center; padding: 7px 6px; cursor: pointer; font: 700 13px var(--sans); color: var(--ink); background: #fff; }
+  .seg input:checked + span { background: var(--ink); color: var(--paper); }
+  .seg input:focus-visible + span { outline: 3px solid #2f6fd6; outline-offset: -3px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+  .row > * { min-width: 0; }
+  .btn { font: 700 14px var(--sans); padding: 9px 14px; border-radius: 4px; border: 2px solid var(--ink); background: var(--ink); color: var(--paper); cursor: pointer; }
+  .btn.ghost { background: #fff; color: var(--ink); }
+  .btn:disabled { opacity: .45; cursor: default; }
+  pre, code { font-family: var(--mono); font-size: 13px; }
+  pre { margin: 6px 0 0; padding: 10px; background: #f1eee3; border: 1px dashed var(--rule); border-radius: 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .hint { font-size: 13px; color: var(--ink-2); margin: 6px 0 0; }
+  .verdict { font: 700 20px/1.3 var(--serif); margin: 0 0 6px; overflow-wrap: anywhere; }
+  .verdict.fail { color: var(--pen); } .verdict.ok { color: var(--pass); }
+  .cases { display: grid; grid-template-columns: repeat(20, minmax(0, 1fr)); gap: 3px; margin: 10px 0 6px; }
+  .cell { aspect-ratio: 1; min-width: 0; padding: 0; border: 1px solid rgba(0,0,0,.15); border-radius: 2px; background: repeating-linear-gradient(45deg, #e8e3d3 0 3px, #f6f3ea 3px 6px); cursor: pointer; }
+  .cell.pass { background: var(--pass); border-color: var(--pass); }
+  .cell.fail { background: var(--pen); border-color: var(--pen); }
+  .cell.sel { outline: 2px solid var(--ink); outline-offset: 1px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--ink-2); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+  .detail { font-family: var(--mono); font-size: 13px; background: #f1eee3; padding: 8px 10px; border-radius: 4px; overflow-wrap: anywhere; min-height: 2.5em; }
+  .ladder { list-style: none; margin: 8px 0 0; padding: 0; counter-reset: s; }
+  .ladder li { display: grid; grid-template-columns: 2.4em minmax(0, 1fr); gap: 6px; padding: 5px 6px; border-bottom: 1px dotted var(--rule); opacity: .35; }
+  .ladder li.shown { opacity: 1; }
+  .ladder li.cur { background: var(--hl); }
+  .ladder .n { font: 700 12px var(--mono); color: var(--pen); }
+  .ladder .v { font-family: var(--mono); font-size: 13px; overflow-wrap: anywhere; }
+  .ladder .via { display: block; font: 12px var(--sans); color: var(--ink-2); }
+  .pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin-top: 8px; }
+  .pair div { min-width: 0; }
+  .pair b { display: block; font: 700 11px var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-2); }
+  .pair code { display: block; overflow-wrap: anywhere; font-size: 14px; }
+  .pair .min code { color: var(--pen); font-weight: 700; }
+  .stats { font-size: 13px; color: var(--ink-2); margin: 6px 0 0; }
+  .tag { display: inline-block; font: 700 11px var(--sans); letter-spacing: .08em; text-transform: uppercase; padding: 2px 6px; border-radius: 3px; background: #e7e1cf; color: var(--ink-2); margin-right: 4px; }
+  footer { margin-top: 26px; font-size: 13px; color: var(--ink-2); text-align: center; }
+  @media (max-width: 820px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 460px) { .cases { grid-template-columns: repeat(10, minmax(0, 1fr)); } .pair { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <h1>Property-Based Testing <em>Lab</em></h1>
+    <p class="lede">Instead of writing examples, state something that should hold for <em>every</em> input, let seeded generators throw 100 random inputs at it, and when one fails, shrink it to the smallest input that still fails. Four small functions below each hide a bug; the fixed versions should pass everything.</p>
+  </header>
+
+  <div class="layout">
+    <div>
+      <section class="card" aria-labelledby="h-setup">
+        <h2 id="h-setup">1 · Choose what to test</h2>
+        <label for="fn">Function under test</label>
+        <select id="fn" data-testid="fn"></select>
+        <fieldset>
+          <legend>Implementation</legend>
+          <div class="seg">
+            <label><input type="radio" name="impl" value="buggy" data-testid="impl-buggy" checked><span>Buggy</span></label>
+            <label><input type="radio" name="impl" value="fixed" data-testid="impl-fixed"><span>Fixed</span></label>
+          </div>
+        </fieldset>
+        <pre id="code" data-testid="code" aria-label="Source of the function under test"></pre>
+        <label for="prop">Property</label>
+        <select id="prop" data-testid="prop"></select>
+        <pre id="propCode" data-testid="prop-code" aria-label="The property as code"></pre>
+        <p class="hint" id="genTxt" data-testid="gen"></p>
+        <div class="row" style="margin-top:6px">
+          <div style="flex:1 1 120px"><label for="seed">Seed</label><input id="seed" data-testid="seed" type="number" min="0" step="1" value="42"></div>
+          <button type="button" class="btn ghost" id="reseed" data-testid="reseed">New seed</button>
+          <button type="button" class="btn" id="run" data-testid="run">Run 100 cases</button>
+        </div>
+      </section>
+    </div>
+
+    <div>
+      <section class="card" aria-labelledby="h-run">
+        <h2 id="h-run">2 · 100 generated cases</h2>
+        <p class="verdict" id="verdict" data-testid="verdict" role="status" aria-live="polite"></p>
+        <div class="cases" id="cases" data-testid="cases" role="group" aria-label="Test cases in order; use arrow keys to move between them"></div>
+        <div class="legend" aria-hidden="true"><span><i style="background:var(--pass)"></i>held</span><span><i style="background:var(--pen)"></i>falsified</span><span><i style="background:repeating-linear-gradient(45deg,#e8e3d3 0 3px,#f6f3ea 3px 6px);border:1px solid #ccc"></i>not run (stops at the first failure)</span></div>
+        <p class="lbl" style="margin-top:10px">Selected case</p>
+        <div class="detail" id="detail" data-testid="detail" aria-live="polite">Pick a square to see its input.</div>
+      </section>
+
+      <section class="card" aria-labelledby="h-shrink" id="shrinkCard" data-testid="shrink-card">
+        <h2 id="h-shrink">3 · Shrinking the counterexample</h2>
+        <div class="pair">
+          <div><b>First failure</b><code id="original" data-testid="original">–</code></div>
+          <div class="min"><b>Shrunk to</b><code id="minimal" data-testid="minimal">–</code></div>
+        </div>
+        <p class="stats" id="stats" data-testid="stats"></p>
+        <div class="row" style="margin-top:8px">
+          <button type="button" class="btn ghost" id="play" data-testid="play">Replay</button>
+          <button type="button" class="btn ghost" id="stepBtn" data-testid="step-btn">Step</button>
+          <button type="button" class="btn ghost" id="skip" data-testid="skip">Skip to minimal</button>
+        </div>
+        <ol class="ladder" id="ladder" data-testid="steps" aria-label="Shrink steps"></ol>
+        <p class="hint" id="why" data-testid="why"></p>
+      </section>
+    </div>
+  </div>
+  <footer>Built by Zac Corbett · a from-scratch tester inspired by QuickCheck, Hypothesis and fast-check · <code>?seed=</code> makes every run repeatable</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+
+  // ---------------- randomness ----------------
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  // every case gets its own stream, so case i is the same no matter what ran before it
+  const caseRng = (seed, i) => mulberry32((Math.imul(seed >>> 0 ^ 0x9E3779B9, 0x85EBCA6B) + Math.imul(i + 1, 0xC2B2AE35)) >>> 0);
+  const sizeFor = (i) => Math.min(50, 1 + (i >> 1));
+
+  // ---------------- shrinking primitives ----------------
+  function* shrinkInt(x, target) {
+    if (x === target) return;
+    const d = x - target, s = Math.sign(d);
+    if (Math.abs(d) <= 32) { for (let v = target; v !== x; v += s) yield v; return; }   // small: try everything nearer the target
+    const seen = new Set([target]);
+    yield target;
+    // the few values right next to the target: halving from an odd number only ever proposes even ones
+    for (let k = 1; k <= 4; k++) { seen.add(target + s * k); yield target + s * k; }
+    for (let k = 1; ; k++) { const step = Math.trunc(d / 2 ** k); if (step === 0) break; const v = x - step; if (!seen.has(v)) { seen.add(v); yield v; } }
+    if (!seen.has(x - s)) yield x - s;
+  }
+  function* removals(xs, minLen) {
+    const n = xs.length;
+    for (let k = n; k >= 1; k = Math.floor(k / 2)) {
+      for (let i = 0; i + k <= n; i += k) if (n - k >= minLen) yield { value: xs.slice(0, i).concat(xs.slice(i + k)), via: k === 1 ? `remove element ${i}` : `remove ${k} elements from ${i}` };
+      if (k === 1) break;
+    }
+  }
+  const getPath = (v, p) => p.reduce((o, k) => o[k], v);
+  function setPath(v, p, x) {
+    if (!p.length) return x;
+    const c = Array.isArray(v) ? v.slice() : { ...v };
+    c[p[0]] = setPath(v[p[0]], p.slice(1), x);
+    return c;
+  }
+
+  // ---------------- generators ----------------
+  const Gen = {
+    int(lo, hi, scale = 1) {
+      const target = Math.min(hi, Math.max(lo, 0));
+      return {
+        kind: 'int', describe: `int ${lo}…${hi}`,
+        gen(r, size) { const a = Math.max(lo, Math.ceil(target - size * scale)), b = Math.min(hi, Math.floor(target + size * scale)); return a + Math.floor(r() * (b - a + 1)); },
+        *shrink(x) { for (const v of shrinkInt(x, target)) yield { value: v, via: `${x} → ${v}` }; },
+        leaves: (x, path) => [{ path, lo, hi, target }],
+      };
+    },
+    array(el, maxLen) {
+      return {
+        kind: 'array', describe: `array of (${el.describe}), length 0…${maxLen}`,
+        gen(r, size) { const n = Math.floor(r() * (Math.min(size, maxLen) + 1)); return Array.from({ length: n }, () => el.gen(r, size)); },
+        *shrink(xs) {
+          yield* removals(xs, 0);
+          for (let i = 0; i < xs.length; i++) for (const c of el.shrink(xs[i])) yield { value: setPath(xs, [i], c.value), via: `shrink element ${i}: ${c.via}` };
+        },
+        leaves: (xs, path) => xs.flatMap((x, i) => el.leaves(x, path.concat(i))),
+      };
+    },
+    string(alphabet, maxLen) {
+      return {
+        kind: 'string', describe: `string over "${alphabet}", length 0…${maxLen}`,
+        gen(r, size) { const n = Math.floor(r() * (Math.min(size, maxLen) + 1)); let s = ''; for (let i = 0; i < n; i++) s += alphabet[Math.floor(r() * alphabet.length)]; return s; },
+        *shrink(s) {
+          for (const c of removals([...s], 0)) yield { value: c.value.join(''), via: c.via.replace('element', 'character').replace('elements', 'characters') };
+          for (let i = 0; i < s.length; i++) { const k = alphabet.indexOf(s[i]); for (let j = 0; j < k; j++) yield { value: s.slice(0, i) + alphabet[j] + s.slice(i + 1), via: `character ${i}: "${s[i]}" → "${alphabet[j]}"` }; }
+        },
+        leaves: () => [],
+      };
+    },
+    record(fields) {
+      const keys = Object.keys(fields);
+      return {
+        kind: 'record', describe: `{ ${keys.map((k) => `${k}: ${fields[k].describe}`).join(', ')} }`,
+        gen(r, size) { const o = {}; for (const k of keys) o[k] = fields[k].gen(r, size); return o; },
+        *shrink(o) { for (const k of keys) for (const c of fields[k].shrink(o[k])) yield { value: { ...o, [k]: c.value }, via: `${k}: ${c.via}` }; },
+        leaves: (o, path) => keys.flatMap((k) => fields[k].leaves(o[k], path.concat(k))),
+      };
+    },
+  };
+  // Hypothesis-style pass: integers that are equal somewhere in the value shrink together (e.g. both halves of a duplicate)
+  function* together(gen, v) {
+    const groups = new Map();
+    for (const L of gen.leaves(v, [])) { const x = getPath(v, L.path); if (!groups.has(x)) groups.set(x, []); groups.get(x).push(L); }
+    for (const [x, ls] of groups) {
+      if (ls.length < 2) continue;
+      for (const c of shrinkInt(x, ls[0].target)) {
+        if (ls.some((L) => c < L.lo || c > L.hi)) continue;
+        let nv = v; for (const L of ls) nv = setPath(nv, L.path, c);
+        yield { value: nv, via: `equal values together: ${x} → ${c} (${ls.length} places)` };
+      }
+    }
+  }
+  function* candidates(gen, v) { yield* gen.shrink(v); yield* together(gen, v); }
+
+  // ---------------- helpers & display ----------------
+  const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const show = (v) => JSON.stringify(v).replace(/,/g, ', ').replace(/:/g, ': ');
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const day = (n) => { const d = new Date(Date.UTC(2026, 0, 1 + n)); return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`; };
+  const range = (r) => ({ start: r.start, end: r.start + r.len });
+  const showRange = (r) => `${day(r.start)}–${day(r.start + r.len)}`;
+  const money = (c) => `$${(c / 100).toFixed(2)}`;
+  const sum = (xs) => xs.reduce((a, b) => a + b, 0);
+
+  // ---------------- the functions under test ----------------
+  const IMPL = {
+    sort: {
+      buggy: { code: 'const sortNums = (xs) =>\n  [...new Set(xs)].sort((a, b) => a - b);', f: (xs) => [...new Set(xs)].sort((a, b) => a - b) },
+      fixed: { code: 'const sortNums = (xs) =>\n  [...xs].sort((a, b) => a - b);', f: (xs) => [...xs].sort((a, b) => a - b) },
+    },
+    rle: {
+      buggy: { code: "const encode = (s) => s.replace(/(.)\\1*/g, (run) => run.length + run[0]);\nconst decode = (e) => e.replace(/(\\d+)(\\D)/g, (_, n, c) => c.repeat(n));",
+        f: { encode: (s) => s.replace(/(.)\1*/g, (run) => run.length + run[0]), decode: (e) => e.replace(/(\d+)(\D)/g, (_, n, c) => rep(c, n)) } },
+      fixed: { code: "// a '*' separates the count from the character, so digits can't be misread\nconst encode = (s) => s.replace(/(.)\\1*/g, (run) => run.length + '*' + run[0]);\nconst decode = (e) => e.replace(/(\\d+)\\*([\\s\\S])/g, (_, n, c) => c.repeat(n));",
+        f: { encode: (s) => s.replace(/(.)\1*/g, (run) => run.length + '*' + run[0]), decode: (e) => e.replace(/(\d+)\*([\s\S])/g, (_, n, c) => rep(c, n)) } },
+    },
+    overlap: {
+      buggy: { code: '// ranges are inclusive: a booking from the 3rd to the 5th holds the 5th\nconst overlaps = (a, b) => a.start < b.end && b.start < a.end;', f: (a, b) => a.start < b.end && b.start < a.end },
+      fixed: { code: '// ranges are inclusive: a booking from the 3rd to the 5th holds the 5th\nconst overlaps = (a, b) => a.start <= b.end && b.start <= a.end;', f: (a, b) => a.start <= b.end && b.start <= a.end },
+    },
+    split: {
+      buggy: { code: 'const split = (cents, ways) =>\n  Array(ways).fill(Math.floor(cents / ways));', f: (c, w) => Array(w).fill(Math.floor(c / w)) },
+      fixed: { code: 'const split = (cents, ways) => {\n  const base = Math.floor(cents / ways), rem = cents % ways;\n  return Array.from({ length: ways }, (_, i) => base + (i < rem ? 1 : 0));\n};', f: (c, w) => { const b = Math.floor(c / w), r = c % w; return Array.from({ length: w }, (_, i) => b + (i < r ? 1 : 0)); } },
+    },
+  };
+  // guard: a misread count must not be able to allocate gigabytes
+  function rep(c, n) { n = +n; if (n > 1000) throw new RangeError(`run of ${n} is too long`); return c.repeat(n); }
+
+  const G_RANGE = Gen.record({ start: Gen.int(0, 364, 2), len: Gen.int(0, 6, 0.2) });
+  const FNS = {
+    sort: {
+      label: 'sortNums: sort a list of numbers', gen: Gen.array(Gen.int(-1000, 1000, 1), 12), showIn: show,
+      props: {
+        oracle: { kind: 'oracle', label: 'Oracle: agrees with a reference sort', code: 'deepEqual(sortNums(xs), [...xs].sort((a, b) => a - b))',
+          check: (f, xs) => { const got = f(xs), want = [...xs].sort((a, b) => a - b); return { ok: eq(got, want), detail: `sortNums(${show(xs)}) = ${show(got)}, reference gives ${show(want)}` }; } },
+        perm: { kind: 'invariant', label: 'Invariant: output is a permutation of the input', code: 'sameMultiset(sortNums(xs), xs)',
+          check: (f, xs) => { const got = f(xs); const k = (a) => JSON.stringify([...a].sort((p, q) => p - q)); return { ok: got.length === xs.length && k(got) === k(xs), detail: `in: ${xs.length} items, out: ${got.length} items ${show(got)}` }; } },
+        ordered: { kind: 'invariant', label: 'Invariant: output is ascending', code: 'sortNums(xs).every((x, i, a) => i === 0 || a[i - 1] <= x)',
+          check: (f, xs) => { const got = f(xs); return { ok: got.every((x, i, a) => i === 0 || a[i - 1] <= x), detail: `sortNums(${show(xs)}) = ${show(got)}` }; } },
+        idem: { kind: 'idempotence', label: 'Idempotence: sorting twice changes nothing', code: 'deepEqual(sortNums(sortNums(xs)), sortNums(xs))',
+          check: (f, xs) => { const once = f(xs), twice = f(once); return { ok: eq(once, twice), detail: `once ${show(once)}, twice ${show(twice)}` }; } },
+      },
+    },
+    rle: {
+      label: 'Run-length encoding: encode / decode', gen: Gen.string('ab01', 10), showIn: (s) => JSON.stringify(s),
+      props: {
+        roundtrip: { kind: 'round-trip', label: 'Round-trip: decode(encode(s)) === s', code: 'decode(encode(s)) === s',
+          check: (f, s) => { const e = f.encode(s), d = f.decode(e); return { ok: d === s, detail: `encode(${JSON.stringify(s)}) = ${JSON.stringify(e)}, decode → ${JSON.stringify(d)}` }; } },
+        length: { kind: 'invariant', label: 'Invariant: decoding restores the length', code: 'decode(encode(s)).length === s.length',
+          check: (f, s) => { const d = f.decode(f.encode(s)); return { ok: d.length === s.length, detail: `${s.length} characters in, ${d.length} out` }; } },
+        bound: { kind: 'invariant', label: 'Invariant: encoded size ≤ 3 × input size', code: 'encode(s).length <= 3 * s.length',
+          check: (f, s) => { const e = f.encode(s); return { ok: e.length <= 3 * s.length, detail: `encode(${JSON.stringify(s)}) is ${e.length} characters` }; } },
+      },
+    },
+    overlap: {
+      label: 'overlaps: do two date ranges share a day?', gen: Gen.record({ a: G_RANGE, b: G_RANGE }), showIn: (v) => `a ${showRange(v.a)}, b ${showRange(v.b)}`,
+      props: {
+        oracle: { kind: 'oracle', label: 'Oracle: agrees with a day-by-day check', code: 'overlaps(a, b) === days(a).some((d) => days(b).includes(d))',
+          check: (f, v) => { const a = range(v.a), b = range(v.b); let want = false; for (let d = a.start; d <= a.end; d++) if (d >= b.start && d <= b.end) want = true; const got = f(a, b); return { ok: got === want, detail: `a ${showRange(v.a)}, b ${showRange(v.b)}: overlaps = ${got}, day-by-day = ${want}` }; } },
+        reflexive: { kind: 'invariant', label: 'Invariant: a range overlaps itself', code: 'overlaps(a, a) === true', gen: G_RANGE, showIn: (r) => `a ${showRange(r)}`,
+          check: (f, r) => { const a = range(r), got = f(a, a); return { ok: got === true, detail: `overlaps(${showRange(r)}, itself) = ${got}` }; } },
+        symmetric: { kind: 'invariant', label: 'Invariant: symmetric in its arguments', code: 'overlaps(a, b) === overlaps(b, a)',
+          check: (f, v) => { const a = range(v.a), b = range(v.b); return { ok: f(a, b) === f(b, a), detail: `(a, b) → ${f(a, b)}, (b, a) → ${f(b, a)}` }; } },
+      },
+    },
+    split: {
+      label: 'split: share a bill between friends', gen: Gen.record({ cents: Gen.int(0, 100000, 40), ways: Gen.int(1, 12, 0.25) }), showIn: (v) => `${money(v.cents)} split ${v.ways} ways`,
+      props: {
+        total: { kind: 'invariant', label: 'Invariant: the parts add up to the bill', code: 'sum(split(cents, ways)) === cents',
+          check: (f, v) => { const p = f(v.cents, v.ways); return { ok: sum(p) === v.cents && p.length === v.ways, detail: `split(${v.cents}, ${v.ways}) = ${show(p)}, sum ${sum(p)} of ${v.cents}` }; } },
+        fair: { kind: 'invariant', label: 'Invariant: nobody pays more than 1¢ extra', code: 'max(parts) - min(parts) <= 1',
+          check: (f, v) => { const p = f(v.cents, v.ways); return { ok: Math.max(...p) - Math.min(...p) <= 1, detail: `parts ${show(p)}` }; } },
+        oracle: { kind: 'oracle', label: 'Oracle: agrees with largest-remainder split', code: 'deepEqual(split(c, w), largestRemainder(c, w))',
+          check: (f, v) => { const got = f(v.cents, v.ways), q = Math.floor(v.cents / v.ways), r = v.cents - q * v.ways; const want = Array.from({ length: v.ways }, (_, i) => q + (i < r ? 1 : 0)); return { ok: eq(got, want), detail: `split(${v.cents}, ${v.ways}) = ${show(got)}, reference ${show(want)}` }; } },
+      },
+    },
+  };
+
+  // ---------------- runner ----------------
+  function evaluate(prop, f, v) {
+    try { const r = prop.check(f, v); return r; } catch (e) { return { ok: false, detail: `threw ${e.name}: ${e.message}`, threw: true }; }
+  }
+  function run({ fn, impl, prop, seed, n = 100 }) {
+    const F = FNS[fn], P = F.props[prop], f = IMPL[fn][impl].f, gen = P.gen || F.gen, fmt = P.showIn || F.showIn;
+    const cases = [];
+    let failIndex = -1;
+    for (let i = 0; i < n; i++) {
+      const input = gen.gen(caseRng(seed, i), sizeFor(i));
+      const r = evaluate(P, f, input);
+      cases.push({ i, input, ok: r.ok, detail: r.detail, shown: fmt(input) });
+      if (!r.ok) { failIndex = i; break; }
+    }
+    const out = { fn, impl, prop, seed, n, cases, failIndex, passed: failIndex < 0, steps: [], evals: 0 };
+    if (failIndex >= 0) {
+      let cur = cases[failIndex].input, evals = 0;
+      const steps = [{ value: cur, via: 'first failing case', tried: 0, shown: fmt(cur), detail: cases[failIndex].detail }];
+      outer: while (evals < 20000) {
+        let tried = 0;
+        for (const c of candidates(gen, cur)) {
+          evals++; tried++;
+          const r = evaluate(P, f, c.value);
+          if (!r.ok) { cur = c.value; steps.push({ value: cur, via: c.via, tried, shown: fmt(cur), detail: r.detail }); continue outer; }
+        }
+        break;
+      }
+      Object.assign(out, { steps, evals, original: steps[0].value, minimal: cur, minimalShown: fmt(cur), minimalDetail: steps.at(-1).detail });
+    }
+    return out;
+  }
+
+  // ---------------- UI ----------------
+  const fnSel = $('fn'), propSel = $('prop');
+  fnSel.innerHTML = Object.entries(FNS).map(([k, F]) => `<option value="${k}">${F.label}</option>`).join('');
+  const impl = () => document.querySelector('input[name=impl]:checked').value;
+  let result = null, shown = 0, timer = 0, selected = -1;
+  const STEP_MS = 350;
+
+  function fillProps() {
+    const F = FNS[fnSel.value];
+    propSel.innerHTML = Object.entries(F.props).map(([k, P]) => `<option value="${k}">${P.label}</option>`).join('');
+  }
+  function describe() {
+    const F = FNS[fnSel.value], P = F.props[propSel.value];
+    $('code').textContent = IMPL[fnSel.value][impl()].code;
+    $('propCode').textContent = `// ${P.kind}\nforAll(gen, (input) => ${P.code})`;
+    $('genTxt').innerHTML = `<span class="tag">${P.kind}</span>Generator: <code></code>`;
+    $('genTxt').querySelector('code').textContent = (P.gen || F.gen).describe;
+  }
+  function seedVal() { const s = parseInt($('seed').value, 10); return Number.isFinite(s) && s >= 0 ? s : 0; }
+
+  function render(animate) {
+    const R = result;
+    const cells = [];
+    for (let i = 0; i < R.n; i++) {
+      const c = R.cases[i];
+      const cls = !c ? '' : c.ok ? 'pass' : 'fail';
+      const lab = !c ? `case ${i + 1}: not run` : `case ${i + 1}: ${c.ok ? 'held' : 'falsified'}`;
+      cells.push(`<button type="button" class="cell ${cls}" data-i="${i}" data-testid="case-${i}" data-state="${cls || 'skipped'}" aria-label="${lab}" tabindex="-1"></button>`);
+    }
+    $('cases').innerHTML = cells.join('');
+    const v = $('verdict');
+    if (R.passed) { v.className = 'verdict ok'; v.textContent = `OK: the property held for all ${R.n} cases (seed ${R.seed}).`; }
+    else { v.className = 'verdict fail'; v.textContent = `Falsified at case ${R.failIndex + 1} of ${R.n}; shrunk in ${R.steps.length - 1} step${R.steps.length === 2 ? '' : 's'} to ${R.minimalShown}.`; }
+    select(R.passed ? 0 : R.failIndex, false);
+    $('shrinkCard').dataset.state = R.passed ? 'none' : 'shrinking';
+    for (const id of ['play', 'stepBtn', 'skip']) $(id).disabled = R.passed;
+    if (R.passed) {
+      $('original').textContent = '–'; $('minimal').textContent = '–'; $('ladder').innerHTML = '';
+      $('stats').textContent = 'Nothing to shrink: no case failed.';
+      $('why').textContent = R.impl === 'buggy' ? 'The bug is still there; this property just can’t see it. Try another property.' : '';
+      return;
+    }
+    $('original').textContent = R.steps[0].shown;
+    $('ladder').innerHTML = R.steps.map((s, k) => `<li data-testid="step-${k}"><span class="n">${k === 0 ? 'start' : '#' + k}</span><span class="v"></span></li>`).join('');
+    [...$('ladder').children].forEach((li, k) => {
+      const s = R.steps[k];
+      li.querySelector('.v').textContent = s.shown;
+      const via = document.createElement('span'); via.className = 'via';
+      via.textContent = k === 0 ? s.via : `${s.via} · still fails (candidate ${s.tried} tried)`;
+      li.querySelector('.v').appendChild(via);
+    });
+    $('stats').textContent = `${R.evals} property evaluations while shrinking. Every step keeps the failure and makes the input simpler; it stops when no simpler candidate fails.`;
+    showStep(animate ? 0 : R.steps.length - 1);
+    if (animate) schedule();
+  }
+  function showStep(k) {
+    const R = result;
+    shown = Math.max(0, Math.min(k, R.steps.length - 1));
+    [...$('ladder').children].forEach((li, j) => { li.classList.toggle('shown', j <= shown); li.classList.toggle('cur', j === shown); li.setAttribute('aria-current', j === shown ? 'step' : 'false'); });
+    const s = R.steps[shown];
+    $('minimal').textContent = s.shown;
+    const done = shown === R.steps.length - 1;
+    $('shrinkCard').dataset.state = done ? 'done' : 'shrinking';
+    $('why').textContent = done ? `Minimal: ${s.detail}` : `Step ${shown} of ${R.steps.length - 1}: ${s.detail}`;
+    $('stepBtn').disabled = done; $('skip').disabled = done;
+  }
+  function schedule() {
+    clearTimeout(timer);
+    if (shown < result.steps.length - 1) timer = setTimeout(() => { showStep(shown + 1); schedule(); }, STEP_MS);
+  }
+  function select(i, focus) {
+    selected = i;
+    const cells = [...$('cases').children];
+    cells.forEach((c, j) => { c.classList.toggle('sel', j === i); c.tabIndex = j === i ? 0 : -1; c.setAttribute('aria-pressed', j === i ? 'true' : 'false'); });
+    if (focus && cells[i]) cells[i].focus();
+    const c = result.cases[i];
+    $('detail').textContent = c ? `case ${i + 1} · size ${sizeFor(i)} · ${c.ok ? 'held' : 'FAILED'} · input ${c.shown} · ${c.detail}` : `case ${i + 1} was not run: testing stops at the first failure.`;
+  }
+  $('cases').addEventListener('click', (e) => { const b = e.target.closest('.cell'); if (b) select(+b.dataset.i, true); });
+  $('cases').addEventListener('keydown', (e) => {
+    const cols = getComputedStyle($('cases')).gridTemplateColumns.split(' ').length;
+    const mv = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: cols, ArrowUp: -cols, Home: -selected, End: result.n - 1 - selected }[e.key];
+    if (mv === undefined) return;
+    e.preventDefault();
+    select(Math.max(0, Math.min(result.n - 1, selected + mv)), true);
+  });
+
+  function go(animate) {
+    clearTimeout(timer);
+    result = run({ fn: fnSel.value, impl: impl(), prop: propSel.value, seed: seedVal() });
+    render(animate);
+    const u = new URL(location.href); u.searchParams.set('seed', seedVal()); history.replaceState(null, '', u);
+  }
+  const reset = () => { describe(); go(false); };
+  fnSel.addEventListener('change', () => { fillProps(); reset(); });
+  propSel.addEventListener('change', reset);
+  document.querySelectorAll('input[name=impl]').forEach((r) => r.addEventListener('change', reset));
+  $('seed').addEventListener('change', () => go(false));
+  $('run').addEventListener('click', () => go(true));
+  $('reseed').addEventListener('click', () => { $('seed').value = Math.floor(Math.random() * 100000); go(true); });
+  $('play').addEventListener('click', () => { showStep(0); schedule(); });
+  $('stepBtn').addEventListener('click', () => { clearTimeout(timer); showStep(shown + 1); });
+  $('skip').addEventListener('click', () => { clearTimeout(timer); showStep(result.steps.length - 1); $('play').focus(); });
+
+  const s0 = parseInt(params.get('seed'), 10);
+  if (Number.isFinite(s0) && s0 >= 0) $('seed').value = s0;
+  fillProps(); describe(); go(false);
+
+  window.__pbt = {
+    run, Gen, FNS: Object.fromEntries(Object.entries(FNS).map(([k, F]) => [k, Object.keys(F.props)])),
+    impl: (fn, which) => IMPL[fn][which].f,
+    shrinkInt: (x, t) => [...shrinkInt(x, t)],
+    sample: (fn, prop, seed, i) => { const F = FNS[fn], g = F.props[prop].gen || F.gen; return g.gen(caseRng(seed, i), sizeFor(i)); },
+    get result() { return result; },
+    get shown() { return shown; },
+    STEP_MS,
+  };
+})();
+</script>
+</body>
+</html>

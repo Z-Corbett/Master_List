@@ -1,0 +1,38 @@
+{
+  "id": "132",
+  "slug": "132-talavera-tiles",
+  "file": "lab/132-talavera-tiles.html",
+  "title": "Talavera Tiles — a generative symmetric tile designer",
+  "category": "Generative",
+  "tags": ["svg", "symmetry", "wallpaper-groups", "seeded-prng", "download"],
+  "description": "Generative tiles inspired by the tin-glazed Talavera ceramics of Puebla and Tlaxcala. A seeded motif of petals, leaves, dots, stars and lozenges is drawn inside one fundamental region, then a wallpaper-group symmetry (p4m, p4g, p2mm or hexagonal p6m) copies it across a tile, and the tile repeats as a wall. The palette is limited to cobalt, yellow, green and terracotta on a white glaze. Edit the seed, lock the colours while the shapes change, and download the tile or the wall as SVG.",
+  "prompt": "Make a generative tile designer inspired by Talavera ceramics from Puebla and Tlaxcala; describe the tradition briefly and respectfully without overclaiming. Use seeded motifs and a limited cobalt, yellow, green and terracotta palette, and apply wallpaper-group symmetries (p4m, p4g, p2mm, and p6m for hexagons) to one fundamental region. Show a single tile and a tiled wall, with an editable seed, the symmetry choice and a palette lock. Export as SVG to the user's download. The spec should check the symmetry by transforming the motif's shape coordinates from the state hook and comparing them, check determinism per seed, and check that the SVG export is well-formed and contains only palette colours.",
+  "qa": {
+    "methodology": [
+      "Symmetry by transformation: the spec writes its own rotations and reflections, applies them to every shape's coordinates from __talavera.state, and requires each image to coincide with a shape of the same colour (as point sets, to 1e-6). p4m must survive quarter turns and all four mirrors; p2mm both axis mirrors and the half turn; p6m six rotations and mirrors every 30°.",
+      "Negative checks, so the oracle can fail: a 45° or 30° turn breaks p4m, a quarter turn breaks p2mm, and p4g must fail the axis and diagonal mirrors through the centre while passing its off-centre mirrors (x + y = 1, y − x = 1) once shapes are wrapped by the 2 × 2 lattice.",
+      "Orbit check: the test builds the eight D4 images of the fundamental-region motif itself and requires them to be exactly the tile's shapes, with every motif point inside the triangle 0 ≤ y ≤ x ≤ 1.",
+      "Determinism: the same seed in a second page gives an identical state, neighbouring seeds give four different motifs, a typed seed round-trips, and the palette lock keeps the colour sequence while the geometry changes.",
+      "Export: the downloaded tile and wall files are parsed with DOMParser (no parsererror, SVG namespace, one polygon per shape plus the ground), and every fill, stroke and hex literal must be one of the five palette colours. The wall's <use> offsets must form a hexagonal lattice with nearest neighbours √3 apart."
+    ],
+    "risks": [
+      "Floating-point drift: copies are made with cos/sin matrices, so comparisons use a tolerance rather than equality, and exported coordinates are rounded to four places.",
+      "Shapes are kept strictly inside the fundamental region, so no copy crosses a mirror line; motifs that should straddle a mirror (a centred rosette) are built from adjacent copies instead.",
+      "Symmetry of the tile is not the same as symmetry of the wall: p4g's diagonal mirrors only hold modulo the lattice, which is why that check wraps shapes back into the cell.",
+      "Downloads rely on a blob URL and an <a download>; the URL is revoked a few seconds later, after the click has been handled."
+    ],
+    "playwright": "The state hook carries raw coordinates, so the symmetry tests are pure geometry in Node with no pixel comparison at all. page.waitForEvent('download') together with download.path() gives the real exported file, which the test reads from disk and hands back to the browser's DOMParser to judge well-formedness, the parser a real consumer would use. A second page in the same context proves determinism without reusing any in-page state. Keyboard coverage uses native radio-group arrow behaviour, which Playwright drives the same way on the desktop and Pixel 7 projects. The first run failed only on a mistake in the test: it navigated one page to four seeds inside Promise.all, and each goto aborted the one before (net::ERR_ABORTED). The loop is sequential now. It found no bugs in the page; the spec's real strength is its negative checks, which prove the symmetry oracle can tell p4g from p4m.",
+    "coverage": [
+      "p4m rotations and four mirrors, with failing 45° and 30° turns",
+      "p4g four-fold, off-centre diagonal mirrors, no central mirrors",
+      "p2mm mirrors and half turn, no quarter turn, rectangle bounds",
+      "p6m six-fold rotation and twelve symmetries on a hexagon",
+      "Tile = D4 orbit of the fundamental-region motif",
+      "Determinism per seed, seed controls, URL, invalid seed",
+      "Palette lock",
+      "Tile and wall SVG downloads: well-formed, palette-only, hex lattice",
+      "Labelled controls, keyboard radio group, SVG titles"
+    ]
+  },
+  "a11y": "The seed is a labelled number field with previous and next buttons, the symmetry is a native radio group (arrow keys move the choice) with a plain-language description of each group, and the colour lock is a labelled checkbox. Both SVG views have role=img and a title naming the seed and symmetry, and every change is announced in a polite live region."
+}

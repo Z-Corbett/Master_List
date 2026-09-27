@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Constrained Decoding — grammar-guided generation, one token at a time</title>
+<meta name="description" content="A toy next-token model with a 26-token vocabulary and seeded fake logits writes JSON for a tiny schema. At every step you see the whole distribution, the grammar mask that greys out tokens that would break the JSON or the schema, and the renormalised probabilities it samples from. Compare unconstrained output, which is often invalid, with constrained output, which always parses.">
+<style>
+  :root {
+    --bg: #f3f0fa;
+    --card: #ffffff;
+    --ink: #221c35;
+    --muted: #6b6485;
+    --line: #dcd5ee;
+    --violet: #6a3fd6;
+    --violet-2: #b9a4f5;
+    --pink: #d63f86;
+    --ok: #1f8a5b;
+    --bad: #c8363a;
+    --mask: #c9c4d6;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--sans); overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--pink); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 20; background: var(--violet); color: #fff; text-decoration: none; font: 700 13px/1 var(--sans); padding: 8px 12px; border-radius: 999px; }
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 60px 16px 40px; }
+  .hero { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 18px; align-items: end; margin-bottom: 16px; }
+  h1 { margin: 0; font: 800 clamp(26px, 4.8vw, 42px)/1.08 var(--sans); letter-spacing: -.02em; overflow-wrap: anywhere; }
+  h1 span { color: var(--violet); }
+  .lede { color: var(--muted); margin: 8px 0 0; max-width: 64ch; }
+  .schema { background: #1f1832; color: #e8e2fb; border-radius: 12px; padding: 12px 14px; font: 12.5px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; min-width: 0; }
+  .schema b { color: #ffb3d6; font-weight: 400; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; min-width: 0; }
+  .card h2 { margin: 0 0 10px; font: 800 14px/1.2 var(--sans); letter-spacing: .04em; color: var(--violet); }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: end; }
+  .controls > div { min-width: 0; }
+  .lbl, label.lbl { display: block; font: 700 12px/1.3 var(--sans); color: var(--muted); margin-bottom: 4px; }
+  input[type=number] { width: 7em; font: 15px var(--sans); padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; }
+  input[type=range] { width: 150px; max-width: 100%; accent-color: var(--violet); }
+  .seg { display: inline-flex; flex-wrap: wrap; border: 2px solid var(--violet); border-radius: 999px; overflow: hidden; }
+  .seg button { border: 0; background: #fff; color: var(--violet); font: 700 13px var(--sans); padding: 6px 12px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--violet); color: #fff; }
+  .btn { font: 700 14px var(--sans); padding: 8px 14px; border-radius: 999px; border: 2px solid var(--violet); background: var(--violet); color: #fff; cursor: pointer; }
+  .btn.ghost { background: #fff; color: var(--violet); }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-top: 16px; align-items: start; }
+  .tape { display: flex; flex-wrap: wrap; gap: 4px; min-height: 40px; padding: 8px; background: #faf8ff; border: 1px dashed var(--line); border-radius: 10px; }
+  .tok { font: 13px/1 var(--mono); padding: 6px 7px; border-radius: 6px; background: #ece6fd; border: 1px solid var(--violet-2); white-space: pre; }
+  .tok.bad { background: #fde6ea; border-color: #f0a4b0; }
+  .tok.new { box-shadow: 0 0 0 2px var(--pink); }
+  .tok.eos { background: #eee; border-color: #ccc; color: var(--muted); }
+  .verdict { margin: 10px 0 0; font: 700 14px var(--sans); overflow-wrap: anywhere; }
+  .verdict .ok { color: var(--ok); } .verdict .no { color: var(--bad); }
+  .stage { font: 13px var(--mono); color: var(--muted); margin: 8px 0 0; overflow-wrap: anywhere; }
+  .sums { display: flex; flex-wrap: wrap; gap: 4px 14px; font: 12px var(--mono); color: var(--muted); margin: 0 0 8px; }
+  .sums b { color: var(--ink); }
+  .dist { width: 100%; border-collapse: collapse; font: 12.5px var(--mono); table-layout: fixed; }
+  .dist th { text-align: left; font: 700 11px var(--sans); color: var(--muted); padding: 3px 4px; }
+  .dist td { padding: 2px 4px; vertical-align: middle; }
+  .dist col.c-tok { width: 30%; } .dist col.c-bar { width: 46%; } .dist col.c-num { width: 24%; }
+  .dist tr.masked td { color: var(--mask); }
+  .dist tr.masked .tk { text-decoration: line-through; }
+  .dist tr.chosen td { background: #fff1c9; }
+  .dist .num { text-align: right; white-space: nowrap; }
+  .bars { position: relative; height: 14px; background: #f4f1fb; border-radius: 3px; overflow: hidden; }
+  .bars i { position: absolute; left: 0; top: 0; bottom: 0; }
+  .bars .p { background: var(--violet-2); opacity: .55; height: 6px; }
+  .bars .q { background: var(--violet); top: 6px; }
+  tr.masked .bars .p { background: var(--mask); opacity: 1; }
+  .key { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .key i { display: inline-block; width: 18px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: 0; }
+  .compare { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+  .compare > div { min-width: 0; }
+  .compare pre { margin: 4px 0; padding: 8px; background: #faf8ff; border: 1px solid var(--line); border-radius: 8px; font: 12.5px var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; min-height: 3em; }
+  .batch { font: 13px var(--sans); margin-top: 8px; }
+  .meter { height: 10px; background: #eee; border-radius: 5px; overflow: hidden; margin: 3px 0 8px; }
+  .meter i { display: block; height: 100%; background: var(--ok); }
+  .note { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  footer { margin-top: 24px; text-align: center; font-size: 13px; color: var(--muted); }
+  @media (max-width: 900px) { .hero, .main { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 520px) { .compare { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <div class="hero">
+    <div>
+      <h1>Constrained <span>Decoding</span></h1>
+      <p class="lede">A language model only ever picks the next token. To make it produce valid JSON, check every token in the vocabulary against a grammar before sampling. Tokens that would break the grammar get probability zero, and what's left is renormalised. The "model" here is a toy with a 26-token vocabulary and seeded fake logits. It has mostly learned the format but has a few bad habits.</p>
+    </div>
+    <pre class="schema" aria-label="The schema the output must match">{
+  <b>"type"</b>: "object",
+  <b>"properties"</b>: {
+    "name": { "type": "string" },
+    "age":  { "type": "integer", "minimum": 0 },
+    "tags": { "type": "array", "items": { "type": "string" }, "maxItems": 3 }
+  },
+  <b>"required"</b>: ["name", "age"],
+  <b>"additionalProperties"</b>: false
+}</pre>
+  </div>
+
+  <section class="card" aria-label="Controls">
+    <div class="controls">
+      <div><span class="lbl" id="l-mode">Mode</span><div class="seg" role="group" aria-labelledby="l-mode">
+        <button type="button" data-mode="constrained" data-testid="mode-constrained" aria-pressed="true">Constrained</button><button type="button" data-mode="free" data-testid="mode-free" aria-pressed="false">Unconstrained</button></div></div>
+      <div><span class="lbl" id="l-dec">Decoding</span><div class="seg" role="group" aria-labelledby="l-dec">
+        <button type="button" data-dec="sample" data-testid="dec-sample" aria-pressed="true">Sample</button><button type="button" data-dec="greedy" data-testid="dec-greedy" aria-pressed="false">Argmax</button></div></div>
+      <div><label class="lbl" for="temp">Temperature <output id="tempOut" data-testid="temp-out">1.0</output></label><input type="range" id="temp" data-testid="temp" min="0.2" max="2" step="0.1" value="1"></div>
+      <div><label class="lbl" for="seed">Seed</label><input type="number" id="seed" data-testid="seed" min="0" step="1" value="1"></div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        <button type="button" class="btn" id="step" data-testid="step">Next token</button>
+        <button type="button" class="btn ghost" id="finish" data-testid="finish">Run to end</button>
+        <button type="button" class="btn ghost" id="reset" data-testid="reset">Reset</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="main">
+    <div>
+      <section class="card" aria-labelledby="h-out">
+        <h2 id="h-out">Output so far</h2>
+        <div class="tape" id="tape" data-testid="tape" aria-label="Generated tokens"></div>
+        <p class="verdict" id="verdict" data-testid="verdict" role="status" aria-live="polite"></p>
+        <p class="stage" id="stage" data-testid="stage"></p>
+      </section>
+      <section class="card" aria-labelledby="h-cmp" style="margin-top:16px">
+        <h2 id="h-cmp">Same seed, both ways</h2>
+        <div class="compare">
+          <div><span class="lbl">Unconstrained</span><pre id="cmpFree" data-testid="cmp-free"></pre><div id="cmpFreeV" data-testid="cmp-free-verdict" class="verdict"></div></div>
+          <div><span class="lbl">Constrained</span><pre id="cmpCon" data-testid="cmp-con"></pre><div id="cmpConV" data-testid="cmp-con-verdict" class="verdict"></div></div>
+        </div>
+        <div class="batch">
+          <button type="button" class="btn ghost" id="batch" data-testid="batch">Try 200 seeds</button>
+          <div id="batchOut" data-testid="batch-out" aria-live="polite"></div>
+        </div>
+      </section>
+    </div>
+
+    <section class="card" aria-labelledby="h-dist">
+      <h2 id="h-dist">Next-token distribution</h2>
+      <div class="sums" id="sums" data-testid="sums"></div>
+      <table class="dist" data-testid="dist" aria-describedby="distKey">
+        <colgroup><col class="c-tok"><col class="c-bar"><col class="c-num"></colgroup>
+        <thead><tr><th scope="col">Token</th><th scope="col">Raw p / after mask</th><th scope="col" class="num">p → q</th></tr></thead>
+        <tbody id="distBody"></tbody>
+      </table>
+      <div class="key" id="distKey"><span><i style="background:var(--violet-2);opacity:.55"></i>raw p from the logits</span><span><i style="background:var(--violet)"></i>q after masking and renormalising</span><span><i style="background:var(--mask)"></i>masked by the grammar</span></div>
+      <p class="note">q<sub>i</sub> = p<sub>i</sub> / Σ<sub>allowed</sub> p for allowed tokens, and 0 for masked ones. In unconstrained mode nothing is masked, so q = p.</p>
+    </section>
+  </div>
+  <footer>Built by Zac Corbett · a toy model, not a real one: the logits are seeded fake numbers · the same idea powers grammar-constrained and structured-output decoding in real inference engines</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const hash2 = (a, b) => (Math.imul(a >>> 0 ^ 0x9E3779B9, 0x85EBCA6B) ^ Math.imul(b + 0x632BE5AB, 0xC2B2AE35)) >>> 0;
+
+  // ---------------- vocabulary ----------------
+  const VOCAB = ['{', '}', '[', ']', ':', ',', '"name"', '"age"', '"tags"', '"email"', '"Ada"', '"Grace"', '"Alan"', '"qa"', '"ml"', '"ops"', '0', '7', '36', '42', '-1', '3.5', 'true', 'null', '"', '<eos>'];
+  const ID = Object.fromEntries(VOCAB.map((t, i) => [t, i]));
+  const KEYS = { '"name"': 'name', '"age"': 'age', '"tags"': 'tags' };
+  const STRINGS = ['"Ada"', '"Grace"', '"Alan"', '"qa"', '"ml"', '"ops"'].map((t) => ID[t]);
+  const INTS = ['0', '7', '36', '42'].map((t) => ID[t]);
+  const REQUIRED = ['name', 'age'];
+  const EOS = ID['<eos>'];
+
+  // ---------------- the grammar: a small state machine for the schema ----------------
+  function parseState(ids) {
+    const s = { stage: 'start', used: [], key: null, arr: 0 };
+    for (const id of ids) {
+      const ok = allowedIn(s);
+      if (!ok.includes(id)) return { stage: 'error', used: s.used, key: s.key, arr: s.arr, at: id };
+      const t = VOCAB[id];
+      switch (s.stage) {
+        case 'start': s.stage = 'key'; break;
+        case 'key': s.key = KEYS[t]; s.used = s.used.concat(s.key); s.stage = 'colon'; break;
+        case 'colon': s.stage = 'value'; break;
+        case 'value': if (s.key === 'tags') { s.stage = 'arrOpen'; s.arr = 0; } else s.stage = 'after'; break;
+        case 'after': s.stage = t === ',' ? 'key' : 'done'; break;
+        case 'arrOpen': case 'arrComma': if (t === ']') s.stage = 'after'; else { s.arr++; s.stage = 'arrItem'; } break;
+        case 'arrItem': s.stage = t === ',' ? 'arrComma' : 'after'; break;
+        case 'done': s.stage = 'end'; break;
+      }
+    }
+    return s;
+  }
+  function allowedIn(s) {
+    const unused = Object.keys(KEYS).filter((k) => !s.used.includes(KEYS[k])).map((k) => ID[k]);
+    const reqDone = REQUIRED.every((k) => s.used.includes(k));
+    switch (s.stage) {
+      case 'start': return [ID['{']];
+      case 'key': return unused;
+      case 'colon': return [ID[':']];
+      case 'value': return s.key === 'name' ? STRINGS : s.key === 'age' ? INTS : [ID['[']];
+      case 'after': return [...(unused.length ? [ID[',']] : []), ...(reqDone ? [ID['}']] : [])];
+      case 'arrOpen': return [...STRINGS, ID[']']];
+      case 'arrItem': return [...(s.arr < 3 ? [ID[',']] : []), ID[']']];
+      case 'arrComma': return STRINGS;
+      case 'done': return [EOS];
+      default: return [];
+    }
+  }
+  const maskFor = (ids) => { const ok = new Set(allowedIn(parseState(ids))); return VOCAB.map((_, i) => ok.has(i)); };
+  function describe(s) {
+    const names = (ids) => ids.map((i) => VOCAB[i]).join(' ');
+    switch (s.stage) {
+      case 'start': return 'Expecting { to open the object.';
+      case 'key': return `Expecting a key not used yet: ${names(allowedIn(s))}.`;
+      case 'colon': return 'Expecting a colon after the key.';
+      case 'value': return s.key === 'age' ? 'Expecting a non-negative integer for "age".' : s.key === 'name' ? 'Expecting a string for "name".' : 'Expecting [ to start "tags".';
+      case 'after': return `After a value: ${names(allowedIn(s))}${REQUIRED.every((k) => s.used.includes(k)) ? '' : ' (} is masked until "name" and "age" are both present)'}.`;
+      case 'arrOpen': return 'Inside "tags": a string or ].';
+      case 'arrItem': return s.arr < 3 ? 'After a tag: , or ].' : 'Three tags already (maxItems 3): only ].';
+      case 'arrComma': return 'Expecting another tag string.';
+      case 'done': return 'The object is complete: only <eos> is allowed.';
+      case 'end': return 'Finished.';
+      default: return `Off the grammar at ${VOCAB[s.at]}: the output can no longer become valid JSON for the schema.`;
+    }
+  }
+
+  // ---------------- the toy model: seeded fake logits ----------------
+  const PRIOR = { '"name"': 0.6, '"age"': 0.3, '"tags"': 0, '"Ada"': 0.5, '"Grace"': 0.3, '"Alan"': 0.2, '"qa"': 0.3, '"ml"': 0.1, '"ops"': 0, '42': 0.4, '36': 0.3, '7': 0.1, '0': -0.2 };
+  // habits: plausible mistakes the model makes in particular places (these tokens may be masked)
+  const HABITS = {
+    key: { '"email"': 2.2, '}': 1.3 },
+    after: { '}': 2.2 },
+    value: { '-1': 1.6, '3.5': 1.4, 'null': 1.2, '"Ada"': 0.4 },
+    done: { ',': 1.4, '}': 0.8 },
+    arrItem: { ',': 0.6 },
+    error: { '<eos>': 2.5, '}': 1.2 },
+  };
+  function logitsAt(ids, seed) {
+    const s = parseState(ids);
+    const ok = new Set(allowedIn(s));
+    const r = mulberry32(hash2(seed, ids.length));
+    const hab = HABITS[s.stage] || {};
+    return VOCAB.map((t, i) => {
+      const g = Math.sqrt(-2 * Math.log(1 - r())) * Math.cos(2 * Math.PI * r());   // Box–Muller, seeded per step
+      return +(((ok.has(i) ? 4.6 : -1.4) + (PRIOR[t] || 0) + (hab[t] || 0) + 0.8 * g).toFixed(6));
+    });
+  }
+  function softmax(logits, T) {
+    const z = logits.map((l) => l / T), m = Math.max(...z), e = z.map((x) => Math.exp(x - m)), S = e.reduce((a, b) => a + b, 0);
+    return e.map((x) => x / S);
+  }
+  function renorm(p, mask) {
+    const S = p.reduce((a, x, i) => a + (mask[i] ? x : 0), 0);
+    return p.map((x, i) => (mask[i] ? x / S : 0));
+  }
+  const MAX_TOKENS = 32;
+
+  function stepOnce(ids, o, u) {
+    const logits = logitsAt(ids, o.seed);
+    const p = softmax(logits, o.temp);
+    const mask = o.constrained ? maskFor(ids) : VOCAB.map(() => true);
+    const q = o.constrained ? renorm(p, mask) : p.slice();
+    let chosen;
+    if (o.greedy) { chosen = 0; for (let i = 1; i < q.length; i++) if (q[i] > q[chosen]) chosen = i; }
+    else { let acc = 0; chosen = -1; for (let i = 0; i < q.length; i++) { if (q[i] === 0) continue; acc += q[i]; if (u < acc) { chosen = i; break; } } if (chosen < 0) chosen = q.map((x, i) => (x > 0 ? i : -1)).filter((i) => i >= 0).pop(); }
+    return { logits, p, mask, q, chosen, u, stage: parseState(ids).stage };
+  }
+  function generate(seed, opts = {}) {
+    const o = { seed: seed >>> 0, constrained: opts.constrained !== false, greedy: !!opts.greedy, temp: opts.temp || 1 };
+    const r = mulberry32(hash2(o.seed, 0xC0FFEE));
+    const ids = [], steps = [];
+    while (ids.length < MAX_TOKENS) {
+      const st = stepOnce(ids, o, r());
+      steps.push(st);
+      if (st.chosen === EOS) break;
+      ids.push(st.chosen);
+    }
+    const text = render(ids);
+    return { seed: o.seed, opts: o, ids, tokens: ids.map((i) => VOCAB[i]), text, steps, eos: steps.at(-1).chosen === EOS, ...check(text) };
+  }
+  const render = (ids) => ids.map((i) => VOCAB[i]).join('').replace(/:/g, ': ').replace(/,/g, ', ');
+  // validity: JSON.parse, then the schema
+  function check(text) {
+    let v;
+    try { v = JSON.parse(text); } catch (e) { return { parses: false, parseError: e.message.replace(/^JSON\.parse: /, ''), schemaOk: false, schemaErrors: [] }; }
+    const errs = [];
+    if (typeof v !== 'object' || v === null || Array.isArray(v)) errs.push('not an object');
+    else {
+      for (const k of Object.keys(v)) if (!['name', 'age', 'tags'].includes(k)) errs.push(`unexpected key "${k}"`);
+      for (const k of REQUIRED) if (!(k in v)) errs.push(`missing "${k}"`);
+      if ('name' in v && typeof v.name !== 'string') errs.push('"name" is not a string');
+      if ('age' in v && !(Number.isInteger(v.age) && v.age >= 0)) errs.push('"age" is not a non-negative integer');
+      if ('tags' in v && !(Array.isArray(v.tags) && v.tags.length <= 3 && v.tags.every((t) => typeof t === 'string'))) errs.push('"tags" is not an array of up to 3 strings');
+    }
+    return { parses: true, parseError: null, schemaOk: errs.length === 0, schemaErrors: errs };
+  }
+
+  // ---------------- UI state ----------------
+  const S = { seed: 1, constrained: true, greedy: false, temp: 1, ids: [], last: null, done: false, rng: null };
+  const opts = () => ({ seed: S.seed, constrained: S.constrained, greedy: S.greedy, temp: S.temp });
+  function reset() {
+    S.ids = []; S.last = null; S.done = false; S.stepN = 0;
+    S.rng = mulberry32(hash2(S.seed >>> 0, 0xC0FFEE));
+    S.preview = stepOnce(S.ids, opts(), NaN);
+    draw(); compare();
+  }
+  function next() {
+    if (S.done) return;
+    const st = stepOnce(S.ids, opts(), S.rng());
+    S.last = st; S.stepN++;
+    if (st.chosen === EOS || S.ids.length + 1 >= MAX_TOKENS) { if (st.chosen !== EOS) S.ids.push(st.chosen); S.done = true; }
+    else S.ids.push(st.chosen);
+    S.preview = S.done ? null : stepOnce(S.ids, opts(), NaN);
+    draw();
+  }
+  const fx = (x) => (x === 0 ? '0' : x < 0.001 ? '<.001' : x.toFixed(3));
+  function draw() {
+    const valid = parseState(S.ids).stage !== 'error';
+    $('tape').innerHTML = S.ids.map((id, k) => `<span class="tok${k === S.ids.length - 1 ? ' new' : ''}" data-testid="tok">${VOCAB[id].replace(/&/g, '&amp;').replace(/</g, '&lt;')}</span>`).join('')
+      + (S.done && S.last && S.last.chosen === EOS ? '<span class="tok eos" data-testid="tok-eos">&lt;eos&gt;</span>' : '')
+      || '<span class="stage" style="margin:0">(nothing yet: press Next token)</span>';
+    if (!valid) {                                         // mark the first token that left the grammar
+      const k = S.ids.findIndex((_, i) => parseState(S.ids.slice(0, i + 1)).stage === 'error');
+      const tok = $('tape').querySelectorAll('.tok')[k];
+      if (tok) { tok.classList.add('bad'); tok.dataset.testid = 'tok-bad'; }
+    }
+    const text = render(S.ids);
+    if (S.done) {
+      const c = check(text);
+      $('verdict').innerHTML = c.parses ? (c.schemaOk ? '<span class="ok">✓ JSON.parse succeeds · ✓ matches the schema</span>' : `<span class="ok">✓ JSON.parse succeeds</span> · <span class="no">✗ schema: ${c.schemaErrors.join('; ')}</span>`) : `<span class="no">✗ JSON.parse fails: ${c.parseError.replace(/</g, '&lt;')}</span>`;
+      $('verdict').dataset.ok = String(c.parses && c.schemaOk);
+    } else { $('verdict').textContent = `${S.ids.length} token${S.ids.length === 1 ? '' : 's'} so far · ${S.constrained ? 'constrained' : 'unconstrained'}, ${S.greedy ? 'argmax' : `sampling at T = ${S.temp.toFixed(1)}`}`; delete $('verdict').dataset.ok; }
+    $('stage').textContent = describe(parseState(S.ids));
+    $('step').disabled = S.done; $('finish').disabled = S.done;
+    // distribution: the step just taken (with its choice highlighted), or the upcoming one before the first step
+    const upcoming = !S.last;
+    const view = S.last || S.preview;
+    const chosen = upcoming ? -1 : view.chosen;
+    const sp = view.p.reduce((a, b) => a + b, 0), sa = view.p.reduce((a, x, i) => a + (view.mask[i] ? x : 0), 0), sq = view.q.reduce((a, b) => a + b, 0);
+    const nMasked = view.mask.filter((m) => !m).length;
+    $('sums').innerHTML = `<span data-testid="view-label">${upcoming ? `Upcoming: token 1` : `Step ${S.stepN}: chose ${VOCAB[view.chosen].replace(/</g, "&lt;")}`}</span><span>Σp = <b data-testid="sum-p">${sp.toFixed(3)}</b></span><span>allowed mass = <b data-testid="sum-allowed">${sa.toFixed(3)}</b></span><span>Σq = <b data-testid="sum-q">${sq.toFixed(3)}</b></span><span><b data-testid="n-masked">${nMasked}</b> masked</span>`;
+    $('distBody').innerHTML = VOCAB.map((t, i) => {
+      const m = !view.mask[i];
+      return `<tr class="${m ? 'masked' : ''}${i === chosen ? ' chosen' : ''}" data-testid="row-${i}" data-masked="${m}"><td class="tk">${t.replace(/</g, '&lt;')}${m ? '<span class="sr"> (masked)</span>' : ''}</td><td><div class="bars" aria-hidden="true"><i class="p" style="width:${(100 * view.p[i]).toFixed(2)}%"></i><i class="q" style="width:${(100 * view.q[i]).toFixed(2)}%"></i></div></td><td class="num" data-testid="q-${i}">${fx(view.p[i])} → ${fx(view.q[i])}</td></tr>`;
+    }).join('');
+    for (const b of document.querySelectorAll('[data-mode]')) b.setAttribute('aria-pressed', String((b.dataset.mode === 'constrained') === S.constrained));
+    for (const b of document.querySelectorAll('[data-dec]')) b.setAttribute('aria-pressed', String((b.dataset.dec === 'greedy') === S.greedy));
+    S.view = view;
+  }
+  function verdictHTML(g) {
+    return g.parses ? (g.schemaOk ? '<span class="ok">✓ parses · ✓ schema</span>' : `<span class="ok">✓ parses</span> · <span class="no">✗ ${g.schemaErrors[0]}</span>`) : `<span class="no">✗ ${g.eos ? 'JSON.parse fails' : `no &lt;eos&gt; within ${MAX_TOKENS} tokens`}</span>`;
+  }
+  function compare() {
+    const f = generate(S.seed, { ...opts(), constrained: false }), c = generate(S.seed, { ...opts(), constrained: true });
+    $('cmpFree').textContent = f.text || '(empty)'; $('cmpCon').textContent = c.text;
+    $('cmpFreeV').innerHTML = verdictHTML(f); $('cmpConV').innerHTML = verdictHTML(c);
+    $('cmpFreeV').dataset.ok = String(f.parses && f.schemaOk); $('cmpConV').dataset.ok = String(c.parses && c.schemaOk);
+  }
+  function batch() {
+    const N = 200, o = opts();
+    let free = 0, freeParse = 0, con = 0;
+    for (let s = 0; s < N; s++) {
+      const f = generate(s, { ...o, constrained: false }); if (f.parses) freeParse++; if (f.parses && f.schemaOk) free++;
+      const c = generate(s, { ...o, constrained: true }); if (c.parses && c.schemaOk) con++;
+    }
+    S.batch = { N, free, freeParse, con };
+    $('batchOut').innerHTML = `<p style="margin:8px 0 2px">Seeds 0–${N - 1}, ${o.greedy ? 'argmax' : `T = ${o.temp.toFixed(1)}`}:</p>
+      <div>Unconstrained: <b data-testid="batch-free">${free}/${N}</b> valid (${freeParse} parse, but ${freeParse - free} of those break the schema)</div><div class="meter"><i style="width:${100 * free / N}%"></i></div>
+      <div>Constrained: <b data-testid="batch-con">${con}/${N}</b> valid</div><div class="meter"><i style="width:${100 * con / N}%"></i></div>`;
+  }
+
+  // ---------------- events ----------------
+  document.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => { S.constrained = b.dataset.mode === 'constrained'; reset(); }));
+  document.querySelectorAll('[data-dec]').forEach((b) => b.addEventListener('click', () => { S.greedy = b.dataset.dec === 'greedy'; reset(); }));
+  $('temp').addEventListener('input', () => { S.temp = +$('temp').value; $('tempOut').textContent = S.temp.toFixed(1); reset(); });
+  $('seed').addEventListener('change', () => { const v = parseInt($('seed').value, 10); S.seed = Number.isFinite(v) && v >= 0 ? v : 0; const u = new URL(location.href); u.searchParams.set('seed', S.seed); history.replaceState(null, '', u); reset(); });
+  $('step').addEventListener('click', next);
+  $('finish').addEventListener('click', () => { while (!S.done) next(); $('reset').focus(); });
+  $('reset').addEventListener('click', reset);
+  $('batch').addEventListener('click', batch);
+
+  const s0 = parseInt(params.get('seed'), 10);
+  if (Number.isFinite(s0) && s0 >= 0) S.seed = s0;
+  $('seed').value = S.seed;
+  reset();
+  for (let k = 0; k < 6; k++) next();                  // start part-way through, so the first view shows a mask at work
+
+  window.__cd = {
+    VOCAB, generate, maskFor, check, softmax, logitsAt, MAX_TOKENS,
+    allowed: (tokens) => { const m = maskFor(tokens.map((t) => ID[t])); return VOCAB.filter((_, i) => m[i]); },
+    get state() { return { seed: S.seed, constrained: S.constrained, greedy: S.greedy, temp: S.temp, tokens: S.ids.map((i) => VOCAB[i]), done: S.done, text: render(S.ids), view: S.view && { p: S.view.p, q: S.view.q, mask: S.view.mask, chosen: S.view.chosen }, batch: S.batch }; },
+  };
+})();
+</script>
+</body>
+</html>

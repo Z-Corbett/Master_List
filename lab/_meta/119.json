@@ -1,0 +1,38 @@
+{
+  "id": "119",
+  "slug": "119-constrained-decoding",
+  "file": "lab/119-constrained-decoding.html",
+  "title": "Constrained Decoding — grammar-guided generation, one token at a time",
+  "category": "AI & Agents",
+  "tags": ["structured-output", "json-schema", "sampling", "grammar", "seeded-prng"],
+  "description": "A toy next-token model with a 26-token vocabulary and seeded fake logits writes JSON for a tiny schema: name is a string, age a non-negative integer, tags up to three strings. At each step the page shows the full distribution and the grammar mask, with tokens that would break the JSON or the schema greyed out, then renormalises and samples or takes the argmax. Unconstrained sampling at T = 1 is valid only about a third of the time; constrained output always parses.",
+  "prompt": "Make a toy next-token model with a small vocabulary and seeded fake logits. It generates JSON that must match a tiny schema. At each step, show the full distribution and the grammar mask (tokens that would break the grammar are greyed out), then renormalise and sample or take the argmax. Compare unconstrained output, which is often invalid, with constrained output, which always parses. The spec should check that constrained output always passes JSON.parse and the schema across many seeds, that masked tokens have zero probability after renormalisation, and that the probabilities sum to 1.",
+  "qa": {
+    "methodology": [
+      "Validity at scale: 900 constrained generations (300 seeds each for T = 1, T = 2 and argmax) must all reach <eos>, pass JSON.parse, and match a schema check written independently in the spec.",
+      "Probability invariants on every step of 40 generations: Σp = 1 and Σq = 1 to 1e-12, masked tokens have q exactly 0, and each allowed q equals p / Σ allowed p, recomputed in the test. The sampler never picks a masked token.",
+      "Softmax oracle: p at T = 0.5, 1 and 2 is recomputed from the raw logits in the test, and entropy must rise with temperature.",
+      "Grammar spot checks at hand-picked prefixes: only { at the start, no \"email\" key, no } before name and age are both present, no -1 or 3.5 for age, no repeated keys, ] only after three tags, only <eos> after the closing brace, and an empty mask once the output is off the grammar.",
+      "Contrast: unconstrained sampling fails on at least 60 of 200 seeds, with both parse failures and schema failures, and the page's 200-seed batch agrees with the test's own count. Stepping by hand reproduces generate() token for token."
+    ],
+    "risks": [
+      "The model's logits are derived partly from the grammar, so its mistakes are designed ones (\"habits\"). Real models fail in messier ways.",
+      "Whole-word tokens make the grammar a small state machine. Real tokenizers split strings mid-token, which needs a character-level automaton.",
+      "Masking can leave very little probability mass. It is shown on the page as 'allowed mass', and at worst this toy picks an unlikely token rather than failing.",
+      "Early <eos> in unconstrained mode ends the text without an off-grammar token being appended. The UI marks it as a parse failure, not as a highlighted bad token."
+    ],
+    "playwright": "The heavy assertions run the page's own generator through page.evaluate and check the output in Node, using JSON.parse and a schema function that lives only in the spec, so the page can't mark its own homework. UI tests click Next token and check the masked rows through data attributes, the Σ readouts and the chosen-row highlight. fill() on the range input drives the temperature. The first run failed on the spec, not the page: I wrote the expected masks in grammar order, but the page lists allowed tokens in vocabulary order. Tuning happened before the spec: the first logits made unconstrained output valid only 3% of the time, which made the comparison meaningless, so the model's grasp of the format was strengthened to about 31%. Candid: argmax almost never breaks in this toy; the failures come from sampling.",
+    "coverage": [
+      "900 constrained generations parse and match the schema",
+      "q = 0 when masked, q = p/Σallowed, Σ = 1",
+      "p = softmax(logits / T); entropy rises with T",
+      "Grammar mask at 12 known prefixes",
+      "Unconstrained invalid ≥ 30% at T = 1; batch counts agree",
+      "Step-by-step UI: masked rows, sums, chosen token, finish",
+      "Unconstrained UI: no mask, bad token flagged, same as generate()",
+      "Seed determinism, same first distribution in both modes, argmax",
+      "Temperature and decoding controls"
+    ]
+  },
+  "a11y": "Mode and decoding are aria-pressed button groups. Temperature is a labelled range with a visible output, and the seed is a labelled number field. The output verdict is an aria-live status. Masked rows carry a visually hidden '(masked)' label and a strike-through as well as the grey colour, and the probabilities are text, not just bar lengths. Run to end moves focus to Reset."
+}

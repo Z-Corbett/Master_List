@@ -1,0 +1,40 @@
+{
+  "id": "130",
+  "slug": "130-signal-box",
+  "file": "lab/130-signal-box.html",
+  "title": "Signal Box — a railway interlocking puzzle",
+  "category": "Games",
+  "tags": ["railway", "interlocking", "state-machine", "page-clock", "svg"],
+  "description": "Work the signal box at Mesquite Junction, a small invented station with two platforms, three sets of points, an east line and a branch. Set routes for arriving and departing trains from an entrance-exit style panel, and the interlocking refuses anything unsafe: a signal clears only when its points are detected and locked, its track circuits are clear and no conflicting route is set. Signals return to danger behind each train, routes release section by section, and cancelling in front of an approaching train triggers approach locking. Six trains run to a timetable, scored for punctuality.",
+  "prompt": "Make a railway interlocking puzzle. Draw a small fictional track layout with points, signals and track circuits. The player sets routes for arriving trains, and the interlocking logic prevents conflicting routes: a signal can't clear unless its points are set and locked, the route is clear and no conflicting route is set. Trains move on a schedule driven by page.clock. Score punctuality, and have the interlocking refuse any collision attempt. Explain real interlocking principles briefly and accurately. The spec should check the conflict matrix against an independent route-conflict computation in the test, that points are locked while a route is set, that the route releases after the train passes, and the scheduling under page.clock.",
+  "qa": {
+    "methodology": [
+      "Independent conflict oracle: the spec writes the layout down from the track diagram (sections and points per route) and derives conflicts itself: a shared track circuit, or points needed both ways. The page's 12 × 12 matrix must match cell by cell, and the count must be 38 (6 pairs at the west end, 28 at the east, and 4 pairs of trains into one platform).",
+      "Refusal sweep: with W → P1 set, every other route is requested through the hook, and exactly the routes the oracle says conflict are refused. Accepted ones are cancelled and must release at once, since no train is approaching them.",
+      "Physical timing as the schedule oracle: at 20 m/s a westbound arrival reaches its stopping point after (400 + 120 + 140) / 20 = 33 s, its rear clears T1 at 30 s, and a departure clears the east line after 39 s. page.clock runs to each instant exactly, and the spec checks one tenth of a second before and at the boundary.",
+      "Locking behaviour: points move for 4 s before the signal clears, are refused a manual swing while locked, unlock sectionally when the train clears T1 (before the whole route releases), and stay locked for 30 s of approach locking when a route is cancelled in front of a train.",
+      "Punctuality scoring is recomputed in the test (100 points within 60 s, then 20 fewer per started minute), for an on-time run of three movements and for a train held at a red signal and arriving 68 s late."
+    ],
+    "risks": [
+      "The model leaves out overlaps and flank protection. The page says so, and the explanation keeps to principles that hold generally.",
+      "Train movement is quantised to 100 ms timer ticks; every test boundary sits on a tick so exact comparisons are safe, but a finer schedule would need a tolerance.",
+      "Sectional release makes conflicts time-dependent: a route over a released section is allowed while the original route still holds the platform. The static matrix shows the worst case, and the test covers both.",
+      "Train reversal in platforms relies on a symmetric stopping point (the train centred in a 200 m platform), so arrival and departure geometry agree in both directions."
+    ],
+    "playwright": "page.clock does all the work: the timetable runs on setInterval and performance.now(), so pauseAt() then runFor() lands the simulation on an exact tenth of a second, and every timing assertion is exact, with no tolerance and no waitForTimeout. The hook exposes request, cancel and swing so the refusal sweep can try all twelve routes quickly, while the other tests click the panel's real buttons and one drives them with Enter and Space. The mistakes found while writing it were in the test, not the page: a hand count of conflicting pairs was wrong (38, not 40; a short script over the layout settled it, and the test now spells out 6 + 28 + 4), and the first run failed on the control table because the page lists points in number order ('2R, 3N') where the test expected route order. Both were fixed by checking the reasoning, not by copying the page's output.",
+    "coverage": [
+      "Control table vs the drawn layout",
+      "Conflict matrix vs independent computation, 38 pairs",
+      "Refusal sweep with W → P1 set",
+      "Points travel, detection and locking",
+      "Approach locking for 30 s, stop at a red signal",
+      "Arrival time under page.clock, signal replacement",
+      "Sectional release of points and route, occupied platform refused",
+      "Three movements on time, departure not before time",
+      "Late arrival scoring",
+      "Block working on the west line",
+      "Keyboard route buttons, aria-pressed, fast time"
+    ]
+  },
+  "a11y": "Routes are real toggle buttons grouped by entrance signal, with aria-pressed showing which are set, so the panel works with Tab, Enter and Space. Every interlocking decision, including the reason for a refusal, is announced in a polite live region. The track diagram's accessible name lists the occupied sections and the routes set, and the timetable, conflict matrix and control table are real tables with headers."
+}

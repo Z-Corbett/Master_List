@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Benford's Law Lab — first digits, tested</title>
+<meta name="description" content="Test any list of numbers against Benford's law. Paste your own or load datasets computed in the page (powers of 2, Fibonacci numbers, factorials, primes) or clearly labelled synthetic ones. See the observed first- and second-digit distributions against log10(1 + 1/d), a chi-square statistic with its p-value, and the mean absolute deviation judged by Nigrini's conformity ranges.">
+<style>
+  :root {
+    --paper: #f5f3e8;
+    --paper-2: #e9ecd9;
+    --rule: #cfd6bd;
+    --ink: #1d2a24;
+    --ink-2: #44524a;
+    --muted: #6a756d;
+    --green: #1f6b4f;
+    --green-2: #164e3a;
+    --obs: #2a6f97;
+    --exp: #c2541f;
+    --warn: #9a3412;
+    --ok: #166534;
+    --card: #fffef8;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --mono: "Cascadia Mono", Consolas, "SF Mono", Menlo, "Courier New", monospace;
+    --serif: "Rockwell", "Roboto Slab", "Cambria", Georgia, serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--paper); color: var(--ink); font: 15px/1.55 var(--sans); overflow-x: hidden;
+    background-image: repeating-linear-gradient(0deg, transparent 0 27px, rgba(31,107,79,.07) 27px 28px); }
+  :focus-visible { outline: 3px solid var(--exp); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: #fff; background: var(--green-2); text-decoration: none; font: 600 13px/1 var(--sans); padding: 8px 12px; border-radius: 4px; }
+  a.back:hover { background: var(--ink); }
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 60px 18px 40px; }
+  header { border-bottom: 3px double var(--green); padding-bottom: 14px; margin-bottom: 20px; }
+  .eyebrow { margin: 0; font: 700 12px/1.3 var(--mono); letter-spacing: .2em; text-transform: uppercase; color: var(--green); }
+  h1 { font: 700 clamp(36px, 6.4vw, 64px)/1.02 var(--serif); margin: 6px 0 8px; }
+  h1 .d { display: inline-block; background: var(--green); color: var(--paper); padding: 0 .18em; border-radius: 4px; }
+  .lede { margin: 0; max-width: 70ch; color: var(--ink-2); }
+  .formula { font: 600 15px/1.4 var(--mono); color: var(--green-2); margin-top: 8px; overflow-wrap: anywhere; }
+  .layout { display: grid; grid-template-columns: minmax(0, 330px) minmax(0, 1fr); gap: 20px; align-items: start; }
+  .card { background: var(--card); border: 1px solid var(--rule); border-radius: 6px; padding: 16px 18px; min-width: 0; box-shadow: 0 1px 0 var(--rule); }
+  h2 { font: 700 21px/1.2 var(--serif); margin: 0 0 10px; }
+  h3 { font: 700 12px/1.3 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; }
+  .sets { display: grid; gap: 6px; }
+  .set { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; text-align: left; width: 100%; padding: 8px 10px; border: 1px solid var(--rule); border-radius: 6px; background: #fff; color: var(--ink); font: 600 14px/1.25 var(--sans); cursor: pointer; }
+  .set small { grid-column: 1 / -1; font: 400 12.5px/1.35 var(--sans); color: var(--muted); }
+  .set .tag { font: 700 10px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; padding: 3px 5px; border-radius: 3px; align-self: start; }
+  .tag.real { background: #dcefe4; color: var(--green-2); }
+  .tag.syn { background: #fbe3d4; color: var(--warn); }
+  .set[aria-pressed="true"] { border-color: var(--green); box-shadow: inset 4px 0 0 var(--green); background: #f1f7f2; }
+  textarea { width: 100%; min-width: 0; min-height: 110px; font: 13px/1.4 var(--mono); padding: 8px; border: 1px solid var(--rule); border-radius: 6px; background: #fff; color: var(--ink); resize: vertical; }
+  label { display: block; font: 700 12px/1.3 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+  .btn { min-height: 40px; padding: 8px 14px; border-radius: 6px; border: 1px solid var(--green); background: var(--green); color: #fff; font: 600 14px/1 var(--sans); cursor: pointer; margin-top: 8px; }
+  .btn:hover { background: var(--green-2); }
+  .summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .stat { border: 1px solid var(--rule); border-radius: 6px; padding: 8px 10px; background: #fff; min-width: 0; }
+  .stat small { display: block; font: 700 10.5px/1.3 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .stat b { display: block; font: 600 20px/1.25 var(--mono); overflow-wrap: anywhere; }
+  .verdict { font: 700 13px/1.3 var(--sans); padding: 4px 8px; border-radius: 4px; display: inline-block; margin-top: 3px; }
+  .v-close { background: #d8f0e0; color: var(--ok); }
+  .v-acc { background: #e6f1d6; color: #3f6212; }
+  .v-marg { background: #fdf0c7; color: #854d0e; }
+  .v-non { background: #fbdcd0; color: var(--warn); }
+  .v-na { background: #eee; color: var(--muted); }
+  .dsname { font: 700 16px/1.3 var(--sans); margin: 0 0 4px; overflow-wrap: anywhere; }
+  .dsnote { margin: 0 0 12px; color: var(--ink-2); font-size: 14px; overflow-wrap: anywhere; }
+  .charts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+  .chart { min-width: 0; }
+  .chart svg { display: block; width: 100%; height: auto; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--ink-2); margin: 0 0 4px; }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -1px; margin-right: 5px; }
+  .legend i.line { height: 0; width: 16px; border-top: 2px solid var(--exp); border-radius: 0; vertical-align: 3px; }
+  .bar:hover rect.b, .bar:focus rect.b { fill: var(--green-2); }
+  .tip { font: 12px var(--mono); }
+  table { width: 100%; border-collapse: collapse; font: 13px/1.35 var(--mono); font-variant-numeric: tabular-nums; }
+  th, td { padding: 4px 6px; border-bottom: 1px solid var(--rule); text-align: right; }
+  th { font: 700 10.5px/1.2 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  th:first-child, td:first-child { text-align: left; }
+  details { margin-top: 8px; }
+  summary { cursor: pointer; font: 600 13px var(--sans); color: var(--green-2); }
+  .math { font: 13px/1.6 var(--mono); background: #fff; border-left: 3px solid var(--exp); padding: 8px 12px; margin: 8px 0; overflow-wrap: anywhere; }
+  .explain { margin-top: 20px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
+  .explain ul { margin: 0; padding-left: 20px; }
+  .explain li { margin-bottom: 6px; }
+  .note { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+  footer { margin-top: 26px; text-align: center; font-size: 13px; color: var(--muted); }
+  @media (max-width: 920px) { .layout, .explain { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 700px) { .charts { grid-template-columns: minmax(0, 1fr); } .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Forensic accounting · digit analysis</p>
+    <h1>Benford's Law <span class="d">Lab</span></h1>
+    <p class="lede">In many naturally occurring collections of numbers, about 30% start with a 1 and fewer than 5% start with a 9. Pick a dataset or paste your own and test it: first digit, second digit, chi-square and Nigrini's mean absolute deviation.</p>
+    <p class="formula">P(first digit = d) = log₁₀(1 + 1/d) &nbsp;·&nbsp; P(second = d) = Σ<sub>k=1..9</sub> log₁₀(1 + 1/(10k + d))</p>
+  </header>
+
+  <div class="layout">
+    <section class="card" aria-labelledby="h-data">
+      <h2 id="h-data">Data</h2>
+      <h3 id="h-real">Computed in the page (real)</h3>
+      <div class="sets" role="group" aria-labelledby="h-real" id="setsReal"></div>
+      <h3 id="h-syn">Synthetic (made up, seeded)</h3>
+      <div class="sets" role="group" aria-labelledby="h-syn" id="setsSyn"></div>
+      <p class="note">Synthetic sets are generated from seed <b data-testid="seed">–</b> (add <code>?seed=N</code> to the address for another draw). They illustrate a shape; they are not real records.</p>
+      <h3>Your own numbers</h3>
+      <label for="paste">Paste numbers (spaces, lines, semicolons or commas)</label>
+      <textarea id="paste" data-testid="paste" spellcheck="false" placeholder="e.g. 1,234.50  872  0.0417  15e3  -96"></textarea>
+      <button type="button" class="btn" id="analyze" data-testid="analyze">Test pasted numbers</button>
+      <p class="note">Signs are dropped; zeros and anything that isn't a number are skipped and counted. “1,234” is read as one thousand two hundred thirty-four.</p>
+    </section>
+
+    <section class="card" aria-labelledby="h-res">
+      <h2 id="h-res">Results</h2>
+      <p class="dsname" id="dsName" data-testid="ds-name">–</p>
+      <p class="dsnote" id="dsNote" data-testid="ds-note"></p>
+      <div id="live" class="summary" aria-live="polite" data-testid="summary">
+        <div class="stat"><small>Numbers used</small><b id="sN" data-testid="n">–</b></div>
+        <div class="stat"><small>First-digit MAD</small><b id="sMad1" data-testid="mad1">–</b><span id="sV1" class="verdict" data-testid="verdict1">–</span></div>
+        <div class="stat"><small>First-digit χ² (df 8)</small><b id="sChi1" data-testid="chi1">–</b><span id="sP1" class="note" data-testid="p1"></span></div>
+        <div class="stat"><small>Second-digit MAD</small><b id="sMad2" data-testid="mad2">–</b><span id="sV2" class="verdict" data-testid="verdict2">–</span></div>
+      </div>
+      <div class="charts">
+        <div class="chart">
+          <h3 style="margin-top:0">First digit</h3>
+          <p class="legend"><span><i style="background:var(--obs)"></i>Observed</span><span><i class="line"></i>Benford expected</span></p>
+          <svg id="c1" viewBox="0 0 420 260" role="img" aria-label="First-digit chart" data-testid="chart1"></svg>
+        </div>
+        <div class="chart">
+          <h3 style="margin-top:0">Second digit <span id="n2" data-testid="n2" style="text-transform:none;letter-spacing:0"></span></h3>
+          <p class="legend"><span><i style="background:var(--obs)"></i>Observed</span><span><i class="line"></i>Benford expected</span></p>
+          <svg id="c2" viewBox="0 0 420 260" role="img" aria-label="Second-digit chart" data-testid="chart2"></svg>
+        </div>
+      </div>
+      <details open>
+        <summary>Digit tables</summary>
+        <div class="charts" style="margin-top:8px">
+          <table data-testid="table1"><caption class="note" style="text-align:left">First digit</caption><thead><tr><th scope="col">d</th><th scope="col">Count</th><th scope="col">Observed</th><th scope="col">Expected</th></tr></thead><tbody id="t1"></tbody></table>
+          <table data-testid="table2"><caption class="note" style="text-align:left">Second digit</caption><thead><tr><th scope="col">d</th><th scope="col">Count</th><th scope="col">Observed</th><th scope="col">Expected</th></tr></thead><tbody id="t2"></tbody></table>
+        </div>
+      </details>
+      <div class="math">χ² = Σ (Oᵢ − Eᵢ)² / Eᵢ, with Eᵢ = N · pᵢ &nbsp;·&nbsp; 5% critical values: 15.507 (df 8), 16.919 (df 9)<br>MAD = (1/k) Σ |observed proportionᵢ − expected proportionᵢ| over the k digits</div>
+      <p class="note">With thousands of records the chi-square test rejects almost any real dataset over trivial differences, which is why Nigrini judges conformity by the MAD, which does not grow with N. His ranges: first digit 0–0.006 close, 0.006–0.012 acceptable, 0.012–0.015 marginally acceptable, above 0.015 nonconformity; second digit 0–0.008, 0.008–0.010, 0.010–0.012, above 0.012.</p>
+    </section>
+  </div>
+
+  <div class="explain">
+    <section class="card" aria-labelledby="h-when">
+      <h2 id="h-when">When Benford applies</h2>
+      <ul>
+        <li>The numbers span several orders of magnitude (tens to millions), so the logarithms spread out smoothly.</li>
+        <li>They arise from growth or multiplication: populations, prices × quantities, compound interest, and the powers, Fibonacci numbers and factorials above.</li>
+        <li>There are enough of them: a few hundred at the least, and ideally over a thousand, before the MAD is meaningful.</li>
+      </ul>
+    </section>
+    <section class="card" aria-labelledby="h-not">
+      <h2 id="h-not">When it doesn't</h2>
+      <ul>
+        <li><b>Assigned numbers</b>: invoice, account, phone and ZIP numbers are labels, not measurements.</li>
+        <li><b>Capped or narrow ranges</b>: human heights, test scores out of 100, anything between fixed limits.</li>
+        <li><b>Built-in minimums and maximums</b>: a $25 fee, a reimbursement ceiling, prices set at $9.99.</li>
+        <li><b>Primes</b>: their first digits drift toward uniform as the range grows; they follow a different (generalised) law.</li>
+        <li>A failed test is a reason to look closer, never proof of fraud on its own.</li>
+      </ul>
+    </section>
+  </div>
+  <footer>Built by Zac Corbett · conformity ranges from Mark J. Nigrini, <cite>Benford's Law</cite> (Wiley, 2012) · big numbers use BigInt · no data leaves the page</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const log10 = Math.log10;
+  const E1 = Array.from({ length: 10 }, (_, d) => (d === 0 ? 0 : log10(1 + 1 / d)));
+  const E2 = Array.from({ length: 10 }, (_, d) => { let s = 0; for (let k = 1; k <= 9; k++) s += log10(1 + 1 / (10 * k + d)); return s; });
+
+  // ---------- seeded PRNG ----------
+  function mulberry32(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  const qs = new URLSearchParams(location.search);
+  const SEED = (parseInt(qs.get('seed'), 10) >>> 0) || 2026;
+  document.querySelector('[data-testid="seed"]').textContent = SEED;
+
+  // ---------- significant digits of a written number ----------
+  /** Returns the significant-digit string of a number written as text, or '' for zero / not a number. */
+  function sigDigits(tok) {
+    let s = String(tok).trim().replace(/^[+-]/, '');
+    if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(s)) s = s.replace(/,/g, '');
+    const m = /^(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i.exec(s);
+    if (!m) return null;
+    const digits = m[1].replace('.', '').replace(/^0+/, '');
+    return /^0*$/.test(digits) ? '' : digits;
+  }
+  function tokenize(text) {
+    const out = [];
+    for (const t of String(text).split(/[\s;]+/)) {
+      if (!t) continue;
+      const bare = t.replace(/^[+-]/, '');
+      if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(bare)) out.push(t);
+      else for (const p of t.split(',')) if (p) out.push(p);
+    }
+    return out;
+  }
+
+  // ---------- statistics ----------
+  function lnGamma(z) {                                      // Lanczos
+    const g = 7, c = [0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313, -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
+    if (z < 0.5) return Math.log(Math.PI / Math.sin(Math.PI * z)) - lnGamma(1 - z);
+    z -= 1; let x = c[0]; for (let i = 1; i < g + 2; i++) x += c[i] / (z + i);
+    const t = z + g + 0.5; return 0.5 * Math.log(2 * Math.PI) + (z + 0.5) * Math.log(t) - t + Math.log(x);
+  }
+  /** Upper regularised incomplete gamma Q(a, x): the chi-square survival function is Q(df/2, χ²/2). */
+  function gammaQ(a, x) {
+    if (x <= 0) return 1;
+    if (x < a + 1) {                                         // series for P
+      let sum = 1 / a, del = sum, ap = a;
+      for (let n = 0; n < 500; n++) { ap++; del *= x / ap; sum += del; if (Math.abs(del) < Math.abs(sum) * 1e-15) break; }
+      return 1 - sum * Math.exp(-x + a * Math.log(x) - lnGamma(a));
+    }
+    let b = x + 1 - a, c = 1 / 1e-300, d = 1 / b, h = d;       // continued fraction for Q
+    for (let i = 1; i < 500; i++) {
+      const an = -i * (i - a); b += 2;
+      d = an * d + b; if (Math.abs(d) < 1e-300) d = 1e-300;
+      c = b + an / c; if (Math.abs(c) < 1e-300) c = 1e-300;
+      d = 1 / d; const del = d * c; h *= del; if (Math.abs(del - 1) < 1e-15) break;
+    }
+    return Math.exp(-x + a * Math.log(x) - lnGamma(a)) * h;
+  }
+  const chiP = (chi, df) => gammaQ(df / 2, chi / 2);
+  const RANGES = { first: [0.006, 0.012, 0.015], second: [0.008, 0.010, 0.012] };
+  function verdict(mad, kind) {
+    const r = RANGES[kind];
+    if (!Number.isFinite(mad)) return { label: 'Not enough data', cls: 'v-na' };
+    if (mad <= r[0]) return { label: 'Close conformity', cls: 'v-close' };
+    if (mad <= r[1]) return { label: 'Acceptable conformity', cls: 'v-acc' };
+    if (mad <= r[2]) return { label: 'Marginally acceptable conformity', cls: 'v-marg' };
+    return { label: 'Nonconformity', cls: 'v-non' };
+  }
+  function test(counts, expected, from) {
+    const N = counts.reduce((a, b) => a + b, 0);
+    const ds = []; for (let d = from; d <= 9; d++) ds.push(d);
+    if (!N) return { N, chi: NaN, p: NaN, mad: NaN, df: ds.length - 1 };
+    let chi = 0, mad = 0;
+    for (const d of ds) { const e = N * expected[d]; chi += (counts[d] - e) ** 2 / e; mad += Math.abs(counts[d] / N - expected[d]); }
+    mad /= ds.length;
+    return { N, chi, df: ds.length - 1, p: chiP(chi, ds.length - 1), mad };
+  }
+  function analyze(tokens) {
+    const c1 = new Array(10).fill(0), c2 = new Array(10).fill(0);
+    let skipped = 0, zeros = 0;
+    for (const t of tokens) {
+      const s = sigDigits(t);
+      if (s === null) { skipped++; continue; }
+      if (s === '') { zeros++; continue; }
+      c1[+s[0]]++;
+      if (s.length >= 2) c2[+s[1]]++;
+    }
+    const r1 = test(c1, E1, 1), r2 = test(c2, E2, 0);
+    return { counts1: c1, counts2: c2, skipped, zeros, first: { ...r1, verdict: verdict(r1.mad, 'first').label }, second: { ...r2, verdict: verdict(r2.mad, 'second').label } };
+  }
+
+  // ---------- datasets ----------
+  const cache = {};
+  const DATASETS = [
+    { id: 'pow2', real: true, name: 'Powers of 2', desc: '2¹ … 2¹⁰⁰⁰, exact (BigInt)', note: 'Exact powers 2^1 to 2^1000. log10(2) is irrational, so the leading digits are equidistributed in log scale: a textbook Benford sequence.',
+      make() { const o = []; let x = 1n; for (let i = 1; i <= 1000; i++) { x *= 2n; o.push(x.toString()); } return o; } },
+    { id: 'fib', real: true, name: 'Fibonacci numbers', desc: 'F₁ … F₁₀₀₀, exact (BigInt)', note: 'F(1) = F(2) = 1 up to F(1000). They grow like φⁿ, so they follow Benford closely.',
+      make() { const o = []; let a = 1n, b = 1n; for (let i = 1; i <= 1000; i++) { o.push(a.toString()); [a, b] = [b, a + b]; } return o; } },
+    { id: 'fact', real: true, name: 'Factorials', desc: '1! … 1000!, exact (BigInt)', note: 'Exact factorials 1! to 1000! (the last has 2,568 digits). Products of many factors: close to Benford.',
+      make() { const o = []; let x = 1n; for (let i = 1n; i <= 1000n; i++) { x *= i; o.push(x.toString()); } return o; } },
+    { id: 'primes', real: true, name: 'Primes below 100,000', desc: '9,592 primes, sieved in the page', note: 'Every prime under 100,000. Primes are real and plentiful but do not follow Benford: their first digits are much flatter.',
+      make() { const n = 100000, s = new Uint8Array(n); const o = []; for (let i = 2; i < n; i++) { if (s[i]) continue; o.push(String(i)); for (let j = i * i; j < n; j += i) s[j] = 1; } return o; } },
+    { id: 'loguni', real: false, name: 'Log-uniform amounts', desc: '2,000 made-up amounts, $1 to $1,000,000', note: 'SYNTHETIC. 2,000 values 10^U with U uniform on [0, 6), rounded to cents. Log-uniform data is exactly the case Benford describes.',
+      make() { const r = mulberry32(SEED); return Array.from({ length: 2000 }, () => (10 ** (6 * r())).toFixed(2)); } },
+    { id: 'uniform', real: false, name: 'Uniform 1–999 (capped)', desc: '2,000 made-up integers, flat between fixed limits', note: 'SYNTHETIC. 2,000 integers drawn uniformly from 1 to 999. A capped, flat range: every leading digit is about equally likely, so it fails.',
+      make() { const r = mulberry32(SEED ^ 0x9e3779b9); return Array.from({ length: 2000 }, () => String(1 + Math.floor(r() * 999))); } },
+    { id: 'ids', real: false, name: 'Assigned account numbers', desc: '1,000 made-up sequential IDs from 40001', note: 'SYNTHETIC. Sequential account numbers 40001 to 41000. Numbers that are assigned as labels start with whatever the numbering scheme starts with.',
+      make() { return Array.from({ length: 1000 }, (_, i) => String(40001 + i)); } },
+    { id: 'heights', real: false, name: 'Adult heights (cm)', desc: '1,500 made-up heights, mean 170, sd 10', note: 'SYNTHETIC. Normal draws around 170 cm (Box–Muller). A narrow range pins almost every value to a leading 1.',
+      make() { const r = mulberry32(SEED + 17); return Array.from({ length: 1500 }, () => { const z = Math.sqrt(-2 * Math.log(1 - r())) * Math.cos(2 * Math.PI * r()); return (170 + 10 * z).toFixed(1); }); } },
+  ];
+  function data(id) { if (!cache[id]) cache[id] = DATASETS.find((d) => d.id === id).make(); return cache[id]; }
+
+  for (const d of DATASETS) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'set'; b.dataset.id = d.id;
+    b.setAttribute('data-testid', `set-${d.id}`); b.setAttribute('aria-pressed', 'false');
+    b.innerHTML = `<span>${d.name}</span><span class="tag ${d.real ? 'real' : 'syn'}">${d.real ? 'computed' : 'synthetic'}</span><small>${d.desc}</small>`;
+    b.addEventListener('click', () => load(d.id));
+    (d.real ? $('setsReal') : $('setsSyn')).appendChild(b);
+  }
+
+  // ---------- rendering ----------
+  const pct = (x, n = 1) => (100 * x).toFixed(n) + '%';
+  function chart(svg, counts, expected, from, title) {
+    const N = counts.reduce((a, b) => a + b, 0);
+    const W = 420, H = 260, L = 40, R = 10, T = 12, B = 30;
+    const ds = []; for (let d = from; d <= 9; d++) ds.push(d);
+    const obs = ds.map((d) => (N ? counts[d] / N : 0));
+    const top = Math.max(0.35, ...obs.map((v) => v + 0.02));
+    const ymax = Math.ceil(top * 20) / 20;
+    const y = (v) => T + (H - T - B) * (1 - v / ymax);
+    const bw = (W - L - R) / ds.length;
+    let s = '';
+    for (let g = 0; g <= ymax + 1e-9; g += 0.05) {
+      s += `<line x1="${L}" x2="${W - R}" y1="${y(g).toFixed(1)}" y2="${y(g).toFixed(1)}" stroke="var(--rule)" stroke-width="1"/>`;
+      if (Math.round(g * 100) % 10 === 0) s += `<text x="${L - 6}" y="${(y(g) + 4).toFixed(1)}" font-size="11" text-anchor="end" fill="var(--muted)" font-family="var(--mono)">${Math.round(g * 100)}%</text>`;
+    }
+    ds.forEach((d, i) => {
+      const x0 = L + i * bw + 3, w = bw - 6, v = obs[i];
+      const h = Math.max(0, y(0) - y(v));
+      s += `<g class="bar" data-d="${d}"><title>${title} ${d}: observed ${N ? pct(v, 2) : '–'} (${counts[d]}), expected ${pct(expected[d], 2)}</title>`;
+      s += `<rect x="${x0 - 3}" y="${T}" width="${bw}" height="${H - T - B}" fill="transparent"/>`;
+      if (h > 0) s += `<path class="b" d="M${x0} ${y(0)} V${(y(v) + Math.min(4, h)).toFixed(1)} q0 -${Math.min(4, h).toFixed(1)} ${Math.min(4, h).toFixed(1)} -${Math.min(4, h).toFixed(1)} H${(x0 + w - Math.min(4, h)).toFixed(1)} q${Math.min(4, h).toFixed(1)} 0 ${Math.min(4, h).toFixed(1)} ${Math.min(4, h).toFixed(1)} V${y(0)}Z" fill="var(--obs)"/>`;
+      s += `<text x="${(x0 + w / 2).toFixed(1)}" y="${H - B + 16}" font-size="12" text-anchor="middle" fill="var(--ink-2)" font-family="var(--mono)">${d}</text></g>`;
+    });
+    const pts = ds.map((d, i) => `${(L + i * bw + bw / 2).toFixed(1)},${y(expected[d]).toFixed(1)}`);
+    s += `<polyline points="${pts.join(' ')}" fill="none" stroke="var(--exp)" stroke-width="2"/>`;
+    s += pts.map((p) => `<circle cx="${p.split(',')[0]}" cy="${p.split(',')[1]}" r="4" fill="var(--exp)" stroke="var(--card)" stroke-width="2"/>`).join('');
+    s += `<line x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}" stroke="var(--ink-2)"/>`;
+    svg.innerHTML = s;
+    const worst = ds.reduce((a, d) => (N && Math.abs(counts[d] / N - expected[d]) > Math.abs(counts[a] / N - expected[a]) ? d : a), ds[0]);
+    svg.setAttribute('aria-label', N ? `${title} distribution of ${N} numbers against Benford. Largest gap at digit ${worst}: observed ${pct(counts[worst] / N)}, expected ${pct(expected[worst])}. Full values in the table below.` : `${title}: no data`);
+  }
+  function table(tb, counts, expected, from) {
+    const N = counts.reduce((a, b) => a + b, 0);
+    let h = '';
+    for (let d = from; d <= 9; d++) h += `<tr data-testid="row${from}-${d}"><td>${d}</td><td>${counts[d]}</td><td>${N ? (100 * counts[d] / N).toFixed(3) + '%' : '–'}</td><td>${(100 * expected[d]).toFixed(3)}%</td></tr>`;
+    tb.innerHTML = h;
+  }
+  const last = {};
+  function show(name, note, tokens, id) {
+    const r = analyze(tokens);
+    Object.assign(last, r, { dataset: id, name, total: tokens.length });
+    $('dsName').textContent = name;
+    $('dsNote').textContent = note;
+    const extra = [r.zeros ? `${r.zeros} zero${r.zeros > 1 ? 's' : ''}` : '', r.skipped ? `${r.skipped} not a number` : ''].filter(Boolean).join(', ');
+    $('sN').textContent = r.first.N.toLocaleString('en-US') + (extra ? ` (skipped ${extra})` : '');
+    const v1 = verdict(r.first.mad, 'first'), v2 = verdict(r.second.mad, 'second');
+    $('sMad1').textContent = Number.isFinite(r.first.mad) ? r.first.mad.toFixed(4) : '–';
+    $('sV1').textContent = v1.label; $('sV1').className = 'verdict ' + v1.cls;
+    $('sChi1').textContent = Number.isFinite(r.first.chi) ? r.first.chi.toFixed(2) : '–';
+    $('sP1').textContent = Number.isFinite(r.first.p) ? `p = ${r.first.p < 0.0001 ? '< 0.0001' : r.first.p.toFixed(4)}${r.first.chi > 15.507 ? ' · rejects at 5%' : ' · not rejected at 5%'}` : '';
+    $('sMad2').textContent = Number.isFinite(r.second.mad) ? r.second.mad.toFixed(4) : '–';
+    $('sV2').textContent = v2.label; $('sV2').className = 'verdict ' + v2.cls;
+    $('n2').textContent = `(${r.second.N.toLocaleString('en-US')} numbers with 2+ digits, χ² ${Number.isFinite(r.second.chi) ? r.second.chi.toFixed(2) : '–'}, df 9)`;
+    chart($('c1'), r.counts1, E1, 1, 'First digit');
+    chart($('c2'), r.counts2, E2, 0, 'Second digit');
+    table($('t1'), r.counts1, E1, 1);
+    table($('t2'), r.counts2, E2, 0);
+  }
+  function load(id) {
+    const d = DATASETS.find((x) => x.id === id);
+    document.querySelectorAll('.set').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.id === id)));
+    show(`${d.name}${d.real ? '' : ' (synthetic)'}`, d.note, data(id), id);
+  }
+  $('analyze').addEventListener('click', () => {
+    document.querySelectorAll('.set').forEach((b) => b.setAttribute('aria-pressed', 'false'));
+    show('Your pasted numbers', 'Parsed from the text box. Nothing is sent anywhere.', tokenize($('paste').value), 'paste');
+  });
+
+  load(qs.get('set') && DATASETS.some((d) => d.id === qs.get('set')) ? qs.get('set') : 'pow2');
+
+  window.__benford = {
+    E1, E2, SEED, sigDigits, tokenize, analyze, chiP, verdict, data,
+    get last() { return last; },
+  };
+})();
+</script>
+</body>
+</html>

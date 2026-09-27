@@ -1,0 +1,36 @@
+{
+  "id": "123",
+  "slug": "123-great-circles",
+  "file": "lab/123-great-circles.html",
+  "title": "Great Circles — Austin to anywhere",
+  "category": "Data Viz",
+  "tags": ["geodesy", "haversine", "map-projections", "svg", "rhumb-line"],
+  "description": "Pick two of 31 world cities, or type any coordinates, and get the great-circle distance in kilometres, statute miles and nautical miles (haversine, mean Earth radius 6371 km), with the initial and final bearings and the midpoint. The route is drawn on an equirectangular and a Mercator map side by side, generated in the page with a graticule and schematic hand-drawn continents, next to the rhumb line of constant heading. That shows why the shortest path looks curved on a flat map, and why the line that's straight on Mercator is longer.",
+  "prompt": "Build a great-circle page, Austin to anywhere. Embed about 30 world cities with coordinates from a well-known public source, rounded to 2–4 decimals. Compute the haversine distance, the initial bearing and the midpoint, and draw the route on an equirectangular map and a Mercator map side by side, so it's clear why the great circle looks curved. Add a rhumb-line comparison. Generate the map outline in the page: a simple graticule and stylised continents drawn as rough hand-made polygons is fine, but label them as schematic. Use a mean Earth radius of 6371 km and give km, mi and nmi. The spec should check the haversine against independent reference values (Austin–London about 7,900 km, plus the antipode and same-point edge cases), and that the rhumb line is never shorter than the great circle.",
+  "qa": {
+    "methodology": [
+      "Independent oracle: the spec does its own geometry with unit vectors. The distance is R·atan2(|a×b|, a·b), the bearing comes from the great-circle tangent projected onto local north and east, and the midpoint is the normalised vector sum. None of these share a formula with the page's haversine and atan2 forms, and the page must agree with all three to 1e-6 across more than 60 city pairs.",
+      "Published distances: Austin–London must be 7,870–7,940 km, and New York–London, Sydney–London, Tokyo–Los Angeles and Paris–Rome within 1% of their commonly quoted figures. Miles and nautical miles must be exactly km/1.609344 and km/1.852.",
+      "Edge cases: antipodes (and pole to pole) must be exactly πR = 20,015.09 km, with the bearing and midpoint reported as undefined. The same point must be 0 km with no bearing, and a quarter of the equator must be πR/2 at 90°, with the rhumb line equal to it.",
+      "The rhumb line must never be shorter than the great circle, checked for all 961 ordered city pairs. It must equal it on a meridian and be more than 15% longer for Tokyo–New York.",
+      "Projection geometry: using the projected points from the hook, the rhumb line is collinear on Mercator (within 1e-6 map units), the great circle bows by more than 3 units toward the pole, and the trans-Pacific route is split into two segments at the antimeridian."
+    ],
+    "risks": [
+      "The Earth is modelled as a sphere. Real ellipsoidal distances differ by up to about 0.5%, so the published-value checks use a 1% band.",
+      "City coordinates are rounded to 0.01° (about 1 km) and depend on which 'city centre' a source picks, which moves the Austin–London figure by a few km.",
+      "The continents are schematic polygons. They're for orientation only and are labelled that way; nobody should read coastlines off them.",
+      "The Mercator map is cut at 80°, so routes over the pole (such as to McMurdo or across the Arctic) are clamped at the edge of the drawing, though their numbers are still right."
+    ],
+    "playwright": "The spec does its own geometry, and Playwright is mostly used to get numbers out: page.evaluate loops over every city pair inside the browser, returns only the failures, and asserts an empty list, which keeps a 961-pair check fast. The UI tests use fill() on the coordinate inputs and selectOption() on the city lists, and assert the formatted readouts and the SVG path's data-segments attribute rather than pixels. The first run found a real precision problem. The page's textbook asin(√a) haversine returned 20,015.0866 km for antipodes instead of πR = 20,015.0868 km, 0.19 m short, because a rounds toward 1 there. The page now computes 1 − a directly (it's the haversine of the distance to the antipode) and uses atan2, which is exact at both ends.",
+    "coverage": [
+      "Austin–London distance, units, bearing, final bearing",
+      "Vector-oracle distances and published pairs; city data sanity",
+      "Antipodes, poles, same point, equator quarter",
+      "Rhumb ≥ great circle for all pairs; meridian equality",
+      "Bearings and midpoints vs vector oracle for 60+ pairs",
+      "Mercator straight rhumb vs bowed great circle; antimeridian split",
+      "Swap, custom points, validation, schematic labels, keyboard order"
+    ]
+  },
+  "a11y": "Both ends are native, labelled selects with latitude and longitude number fields in named fieldsets. Swap is a real button with an accessible name. The numbers sit in a polite live region, and invalid coordinates are announced through role=alert. Each map has an aria-label that states the route, the great-circle and rhumb distances and the initial heading. The two lines are told apart by dash pattern as well as colour."
+}

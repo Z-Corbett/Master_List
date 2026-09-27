@@ -1,0 +1,35 @@
+{
+  "id": "127",
+  "slug": "127-magic-city-bike-coop",
+  "file": "lab/127-magic-city-bike-coop.html",
+  "title": "Magic City Bike Co-op — a fictional Birmingham community bike shop",
+  "category": "Landing Pages",
+  "tags": ["landing-page", "time-zones", "booking", "page-clock", "accordion", "responsive"],
+  "description": "A photocopied, zine-style landing page for an invented nonprofit bike co-op in Birmingham, Alabama. A live sign says whether open shop is open right now in US Central time, whatever zone your device is in. A repair-slot booking flow walks you through a day, a slot and the bike's problem, with three volunteer mechanics per slot and overhauls that need two of them. There's a volunteer-mechanic sign-up, an earn-a-bike explainer, a donation-tier picker that is openly simulated and has no payment fields at all, an FAQ, and a footer that says it is all fictional.",
+  "prompt": "Make a landing page for a fictional community bike co-op in Birmingham, Alabama, a nonprofit where people fix their own bikes with volunteer mechanics. Give it its own industrial, zine-like look, not a copy of the supper club page. I want open-shop hours with an open/closed-now sign computed in US Central time explicitly with Intl, a volunteer-mechanic sign-up, a repair-slot booking flow (pick a day, then a slot, then the bike's issue) with capacity limits held in memory, an earn-a-bike explainer, a donation-tier picker that's simulated with no payment fields at all, an FAQ, and a footer saying it's fictional. The spec should cover the slot capacity math, validation, the hours sign under page.clock across daylight saving, the FAQ keyboard behaviour and the mobile layout.",
+  "qa": {
+    "methodology": [
+      "Time-zone oracle: the spec encodes the US daylight-saving rule itself (UTC−5 from 2 a.m. on the second Sunday in March to 2 a.m. on the first Sunday in November, else UTC−6) and checks the page's Central wall time, CDT/CST label, UTC offset and open/closed verdict for ten UTC instants, including both 2026 transitions (8 March, 1 November).",
+      "Boundaries under page.clock: 9:59 AM Saturday is closed and runFor(61 s) flips the sign to open through the page's 15-second refresh; 7:59 PM Tuesday is open and one minute later says it opens tomorrow at 5 PM. The same UTC instant is 10:30 CDT in July (open) and 9:30 CST in December (closed).",
+      "Device-zone independence: the December case is rerun in fresh contexts set to Pacific/Auckland, Europe/London and America/Los_Angeles, and must read identically.",
+      "Capacity model: the spec keeps its own table of pre-booked mechanics and job sizes (overhaul = 2, everything else = 1) and compares free mechanics for every slot after each booking and cancellation, plus the per-day totals shown on the day buttons.",
+      "Flow and validation: slot and issue controls stay disabled until the previous step is chosen, changing the day clears the slot; empty fields focus the first invalid control, three malformed emails, a 121-character note, and the two-slots-per-email limit (case-insensitive)."
+    ],
+    "risks": [
+      "Intl time-zone data comes from the browser. A browser with stale tzdata would get future US DST rules wrong; the tests only check 2026.",
+      "The CDT/CST abbreviation comes from Intl's en-US short zone name; another locale could print GMT-5 instead, so the page always formats in en-US.",
+      "Holidays are mentioned but not modelled, so the sign would say open on a holiday that falls in open-shop hours.",
+      "Bookings, volunteers and pledges live only in memory and vanish on reload, which is intended for a demo."
+    ],
+    "playwright": "page.clock.install before goto plus pauseAt pins an exact UTC instant, and runFor drives the page's setInterval so the sign flipping at opening and closing time is observed rather than simulated. The page exposes __bike.status(ms), so one test can check ten instants against the spec's own DST rule without ten navigations; the user-facing text is still asserted for the key cases. browser.newContext({ timezoneId }) proved the result doesn't depend on the device's zone, at the cost of setting up the clock again in each context. Native radios and a select made check() and selectOption() work the same on desktop and the Pixel 7 emulation. The layout test uses setViewportSize and bounding boxes, not screenshots, so a visual regression in the zine styling would pass unnoticed.",
+    "coverage": [
+      "Open/closed sign, Central clock line, CDT/CST, today's row, live refresh at opening and closing",
+      "DST transitions and ten instants vs an independent rule; device time-zone independence",
+      "Gated day → slot → issue flow, day totals, capacity model through bookings and cancellations",
+      "Overhaul needs two free mechanics; validation, focus and the per-email limit",
+      "Volunteer sign-up, simulated donation tiers (monthly × 12) with no payment fields, no network",
+      "FAQ accordion keyboard, desktop and phone layout, 44 px targets, fiction notices"
+    ]
+  },
+  "a11y": "The booking flow is built from native radios in fieldsets with legends and a labelled select, so it works with the keyboard and screen readers without custom widgets; later steps are disabled until earlier ones are chosen, and hints explain why. Errors use aria-invalid and aria-describedby, and the first invalid field gets focus. The open/closed sign is mirrored in a polite live region that only speaks when the verdict changes, and today's row in the hours table carries aria-current=\"date\". Cancel buttons name the booking they cancel, and focus moves to the next one. The FAQ follows the WAI-ARIA accordion pattern with Arrow, Home and End keys."
+}

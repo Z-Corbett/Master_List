@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pecan Street Books — a fictional Austin used bookstore</title>
+<meta name="description" content="A landing page for an invented used bookstore in Austin, Texas: a searchable, filterable shelf of 40 made-up books, a hold-this-book flow with a three-hold limit and 48-hour expiry, staff picks, events and a sell-us-your-books estimator whose rules are written out. Entirely fictional.">
+<style>
+  :root {
+    --green: #1f3b2d;
+    --green-2: #2c5240;
+    --pecan: #8a5a34;
+    --pecan-2: #6b4225;
+    --card: #f5ecd9;
+    --card-2: #ebdfc4;
+    --paper: #faf5ea;
+    --ink: #231a12;
+    --muted: #6a5a48;
+    --stamp: #b0413e;
+    --blue-line: #9db4c8;
+    --gold: #d6a743;
+    --ok: #2f6b3e;
+    --err: #a3261d;
+    --type: "Courier New", Courier, ui-monospace, "Cascadia Mono", Consolas, monospace;
+    --book: "Georgia", "Cambria", "Times New Roman", serif;
+    --sans: "Gill Sans", "Gill Sans MT", "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.6 var(--book); overflow-x: hidden; overflow-wrap: break-word; }
+  :focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+  a { color: var(--green-2); }
+  a.back { position: fixed; top: 12px; left: 12px; z-index: 30; color: var(--card); background: var(--green); text-decoration: none;
+    font: 600 13px/1 var(--sans); padding: 9px 12px; border-radius: 2px; border: 1px solid var(--gold); }
+  a.back:hover { background: var(--pecan-2); }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; min-width: 0; }
+  h1, h2, h3 { line-height: 1.12; margin: 0; font-weight: 700; }
+  h2 { font-size: clamp(28px, 4.6vw, 40px); color: var(--green); }
+  .kicker { font: 700 12px/1.3 var(--type); letter-spacing: .18em; text-transform: uppercase; color: var(--pecan); margin: 0 0 6px; }
+  .sub { color: var(--muted); max-width: 64ch; margin: 8px 0 22px; }
+  section { padding: 52px 0; }
+  section + section { border-top: 6px double var(--card-2); }
+
+  /* hero: a green awning over a shelf */
+  .hero { background: var(--green); color: var(--card); padding: 70px 0 0; position: relative; }
+  .hero::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 18px;
+    background: repeating-linear-gradient(90deg, var(--pecan) 0 28px, var(--card) 28px 56px); }
+  .hero-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 32px; align-items: end; }
+  .hero h1 { font-size: clamp(44px, 8.5vw, 86px); letter-spacing: -.01em; color: var(--card); }
+  .hero h1 span { color: var(--gold); font-style: italic; font-weight: 400; }
+  .hero .tag { font: 700 13px/1.4 var(--type); letter-spacing: .14em; text-transform: uppercase; color: var(--gold); margin: 0 0 12px; }
+  .hero .lede { font-size: 19px; max-width: 44ch; margin: 16px 0 20px; }
+  .nav { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 8px 16px; border-radius: 2px; border: 2px solid var(--green);
+    background: var(--paper); color: var(--green); font: 700 14px/1.2 var(--sans); text-decoration: none; cursor: pointer; max-width: 100%; text-align: center; }
+  .btn.solid { background: var(--pecan); border-color: var(--pecan); color: #fff8ec; }
+  .btn.solid:hover { background: var(--pecan-2); }
+  .hero .btn { border-color: var(--card); background: transparent; color: var(--card); }
+  .hero .btn.solid { background: var(--gold); border-color: var(--gold); color: var(--green); }
+  .fiction { font: 13px/1.5 var(--sans); color: #cfd9c9; margin: 0 0 26px; max-width: 56ch; }
+  .shelf { width: 100%; display: block; }
+  .hours { display: flex; flex-wrap: wrap; gap: 6px 18px; font: 14px/1.4 var(--type); color: #e5dcc4; padding: 12px 0 16px; border-top: 1px solid rgba(245,236,217,.25); }
+
+  /* catalogue */
+  .filters { display: grid; grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr)); gap: 12px; align-items: end;
+    background: var(--card); border: 1px solid var(--card-2); border-left: 6px solid var(--pecan); padding: 14px; }
+  .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .field label, .lbl { font: 700 12px/1.3 var(--type); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  input[type=search], input[type=text], input[type=number], select { width: 100%; max-width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid #b59c7c; border-radius: 2px;
+    background: #fffdf7; color: var(--ink); font: 16px/1.3 var(--sans); }
+  .check { display: flex; gap: 8px; align-items: center; font: 15px/1.3 var(--sans); min-height: 44px; }
+  .check input { width: 20px; height: 20px; accent-color: var(--pecan); margin: 0; flex: none; }
+  .bar { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; align-items: center; margin: 14px 0 10px; font: 15px/1.4 var(--sans); }
+  .count { font: 700 15px/1.3 var(--type); color: var(--green); }
+  .kbd { color: var(--muted); font-size: 13px; }
+  kbd { font: 12px/1 var(--type); background: #fffdf7; border: 1px solid #b59c7c; border-bottom-width: 2px; border-radius: 2px; padding: 2px 5px; }
+  .books { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+  .bk { display: grid; grid-template-columns: 14px minmax(0, 1fr); background: #fffdf7; border: 1px solid var(--card-2); min-width: 0; }
+  .bk .spine { background: var(--sp, var(--pecan)); }
+  .bk .body { padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .bk h3 { font-size: 18px; color: var(--ink); }
+  .bk .by { font-style: italic; color: var(--muted); margin: 0; }
+  .bk .meta { font: 12px/1.5 var(--type); color: var(--muted); margin: 0; }
+  .bk .row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-top: auto; padding-top: 6px; }
+  .bk .price { font: 700 17px/1 var(--type); color: var(--green); }
+  .bk .pick { font: 700 11px/1 var(--type); letter-spacing: .1em; color: var(--stamp); border: 1.5px solid var(--stamp); padding: 3px 5px; transform: rotate(-3deg); display: inline-block; align-self: flex-start; }
+  .bk button { min-height: 44px; padding: 6px 12px; border-radius: 2px; border: 2px solid var(--green); background: var(--green); color: var(--card); font: 700 13px/1.1 var(--sans); cursor: pointer; }
+  .bk button[aria-pressed="true"] { background: var(--paper); color: var(--stamp); border-color: var(--stamp); }
+  .bk.held { background: var(--card); }
+  .empty { font: italic 17px/1.5 var(--book); color: var(--muted); padding: 20px 0; }
+
+  /* hold slip: a library card */
+  .holdzone { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; margin-top: 24px; align-items: start; }
+  .libcard { background: var(--card); border: 1px solid #cdbb98; padding: 16px 16px 14px; min-width: 0;
+    background-image: repeating-linear-gradient(180deg, transparent 0 31px, var(--blue-line) 31px 32px); background-position: 0 44px; }
+  .libcard h3 { font: 700 15px/1.3 var(--type); letter-spacing: .12em; text-transform: uppercase; color: var(--stamp); border-bottom: 2px solid var(--stamp); padding-bottom: 6px; margin-bottom: 10px; }
+  .libcard p { margin: 0 0 10px; font-family: var(--type); font-size: 15px; }
+  .err { color: var(--err); font: 13px/1.4 var(--sans); margin: 4px 0 0; min-height: 0; }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+  .msg { font: 600 15px/1.5 var(--sans); min-height: 1.5em; margin: 12px 0 0; }
+  .msg.bad { color: var(--err); }
+  .msg.ok { color: var(--ok); }
+  .slips { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .slip { border-top: 1px dashed #b59c7c; padding: 8px 0 2px; display: flex; flex-wrap: wrap; gap: 6px 12px; justify-content: space-between; align-items: center; font: 14px/1.45 var(--type); }
+  .slip b { font-family: var(--book); font-size: 16px; }
+  .stampd { display: inline-block; color: var(--stamp); border: 2px solid var(--stamp); padding: 2px 6px; font: 700 12px/1.3 var(--type); letter-spacing: .06em; transform: rotate(-2deg); text-transform: uppercase; }
+  .slip button { min-height: 44px; padding: 6px 12px; border: 1px solid var(--stamp); background: transparent; color: var(--stamp); border-radius: 2px; font: 700 13px/1 var(--sans); cursor: pointer; }
+  .none { color: var(--muted); font-style: italic; font-family: var(--book); }
+
+  /* staff picks */
+  .picks { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+  .pickcard { background: var(--green); color: var(--card); padding: 16px; min-width: 0; position: relative; }
+  .pickcard::after { content: ""; position: absolute; right: 12px; top: -6px; width: 16px; height: 34px; background: var(--stamp); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%); }
+  .pickcard h3 { font-size: 19px; color: var(--gold); padding-right: 22px; }
+  .pickcard .by { font-style: italic; margin: 2px 0 8px; color: #d8e0d0; }
+  .pickcard blockquote { margin: 0; font-size: 15px; }
+  .pickcard .who { font: 12px/1.3 var(--type); letter-spacing: .08em; text-transform: uppercase; color: var(--gold); margin: 10px 0 0; }
+
+  /* events */
+  .events { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  .ev { display: grid; grid-template-columns: 94px minmax(0, 1fr); gap: 16px; align-items: start; background: #fffdf7; border: 1px solid var(--card-2); padding: 14px; }
+  .ev .date { text-align: center; border: 2px solid var(--stamp); color: var(--stamp); font: 700 13px/1.25 var(--type); padding: 8px 4px; text-transform: uppercase; transform: rotate(-2deg); }
+  .ev .date b { display: block; font-size: 28px; line-height: 1.05; }
+  .ev h3 { font-size: 20px; color: var(--green); }
+  .ev p { margin: 4px 0 0; }
+
+  /* estimator */
+  .est { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 20px; align-items: start; }
+  .rules { background: var(--card); padding: 16px 18px; border-left: 6px solid var(--green); min-width: 0; }
+  .rules ol { margin: 0; padding-left: 22px; }
+  .rules li { margin-bottom: 6px; }
+  .rules table { border-collapse: collapse; margin: 6px 0 10px; font: 14px/1.4 var(--type); width: 100%; }
+  .rules th, .rules td { text-align: left; padding: 4px 6px; border-bottom: 1px solid #cdbb98; }
+  .estform { background: #fffdf7; border: 1px solid var(--card-2); padding: 16px; min-width: 0; }
+  .grid3 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, .8fr); gap: 10px; }
+  .grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin-top: 10px; }
+  .lines { list-style: none; margin: 14px 0 0; padding: 0; }
+  .lines li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 10px; border-top: 1px dashed #b59c7c; padding: 8px 0; font: 14px/1.45 var(--type); }
+  .lines li button { min-height: 40px; border: 1px solid var(--muted); background: transparent; color: var(--muted); padding: 4px 10px; border-radius: 2px; cursor: pointer; font: 600 13px/1 var(--sans); }
+  .totals { margin-top: 12px; background: var(--green); color: var(--card); padding: 12px 14px; font: 16px/1.5 var(--type); }
+  .totals b { color: var(--gold); }
+
+  footer { background: var(--green); color: #dfe6d8; padding: 30px 0; font: 14px/1.6 var(--sans); border-top: 8px solid var(--pecan); }
+  footer p { margin: 0 0 6px; }
+  footer strong { color: var(--gold); }
+
+  @media (max-width: 900px) {
+    .books { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .picks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .filters { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .filters .q { grid-column: 1 / -1; }
+    .est, .holdzone { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 600px) {
+    .hero-grid { grid-template-columns: minmax(0, 1fr); }
+    .books, .picks, .filters { grid-template-columns: minmax(0, 1fr); }
+    .grid3 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .grid3 .field:first-child { grid-column: 1 / -1; }
+    .ev { grid-template-columns: 70px minmax(0, 1fr); gap: 12px; }
+    .ev .date b { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="hero-grid">
+      <div>
+        <p class="tag">Used &amp; rare · since an invented 1987 · Austin, TX</p>
+        <h1>Pecan Street <span>Books</span></h1>
+        <p class="lede">Two floors of secondhand paperbacks, creaky hardcovers and one very opinionated cat. Browse the shelf below, put a book on hold, or find out what we'd pay for yours.</p>
+        <nav class="nav" aria-label="On this page">
+          <a class="btn solid" href="#shelf">Browse the shelf</a>
+          <a class="btn" href="#sell">Sell us your books</a>
+          <a class="btn" href="#events">Events</a>
+        </nav>
+        <p class="fiction" data-testid="fiction-note">Pecan Street Books, its staff, its cat and every title on its shelves are fictional, made up for a design demo. Nothing here can really be held or sold.</p>
+      </div>
+      <svg class="shelf" viewBox="0 0 360 200" role="img" aria-label="Illustration: a wooden shelf of worn book spines with a sleeping cat on top">
+        <rect x="0" y="186" width="360" height="14" fill="#8a5a34"/>
+        <g id="spines"></g>
+        <path d="M232 56c6-22 34-26 48-12 8-10 18-10 22-4l-4 8c10 8 12 22 4 30H226c-8-4-6-16 6-22z" fill="#231a12"/>
+        <path d="M283 44l4-12 6 10M298 42l6-10 2 12" fill="#231a12"/>
+        <path d="M226 78c-14 2-20-8-14-14" stroke="#231a12" stroke-width="5" fill="none" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="hours" aria-label="Opening hours">
+      <span>Mon–Thu 10–8</span><span>Fri–Sat 10–10</span><span>Sun 12–6</span><span>Buying counter: daily until an hour before close</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section id="shelf" aria-labelledby="h-shelf">
+    <div class="wrap">
+      <p class="kicker">The front table and beyond</p>
+      <h2 id="h-shelf">On the shelf</h2>
+      <p class="sub">Every copy is one of a kind, so once it's held it's gone for everyone else. Holds wait at the counter for 48 hours, and each reader can keep up to three at a time.</p>
+      <div class="filters" role="search" aria-label="Search the shelf">
+        <div class="field q"><label for="q">Title or author</label><input id="q" type="search" autocomplete="off" placeholder="e.g. armadillo, Quade" data-testid="search"></div>
+        <div class="field"><label for="fGenre">Section</label><select id="fGenre" data-testid="f-genre"></select></div>
+        <div class="field"><label for="fFormat">Format</label>
+          <select id="fFormat" data-testid="f-format"><option value="">Any format</option><option value="paperback">Paperback</option><option value="hardcover">Hardcover</option></select></div>
+        <div class="field"><label for="fPrice">Price</label>
+          <select id="fPrice" data-testid="f-price"><option value="">Any price</option><option value="5">$5 and under</option><option value="10">$10 and under</option><option value="15">$15 and under</option></select></div>
+        <label class="check"><input type="checkbox" id="fPick" data-testid="f-pick"> Staff picks only</label>
+        <label class="check"><input type="checkbox" id="fAvail" data-testid="f-avail"> Hide books on hold</label>
+      </div>
+      <div class="bar">
+        <p class="count" id="count" role="status" aria-live="polite" data-testid="count" style="margin:0"></p>
+        <p class="kbd" style="margin:0"><kbd>/</kbd> search · <kbd>↑</kbd><kbd>↓</kbd> move between books · <kbd>Home</kbd>/<kbd>End</kbd> · <kbd>Enter</kbd> hold</p>
+      </div>
+      <ul class="books" id="books" aria-label="Books matching your search" data-testid="books"></ul>
+
+      <div class="holdzone">
+        <form class="libcard" id="holdForm" data-testid="hold-form" novalidate hidden aria-labelledby="h-holdform">
+          <h3 id="h-holdform">Hold request</h3>
+          <p>Book: <b id="hBook" data-testid="hold-book"></b></p>
+          <div class="field"><label for="hName">Name for the hold slip</label>
+            <input id="hName" type="text" autocomplete="name" aria-describedby="eName" data-testid="hold-name"></div>
+          <p class="err" id="eName" data-testid="e-name"></p>
+          <div class="actions">
+            <button class="btn solid" type="submit" value="place" data-testid="hold-place">Place hold</button>
+            <button class="btn" type="submit" value="cancel" formnovalidate data-testid="hold-cancel">Never mind</button>
+          </div>
+        </form>
+        <div class="libcard" aria-labelledby="h-holds" id="holdsCard">
+          <h3 id="h-holds">Your holds <span id="holdCount" data-testid="hold-count"></span></h3>
+          <ul class="slips" id="slips" data-testid="slips"></ul>
+          <p class="msg" id="msg" role="status" aria-live="polite" data-testid="msg"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="picks" aria-labelledby="h-picks">
+    <div class="wrap">
+      <p class="kicker">Bookmarked by the people at the counter</p>
+      <h2 id="h-picks">Staff picks</h2>
+      <p class="sub">Handwritten cards, typed up. Look for the red stamp on the shelf.</p>
+      <div class="picks" id="pickList" data-testid="picks"></div>
+    </div>
+  </section>
+
+  <section id="events" aria-labelledby="h-events">
+    <div class="wrap">
+      <p class="kicker">Fall calendar, 2026</p>
+      <h2 id="h-events">Events</h2>
+      <p class="sub">All free, all in the back room with the mismatched chairs. (Invented events: please don't turn up.)</p>
+      <ul class="events" id="eventList" data-testid="events"></ul>
+    </div>
+  </section>
+
+  <section id="sell" aria-labelledby="h-sell">
+    <div class="wrap">
+      <p class="kicker">The buying counter</p>
+      <h2 id="h-sell">Sell us your books</h2>
+      <p class="sub">Add the books you're thinking of bringing in and get a rough offer. It is only an estimate: the buyer at the counter has the last word.</p>
+      <div class="est">
+        <div class="rules" data-testid="rules">
+          <h3 style="font-size:20px;color:var(--green);margin-bottom:8px">How we price an offer</h3>
+          <ol>
+            <li>We start from the <b>printed cover price</b> and pay a share of it that depends on condition:
+              <table aria-label="Offer rate by condition"><thead><tr><th scope="col">Condition</th><th scope="col">Share of cover price</th></tr></thead>
+                <tbody id="rateRows"></tbody></table></li>
+            <li>Hardcovers add <b>$0.50</b> each before rounding.</li>
+            <li>Each book's cash offer is <b>rounded down to the nearest 25¢</b>, and any book we accept is worth at least <b>25¢</b>.</li>
+            <li>Damaged books (water, mould, loose pages) get no offer, but we'll happily recycle them.</li>
+            <li><b>Store credit</b> is 150% of the cash total, rounded down to the cent.</li>
+            <li>Up to <b>20 books</b> per visit.</li>
+          </ol>
+        </div>
+        <form class="estform" id="estForm" novalidate aria-labelledby="h-estform" data-testid="est-form">
+          <h3 id="h-estform" style="font-size:20px;color:var(--green);margin-bottom:10px">Your stack</h3>
+          <div class="grid3">
+            <div class="field"><label for="ePrice">Cover price ($)</label><input id="ePrice" type="text" inputmode="decimal" aria-describedby="ePriceErr" data-testid="e-price"></div>
+            <div class="field"><label for="eCond">Condition</label><select id="eCond" data-testid="e-cond"></select></div>
+            <div class="field"><label for="eQty">Copies</label><input id="eQty" type="number" min="1" max="20" step="1" value="1" inputmode="numeric" aria-describedby="eQtyErr" data-testid="e-qty"></div>
+          </div>
+          <div class="grid2">
+            <label class="check"><input type="checkbox" id="eHard" data-testid="e-hard"> Hardcover</label>
+            <button class="btn solid" type="submit" data-testid="e-add">Add to stack</button>
+          </div>
+          <p class="err" id="ePriceErr" data-testid="e-price-err"></p>
+          <p class="err" id="eQtyErr" data-testid="e-qty-err"></p>
+          <ul class="lines" id="lines" data-testid="lines"></ul>
+          <div class="totals" id="totals" aria-live="polite" data-testid="totals"></div>
+        </form>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p><strong>Pecan Street Books</strong> is fictional: an invented shop with invented staff, events and books (every title and author on this page is made up). It is not affiliated with any real bookstore in Austin or anywhere else.</p>
+    <p data-testid="footer-fiction">No holds are placed, nothing is bought or sold, and nothing on this page is sent over the network. Built by Zac Corbett.</p>
+  </div>
+</footer>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const money = (cents) => '$' + (cents / 100).toFixed(2);
+
+  const GENRES = ['Fiction', 'Mystery', 'Sci-Fi & Fantasy', 'Poetry', 'History', 'Texas & the West', 'Kids', 'Cooking'];
+  const SPINE = { 'Fiction': '#8a5a34', 'Mystery': '#3d3a5c', 'Sci-Fi & Fantasy': '#2e6a7a', 'Poetry': '#b0413e', 'History': '#5b6b3a', 'Texas & the West': '#b07a2a', 'Kids': '#d6a743', 'Cooking': '#7c3b52' };
+  // Every title and author below is invented. [title, author, genre, format (p/h), condition, price in cents, year, staff pick]
+  const RAW = [
+    ["The Cartographer's Second Wife", 'Imelda Farrow', 'Fiction', 'h', 'Good', 1400, 2011, 0],
+    ["Low Water at Barton's Mill", 'Desmond Okafor-Lang', 'Fiction', 'p', 'Like new', 900, 2019, 1],
+    ['A Quiet Year for Grackles', 'Pilar Vandermeer', 'Fiction', 'p', 'Good', 650, 2004, 0],
+    ['Everything the Porch Heard', 'Loretta Quade', 'Fiction', 'h', 'Well-read', 800, 1996, 0],
+    ['Salt Lick Summer', 'Harlan Beaumont-Tate', 'Fiction', 'p', 'Good', 450, 1988, 0],
+    ['Murder at the Pecan Festival', 'Agnes Wolcott-Reyes', 'Mystery', 'p', 'Good', 500, 2015, 0],
+    ["Nine Keys to the Lamplighter's Room", 'Theo Marchetti-Blum', 'Mystery', 'h', 'Like new', 1600, 2021, 1],
+    ['The Drowned Canoe Club', 'Winifred Oyelaran', 'Mystery', 'p', 'Well-read', 300, 1999, 0],
+    ['A Pinch of Hemlock, Hold the Cream', 'Cordelia Nash-Umber', 'Mystery', 'p', 'Good', 550, 2008, 0],
+    ['The Last Bus to Buda', 'Ignatius Pell', 'Mystery', 'h', 'Good', 1200, 2013, 0],
+    ['Orbitals of the Armadillo Queen', 'Zenobia Kastellan', 'Sci-Fi & Fantasy', 'p', 'Good', 700, 2017, 1],
+    ['Cicadas in the Server Room', 'Rafe Olumide-Hart', 'Sci-Fi & Fantasy', 'p', 'Like new', 1000, 2023, 0],
+    ['Starlight over Sixth Street', 'Juniper Alcott-Veer', 'Sci-Fi & Fantasy', 'h', 'Good', 1500, 2010, 0],
+    ['The Mapmaker of Unfinished Worlds', 'Bartholomew Quist', 'Sci-Fi & Fantasy', 'h', 'Well-read', 1100, 1983, 0],
+    ['Seven Moons of Llano', 'Soledad Ferrier', 'Sci-Fi & Fantasy', 'p', 'Well-read', 400, 1991, 0],
+    ['Hymns for a Hot Tin Roof', 'Ezra Blanchette-Moon', 'Poetry', 'p', 'Good', 600, 2002, 0],
+    ['Limestone Psalms', 'Marisol Thackeray', 'Poetry', 'h', 'Like new', 1800, 2020, 1],
+    ['What the Bluebonnets Owe', 'Odessa Lark-Whitfield', 'Poetry', 'p', 'Well-read', 350, 1979, 0],
+    ['Small Hours, Big Sky', 'Casimir Delacroix-Hunt', 'Poetry', 'p', 'Good', 500, 2014, 0],
+    ['A Pocketful of Caliche', 'Fern Abernathy-Ruiz', 'Poetry', 'p', 'Like new', 800, 2022, 0],
+    ['Ferries and Floods: A River Town Chronicle', 'Horace Villanueva-Stroud', 'History', 'h', 'Good', 2200, 1998, 0],
+    ['The Telegraph Clerks of 1880', 'Wilhelmina Grange', 'History', 'p', 'Well-read', 450, 1986, 0],
+    ['Ledger of a Frontier Druggist', 'Augustin Pemberton-Oaks', 'History', 'h', 'Well-read', 1300, 1974, 0],
+    ['Iron Horses, Cotton Bales', 'Rosalind Okonkwo-Hale', 'History', 'p', 'Good', 750, 2009, 0],
+    ['Lamplight and Letterpress', 'Cyrus Vandevelde', 'History', 'h', 'Like new', 2500, 2018, 0],
+    ['A Rattlesnake Almanac for Beginners', 'Dolores Whitcombe', 'Texas & the West', 'p', 'Good', 550, 2006, 0],
+    ['The Ranch That Moved Twice', 'Jubal Haskins-Ortega', 'Texas & the West', 'h', 'Good', 1700, 2001, 1],
+    ['Roadside Wildflowers, Mostly Yellow', 'Birdie Calloway-Stern', 'Texas & the West', 'p', 'Like new', 1200, 2016, 0],
+    ['Barbed Wire Lullabies', 'Anselm Crockett-Yu', 'Texas & the West', 'p', 'Well-read', 250, 1993, 0],
+    ['The Pecan Orchard Notebook', 'Ida Belle Marchand', 'Texas & the West', 'h', 'Good', 1900, 2012, 0],
+    ['Pip the Brave Possum', 'Hattie Fenwick-Soto', 'Kids', 'h', 'Well-read', 500, 2003, 0],
+    ['The Armadillo Who Wanted Wings', 'Rufus Tennyson-Abe', 'Kids', 'p', 'Good', 400, 2012, 1],
+    ["Grandpa's Upside-Down Boots", 'Mabel Okoro-Finch', 'Kids', 'h', 'Like new', 1100, 2021, 0],
+    ['Twelve Frogs and a Tuba', 'Leopold Arriaga', 'Kids', 'p', 'Good', 300, 2007, 0],
+    ['Night Bus to the Moon Library', 'Clementine Rourke-Asante', 'Kids', 'p', 'Like new', 600, 2024, 0],
+    ['Smoke, Salt & Sunday', 'Beatrix Montalvo-Greer', 'Cooking', 'h', 'Good', 2000, 2015, 0],
+    ['The Tortilla Ledger', 'Evangelina Price-Obi', 'Cooking', 'p', 'Like new', 1400, 2020, 1],
+    ['Pies of the Lost Highway', 'Delbert Moncrief', 'Cooking', 'h', 'Well-read', 900, 1990, 0],
+    ['One Skillet, Forty Suppers', 'Rosamund Achterberg', 'Cooking', 'p', 'Good', 800, 2011, 0],
+    ['Kolaches at Dawn', 'Vaclav Brenneman-Diaz', 'Cooking', 'p', 'Good', 700, 2005, 0],
+  ];
+  const BOOKS = RAW.map(([title, author, genre, f, condition, price, year, pick], i) => ({
+    id: 'b' + String(i + 1).padStart(2, '0'), title, author, genre, format: f === 'h' ? 'hardcover' : 'paperback', condition, price, year, pick: !!pick,
+  }));
+  const byId = (id) => BOOKS.find((b) => b.id === id);
+  const PICK_NOTES = {
+    b02: ['Dot', 'A drought, a mill and a family that won’t talk about either. I read it in one sitting on the back steps.'],
+    b07: ['Wendell', 'Nine locked rooms, one lamplighter, zero cheating. The best puzzle mystery we’ve had in all year.'],
+    b11: ['Lupe', 'Space opera with armadillos. That’s the review. Fine: it’s also funny and oddly moving.'],
+    b17: ['Soren', 'Short poems about rock and water and patience. I keep a copy by the register for slow afternoons.'],
+    b27: ['Dot', 'A true-ish family history of a ranch dragged across two counties. Bring a map and a sense of humour.'],
+    b32: ['Lupe', 'Our most-read story hour book. Kids flap their arms on every page; so do some parents.'],
+    b37: ['Wendell', 'Forty tortillas, forty short stories about the people who made them. Stained copy; that’s a compliment.'],
+  };
+  const PICK_SHOW = ['b07', 'b17', 'b32', 'b37'];
+  const EVENTS = [
+    { date: '2026-10-10', time: '9:00 AM – 2:00 PM', title: 'Fill-a-Bag Porch Sale', text: 'Everything on the porch carts, as much as fits in one of our tote bags, for one flat price.' },
+    { date: '2026-10-15', time: '7:00 PM', title: 'Limestone Open Mic', text: 'Five minutes each. Read your own poems or someone else’s. Marisol Thackeray (invented) hosts.' },
+    { date: '2026-10-31', time: '11:00 AM', title: 'Costume Story Hour', text: 'Come dressed as a book character. We read The Armadillo Who Wanted Wings, with wings provided.' },
+    { date: '2026-11-12', time: '7:00 PM', title: 'Mystery Book Club: The Last Bus to Buda', text: 'Bring your theory about the conductor. Coffee from the corner stand, which is also imaginary.' },
+  ];
+
+  // ---------- estimator rules ----------
+  const RATES = [['Like new', 30], ['Good', 20], ['Well-read', 10], ['Damaged', 0]];
+  const HARD_BONUS = 50, STEP = 25, FLOOR = 25, MAX_BOOKS = 20;
+  function perBook(priceCents, cond, hard) {
+    const rate = (RATES.find((r) => r[0] === cond) || [0, 0])[1];
+    if (!rate) return 0;
+    const raw = priceCents * rate / 100 + (hard ? HARD_BONUS : 0);
+    return Math.max(FLOOR, Math.floor(raw / STEP + 1e-9) * STEP);
+  }
+  function estimate(lines) {
+    const out = lines.map((l) => ({ ...l, each: perBook(l.price, l.cond, l.hard) }));
+    out.forEach((l) => { l.total = l.each * l.qty; });
+    const cash = out.reduce((s, l) => s + l.total, 0);
+    return { lines: out, cash, credit: Math.floor(cash * 3 / 2), books: out.reduce((s, l) => s + l.qty, 0) };
+  }
+
+  // ---------- state ----------
+  const HOLD_MS = 48 * 3600 * 1000, MAX_HOLDS = 3;
+  const state = { holds: [], seq: 0, lines: [], focusId: null, pending: null };
+  const heldIds = () => new Set(state.holds.map((h) => h.book));
+
+  // ---------- shelf ----------
+  $('fGenre').innerHTML = '<option value="">All sections</option>' + GENRES.map((g) => `<option value="${esc(g)}">${esc(g)}</option>`).join('');
+  function criteria() {
+    return { q: $('q').value.trim().toLowerCase(), genre: $('fGenre').value, format: $('fFormat').value, max: $('fPrice').value ? +$('fPrice').value * 100 : Infinity, pick: $('fPick').checked, avail: $('fAvail').checked };
+  }
+  function filter(c = criteria()) {
+    const held = heldIds();
+    return BOOKS.filter((b) => (!c.q || b.title.toLowerCase().includes(c.q) || b.author.toLowerCase().includes(c.q))
+      && (!c.genre || b.genre === c.genre) && (!c.format || b.format === c.format) && b.price <= c.max && (!c.pick || b.pick) && (!c.avail || !held.has(b.id)));
+  }
+  function renderShelf() {
+    const list = filter(), held = heldIds();
+    $('count').textContent = list.length === BOOKS.length ? `Showing all ${BOOKS.length} books` : `Showing ${list.length} of ${BOOKS.length} books`;
+    if (!list.some((b) => b.id === state.focusId)) state.focusId = list.length ? list[0].id : null;
+    $('books').innerHTML = list.length ? list.map((b) => {
+      const h = held.has(b.id);
+      return `<li class="bk${h ? ' held' : ''}" data-testid="book-${b.id}" data-id="${b.id}" style="--sp:${SPINE[b.genre]}"><span class="spine" aria-hidden="true"></span><div class="body">
+        ${b.pick ? '<span class="pick">Staff pick</span>' : ''}
+        <h3 id="t-${b.id}">${esc(b.title)}</h3><p class="by">${esc(b.author)}</p>
+        <p class="meta">${esc(b.genre)} · ${b.format} · ${b.condition.toLowerCase()} · ${b.year}</p>
+        <div class="row"><span class="price">${money(b.price)}</span>
+        <button type="button" data-hold="${b.id}" data-testid="hold-${b.id}" tabindex="${b.id === state.focusId ? 0 : -1}" aria-pressed="${h}" aria-label="${h ? 'Release hold on' : 'Hold'} ${esc(b.title)}">${h ? 'On hold · release' : 'Hold this book'}</button></div>
+      </div></li>`;
+    }).join('') : '<li class="empty" data-testid="empty">Nothing on the shelf matches. Try fewer filters, or ask at the counter: we have a back room.</li>';
+  }
+  ['q', 'fGenre', 'fFormat', 'fPrice', 'fPick', 'fAvail'].forEach((id) => { $(id).addEventListener('input', renderShelf); $(id).addEventListener('change', renderShelf); });
+
+  const holdButtons = () => [...$('books').querySelectorAll('button[data-hold]')];
+  function focusBook(id) {
+    state.focusId = id;
+    holdButtons().forEach((b) => { b.tabIndex = b.dataset.hold === id ? 0 : -1; });
+    const b = $('books').querySelector(`[data-hold="${id}"]`); if (b) b.focus();
+  }
+  $('books').addEventListener('keydown', (e) => {
+    const bs = holdButtons(), i = bs.indexOf(document.activeElement); if (i < 0) return;
+    const go = { ArrowDown: Math.min(bs.length - 1, i + 1), ArrowRight: Math.min(bs.length - 1, i + 1), ArrowUp: Math.max(0, i - 1), ArrowLeft: Math.max(0, i - 1), Home: 0, End: bs.length - 1 }[e.key];
+    if (go !== undefined) { e.preventDefault(); focusBook(bs[go].dataset.hold); }
+  });
+  $('books').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-hold]'); if (!b) return;
+    const id = b.dataset.hold; state.focusId = id;
+    holdButtons().forEach((x) => { x.tabIndex = x === b ? 0 : -1; });
+    if (heldIds().has(id)) { release(state.holds.find((h) => h.book === id).code); return; }
+    requestHold(id);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) return;
+    e.preventDefault(); $('q').focus();
+  });
+
+  // ---------- holds ----------
+  function say(text, ok) { const m = $('msg'); m.textContent = text; m.className = 'msg ' + (ok ? 'ok' : 'bad'); }
+  function requestHold(id) {
+    if (state.holds.length >= MAX_HOLDS) {
+      closeForm(false);
+      say(`You already have ${MAX_HOLDS} books on hold, the most we keep for one reader. Release one first.`, false);
+      return false;
+    }
+    state.pending = id;
+    $('hBook').textContent = `${byId(id).title} (${money(byId(id).price)})`;
+    $('eName').textContent = ''; $('hName').setAttribute('aria-invalid', 'false');
+    $('holdForm').hidden = false;
+    $('holdForm').scrollIntoView({ block: 'nearest', behavior: 'instant' }); $('hName').focus({ preventScroll: true });
+    return true;
+  }
+  function closeForm(refocus) {
+    const id = state.pending; state.pending = null; $('holdForm').hidden = true;
+    if (refocus && id) { const b = $('books').querySelector(`[data-hold="${id}"]`); if (b) focusBook(id); else $('q').focus({ preventScroll: true }); }
+  }
+  $('holdForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const action = e.submitter ? e.submitter.value : 'place';
+    if (action === 'cancel') { closeForm(true); say('No hold placed.', true); return; }
+    const name = $('hName').value.trim();
+    if (name.length < 2) { $('eName').textContent = 'Please give a name for the hold slip (at least 2 characters).'; $('hName').setAttribute('aria-invalid', 'true'); $('hName').focus(); return; }
+    const id = state.pending; if (!id) return;
+    if (state.holds.length >= MAX_HOLDS) { closeForm(true); say(`You already have ${MAX_HOLDS} books on hold, the most we keep for one reader. Release one first.`, false); return; }
+    if (heldIds().has(id)) { closeForm(true); return; }
+    const now = Date.now();
+    const h = { code: 'PSB-' + String(++state.seq).padStart(3, '0'), book: id, name, placed: now, expires: now + HOLD_MS };
+    state.holds.push(h);
+    renderAll();
+    closeForm(true);
+    say(`Held: ${byId(id).title} for ${name}, until ${fmtCentral(h.expires)}. Slip ${h.code}. Nothing was sent.`, true);
+    schedule();
+  });
+  $('holdForm').addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); closeForm(true); say('No hold placed.', true); } });
+
+  function release(code) {
+    const i = state.holds.findIndex((h) => h.code === code); if (i < 0) return;
+    const h = state.holds.splice(i, 1)[0];
+    renderAll(); schedule();
+    say(`Released ${byId(h.book).title}. It's back on the shelf.`, true);
+    const btn = $('books').querySelector(`[data-hold="${h.book}"]`);
+    if (btn) focusBook(h.book); else { const r = $('slips').querySelector('button'); (r || $('q')).focus({ preventScroll: true }); }
+  }
+  $('slips').addEventListener('click', (e) => { const b = e.target.closest('[data-release]'); if (b) release(b.dataset.release); });
+
+  // Central time, built from formatToParts so the output doesn't depend on ICU spacing quirks.
+  const CT = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' });
+  function fmtCentral(ms) {
+    const p = Object.fromEntries(CT.formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+    return `${p.weekday} ${p.month} ${p.day}, ${p.hour}:${p.minute} ${String(p.dayPeriod).toUpperCase()} ${p.timeZoneName}`;
+  }
+  function left(ms) { const m = Math.max(0, Math.ceil(ms / 60000)); return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')} m left`; }
+  function renderHolds() {
+    const now = Date.now();
+    $('holdCount').textContent = `(${state.holds.length} of ${MAX_HOLDS})`;
+    $('slips').innerHTML = state.holds.length ? state.holds.map((h) => `<li class="slip" data-testid="slip-${h.code}"><span><b>${esc(byId(h.book).title)}</b><br>${esc(h.name)} · ${h.code}<br>
+      <span class="stampd" data-testid="until-${h.code}">Hold until ${fmtCentral(h.expires)}</span> <span data-testid="left-${h.code}">${left(h.expires - now)}</span></span>
+      <button type="button" data-release="${h.code}" aria-label="Release hold ${h.code} on ${esc(byId(h.book).title)}">Release</button></li>`).join('')
+      : '<li class="none">No holds yet. Tap “Hold this book” on anything above.</li>';
+  }
+  let sweepTimer = 0;
+  function sweep() {
+    const now = Date.now();
+    const gone = state.holds.filter((h) => h.expires <= now);
+    if (gone.length) {
+      state.holds = state.holds.filter((h) => h.expires > now);
+      const hadFocus = document.activeElement && $('slips').contains(document.activeElement);
+      renderAll();
+      say(gone.map((h) => `Your hold on ${byId(h.book).title} expired; it's back on the shelf.`).join(' '), false);
+      if (hadFocus) $('q').focus({ preventScroll: true });
+    }
+    schedule();
+  }
+  function schedule() {
+    clearTimeout(sweepTimer); sweepTimer = 0;
+    if (!state.holds.length) return;
+    const next = Math.min(...state.holds.map((h) => h.expires));
+    sweepTimer = setTimeout(sweep, Math.max(0, next - Date.now()));
+  }
+  setInterval(() => { if (state.holds.length) { const f = document.activeElement; const code = f && f.dataset ? f.dataset.release : null; renderHolds(); if (code) { const b = $('slips').querySelector(`[data-release="${code}"]`); if (b) b.focus({ preventScroll: true }); } } }, 60000);
+
+  // ---------- picks, events ----------
+  $('pickList').innerHTML = PICK_SHOW.map((id) => { const b = byId(id), [who, note] = PICK_NOTES[id];
+    return `<article class="pickcard" data-testid="pick-${id}" aria-labelledby="pk-${id}"><h3 id="pk-${id}">${esc(b.title)}</h3><p class="by">${esc(b.author)} · ${money(b.price)}</p><blockquote><p style="margin:0">${esc(note)}</p></blockquote><p class="who">— ${who}, at the counter</p></article>`; }).join('');
+  const WD = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  $('eventList').innerHTML = EVENTS.map((ev, i) => { const [y, m, d] = ev.date.split('-').map(Number), wd = WD[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+    return `<li class="ev" data-testid="event-${i}"><div class="date" aria-hidden="true">${MO[m - 1]}<b>${d}</b>${wd.slice(0, 3)}</div><div><h3>${esc(ev.title)}</h3><p data-testid="event-when-${i}"><b>${wd}, ${MO[m - 1]} ${d}, ${y}</b> · ${ev.time}</p><p>${esc(ev.text)}</p></div></li>`; }).join('');
+  // hero spines
+  (() => { let x = 8, h = ''; BOOKS.slice(0, 20).forEach((b, i) => { const w = 12 + (b.price % 7); const ht = 110 + ((b.year * 7) % 60); if (x + w > 352) return;
+    h += `<rect x="${x}" y="${186 - ht}" width="${w}" height="${ht}" fill="${SPINE[b.genre]}" stroke="#231a12" stroke-width="1"/><rect x="${x + 2}" y="${186 - ht + 12}" width="${w - 4}" height="3" fill="#f5ecd9" opacity=".7"/>`; x += w + 2; });
+    document.getElementById('spines').innerHTML = h; })();
+
+  // ---------- estimator ----------
+  $('eCond').innerHTML = RATES.map(([c, r]) => `<option value="${c}"${c === 'Good' ? ' selected' : ''}>${c} (${r}%)</option>`).join('');
+  $('rateRows').innerHTML = RATES.map(([c, r]) => `<tr><td>${c}</td><td>${r ? r + '%' : 'no offer'}</td></tr>`).join('');
+  function parsePrice(s) { const t = s.trim().replace(/^\$/, ''); if (!/^\d+(\.\d{1,2})?$/.test(t)) return NaN; return Math.round(parseFloat(t) * 100); }
+  function renderEstimate() {
+    const est = estimate(state.lines);
+    $('lines').innerHTML = est.lines.map((l, i) => `<li data-testid="line-${i}"><span>${l.qty} × ${l.cond.toLowerCase()} ${l.hard ? 'hardcover' : 'paperback'}, cover ${money(l.price)} → ${l.each ? money(l.each) + ' each' : 'no offer'} = <b>${money(l.total)}</b></span>
+      <button type="button" data-rm="${i}" aria-label="Remove line ${i + 1}">Remove</button></li>`).join('');
+    $('totals').innerHTML = est.books ? `${est.books} book${est.books === 1 ? '' : 's'} · cash <b data-testid="cash">${money(est.cash)}</b> · or store credit <b data-testid="credit">${money(est.credit)}</b>`
+      : 'Add a book to see an offer.';
+  }
+  $('estForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const price = parsePrice($('ePrice').value), qraw = $('eQty').value.trim(), qty = /^\d+$/.test(qraw) ? +qraw : NaN;
+    const have = state.lines.reduce((s, l) => s + l.qty, 0);
+    const pErr = price >= 100 && price <= 20000 ? '' : 'Enter the cover price in dollars, from $1.00 to $200.00.';
+    const qErr = !(qty >= 1 && qty <= MAX_BOOKS) ? `Copies must be a whole number from 1 to ${MAX_BOOKS}.` : have + qty > MAX_BOOKS ? `That makes ${have + qty} books; we can look at ${MAX_BOOKS} per visit.` : '';
+    $('ePriceErr').textContent = pErr; $('ePrice').setAttribute('aria-invalid', String(!!pErr));
+    $('eQtyErr').textContent = qErr; $('eQty').setAttribute('aria-invalid', String(!!qErr));
+    if (pErr) { $('ePrice').focus(); return; }
+    if (qErr) { $('eQty').focus(); return; }
+    state.lines.push({ price, cond: $('eCond').value, hard: $('eHard').checked, qty });
+    $('ePrice').value = ''; $('eQty').value = '1'; $('eHard').checked = false;
+    renderEstimate(); $('ePrice').focus();
+  });
+  $('lines').addEventListener('click', (e) => { const b = e.target.closest('[data-rm]'); if (!b) return; state.lines.splice(+b.dataset.rm, 1); renderEstimate(); $('ePrice').focus(); });
+
+  function renderAll() { renderShelf(); renderHolds(); }
+  renderAll(); renderEstimate();
+
+  window.__books = {
+    HOLD_MS, MAX_HOLDS, MAX_BOOKS, RATES: RATES.map((r) => r.slice()),
+    get catalogue() { return BOOKS.map((b) => ({ ...b })); },
+    get holds() { return state.holds.map((h) => ({ ...h })); },
+    get visible() { return filter().map((b) => b.id); },
+    get estimate() { return estimate(state.lines); },
+    perBook, fmtCentral,
+  };
+})();
+</script>
+</body>
+</html>

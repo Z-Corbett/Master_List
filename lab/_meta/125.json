@@ -1,0 +1,35 @@
+{
+  "id": "125",
+  "slug": "125-polyrhythm-metronome",
+  "file": "lab/125-polyrhythm-metronome.html",
+  "title": "Polyrhythm Metronome — tap tempo, 3:2, 4:3 and beyond",
+  "category": "Audio",
+  "tags": ["web-audio", "polyrhythm", "lookahead-scheduler", "tap-tempo", "page-clock", "svg"],
+  "description": "A metronome and a polyrhythm trainer in one. Metronome mode has 1 to 12 beats per bar, subdivisions up to sixteenths and per-beat accents. Polyrhythm mode plays m beats against n in the same cycle, from 2 to 9 on each side, with presets from 3:2 to 7:5. A circular dial draws each voice as a polygon under a sweeping hand, a strip shows both voices on their shared lcm(m, n) grid, and tap tempo averages your last few taps and starts a new count after a 2-second pause. Every click is timed by a lookahead scheduler.",
+  "prompt": "Build a polyrhythm metronome. It needs a normal metronome with accents and subdivisions, and a polyrhythm mode with two voices playing m against n beats per cycle (3:2, 4:3 and beyond). Draw it as a circle with each voice as a polygon and a hand that sweeps round once per cycle. Tap tempo should average the last N taps and reset after a pause. Use a proper lookahead scheduler and expose the scheduled note times in a state hook. The spec should use page.clock to check that in m:n the voices only coincide at the start of the cycle, that the onset times are k·cycle/m and k·cycle/n, that tap tempo gives 60000 / mean interval, and that it still works with no audio.",
+  "qa": {
+    "methodology": [
+      "Onset oracle: the spec builds each cycle itself from k·cycle/m and k·cycle/n, with cycle = n·60/BPM, merging coincident onsets by comparing reduced fractions k/m and k/n rather than floats. It checks the page's plan to 1e-9 s for 3:2, 4:3, 5:4, 7:5 and 2:9. Coprime shapes must have m + n − 1 onsets per cycle and meet only on the downbeat; 4:6, 6:9 and 8:4 must meet gcd(m, n) times, evenly spaced.",
+      "Live scheduler under page.clock with Web Audio removed: after three faked seconds of 3:2 at 120 BPM, every logged time matches the formula, the last one lies inside the 100 ms lookahead and the next one due does not. The state hook's scheduled times must equal the log, and stopping must stop scheduling.",
+      "Tap tempo on a paused fake clock: taps separated by runFor(600/650/700) must give exactly 60000/650 BPM. A longer run proves only the last N taps count, a 2.5 s gap starts a new count without changing the tempo, and a gap of exactly 2 s does not. Tapping with T, and clamping a 400 BPM tap to 300, are covered too.",
+      "The dial is checked through geometry, not pixels: vertex angles are k·360/m, vertex coordinates lie on the circle at those angles, the hand's angle equals the phase (time since the cycle start over the cycle length, within one animation frame), and the downbeat vertices light up at the start of a cycle.",
+      "Failure modes: AudioContext deleted, AudioContext wedged in 'suspended', and real Web Audio with no context created before the Play gesture. Tempo changes mid-play and a switch from metronome to polyrhythm while running are also covered."
+    ],
+    "risks": [
+      "Which voice the tempo counts is a convention. Here BPM is voice B's ground beat, so a cycle is n beats. Another app might count voice A or the whole cycle; the tests pin this choice and the page states it.",
+      "Changing tempo in the middle of a cycle keeps the phase readout approximate for the rest of that cycle, because the cycle start was worked out at the old tempo. Onset gaps stay exact; only the hand can jump.",
+      "The real-audio clock can't be driven by page.clock, so the one real-audio test checks relative onset times and uses polling.",
+      "Tap timing uses the click event's time. On a real phone, touch latency adds jitter that the fake clock never sees."
+    ],
+    "playwright": "page.clock carries this spec. Installing it before navigation fakes performance.now, setInterval and requestAnimationFrame together, so runFor() drives the scheduler tick, the lookahead window and the sweeping hand in lockstep, and the tap intervals are exactly the milliseconds the test asks for. Without it, tap tempo could only be tested with loose tolerances. addInitScript set up the missing and permanently suspended AudioContext cases. The hand is drawn once per animation frame, so its angle can lag the true phase by one frame; the test asserts that lag is between 0 and about 34 ms rather than pretending it is exact. The spec did catch a real bug on its first run: the polyrhythm log entries stored the voice count n under the same key as the note index n, so every entry reported index 2 for 3:2. The key was renamed and the scheduler test has checked the indices since.",
+    "coverage": [
+      "m:n onsets vs k·cycle/m and k·cycle/n; coincidence only at the downbeat; gcd meetings",
+      "Dial polygon geometry, lcm grid strip, text description",
+      "Lookahead window, scheduled times in the state hook, stop",
+      "Hand phase and lit vertices under page.clock",
+      "Tap tempo mean, last-N window, 2 s reset, keyboard T, clamping",
+      "Metronome subdivisions and accents, mid-play tempo and mode changes, no-audio and real-audio paths, mobile layout"
+    ]
+  },
+  "a11y": "Mode is a native radio group, and tempo has a labelled number field and slider. Voice counts, subdivision and tap window are labelled selects, and presets, mutes and per-beat accents are toggle buttons with aria-pressed. The dial's aria-label (also shown as text) states the cycle length, each voice's interval and how often they meet. Play state, tap results and audio problems are announced in polite live regions, and T taps the tempo from anywhere except a text field."
+}

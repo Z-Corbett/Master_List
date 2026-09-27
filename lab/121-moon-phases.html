@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Moon Phases — a lunar calendar</title>
+<meta name="description" content="A lunar calendar in UTC. New, full and quarter moons come from Meeus's Astronomical Algorithms (chapter 49, with its periodic and planetary correction terms), and the phase and illuminated fraction for any instant from chapter 48. It has a month calendar of SVG moon glyphs, the next four principal phases, and a year strip with every new and full moon, including blue moons.">
+<style>
+  :root {
+    --ink: #0b1026;
+    --ink-2: #141b3d;
+    --ink-3: #1f2852;
+    --line: #2d3868;
+    --silver: #e6e9f2;
+    --silver-2: #b7bdd3;
+    --dim: #8e96b8;
+    --gold: #f0cf7a;
+    --gold-2: #c9a34a;
+    --blue: #8fb8ff;
+    --dark-moon: #262d4f;
+    --serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --mono: "Cascadia Mono", Consolas, "SF Mono", Menlo, "Courier New", monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--ink); color: var(--silver); font: 15px/1.55 var(--sans); overflow-x: hidden;
+    background-image: radial-gradient(1px 1px at 12% 18%, #fff8 50%, transparent 51%), radial-gradient(1px 1px at 68% 8%, #fff6 50%, transparent 51%),
+      radial-gradient(1px 1px at 88% 42%, #fff5 50%, transparent 51%), radial-gradient(1px 1px at 34% 64%, #fff4 50%, transparent 51%),
+      radial-gradient(ellipse at 90% -10%, rgba(143,184,255,.16), transparent 50%); }
+  :focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+  a { color: var(--gold); }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: var(--ink); background: var(--silver); text-decoration: none; font: 600 13px/1 var(--sans); padding: 8px 12px; border-radius: 999px; }
+  a.back:hover { background: var(--gold); }
+  .wrap { max-width: 1140px; margin: 0 auto; padding: 60px 18px 40px; }
+  header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 28px; align-items: center; margin-bottom: 20px; }
+  .eyebrow { margin: 0; font: 600 12px/1.3 var(--mono); letter-spacing: .24em; text-transform: uppercase; color: var(--blue); }
+  h1 { font: 400 clamp(40px, 7vw, 72px)/1 var(--serif); margin: 6px 0 8px; font-style: italic; }
+  h1 span { color: var(--gold); font-style: normal; }
+  .lede { margin: 0; color: var(--silver-2); max-width: 64ch; }
+  .utc { display: inline-block; font: 700 12px/1 var(--mono); letter-spacing: .12em; border: 1px solid var(--gold-2); color: var(--gold); padding: 4px 8px; border-radius: 4px; }
+  .grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr); gap: 20px; align-items: start; }
+  .card { background: var(--ink-2); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; min-width: 0; }
+  h2 { font: 400 25px/1.2 var(--serif); margin: 0 0 10px; }
+  h2 small { font: 500 12px/1 var(--mono); color: var(--dim); letter-spacing: .08em; margin-left: 6px; }
+  .fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px; align-items: end; }
+  .field { min-width: 0; }
+  label, .lbl { display: block; font: 600 11px/1.3 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--dim); margin-bottom: 3px; }
+  input, select { width: 100%; min-width: 0; font: 15px var(--mono); padding: 8px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--ink); color: var(--silver); color-scheme: dark; }
+  .btn { min-height: 40px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--silver-2); background: transparent; color: var(--silver); font: 600 14px/1 var(--sans); cursor: pointer; }
+  .btn:hover { background: var(--ink-3); }
+  .btn.gold { border-color: var(--gold-2); color: var(--gold); }
+  .now { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 16px; align-items: center; margin-top: 14px; }
+  .now svg { width: 150px; height: 150px; display: block; }
+  .phase-name { font: 400 28px/1.15 var(--serif); margin: 0 0 6px; overflow-wrap: anywhere; }
+  dl.stats { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 12px; margin: 0; font: 14px/1.4 var(--mono); }
+  dl.stats dt { color: var(--dim); }
+  dl.stats dd { margin: 0; overflow-wrap: anywhere; }
+  ol.next { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 6px; }
+  ol.next li { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 10px; align-items: center; background: var(--ink); border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px; }
+  ol.next li b { font: 600 14px/1.2 var(--sans); }
+  ol.next li span { font: 13px/1.3 var(--mono); color: var(--silver-2); overflow-wrap: anywhere; }
+  ol.next li em { font: 12px/1 var(--mono); color: var(--dim); font-style: normal; }
+  .calhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+  .calhead h2 { margin: 0; }
+  .calnav { display: flex; gap: 6px; flex-wrap: wrap; }
+  .cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+  .dow { font: 600 11px/1.2 var(--mono); color: var(--dim); text-align: center; letter-spacing: .06em; padding: 2px 0 4px; }
+  .day { position: relative; min-width: 0; aspect-ratio: 1 / 1.12; border: 1px solid var(--line); border-radius: 8px; background: var(--ink); color: var(--silver); padding: 3px 2px 2px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; cursor: pointer; font: inherit; }
+  .day .n { font: 600 11px/1 var(--mono); align-self: flex-start; padding-left: 3px; color: var(--silver-2); }
+  .day svg { width: 62%; max-width: 44px; height: auto; margin-top: 2px; }
+  .day .ev { font: 600 9.5px/1.1 var(--mono); color: var(--gold); text-align: center; margin-top: 1px; overflow-wrap: anywhere; max-width: 100%; }
+  .day.has-ev { border-color: var(--gold-2); }
+  .day.sel { background: var(--ink-3); box-shadow: inset 0 0 0 2px var(--blue); }
+  .day.blank { visibility: hidden; }
+  .strip svg { display: block; width: 100%; height: auto; }
+  .yearhead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; justify-content: space-between; margin-bottom: 6px; }
+  .yearhead h2 { margin: 0; }
+  table { width: 100%; border-collapse: collapse; font: 13px/1.35 var(--mono); }
+  th, td { padding: 5px 6px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+  th { font: 600 11px/1.2 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+  .blue-tag { color: var(--blue); font-weight: 700; }
+  .tablewrap { overflow-x: auto; margin-top: 10px; }
+  .note { font-size: 13.5px; color: var(--silver-2); margin: 8px 0 0; }
+  .aside { margin-top: 20px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
+  .math { font: 13px/1.6 var(--mono); background: var(--ink); border-left: 3px solid var(--gold-2); padding: 8px 12px; border-radius: 0 8px 8px 0; overflow-wrap: anywhere; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  footer { margin-top: 26px; text-align: center; font-size: 13px; color: var(--dim); }
+  @media (max-width: 880px) { .grid2, .aside { grid-template-columns: minmax(0, 1fr); } header { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 460px) { .fields { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .fields .btn { grid-column: 1 / -1; } .now { grid-template-columns: minmax(0, 1fr); justify-items: center; } .day .ev { font-size: 8px; } .cal { gap: 2px; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <div>
+      <p class="eyebrow">Lunar calendar · Meeus ch. 48–49</p>
+      <h1>Moon <span>Phases</span></h1>
+      <p class="lede">Every new, first-quarter, full and last-quarter moon here is computed from Jean Meeus's series, not looked up. Pick any instant to see the phase and how much of the disk is lit, then read the month and the year at a glance.</p>
+    </div>
+    <p><span class="utc" data-testid="utc-badge">ALL TIMES UTC</span></p>
+  </header>
+
+  <div class="grid2">
+    <section class="card" aria-labelledby="h-now">
+      <h2 id="h-now">The moon at <small>UTC</small></h2>
+      <div class="fields">
+        <div class="field"><label for="d">Date (UTC)</label><input id="d" type="date" min="1900-01-01" max="2100-12-31" data-testid="date"></div>
+        <div class="field"><label for="t">Time (UTC)</label><input id="t" type="time" step="60" data-testid="time"></div>
+        <button type="button" class="btn gold" id="nowBtn" data-testid="now">Now</button>
+      </div>
+      <div class="now" aria-live="polite" id="nowLive">
+        <svg id="bigMoon" viewBox="-52 -52 104 104" role="img" aria-label="Moon" data-testid="big-moon"></svg>
+        <div style="min-width:0">
+          <p class="phase-name" id="phaseName" data-testid="phase-name">–</p>
+          <dl class="stats">
+            <dt>Instant</dt><dd id="sInstant" data-testid="instant">–</dd>
+            <dt>Illuminated</dt><dd id="sIllum" data-testid="illum">–</dd>
+            <dt>Phase angle</dt><dd id="sAngle" data-testid="phase-angle">–</dd>
+            <dt>Age</dt><dd id="sAge" data-testid="age">–</dd>
+          </dl>
+        </div>
+      </div>
+      <h2 style="margin-top:18px;font-size:21px">Next four principal phases</h2>
+      <ol class="next" id="next" data-testid="next-phases"></ol>
+    </section>
+
+    <section class="card" aria-labelledby="calTitle">
+      <div class="calhead">
+        <h2 id="calTitle" data-testid="cal-title">–</h2>
+        <div class="calnav">
+          <button type="button" class="btn" id="prevM" data-testid="prev-month" aria-label="Previous month">‹ Prev</button>
+          <button type="button" class="btn" id="nextM" data-testid="next-month" aria-label="Next month">Next ›</button>
+        </div>
+      </div>
+      <div class="cal" id="cal" role="grid" aria-labelledby="calTitle" data-testid="calendar"></div>
+      <p class="note">Each glyph shows the moon at 12:00 UTC on that day, lit side as seen from the northern hemisphere. Gold days hold a principal phase; its UTC time is printed under the glyph. Arrow keys move between days.</p>
+    </section>
+  </div>
+
+  <section class="card strip" style="margin-top:20px" aria-labelledby="yearTitle">
+    <div class="yearhead">
+      <h2 id="yearTitle" data-testid="year-title">–</h2>
+      <div class="calnav">
+        <button type="button" class="btn" id="prevY" data-testid="prev-year" aria-label="Previous year">‹ Year</button>
+        <button type="button" class="btn" id="nextY" data-testid="next-year" aria-label="Next year">Year ›</button>
+      </div>
+    </div>
+    <svg id="strip" viewBox="0 0 1000 150" role="img" aria-label="Year strip" data-testid="year-strip"></svg>
+    <p class="note" id="yearSummary" data-testid="year-summary" aria-live="polite"></p>
+    <div class="tablewrap">
+      <table data-testid="year-table"><thead><tr><th scope="col">Month</th><th scope="col">New moon (UTC)</th><th scope="col">Full moon (UTC)</th></tr></thead><tbody id="ytbody"></tbody></table>
+    </div>
+  </section>
+
+  <div class="aside">
+    <section class="card" aria-labelledby="h-how">
+      <h2 id="h-how">How it's computed</h2>
+      <div class="math">k ≈ (year − 2000) × 12.3685 &nbsp;(integer: new, +¼ first quarter, +½ full, +¾ last quarter)<br>
+        JDE = 2451550.09766 + 29.530588861 k + 0.00015437 T² − …, &nbsp;T = k / 1236.85<br>
+        + periodic terms in M, M′, F, Ω (25 for new/full, 25 + W for quarters) + 14 planetary arguments A₁…A₁₄</div>
+      <p class="note">Meeus's times are in Terrestrial Time; the page subtracts ΔT (about 69 s in the 2020s, interpolated from a table, approximate outside 1900–2025) to get UTC. The check value from Meeus's example 49.a, the new moon of 1977 February 18, comes out as JDE <span data-testid="meeus-check">–</span> (book: 2443192.65118). The instantaneous phase angle uses the short series from chapter 48, good to a few hundredths of a degree for this purpose. Illuminated fraction k = (1 + cos i) / 2.</p>
+    </section>
+    <section class="card" aria-labelledby="h-easter" data-testid="easter-note">
+      <h2 id="h-easter">Not the Easter moon</h2>
+      <p class="note" style="font-size:14.5px">The full moon that sets the date of Easter is the <strong>ecclesiastical</strong> (Paschal) full moon. It comes from the Church's tables built on the 19-year Metonic cycle and a fixed 21 March equinox, not from the sky. It usually falls within a day or two of the astronomical full moon shown here, but it can differ, and in some years that moves Easter by a week or even a month compared with a purely astronomical rule.</p>
+      <p class="note" style="font-size:14.5px">See how the computus works in <a href="../lab/106-easter-dates.html" data-testid="easter-link">Easter Dates — the Computus, visualized</a>.</p>
+    </section>
+  </div>
+  <footer>Built by Zac Corbett · phases after Jean Meeus, <cite>Astronomical Algorithms</cite> (2nd ed.), chapters 47–49 · times are UTC, accurate to about a minute · no external requests</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const RAD = Math.PI / 180, sin = (x) => Math.sin(x * RAD), cos = (x) => Math.cos(x * RAD);
+  const DAY = 864e5, SYN = 29.530588861;
+  const NAMES = ['New Moon', 'First Quarter', 'Full Moon', 'Last Quarter'];
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const MON = MONTHS.map((m) => m.slice(0, 3));
+  const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  // ---------- Meeus, chapter 49: the principal phases ----------
+  function phaseJDE(k) {
+    const T = k / 1236.85, T2 = T * T, T3 = T2 * T, T4 = T3 * T;
+    const jde = 2451550.09766 + 29.530588861 * k + 0.00015437 * T2 - 0.000000150 * T3 + 0.00000000073 * T4;
+    const E = 1 - 0.002516 * T - 0.0000074 * T2;
+    const M = 2.5534 + 29.10535670 * k - 0.0000014 * T2 - 0.00000011 * T3;
+    const Mp = 201.5643 + 385.81693528 * k + 0.0107582 * T2 + 0.00001238 * T3 - 0.000000058 * T4;
+    const F = 160.7108 + 390.67050284 * k - 0.0016118 * T2 - 0.00000227 * T3 + 0.000000011 * T4;
+    const O = 124.7746 - 1.56375588 * k + 0.0020672 * T2 + 0.00000215 * T3;
+    const q = Math.round((((k % 1) + 1) % 1) * 4) % 4;          // 0 new, 1 first quarter, 2 full, 3 last quarter
+    let c;
+    if (q === 0 || q === 2) {
+      const nm = q === 0;
+      c = (nm ? -0.40720 : -0.40614) * sin(Mp) + (nm ? 0.17241 : 0.17302) * E * sin(M) + (nm ? 0.01608 : 0.01614) * sin(2 * Mp)
+        + (nm ? 0.01039 : 0.01043) * sin(2 * F) + (nm ? 0.00739 : 0.00734) * E * sin(Mp - M) - (nm ? 0.00514 : 0.00515) * E * sin(Mp + M)
+        + (nm ? 0.00208 : 0.00209) * E * E * sin(2 * M) - 0.00111 * sin(Mp - 2 * F) - 0.00057 * sin(Mp + 2 * F) + 0.00056 * E * sin(2 * Mp + M)
+        - 0.00042 * sin(3 * Mp) + 0.00042 * E * sin(M + 2 * F) + 0.00038 * E * sin(M - 2 * F) - 0.00024 * E * sin(2 * Mp - M) - 0.00017 * sin(O)
+        - 0.00007 * sin(Mp + 2 * M) + 0.00004 * sin(2 * Mp - 2 * F) + 0.00004 * sin(3 * M) + 0.00003 * sin(Mp + M - 2 * F) + 0.00003 * sin(2 * Mp + 2 * F)
+        - 0.00003 * sin(Mp + M + 2 * F) + 0.00003 * sin(Mp - M + 2 * F) - 0.00002 * sin(Mp - M - 2 * F) - 0.00002 * sin(3 * Mp + M) + 0.00002 * sin(4 * Mp);
+    } else {
+      c = -0.62801 * sin(Mp) + 0.17172 * E * sin(M) - 0.01183 * E * sin(Mp + M) + 0.00862 * sin(2 * Mp) + 0.00804 * sin(2 * F)
+        + 0.00454 * E * sin(Mp - M) + 0.00204 * E * E * sin(2 * M) - 0.00180 * sin(Mp - 2 * F) - 0.00070 * sin(Mp + 2 * F) - 0.00040 * sin(3 * Mp)
+        - 0.00034 * E * sin(2 * Mp - M) + 0.00032 * E * sin(M + 2 * F) + 0.00032 * E * sin(M - 2 * F) - 0.00028 * E * E * sin(Mp + 2 * M)
+        + 0.00027 * E * sin(2 * Mp + M) - 0.00017 * sin(O) - 0.00005 * sin(Mp - M - 2 * F) + 0.00004 * sin(2 * Mp + 2 * F) - 0.00004 * sin(Mp + M + 2 * F)
+        + 0.00004 * sin(Mp - 2 * M) + 0.00003 * sin(Mp + M - 2 * F) + 0.00003 * sin(3 * M) + 0.00002 * sin(2 * Mp - 2 * F) + 0.00002 * sin(Mp - M + 2 * F)
+        - 0.00002 * sin(3 * Mp + M);
+      const W = 0.00306 - 0.00038 * E * cos(M) + 0.00026 * cos(Mp) - 0.00002 * cos(Mp - M) + 0.00002 * cos(Mp + M) + 0.00002 * cos(2 * F);
+      c += q === 1 ? W : -W;
+    }
+    const A = [299.77 + 0.107408 * k - 0.009173 * T2, 251.88 + 0.016321 * k, 251.83 + 26.651886 * k, 349.42 + 36.412478 * k,
+      84.66 + 18.206239 * k, 141.74 + 53.303771 * k, 207.14 + 2.453732 * k, 154.84 + 7.306860 * k, 34.52 + 27.261239 * k,
+      207.19 + 0.121824 * k, 291.34 + 1.844379 * k, 161.72 + 24.198154 * k, 239.56 + 25.513099 * k, 331.55 + 3.592518 * k];
+    const AC = [325, 165, 164, 126, 110, 62, 60, 56, 47, 42, 40, 37, 35, 23];
+    let a = 0;
+    for (let i = 0; i < 14; i++) a += AC[i] * 1e-6 * sin(A[i]);
+    return jde + c + a;
+  }
+
+  // ΔT = TT − UT in seconds: measured values, linearly interpolated; a rough parabola outside the table
+  const DT = [[1900, -2.8], [1910, 10.4], [1920, 21.2], [1930, 24.0], [1940, 24.3], [1950, 29.1], [1960, 33.2], [1970, 40.2],
+    [1980, 50.5], [1990, 56.9], [2000, 63.8], [2005, 64.7], [2010, 66.1], [2015, 67.6], [2020, 69.4], [2025, 69.2]];
+  function deltaT(y) {
+    if (y >= DT[0][0] && y <= DT[DT.length - 1][0]) {
+      for (let i = 1; i < DT.length; i++) if (y <= DT[i][0]) { const [y0, v0] = DT[i - 1], [y1, v1] = DT[i]; return v0 + (v1 - v0) * (y - y0) / (y1 - y0); }
+    }
+    if (y > 2025) return 69.2 + 0.3 * (y - 2025) + 0.004 * (y - 2025) ** 2;   // extrapolation, uncertain by tens of seconds
+    const u = (y - 1820) / 100; return -20 + 32 * u * u;                  // Morrison & Stephenson parabola
+  }
+  const jdToMs = (jd) => (jd - 2440587.5) * DAY;
+  const msToJd = (ms) => ms / DAY + 2440587.5;
+  const yearOf = (ms) => 1970 + ms / (365.2425 * DAY);
+  const phaseMs = (k) => { const tt = jdToMs(phaseJDE(k)); return tt - deltaT(yearOf(tt)) * 1000; };
+  const kNear = (ms) => (yearOf(ms) - 2000) * 12.3685;
+
+  /** All principal phases with UTC instant in [a, b). */
+  function phasesBetween(a, b) {
+    const out = [];
+    const k0 = Math.floor(kNear(a)) - 2, k1 = Math.ceil(kNear(b)) + 2;
+    for (let k = k0; k <= k1; k += 0.25) {
+      const t = phaseMs(k);
+      if (t >= a && t < b) out.push({ k, type: Math.round((((k % 1) + 1) % 1) * 4) % 4, t });
+    }
+    return out.sort((x, y) => x.t - y.t);
+  }
+
+  // ---------- Meeus, chapter 48 (low-precision): phase angle and illuminated fraction ----------
+  function illum(ms) {
+    const jde = msToJd(ms + deltaT(yearOf(ms)) * 1000);
+    const T = (jde - 2451545) / 36525;
+    const D = 297.8501921 + 445267.1114034 * T - 0.0018819 * T * T + T ** 3 / 545868 - T ** 4 / 113065000;
+    const M = 357.5291092 + 35999.0502909 * T - 0.0001536 * T * T + T ** 3 / 24490000;
+    const Mp = 134.9633964 + 477198.8675055 * T + 0.0087414 * T * T + T ** 3 / 69699 - T ** 4 / 14712000;
+    let i = 180 - D - 6.289 * sin(Mp) + 2.100 * sin(M) - 1.274 * sin(2 * D - Mp) - 0.658 * sin(2 * D) - 0.214 * sin(2 * Mp) - 0.110 * sin(D);
+    i = ((i % 360) + 360) % 360;
+    const waxing = i < 180;                                              // elongation between 0° and 180°
+    return { i, k: (1 + cos(i)) / 2, waxing, angle: waxing ? i : 360 - i };
+  }
+
+  function describe(ms) {
+    const around = phasesBetween(ms - 40 * DAY, ms + 40 * DAY);
+    const prevNew = around.filter((p) => p.type === 0 && p.t <= ms).pop();
+    const prev = around.filter((p) => p.t <= ms).pop();
+    const next = around.find((p) => p.t > ms);
+    const il = illum(ms);
+    let name;
+    const near = [prev, next].filter(Boolean).sort((x, y) => Math.abs(x.t - ms) - Math.abs(y.t - ms))[0];
+    if (near && Math.abs(near.t - ms) <= 12 * 3600e3) name = NAMES[near.type];
+    else name = ['Waxing Crescent', 'Waxing Gibbous', 'Waning Gibbous', 'Waning Crescent'][prev.type];
+    return { ms, name, frac: il.k, i: il.i, waxing: il.waxing, age: (ms - prevNew.t) / DAY, prevNew: prevNew.t, prev, next };
+  }
+
+  // ---------- formatting (UTC only) ----------
+  const pad = (n) => String(n).padStart(2, '0');
+  const d8 = (ms) => { const d = new Date(ms); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; };
+  const hm = (ms) => { const d = new Date(Math.round(ms / 60000) * 60000); return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`; };
+  const longUTC = (ms) => { const d = new Date(Math.round(ms / 60000) * 60000); return `${DOW[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]} ${d.getUTCFullYear()}, ${hm(ms)} UTC`; };
+  const shortUTC = (ms) => { const d = new Date(Math.round(ms / 60000) * 60000); return `${d.getUTCDate()} ${MON[d.getUTCMonth()]} ${hm(ms)}`; };
+
+  // ---------- SVG moon glyph ----------
+  function glyph(frac, waxing, r, cls) {
+    const k = Math.min(1, Math.max(0, frac));
+    const rx = Math.abs(1 - 2 * k) * r;
+    const limb = waxing ? 1 : 0;
+    const term = waxing ? (k < 0.5 ? 0 : 1) : (k < 0.5 ? 1 : 0);
+    const f = (n) => n.toFixed(2);
+    const lit = k < 0.002 ? '' : k > 0.998 ? `<circle r="${r}" fill="#eef0f7"/>`
+      : `<path d="M0 ${f(-r)} A${r} ${r} 0 0 ${limb} 0 ${f(r)} A${f(rx)} ${r} 0 0 ${term} 0 ${f(-r)}Z" fill="#eef0f7"/>`;
+    return `<g class="${cls || ''}" data-frac="${k.toFixed(4)}" data-waxing="${waxing}"><circle r="${r}" fill="var(--dark-moon)" stroke="#3a4574" stroke-width="${r / 20}"/>${lit}</g>`;
+  }
+
+  // ---------- state ----------
+  const qs = new URLSearchParams(location.search);
+  let sel = Date.now();
+  let view = { y: new Date(sel).getUTCFullYear(), m: new Date(sel).getUTCMonth() };
+  const clampYear = (y) => Math.max(1900, Math.min(2100, y));
+  const last = {};
+  const live = { msg: '' };
+
+  function renderNow() {
+    const D = describe(sel);
+    Object.assign(last, { sel, phase: D });
+    $('bigMoon').innerHTML = glyph(D.frac, D.waxing, 48);
+    $('bigMoon').setAttribute('aria-label', `${D.name}, ${(D.frac * 100).toFixed(1)}% illuminated, ${D.waxing ? 'waxing' : 'waning'}`);
+    $('phaseName').textContent = D.name;
+    $('sInstant').textContent = longUTC(sel);
+    $('sIllum').textContent = `${(D.frac * 100).toFixed(1)}% · ${D.waxing ? 'waxing' : 'waning'}`;
+    $('sAngle').textContent = `${D.i.toFixed(1)}°`;
+    $('sAge').textContent = `${D.age.toFixed(2)} days since new`;
+    $('d').value = d8(sel);
+    $('t').value = hm(sel);
+    const nx = phasesBetween(sel, sel + 40 * DAY).slice(0, 4);
+    last.next = nx.map((p) => ({ type: p.type, name: NAMES[p.type], t: p.t, k: p.k }));
+    $('next').innerHTML = nx.map((p, i) => {
+      const il = illum(p.t);
+      return `<li data-testid="next-${i}" data-ms="${Math.round(p.t)}"><svg viewBox="-16 -16 32 32" width="30" height="30" aria-hidden="true">${glyph(il.k, il.waxing, 14)}</svg><div style="min-width:0"><b>${NAMES[p.type]}</b><br><span>${longUTC(p.t)}</span></div><em>in ${((p.t - sel) / DAY).toFixed(1)} d</em></li>`;
+    }).join('');
+  }
+
+  function renderMonth() {
+    const { y, m } = view;
+    $('calTitle').textContent = `${MONTHS[m]} ${y}`;
+    const first = Date.UTC(y, m, 1), days = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+    const evs = phasesBetween(first, Date.UTC(y, m + 1, 1));
+    last.month = { y, m, events: evs.map((e) => ({ type: e.type, name: NAMES[e.type], t: e.t, day: new Date(e.t).getUTCDate() })) };
+    const selDay = d8(sel);
+    let html = DOW.map((d) => `<div class="dow" role="columnheader">${d}</div>`).join('');
+    const lead = new Date(first).getUTCDay();
+    for (let i = 0; i < lead; i++) html += '<div class="day blank" aria-hidden="true"></div>';
+    for (let d = 1; d <= days; d++) {
+      const noon = Date.UTC(y, m, d, 12);
+      const il = illum(noon);
+      const ev = evs.filter((e) => new Date(e.t).getUTCDate() === d);
+      const evTxt = ev.map((e) => `${['New', '1st Q', 'Full', 'Last Q'][e.type]} ${hm(e.t)}`).join(' ');
+      const isSel = d8(noon) === selDay;
+      const label = `${DOW[new Date(noon).getUTCDay()]} ${d} ${MONTHS[m]}: ${(il.k * 100).toFixed(0)}% lit, ${il.waxing ? 'waxing' : 'waning'}${ev.length ? '. ' + ev.map((e) => `${NAMES[e.type]} at ${hm(e.t)} UTC`).join(', ') : ''}`;
+      html += `<button type="button" role="gridcell" class="day${ev.length ? ' has-ev' : ''}${isSel ? ' sel' : ''}" data-day="${d}" data-testid="day-${d}" data-frac="${il.k.toFixed(4)}" aria-selected="${isSel}" tabindex="-1" aria-label="${label}"><span class="n" aria-hidden="true">${d}</span><svg viewBox="-16 -16 32 32" aria-hidden="true">${glyph(il.k, il.waxing, 14)}</svg>${ev.length ? `<span class="ev" data-testid="ev-${d}" aria-hidden="true">${evTxt}</span>` : ''}</button>`;
+    }
+    $('cal').innerHTML = html;
+    const tab = $('cal').querySelector('.day.sel') || $('cal').querySelector('[data-day="1"]');
+    tab.tabIndex = 0;
+  }
+
+  function renderYear() {
+    const y = view.y;
+    $('yearTitle').textContent = `The year ${y}`;
+    const a = Date.UTC(y, 0, 1), b = Date.UTC(y + 1, 0, 1);
+    const evs = phasesBetween(a, b).filter((e) => e.type === 0 || e.type === 2);
+    const fulls = evs.filter((e) => e.type === 2), news = evs.filter((e) => e.type === 0);
+    const blue = fulls.filter((e, i) => i > 0 && new Date(fulls[i - 1].t).getUTCMonth() === new Date(e.t).getUTCMonth());
+    last.year = { y, full: fulls.map((e) => e.t), new: news.map((e) => e.t), blue: blue.map((e) => e.t) };
+    // strip: illumination curve (sampled every 6 h) with markers
+    const W = 1000, X0 = 30, X1 = 990, top = 16, bot = 96, span = b - a;
+    const x = (t) => X0 + (X1 - X0) * (t - a) / span;
+    let path = '';
+    for (let t = a; t <= b; t += 6 * 3600e3) { const k = illum(t).k; path += `${path ? 'L' : 'M'}${x(t).toFixed(1)} ${(bot - (bot - top) * k).toFixed(1)}`; }
+    let s = `<rect x="0" y="0" width="${W}" height="150" fill="var(--ink)" rx="10"/>`;
+    for (let mo = 0; mo <= 12; mo++) {
+      const t = Date.UTC(y, mo, 1), xx = x(t).toFixed(1);
+      s += `<line x1="${xx}" x2="${xx}" y1="${top - 6}" y2="${bot + 6}" stroke="var(--line)"/>`;
+      if (mo < 12) s += `<text x="${(x(t) + x(Date.UTC(y, mo + 1, 1))) / 2}" y="${bot + 22}" fill="var(--dim)" font-size="13" font-family="var(--mono)" text-anchor="middle">${MON[mo]}</text>`;
+    }
+    s += `<text x="${X0 - 6}" y="${top + 4}" fill="var(--dim)" font-size="11" text-anchor="end" font-family="var(--mono)">1</text><text x="${X0 - 6}" y="${bot + 4}" fill="var(--dim)" font-size="11" text-anchor="end" font-family="var(--mono)">0</text>`;
+    s += `<path d="${path}" fill="none" stroke="var(--silver-2)" stroke-width="1.6"/>`;
+    for (const e of fulls) s += `<circle cx="${x(e.t).toFixed(1)}" cy="${top}" r="${blue.includes(e) ? 7 : 5}" fill="${blue.includes(e) ? 'var(--blue)' : 'var(--gold)'}" data-kind="full"/>`;
+    for (const e of news) s += `<circle cx="${x(e.t).toFixed(1)}" cy="${bot}" r="5" fill="var(--ink)" stroke="var(--silver-2)" stroke-width="1.5" data-kind="new"/>`;
+    s += `<text x="${X0}" y="${bot + 44}" fill="var(--dim)" font-size="12" font-family="var(--mono)">illuminated fraction · gold = full moon · hollow = new moon${blue.length ? ' · blue = blue moon' : ''}</text>`;
+    $('strip').innerHTML = s;
+    $('strip').setAttribute('aria-label', `Illuminated fraction through ${y}: ${fulls.length} full moons and ${news.length} new moons${blue.length ? `; blue moon on ${blue.map((e) => shortUTC(e.t)).join(', ')}` : ''}.`);
+    $('yearSummary').textContent = `${y} has ${fulls.length} full moons and ${news.length} new moons (UTC).` + (blue.length ? ` Blue moon (second full moon in a calendar month): ${blue.map((e) => longUTC(e.t)).join('; ')}.` : ' No calendar-month blue moon.');
+    let rows = '';
+    for (let mo = 0; mo < 12; mo++) {
+      const nm = news.filter((e) => new Date(e.t).getUTCMonth() === mo).map((e) => shortUTC(e.t)).join('<br>');
+      const fm = fulls.filter((e) => new Date(e.t).getUTCMonth() === mo).map((e) => shortUTC(e.t) + (blue.includes(e) ? ' <span class="blue-tag">blue</span>' : '')).join('<br>');
+      rows += `<tr data-testid="yrow-${mo + 1}"><th scope="row">${MON[mo]}</th><td>${nm || '–'}</td><td>${fm || '–'}</td></tr>`;
+    }
+    $('ytbody').innerHTML = rows;
+  }
+
+  function renderAll() { renderNow(); renderMonth(); renderYear(); }
+
+  function setSel(ms, follow) {
+    sel = Math.max(Date.UTC(1900, 0, 1), Math.min(Date.UTC(2100, 11, 31, 23, 59), ms));
+    if (follow) view = { y: new Date(sel).getUTCFullYear(), m: new Date(sel).getUTCMonth() };
+    renderAll();
+  }
+  function fromInputs() {
+    const dv = $('d').value, tv = $('t').value || '00:00';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dv)) return;
+    const [Y, Mo, Dd] = dv.split('-').map(Number), [H, Mi] = tv.split(':').map(Number);
+    const ms = Date.UTC(Y, Mo - 1, Dd, H || 0, Mi || 0);
+    if (Number.isFinite(ms)) setSel(ms, true);
+  }
+  $('d').addEventListener('change', fromInputs);
+  $('t').addEventListener('change', fromInputs);
+  $('nowBtn').addEventListener('click', () => setSel(Date.now(), true));
+  const shiftMonth = (n) => {
+    let m = view.m + n, y = view.y;
+    while (m < 0) { m += 12; y--; } while (m > 11) { m -= 12; y++; }
+    if (y < 1900 || y > 2100) return;
+    view = { y, m }; renderMonth(); renderYear();
+  };
+  $('prevM').addEventListener('click', () => shiftMonth(-1));
+  $('nextM').addEventListener('click', () => shiftMonth(1));
+  $('prevY').addEventListener('click', () => shiftMonth(-12));
+  $('nextY').addEventListener('click', () => shiftMonth(12));
+  $('cal').addEventListener('click', (e) => {
+    const b = e.target.closest('.day[data-day]'); if (!b) return;
+    const d = new Date(sel);
+    setSel(Date.UTC(view.y, view.m, +b.dataset.day, d.getUTCHours(), d.getUTCMinutes()), false);
+    const nb = $('cal').querySelector(`[data-day="${b.dataset.day}"]`); if (nb) nb.focus({ preventScroll: true });
+  });
+  $('cal').addEventListener('keydown', (e) => {
+    const b = e.target.closest('.day[data-day]'); if (!b) return;
+    const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    const days = $('cal').querySelectorAll('[data-day]').length;
+    const n = Math.max(1, Math.min(days, +b.dataset.day + step));
+    const nb = $('cal').querySelector(`[data-day="${n}"]`);
+    b.tabIndex = -1; nb.tabIndex = 0; nb.focus();
+  });
+
+  document.querySelector('[data-testid="meeus-check"]').textContent = phaseJDE(-283).toFixed(5);
+
+  if (qs.get('date')) { const raw = qs.get('date'), t = Date.parse(raw.includes('T') && !/(Z|[+-]\d\d:?\d\d)$/.test(raw) ? raw + 'Z' : raw); /* always read as UTC */ if (Number.isFinite(t)) { sel = t; view = { y: new Date(t).getUTCFullYear(), m: new Date(t).getUTCMonth() }; } }
+  renderAll();
+
+  window.__moon = {
+    phaseJDE, deltaT, illum, describe, phasesBetween,
+    get last() { return last; },
+    get view() { return { ...view }; },
+  };
+})();
+</script>
+</body>
+</html>

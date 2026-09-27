@@ -1,0 +1,38 @@
+{
+  "id": "118",
+  "slug": "118-trace-replay",
+  "file": "lab/118-trace-replay.html",
+  "title": "Trace Replay — step through a recorded test run",
+  "category": "QA & Testing",
+  "tags": ["trace-viewer", "debugging", "dom-snapshots", "network", "deep-linking"],
+  "description": "A viewer for a fictional recorded end-to-end test of a made-up tea shop, inspired by Playwright's trace viewer. It has an action timeline drawn to scale (goto, click, fill, expect), before and after DOM snapshots rendered as static mini-pages in sandboxed frames, per-step network requests with type, error and URL filters, console output, and one failing assertion with its error and call log. Scrub with the arrow keys, compare the snapshots side by side, and deep-link to any step with #step=N.",
+  "prompt": "Build a viewer for a fictional recorded end-to-end test, in the spirit of Playwright's trace viewer. It needs an action timeline (goto, click, fill, expect), DOM snapshots before and after each action rendered as inline mini-pages in a sandboxed container, the network requests of each step, console output, and one failing step with its error. I scrub the timeline, compare before and after, and filter the network requests. Credit Playwright's trace viewer as the inspiration and don't imitate its branding. The spec should check that the timeline durations add up, snapshot switching, network filter counts, keyboard scrubbing, and deep-linking to a step through the hash.",
+  "qa": {
+    "methodology": [
+      "Hand-written oracle for the recording: the spec lists every step's verb and duration itself, checks they sum to 7411 ms, that each step starts where the last ended, and that every timeline segment's on-screen width and offset match its share of the track to within 1.5 px.",
+      "Snapshots through frameLocator: the before frame of the add-to-cart click shows Cart (0) with the button outlined, and the after frame shows Cart (1) and Added ✓. Fill values appear only after the fill, the goto starts from about:blank, and both frames are sandbox=\"\" with no scripts.",
+      "Network filters against the raw data: counts for type chips, errors-only, URL text and step-versus-run scope are computed in the test from the recording (14 requests, 3 images, one 422) and compared with the table rows and the count line.",
+      "Keyboard: the timeline is a role=slider with arrow, Page and Home/End keys, and it clamps at both ends. The action list moves with the up and down arrows and keeps focus. The snapshot tabs switch with the left and right arrows.",
+      "Deep links: #step=9 opens on the failure, clicks rewrite the hash, a later hashchange (including &snap=before) is followed, junk and out-of-range values clamp, and a reload keeps the step."
+    ],
+    "risks": [
+      "Snapshot HTML is generated from state, so a change to the page model could silently change what the frames show. The frame assertions pin visible text and values.",
+      "Very short steps (64 ms and 96 ms against a 5-second failure) are only a few pixels wide on a phone. Clicking the timeline picks by time, and the keyboard reaches every step anyway.",
+      "srcdoc frames load asynchronously, so frame assertions use web-first expects rather than reading them right after a click.",
+      "The shop, its domain (a reserved .test name) and every request are invented; the error format only resembles a real assertion message."
+    ],
+    "playwright": "frameLocator was the key feature: the snapshots are sandboxed iframes with an opaque origin, and Playwright still reads text, input values and the highlight attribute inside them with ordinary web-first assertions. boundingBox made the durations-add-up test concrete, checking pixels and not just data, and click({ position }) on the track verified time-based picking. The first run caught a real keyboard bug. The arrow keys in the action list moved from the selected step, not the focused one, so focusing row 4 and pressing Down jumped to step 2. They now move from the focused row. Candid: the network-count test reads the recording through the page's hook, so it would not notice a request that the data never contained. It checks the filters, not the fixture.",
+    "coverage": [
+      "Durations sum to 7.41 s, contiguous starts, segments drawn to scale, playhead",
+      "Before/after tabs, side by side, highlighted targets, fill values, about:blank",
+      "Sandboxed, script-free snapshot frames",
+      "Network type, errors-only, text filters, step vs whole-run scope",
+      "Keyboard scrubbing on slider, list and tabs",
+      "Click-to-seek on the timeline",
+      "Hash deep links, hashchange, clamping, reload",
+      "Failing step: error, call log, jump button",
+      "Per-step console and run totals"
+    ]
+  },
+  "a11y": "The timeline is a focusable role=slider with aria-valuenow and a spoken aria-valuetext (\"Step 9 of 9: expect, failed\"). Actions are buttons in an ordered list, with aria-current on the selected one and a text \"(failed)\" marker as well as colour. The snapshot tabs use role=tab and aria-selected, and side by side is an aria-pressed toggle. Filters are labelled, the request count is aria-live, and step changes are announced in a live region. Each snapshot frame has a title."
+}
