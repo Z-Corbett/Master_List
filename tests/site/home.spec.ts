@@ -217,6 +217,61 @@ test('hero terminal ends on a visible "passed" line', async ({ page }) => {
   expect(clipped).toBe(false);
 });
 
+test('services: every package has a price, a contact button and proof pages that exist', async ({ page, request }) => {
+  await page.goto('/');
+  // the Services link stays in the nav even on phones, where the other section links are hidden
+  await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Services' }).click();
+  await expect(page).toHaveURL(/#services$/);
+  await expect(page.getByTestId('services')).toBeInViewport();
+  // regression: anchor jumps used to hide the section heading under the sticky nav
+  await expect.poll(async () => {
+    const nav = (await page.getByTestId('nav').boundingBox())!;
+    const h2 = (await page.locator('#services-title').boundingBox())!;
+    return h2.y >= nav.y + nav.height;
+  }).toBe(true);
+  const packages = page.getByTestId('package');
+  await expect(packages).toHaveCount(5);
+  for (const pkg of await packages.all()) {
+    await expect(pkg.locator('.package__price')).toHaveText(/\$\d[\d,]*/);
+    await expect(pkg.getByRole('link', { name: /./ }).last()).toHaveAttribute('href', /^mailto:zcorbett7413@gmail\.com\?subject=/);
+    const proof = await pkg.locator('.package__proof a').evaluateAll((as) => as.map((a) => a.getAttribute('href')!));
+    expect(proof.length).toBeGreaterThanOrEqual(2);
+    for (const href of proof) expect((await request.get(`/${href}`)).status(), href).toBe(200);
+  }
+  await expect(page.getByTestId('hourly')).toContainText('$65/hr');
+});
+
+test('structured data parses and its prices match the ones on the page', async ({ page }) => {
+  await page.goto('/');
+  const ld = JSON.parse((await page.locator('script[type="application/ld+json"]').textContent())!);
+  const nodes: any[] = ld['@graph'];
+  expect(nodes.find((n) => n['@type'] === 'Person')?.name).toBe('Zac Corbett');
+  const offers: any[] = nodes.find((n) => n['@type'] === 'ProfessionalService').makesOffer;
+  const shown = await page.getByTestId('package').evaluateAll((els) => els.map((el) => ({
+    name: el.querySelector('h3')!.textContent!.trim(),
+    price: el.querySelector('.package__price b')!.textContent!.replace(/[$,]/g, ''),
+  })));
+  expect(offers.map((o) => o.name)).toEqual(shown.map((s) => s.name));
+  for (const s of shown) {
+    const o = offers.find((x) => x.name === s.name);
+    expect(o.price ?? o.priceSpecification.minPrice, s.name).toBe(s.price);
+  }
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://z-corbett.github.io/Master_List/');
+});
+
+test('sitemap.xml is well-formed and lists the homepage and every Lab page', async ({ page, request }) => {
+  await page.goto('/');
+  const files: string[] = await page.evaluate(() => (window as any).PROJECTS.filter((p: any) => p.kind === 'lab').map((p: any) => p.file));
+  const xml = await (await request.get('/sitemap.xml')).text();
+  const locs = await page.evaluate((src) => {
+    const doc = new DOMParser().parseFromString(src, 'application/xml');
+    if (doc.querySelector('parsererror')) return null;
+    return [...doc.getElementsByTagName('loc')].map((l) => l.textContent);
+  }, xml);
+  const site = 'https://z-corbett.github.io/Master_List/';
+  expect(locs).toEqual([site, ...files.map((f) => site + f)]);
+});
+
 test('homepage has no horizontal scroll', async ({ page }) => {
   await page.goto('/');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
