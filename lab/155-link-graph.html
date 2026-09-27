@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Internal Link Graph — find orphans and PageRank flow</title>
+<meta name="description" content="Paste a site's internal links (from -> to), or use a bundled fictional 40-page site, and see a seeded force-directed graph with orphan pages, click depth from the home page, broken internal links and the original PageRank (damping 0.85, dangling pages handled), plus suggested links that bring deep pages closer to home.">
+<style>
+  :root {
+    --paper: #f6efe2; --paper-2: #efe4d0; --ink: #2b2118; --ink-2: #5f5245; --rule: #d8c8ad; --terra: #b5532f; --terra-2: #8c3a1d;
+    --moss: #4c6b3c; --sky: #3a6186; --warn: #a33b20;
+    --serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --mono: "Consolas", "SFMono-Regular", "Menlo", "Liberation Mono", monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--paper); color: var(--ink); font: 15px/1.55 var(--sans); overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: var(--paper); background: var(--ink); text-decoration: none; font: 600 13px/1 var(--sans); padding: 8px 12px; border-radius: 2px; }
+  a.back:hover { background: var(--terra); }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 60px 16px 40px; }
+  .mast { border-top: 3px double var(--ink); border-bottom: 1px solid var(--ink); padding: 10px 0 12px; margin-bottom: 18px; }
+  .mast p.k { margin: 0; font: italic 14px/1.3 var(--serif); color: var(--terra-2); }
+  h1 { font: 700 clamp(34px, 6.4vw, 64px)/1.02 var(--serif); margin: 4px 0 8px; letter-spacing: -.01em; }
+  .lede { margin: 0; max-width: 72ch; color: var(--ink-2); }
+  .layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+  .box { background: #fffaf1; border: 1px solid var(--rule); padding: 14px 16px; min-width: 0; margin-bottom: 16px; }
+  h2 { font: 700 21px/1.2 var(--serif); margin: 0 0 8px; }
+  h3 { font: 700 13px/1.3 var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); margin: 14px 0 6px; }
+  #graph { display: block; width: 100%; height: auto; background: radial-gradient(circle at 50% 45%, #fffaf1, var(--paper-2)); border: 1px solid var(--rule); touch-action: manipulation; }
+  #graph .node { cursor: pointer; }
+  #graph .node:focus { outline: none; }
+  #graph .node:focus circle, #graph .node.sel circle { stroke: var(--sky); stroke-width: 4; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--ink-2); margin-top: 6px; }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; border: 2px solid transparent; }
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .stat { border-left: 3px solid var(--terra); padding: 2px 8px; min-width: 0; }
+  .stat small { display: block; font: 600 11px/1.3 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+  .stat b { font: 700 24px/1.2 var(--serif); }
+  label { display: block; font: 600 12px/1.3 var(--sans); letter-spacing: .04em; color: var(--ink-2); margin: 10px 0 4px; }
+  textarea, input[type=text], input[type=number] { width: 100%; min-width: 0; max-width: 100%; font: 12.5px/1.45 var(--mono); padding: 7px 9px; border: 1px solid var(--rule); background: #fff; color: var(--ink); border-radius: 2px; }
+  textarea { resize: vertical; white-space: pre; overflow-wrap: normal; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin-top: 10px; }
+  .row > * { min-width: 0; }
+  .btn { min-height: 38px; padding: 8px 14px; border: 1px solid var(--ink); background: var(--ink); color: var(--paper); font: 600 13.5px/1 var(--sans); cursor: pointer; border-radius: 2px; }
+  .btn.ghost { background: transparent; color: var(--ink); }
+  .btn:hover { background: var(--terra); border-color: var(--terra); color: #fff; }
+  ul.list { margin: 0; padding: 0 0 0 18px; font: 13px/1.5 var(--mono); }
+  ul.list li { overflow-wrap: anywhere; margin-bottom: 3px; }
+  ul.sugg li { margin-bottom: 6px; font-family: var(--sans); font-size: 13.5px; }
+  ul.sugg code, .detail code { font: 12.5px var(--mono); overflow-wrap: anywhere; }
+  .tablewrap { max-height: 420px; overflow: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  th, td { padding: 5px 6px; border-bottom: 1px solid var(--rule); text-align: right; }
+  th:first-child, td:first-child { text-align: left; overflow-wrap: anywhere; }
+  th { font: 600 11px/1.3 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); position: sticky; top: 0; background: #fffaf1; }
+  td.orphan { color: var(--warn); font-weight: 600; }
+  .detail { font-size: 14px; min-height: 3em; }
+  .note { font-size: 13px; color: var(--ink-2); }
+  .formula { font: 14px/1.6 var(--serif); font-style: italic; background: var(--paper-2); padding: 8px 12px; border-left: 3px solid var(--terra); overflow-wrap: anywhere; }
+  .err { color: var(--warn); font-weight: 600; font-size: 13px; }
+  footer { text-align: center; font-size: 12.5px; color: var(--ink-2); margin-top: 18px; }
+  @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="mast">
+    <p class="k">A cartographer's view of a website</p>
+    <h1>Internal Link Graph</h1>
+    <p class="lede">Every page is a dot and every internal link an arrow. The graph finds the pages nobody links to, counts the clicks from home to each page, catches links to pages that don't exist, and runs the original PageRank to show where link equity pools. Then it suggests a few links that bring the deepest pages closer to home.</p>
+  </header>
+
+  <div class="layout">
+    <div>
+      <section class="box" aria-labelledby="h-g">
+        <h2 id="h-g">The graph</h2>
+        <div class="stats" aria-live="polite">
+          <div class="stat"><small>Pages</small><b data-testid="n-pages" id="nPages">0</b></div>
+          <div class="stat"><small>Orphans</small><b data-testid="n-orphans" id="nOrph">0</b></div>
+          <div class="stat"><small>Broken links</small><b data-testid="n-broken" id="nBroken">0</b></div>
+          <div class="stat"><small>Max depth</small><b data-testid="max-depth" id="maxDepth">0</b></div>
+        </div>
+        <svg id="graph" viewBox="0 0 900 620" data-testid="graph" role="group" aria-label="Force-directed link graph"></svg>
+        <div class="legend"><span><i style="background:#b5532f"></i>home</span><span><i style="background:#4c6b3c"></i>reachable (darker = closer to home)</span><span><i style="background:#fff;border-color:#a33b20"></i>orphan / unreachable</span><span><i style="background:#a33b20;border-radius:0;width:9px;height:9px"></i>broken link target</span><span>dot size = PageRank</span></div>
+        <div class="row"><label for="seed" style="margin:0">Layout seed</label><input id="seed" type="number" min="1" max="999999" step="1" style="width:8em" data-testid="seed"><button type="button" class="btn ghost" id="relayout" data-testid="relayout">Re-layout</button></div>
+        <div class="detail" id="detail" data-testid="detail" aria-live="polite"><p class="note">Select a dot (click it, or Tab to it and press Enter) to see its links.</p></div>
+      </section>
+
+      <section class="box" aria-labelledby="h-t">
+        <h2 id="h-t">Every page</h2>
+        <div class="tablewrap"><table data-testid="page-table"><caption class="note" style="text-align:left">Sorted by PageRank. Depth is clicks from the home page (breadth-first search); "–" means unreachable.</caption>
+          <thead><tr><th scope="col">Page</th><th scope="col">Depth</th><th scope="col">In</th><th scope="col">Out</th><th scope="col">PageRank</th></tr></thead><tbody id="rows"></tbody></table></div>
+      </section>
+    </div>
+
+    <div>
+      <section class="box" aria-labelledby="h-in">
+        <h2 id="h-in">Your site</h2>
+        <label for="home">Home page</label>
+        <input id="home" type="text" value="/" data-testid="home" spellcheck="false" autocomplete="off">
+        <label for="pages">Pages (one per line; link sources are added automatically)</label>
+        <textarea id="pages" rows="6" data-testid="pages" spellcheck="false"></textarea>
+        <label for="links">Links, one per line: <code>from -&gt; to</code></label>
+        <textarea id="links" rows="8" data-testid="links" spellcheck="false"></textarea>
+        <div class="row">
+          <button type="button" class="btn" id="analyze" data-testid="analyze">Analyse</button>
+          <button type="button" class="btn ghost" id="demo" data-testid="demo">Load demo site</button>
+        </div>
+        <p class="err" id="parseErr" data-testid="parse-errors" role="status"></p>
+      </section>
+
+      <section class="box" aria-labelledby="h-f">
+        <h2 id="h-f">Findings</h2>
+        <h3>Orphan pages (no inbound links)</h3>
+        <ul class="list" id="orphans" data-testid="orphans"></ul>
+        <h3>Broken internal links (target not in the page list)</h3>
+        <ul class="list" id="broken" data-testid="broken"></ul>
+        <h3>Suggested links (target depth ≤ <input id="maxD" type="number" min="1" max="8" value="3" aria-label="Target maximum depth" data-testid="target-depth" style="width:4em;display:inline-block;padding:2px 4px">)</h3>
+        <ul class="list sugg" id="sugg" data-testid="suggestions"></ul>
+        <div class="row"><button type="button" class="btn ghost" id="apply" data-testid="apply">Add these links and re-run</button></div>
+      </section>
+
+      <section class="box" aria-labelledby="h-pr">
+        <h2 id="h-pr">About the PageRank here</h2>
+        <p class="formula">PR(p) = (1 − d) / N + d · ( Σ<sub>q → p</sub> PR(q) / out(q) + Σ<sub>dangling q</sub> PR(q) / N ),&nbsp; d = 0.85</p>
+        <p class="note" data-testid="pr-status" id="prStatus"></p>
+        <p class="note"><b>Dangling pages</b> have no outgoing links, so in the raw formula their rank would drain out of the graph and the total would shrink every round. The standard fix, used here, treats a dangling page as linking to every page equally, so the ranks always sum to 1. Duplicate links between the same two pages count once, self-links are ignored, and links to missing pages are left out of the calculation (they're reported as broken).</p>
+        <p class="note"><b>A teaching model.</b> This is the 1998 formula from Brin and Page's paper, in its probability form (the ranks sum to 1 rather than to N). It is not Google's current ranking system, and nothing here predicts rankings. It shows how internal links spread importance, and which pages a site's own links treat as central.</p>
+        <p class="note"><b>Depth.</b> Google doesn't publish a click-depth limit. "Within three clicks of home" is a common rule of thumb for crawlability and for users, not a documented ranking rule.</p>
+      </section>
+    </div>
+  </div>
+  <footer>Built by Zac Corbett · "Cedar Hollow Outfitters" is a fictional shop · <code>?seed=N</code> seeds the layout</footer>
+</div>
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  let SEED = (parseInt(params.get('seed'), 10) >>> 0) || 155;
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const el = (tag, attrs, parent) => { const e = document.createElementNS(svgNS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.append(e); return e; };
+  const D = 0.85;
+
+  // ---------- demo site: Cedar Hollow Outfitters (fictional) ----------
+  const DEMO = {
+    '/': ['/shop/', '/guides/', '/blog/', '/about/', '/contact/', '/shop/sale/'],
+    '/shop/': ['/', '/shop/tents/', '/shop/packs/', '/shop/stoves/', '/shop/sale/', '/shipping', '/returns'],
+    '/shop/tents/': ['/shop/', '/shop/tents/ridgeline-2p', '/shop/tents/ridgeline-3p', '/shop/tents/aspen-dome', '/shop/tents/ridgeline-4p'],
+    '/shop/tents/ridgeline-2p': ['/shop/tents/', '/shop/tents/ridgeline-3p', '/returns'],
+    '/shop/tents/ridgeline-3p': ['/shop/tents/', '/shop/tents/ridgeline-2p'],
+    '/shop/tents/aspen-dome': ['/shop/tents/'],
+    '/shop/packs/': ['/shop/', '/shop/packs/switchback-45', '/shop/packs/switchback-60'],
+    '/shop/packs/switchback-45': ['/shop/packs/', '/shop/packs/switchback-60'],
+    '/shop/packs/switchback-60': ['/shop/packs/'],
+    '/shop/stoves/': ['/shop/', '/shop/stoves/emberlite'],
+    '/shop/stoves/emberlite': ['/shop/stoves/', '/shop/stoves/emberlite-fuel'],
+    '/shop/stoves/emberlite-fuel': [],
+    '/shop/sale/': ['/shop/tents/aspen-dome', '/shop/packs/switchback-45'],
+    '/guides/': ['/', '/guides/beginners/', '/guides/knots', '/guides/water/'],
+    '/guides/beginners/': ['/guides/', '/guides/beginners/first-night'],
+    '/guides/beginners/first-night': ['/guides/beginners/first-night/checklist', '/shop/tents/ridgeline-2p'],
+    '/guides/beginners/first-night/checklist': ['/guides/beginners/first-night/checklist/printable'],
+    '/guides/beginners/first-night/checklist/printable': ['/guides/beginners/first-night/checklist/printable/large-print'],
+    '/guides/beginners/first-night/checklist/printable/large-print': [],
+    '/guides/knots': ['/guides/'],
+    '/guides/water/': ['/guides/', '/guides/water/filters'],
+    '/guides/water/filters': ['/shop/'],
+    '/blog/': ['/', '/blog/2026/spring-gear', '/blog/2026/trail-report-june', '/blog/2025/winter-camping', '/blog/archive/'],
+    '/blog/2026/spring-gear': ['/shop/packs/switchback-45', '/guides/knotz', '/blog/'],
+    '/blog/2026/trail-report-june': ['/blog/', '/guides/water/filters'],
+    '/blog/2025/winter-camping': ['/blog/', '/shop/stoves/emberlite'],
+    '/blog/archive/': ['/blog/', '/blog/archive/2024/'],
+    '/blog/archive/2024/': ['/blog/archive/', '/blog/archive/2024/old-post'],
+    '/blog/archive/2024/old-post': [],
+    '/about/': ['/', '/about/story', '/about/team', '/about/careers', '/about/press'],
+    '/about/story': ['/about/'],
+    '/about/team': ['/about/', '/about/careers'],
+    '/about/careers': ['/about/'],
+    '/about/press': ['/about/', '/about/press-kit.pdf'],
+    '/contact/': ['/', '/privacy', '/terms', '/returns', '/shipping'],
+    '/privacy': [], '/terms': [], '/returns': ['/shipping'], '/shipping': [],
+    '/shop/clearance-2025': ['/shop/'],
+    '/guides/snow-shelters': ['/guides/'],
+    '/landing/summer-promo': ['/shop/sale/', '/shop/tents/aspen-dome']
+  };
+  const demoPages = () => Object.keys(DEMO).join('\n');
+  const demoLinks = () => Object.entries(DEMO).flatMap(([f, ts]) => ts.map((t) => `${f} -> ${t}`)).join('\n');
+
+  // ---------- analysis ----------
+  function parse(pagesText, linksText) {
+    const errors = [], notes = [];
+    const pages = []; const pageSet = new Set();
+    const addPage = (p) => { if (!pageSet.has(p)) { pageSet.add(p); pages.push(p); } };
+    for (const raw of String(pagesText).split(/\r\n|\r|\n/)) { const p = raw.trim(); if (p && !p.startsWith('#')) addPage(p); }
+    const links = []; const seen = new Set(); let dup = 0, self = 0, addedSources = 0;
+    String(linksText).split(/\r\n|\r|\n/).forEach((raw, i) => {
+      const line = raw.trim(); if (!line || line.startsWith('#')) return;
+      const m = /^(\S+)\s*(?:->|→)\s*(\S+)$/.exec(line);
+      if (!m) { errors.push(`Line ${i + 1}: expected "from -> to", got "${line}"`); return; }
+      const [, f, t] = m;
+      if (f === t) { self++; return; }
+      const key = f + '\u0000' + t;
+      if (seen.has(key)) { dup++; return; }
+      seen.add(key); links.push([f, t]);
+    });
+    for (const [f] of links) if (!pageSet.has(f)) { addPage(f); addedSources++; }
+    if (dup) notes.push(`${dup} duplicate link${dup > 1 ? 's' : ''} counted once.`);
+    if (self) notes.push(`${self} self-link${self > 1 ? 's' : ''} ignored.`);
+    if (addedSources) notes.push(`${addedSources} link source${addedSources > 1 ? 's were' : ' was'} missing from the page list and added.`);
+    return { pages, links, errors, notes };
+  }
+
+  function pagerank(pages, edges, d, tol) {
+    const N = pages.length; if (!N) return { pr: {}, iterations: 0 };
+    const idx = new Map(pages.map((p, i) => [p, i]));
+    const out = new Array(N).fill(0), inc = pages.map(() => []);
+    for (const [f, t] of edges) { const a = idx.get(f), b = idx.get(t); out[a]++; inc[b].push(a); }
+    let x = new Array(N).fill(1 / N); let it = 0;
+    for (; it < 10000; it++) {
+      let dang = 0; for (let i = 0; i < N; i++) if (!out[i]) dang += x[i];
+      const nx = new Array(N);
+      for (let i = 0; i < N; i++) { let s = 0; for (const j of inc[i]) s += x[j] / out[j]; nx[i] = (1 - d) / N + d * (s + dang / N); }
+      let diff = 0; for (let i = 0; i < N; i++) diff += Math.abs(nx[i] - x[i]);
+      x = nx;
+      if (diff < tol) { it++; break; }
+    }
+    const pr = {}; pages.forEach((p, i) => { pr[p] = x[i]; });
+    return { pr, iterations: it, dangling: pages.filter((_, i) => !out[i]) };
+  }
+
+  function bfs(pages, edges, home) {
+    const adj = new Map(pages.map((p) => [p, []])); for (const [f, t] of edges) adj.get(f).push(t);
+    const depth = {}; for (const p of pages) depth[p] = null;
+    if (!adj.has(home)) return depth;
+    depth[home] = 0; const q = [home];
+    while (q.length) { const u = q.shift(); for (const v of adj.get(u)) if (depth[v] === null) { depth[v] = depth[u] + 1; q.push(v); } }
+    return depth;
+  }
+
+  const segs = (p) => p.split(/[/?#]/).filter(Boolean);
+  const sharedPrefix = (a, b) => { const x = segs(a), y = segs(b); let n = 0; while (n < x.length && n < y.length && x[n] === y[n]) n++; return n; };
+
+  function suggest(pages, edges, home, maxDepth, pr) {
+    const cur = edges.slice(); const out = [];
+    for (let guard = 0; guard < pages.length; guard++) {
+      const depth = bfs(pages, cur, home);
+      if (depth[home] === null) break;
+      const inbound = new Set(cur.map((e) => e[1]));
+      const deep = pages.filter((p) => depth[p] !== null && depth[p] > maxDepth).sort((a, b) => depth[a] - depth[b] || a.localeCompare(b));
+      const lost = pages.filter((p) => depth[p] === null).sort((a, b) => (inbound.has(a) - inbound.has(b)) || a.localeCompare(b));
+      const target = deep[0] || lost[0];
+      if (!target) break;
+      const sources = pages.filter((p) => p !== target && depth[p] !== null && depth[p] <= maxDepth - 1);
+      sources.sort((a, b) => sharedPrefix(b, target) - sharedPrefix(a, target) || depth[a] - depth[b] || (pr[b] || 0) - (pr[a] || 0) || a.localeCompare(b));
+      const src = sources[0]; if (!src) break;
+      const was = depth[target];
+      cur.push([src, target]);
+      out.push({ from: src, to: target, was, now: depth[src] + 1, orphan: !inbound.has(target) });
+    }
+    return out;
+  }
+
+  function analyze(pagesText, linksText, home, maxDepth) {
+    const P = parse(pagesText, linksText);
+    const set = new Set(P.pages);
+    const valid = P.links.filter(([, t]) => set.has(t));
+    const broken = P.links.filter(([, t]) => !set.has(t)).map(([f, t]) => ({ from: f, to: t }));
+    const inDeg = {}, outDeg = {}; for (const p of P.pages) { inDeg[p] = 0; outDeg[p] = 0; }
+    for (const [f, t] of valid) { inDeg[t]++; outDeg[f]++; }
+    const orphans = P.pages.filter((p) => p !== home && inDeg[p] === 0);
+    const depth = bfs(P.pages, valid, home);
+    const R = pagerank(P.pages, valid, D, 1e-13);
+    const suggestions = set.has(home) ? suggest(P.pages, valid, home, maxDepth, R.pr) : [];
+    if (!set.has(home)) P.errors.push(`The home page "${home}" isn't in the page list, so depths can't be computed.`);
+    return { pages: P.pages, edges: valid, broken, orphans, depth, inDeg, outDeg, pr: R.pr, iterations: R.iterations, dangling: R.dangling || [], suggestions, errors: P.errors, notes: P.notes, home };
+  }
+
+  // ---------- seeded force layout (Fruchterman–Reingold) ----------
+  function layout(pages, edges, seed, W, H) {
+    const r = mulberry32(seed); const N = pages.length; const idx = new Map(pages.map((p, i) => [p, i]));
+    const pos = pages.map(() => ({ x: W * (0.15 + 0.7 * r()), y: H * (0.15 + 0.7 * r()) }));
+    const k = Math.sqrt((W * H) / Math.max(N, 1)) * 0.75;
+    const E = edges.map(([f, t]) => [idx.get(f), idx.get(t)]);
+    let temp = W / 8;
+    for (let it = 0; it < 320; it++) {
+      const disp = pages.map(() => ({ x: 0, y: 0 }));
+      for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) {
+        let dx = pos[i].x - pos[j].x, dy = pos[i].y - pos[j].y; let dist = Math.hypot(dx, dy);
+        if (dist < 0.01) { dx = 0.01 * (i - j); dy = 0.01; dist = Math.hypot(dx, dy); }
+        const f = (k * k) / dist; const ux = dx / dist, uy = dy / dist;
+        disp[i].x += ux * f; disp[i].y += uy * f; disp[j].x -= ux * f; disp[j].y -= uy * f;
+      }
+      for (const [a, b] of E) {
+        const dx = pos[a].x - pos[b].x, dy = pos[a].y - pos[b].y; const dist = Math.max(Math.hypot(dx, dy), 0.01);
+        const f = (dist * dist) / k; const ux = dx / dist, uy = dy / dist;
+        disp[a].x -= ux * f; disp[a].y -= uy * f; disp[b].x += ux * f; disp[b].y += uy * f;
+      }
+      for (let i = 0; i < N; i++) {  // gentle pull to the centre keeps disconnected pieces on screen
+        disp[i].x += (W / 2 - pos[i].x) * 0.02 * k / 10; disp[i].y += (H / 2 - pos[i].y) * 0.02 * k / 10;
+        const dl = Math.hypot(disp[i].x, disp[i].y) || 1; const m = Math.min(dl, temp);
+        pos[i].x = Math.min(W - 30, Math.max(30, pos[i].x + (disp[i].x / dl) * m));
+        pos[i].y = Math.min(H - 30, Math.max(30, pos[i].y + (disp[i].y / dl) * m));
+      }
+      temp = Math.max(temp * 0.985, 0.5);
+    }
+    const out = {}; pages.forEach((p, i) => { out[p] = { x: Math.round(pos[i].x * 100) / 100, y: Math.round(pos[i].y * 100) / 100 }; });
+    return out;
+  }
+
+  // ---------- render ----------
+  let A = null, POS = null, SEL = null;
+  const W = 900, H = 620;
+  const short = (p) => { const s = segs(p); return s.length ? s[s.length - 1] : '/'; };
+  const depthColor = (d) => d === null ? '#fff' : ['#b5532f', '#2f4a24', '#4c6b3c', '#6f8f5c', '#95ad82', '#b9c9a9', '#d3dec6'][Math.min(d, 6)];
+
+  function draw() {
+    const s = $('graph'); s.textContent = '';
+    const defs = el('defs', {}, s);
+    const mk = el('marker', { id: 'arr', viewBox: '0 0 10 10', refX: 10, refY: 5, markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse' }, defs);
+    el('path', { d: 'M0,0 L10,5 L0,10 z', fill: '#8a7a66' }, mk);
+    const mkb = el('marker', { id: 'arrb', viewBox: '0 0 10 10', refX: 10, refY: 5, markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse' }, defs);
+    el('path', { d: 'M0,0 L10,5 L0,10 z', fill: '#a33b20' }, mkb);
+    const N = A.pages.length;
+    const rad = (p) => 5 + 22 * Math.sqrt(A.pr[p] || 0);
+    const gE = el('g', { 'aria-hidden': 'true' }, s);
+    for (const [f, t] of A.edges) {
+      const a = POS[f], b = POS[t]; const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy) || 1; const rb = rad(t) + 2;
+      el('line', { x1: a.x, y1: a.y, x2: b.x - dx / L * rb, y2: b.y - dy / L * rb, stroke: '#8a7a66', 'stroke-opacity': .45, 'stroke-width': 1.2, 'marker-end': 'url(#arr)', 'data-edge': f + ' -> ' + t }, gE);
+    }
+    // broken links: short red stubs ending in a square
+    A.broken.forEach((bk, i) => {
+      const a = POS[bk.from]; if (!a) return;
+      const ang = (i * 2.4) + 0.6, ex = a.x + Math.cos(ang) * 38, ey = a.y + Math.sin(ang) * 38;
+      el('line', { x1: a.x, y1: a.y, x2: ex, y2: ey, stroke: '#a33b20', 'stroke-width': 1.6, 'stroke-dasharray': '4 3' }, gE);
+      el('rect', { x: ex - 4.5, y: ey - 4.5, width: 9, height: 9, fill: '#a33b20', 'data-broken': bk.to }, gE);
+    });
+    const gN = el('g', {}, s);
+    const order = [...A.pages].sort((a, b) => (A.pr[a] || 0) - (A.pr[b] || 0));
+    for (const p of order) {
+      const d = A.depth[p]; const orphan = A.orphans.includes(p);
+      const g = el('g', { class: 'node' + (SEL === p ? ' sel' : ''), tabindex: 0, role: 'button', 'data-page': p, 'aria-label': `${p}: ${d === null ? 'unreachable' : 'depth ' + d}${orphan ? ', orphan' : ''}, PageRank ${(A.pr[p] * 100).toFixed(2)}%` }, gN);
+      el('circle', { cx: POS[p].x, cy: POS[p].y, r: rad(p), fill: depthColor(d), stroke: d === null ? '#a33b20' : '#2b2118', 'stroke-width': d === null ? 2.5 : 1 }, g);
+      if (d !== null && d <= 1 || rad(p) > 11 || d === null) {
+        el('text', { x: POS[p].x, y: POS[p].y - rad(p) - 4, 'text-anchor': 'middle', 'font-size': 12, fill: '#2b2118', 'font-family': 'Segoe UI, Arial, sans-serif', 'paint-order': 'stroke', stroke: '#fffaf1', 'stroke-width': 3 }, g).textContent = short(p);
+      }
+      g.addEventListener('click', () => select(p));
+      g.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(p); } });
+    }
+    s.setAttribute('aria-label', `Force-directed link graph of ${N} pages and ${A.edges.length} links. Nodes are focusable.`);
+  }
+  function select(p) {
+    SEL = p;
+    document.querySelectorAll('#graph .node').forEach((g) => g.classList.toggle('sel', g.getAttribute('data-page') === p));
+    const inb = A.edges.filter((e) => e[1] === p).map((e) => e[0]), outb = A.edges.filter((e) => e[0] === p).map((e) => e[1]);
+    const br = A.broken.filter((b) => b.from === p).map((b) => b.to);
+    const d = A.depth[p];
+    $('detail').innerHTML = '';
+    const h = document.createElement('p'); h.innerHTML = `<b><code></code></b> · ${d === null ? 'unreachable from home' : 'depth ' + d} · PageRank ${(A.pr[p] * 100).toFixed(3)}%`; h.querySelector('code').textContent = p;
+    const mk = (label, arr) => { const q = document.createElement('p'); q.className = 'note'; q.textContent = `${label} (${arr.length}): ${arr.join(', ') || 'none'}`; return q; };
+    $('detail').append(h, mk('Linked from', inb), mk('Links to', outb));
+    if (br.length) $('detail').append(mk('Broken links', br));
+  }
+  function list(ul, items) { ul.textContent = ''; if (!items.length) { const li = document.createElement('li'); li.textContent = 'None'; ul.append(li); return; } for (const it of items) { const li = document.createElement('li'); if (it instanceof Node) li.append(it); else li.textContent = it; ul.append(li); } }
+
+  function run() {
+    const maxD = Math.max(1, Math.min(8, Math.floor(+$('maxD').value) || 3));
+    A = analyze($('pages').value, $('links').value, $('home').value.trim(), maxD);
+    POS = layout(A.pages, A.edges, SEED, W, H);
+    if (SEL && !A.pages.includes(SEL)) SEL = null;
+    $('nPages').textContent = A.pages.length; $('nOrph').textContent = A.orphans.length; $('nBroken').textContent = A.broken.length;
+    const ds = Object.values(A.depth).filter((v) => v !== null); $('maxDepth').textContent = ds.length ? Math.max(...ds) : '–';
+    $('parseErr').textContent = [...A.errors, ...A.notes].join(' ');
+    list($('orphans'), A.orphans);
+    list($('broken'), A.broken.map((b) => `${b.from} → ${b.to}`));
+    list($('sugg'), A.suggestions.map((s) => { const sp = document.createElement('span'); sp.innerHTML = `Link <code></code> → <code></code>: ${s.orphan ? 'orphan, ' : ''}${s.was === null ? 'unreachable' : 'depth ' + s.was} → ${s.now}`; const c = sp.querySelectorAll('code'); c[0].textContent = s.from; c[1].textContent = s.to; return sp; }));
+    $('apply').disabled = !A.suggestions.length;
+    const tb = $('rows'); tb.textContent = '';
+    for (const p of [...A.pages].sort((a, b) => A.pr[b] - A.pr[a] || a.localeCompare(b))) {
+      const tr = document.createElement('tr'); tr.setAttribute('data-page', p);
+      const td = document.createElement('td'); td.textContent = p; if (A.orphans.includes(p)) td.className = 'orphan';
+      tr.append(td);
+      tr.insertAdjacentHTML('beforeend', `<td>${A.depth[p] === null ? '–' : A.depth[p]}</td><td>${A.inDeg[p]}</td><td>${A.outDeg[p]}</td><td>${(A.pr[p] * 100).toFixed(3)}%</td>`);
+      tb.append(tr);
+    }
+    const sum = Object.values(A.pr).reduce((s, v) => s + v, 0);
+    $('prStatus').textContent = `Converged in ${A.iterations} iterations (total change under 1e-13). ${A.dangling.length} dangling page${A.dangling.length === 1 ? '' : 's'}. Ranks sum to ${sum.toFixed(12)}.`;
+    draw(); if (SEL) select(SEL);
+  }
+
+  $('analyze').addEventListener('click', run);
+  $('demo').addEventListener('click', () => { $('pages').value = demoPages(); $('links').value = demoLinks(); $('home').value = '/'; SEL = null; run(); });
+  $('apply').addEventListener('click', () => {
+    const add = A.suggestions.map((s) => `${s.from} -> ${s.to}`);
+    $('links').value = $('links').value.replace(/\s*$/, '') + '\n# suggested\n' + add.join('\n');
+    run(); $('analyze').focus();
+  });
+  $('maxD').addEventListener('change', run);
+  $('seed').value = SEED;
+  $('relayout').addEventListener('click', () => { SEED = (parseInt($('seed').value, 10) >>> 0) || 1; run(); });
+  $('pages').value = demoPages(); $('links').value = demoLinks();
+  run();
+
+  window.__graph = {
+    get state() { return { pages: A.pages, edges: A.edges, broken: A.broken, orphans: A.orphans, depth: A.depth, pr: A.pr, iterations: A.iterations, dangling: A.dangling, suggestions: A.suggestions, errors: A.errors, notes: A.notes }; },
+    get positions() { return POS; }, get seed() { return SEED; },
+    api: { analyze, pagerank: (pages, edges) => pagerank(pages, edges, D, 1e-13), layout }
+  };
+})();
+</script>
+</body>
+</html>

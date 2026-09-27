@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Core Web Vitals Lab — what LCP, INP and CLS actually measure</title>
+<meta name="description" content="Interactive simulations of the three Core Web Vitals: drag render times to see which element becomes the Largest Contentful Paint, split an interaction into input delay, processing and presentation delay for INP, and compute layout-shift scores (impact fraction × distance fraction) and session windows for CLS. With web.dev thresholds judged at the 75th percentile and a p75 calculator.">
+<style>
+  :root {
+    --bg: #f4f1ea; --card: #fffdf8; --ink: #1d2327; --ink-2: #4a545b; --rule: #d9d3c5; --accent: #2d4a8a; --accent-2: #e8eefb;
+    --good: #0b7a4b; --good-bg: #dff3e8; --ni: #8a5a00; --ni-bg: #fdf0cf; --poor: #b3261e; --poor-bg: #fbe1de;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --mono: "Consolas", "SFMono-Regular", "Menlo", "Liberation Mono", monospace;
+    --display: "Bahnschrift", "DIN Alternate", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--sans); overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: #fff; background: var(--ink); text-decoration: none; font: 600 13px/1 var(--sans); padding: 8px 12px; border-radius: 6px; }
+  a.back:hover { background: var(--accent); }
+  .wrap { max-width: 1140px; margin: 0 auto; padding: 60px 16px 40px; }
+  .hero { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 20px; align-items: end; margin-bottom: 20px; }
+  .kicker { font: 600 12px/1.3 var(--display); letter-spacing: .2em; text-transform: uppercase; color: var(--accent); margin: 0; }
+  h1 { font: 600 clamp(32px, 6vw, 58px)/1.02 var(--display); margin: 6px 0 10px; letter-spacing: -.01em; }
+  .lede { margin: 0; color: var(--ink-2); max-width: 64ch; }
+  table.thr { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--rule); font-size: 13.5px; }
+  table.thr th, table.thr td { padding: 6px 8px; border-bottom: 1px solid var(--rule); text-align: left; }
+  table.thr th { font: 600 11px/1.3 var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
+  .g { color: var(--good); font-weight: 600; } .n { color: var(--ni); font-weight: 600; } .p { color: var(--poor); font-weight: 600; }
+  nav.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; border-bottom: 2px solid var(--ink); }
+  nav.tabs button { font: 600 14px/1 var(--display); letter-spacing: .04em; padding: 10px 14px; border: 1px solid var(--rule); border-bottom: 0; background: var(--card); color: var(--ink-2); cursor: pointer; border-radius: 6px 6px 0 0; min-height: 40px; }
+  nav.tabs button[aria-selected="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .card { background: var(--card); border: 1px solid var(--rule); border-radius: 8px; padding: 16px; min-width: 0; margin-bottom: 16px; }
+  h2 { font: 600 24px/1.2 var(--display); margin: 0 0 6px; }
+  h3 { font: 600 14px/1.3 var(--display); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); margin: 14px 0 6px; }
+  p.note { font-size: 13.5px; color: var(--ink-2); margin: 6px 0; }
+  .cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+  .ctl { display: grid; grid-template-columns: minmax(0, 11em) minmax(0, 1fr) 5.2em; gap: 8px; align-items: center; margin: 6px 0; font-size: 13.5px; }
+  .ctl label { min-width: 0; overflow-wrap: anywhere; }
+  .ctl output { font: 13px var(--mono); text-align: right; }
+  input[type=range] { width: 100%; min-width: 0; accent-color: var(--accent); }
+  input[type=number], textarea, select { width: 100%; min-width: 0; max-width: 100%; font: 13px var(--mono); padding: 6px 8px; border: 1px solid var(--rule); border-radius: 5px; background: #fff; color: var(--ink); }
+  textarea { resize: vertical; }
+  .btn { min-height: 38px; padding: 8px 14px; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: #fff; font: 600 13.5px/1 var(--sans); cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--accent); }
+  .btns { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+  .chk { display: flex; gap: 8px; align-items: center; font-size: 13.5px; margin: 5px 0; }
+  .chk input { width: 18px; height: 18px; flex: none; }
+  .result { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; padding: 12px 14px; border-radius: 8px; border: 2px solid var(--rule); margin: 10px 0; }
+  .result b.big { font: 600 32px/1 var(--display); font-variant-numeric: tabular-nums; }
+  .badge { font: 700 12px/1 var(--display); letter-spacing: .08em; text-transform: uppercase; padding: 5px 8px; border-radius: 4px; }
+  .badge.good { color: var(--good); background: var(--good-bg); } .badge.needs-improvement { color: var(--ni); background: var(--ni-bg); } .badge.poor { color: var(--poor); background: var(--poor-bg); }
+  .result.good { border-color: var(--good); } .result.needs-improvement { border-color: var(--ni); } .result.poor { border-color: var(--poor); }
+  svg { display: block; width: 100%; height: auto; }
+  svg text { font-family: var(--sans); }
+  .tablewrap { overflow-x: auto; }
+  table.data { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  table.data th, table.data td { padding: 5px 6px; border-bottom: 1px solid var(--rule); text-align: right; white-space: nowrap; }
+  table.data th:first-child, table.data td:first-child { text-align: left; white-space: normal; }
+  table.data th { font: 600 11px/1.3 var(--display); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+  tr.lcp td { background: var(--accent-2); font-weight: 600; }
+  tr.excluded td { color: #8b8f93; text-decoration: line-through; }
+  .formula { font: 14px/1.6 var(--mono); background: var(--accent-2); border-left: 4px solid var(--accent); padding: 8px 12px; margin: 8px 0; overflow-wrap: anywhere; }
+  .film { display: flex; flex-wrap: wrap; gap: 10px; }
+  .film figure { margin: 0; width: 112px; }
+  .film figcaption { font: 11.5px/1.3 var(--mono); color: var(--ink-2); text-align: center; overflow-wrap: anywhere; }
+  .bar { display: flex; height: 26px; border-radius: 4px; overflow: hidden; border: 1px solid var(--rule); margin: 8px 0 4px; }
+  .bar span { display: block; height: 100%; min-width: 0; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--ink-2); }
+  .legend i { display: inline-block; width: 11px; height: 11px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+  .sources { font-size: 12.5px; color: var(--ink-2); }
+  footer { text-align: center; font-size: 12.5px; color: var(--ink-2); margin-top: 20px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  @media (max-width: 860px) { .hero, .cols { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 480px) { .ctl { grid-template-columns: minmax(0, 1fr) 4.8em; } .ctl input[type=range] { grid-column: 1 / -1; grid-row: 2; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <div class="hero">
+    <div>
+      <p class="kicker">Field notes · Core Web Vitals</p>
+      <h1>Core Web Vitals Lab</h1>
+      <p class="lede">What do LCP, INP and CLS actually measure? Move the render times, handler costs and late-loading content in these three simulations and watch the metrics change. The maths is the same as the documented definitions, so the numbers aren't made up. INP replaced FID as the responsiveness Core Web Vital in March 2024.</p>
+    </div>
+    <table class="thr" data-testid="thresholds" aria-label="Core Web Vitals thresholds, judged at the 75th percentile">
+      <thead><tr><th scope="col">Metric</th><th scope="col">Good</th><th scope="col">Needs improvement</th><th scope="col">Poor</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">LCP</th><td class="g">≤ 2.5 s</td><td class="n">≤ 4 s</td><td class="p">&gt; 4 s</td></tr>
+        <tr><th scope="row">INP</th><td class="g">≤ 200 ms</td><td class="n">≤ 500 ms</td><td class="p">&gt; 500 ms</td></tr>
+        <tr><th scope="row">CLS</th><td class="g">≤ 0.1</td><td class="n">≤ 0.25</td><td class="p">&gt; 0.25</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <nav class="tabs" role="tablist" aria-label="Simulations">
+    <button type="button" role="tab" id="tab-lcp" aria-controls="p-lcp" aria-selected="true" data-testid="tab-lcp">LCP</button>
+    <button type="button" role="tab" id="tab-inp" aria-controls="p-inp" aria-selected="false" tabindex="-1" data-testid="tab-inp">INP</button>
+    <button type="button" role="tab" id="tab-cls" aria-controls="p-cls" aria-selected="false" tabindex="-1" data-testid="tab-cls">CLS</button>
+    <button type="button" role="tab" id="tab-p75" aria-controls="p-p75" aria-selected="false" tabindex="-1" data-testid="tab-p75">p75</button>
+  </nav>
+
+  <!-- LCP -->
+  <section class="card" id="p-lcp" role="tabpanel" aria-labelledby="tab-lcp">
+    <h2>Largest Contentful Paint</h2>
+    <p class="note">As a page renders, the browser reports an LCP <em>candidate</em> each time an element paints that is larger than any candidate before it. The last candidate before the user first interacts (a tap, click or key press) is the page's LCP. Candidates are images, video posters, background images and blocks of text, measured by their visible area. Drag the dots, or use the sliders, to change when each element paints on this fictional bakery's page.</p>
+    <svg id="lcpSvg" viewBox="0 0 640 250" data-testid="lcp-timeline" role="img" aria-label="LCP timeline"></svg>
+    <div id="lcpCtl"></div>
+    <div class="ctl"><label for="lcpInput">First user input at (ms)</label><input type="range" id="lcpInput" min="0" max="6000" step="50" value="6000" data-testid="lcp-input"><output for="lcpInput" id="lcpInputOut">none</output></div>
+    <div aria-live="polite"><div class="result" id="lcpRes" data-testid="lcp-result"></div></div>
+    <div class="tablewrap"><table class="data"><caption class="sr">LCP candidates in paint order</caption><thead><tr><th scope="col">Element</th><th scope="col">Area (px²)</th><th scope="col">Paints at</th><th scope="col">Candidate?</th></tr></thead><tbody id="lcpRows"></tbody></table></div>
+    <div class="btns"><button type="button" class="btn ghost" id="lcpReset" data-testid="lcp-reset">Reset</button><button type="button" class="btn ghost" id="lcpPreload" data-testid="lcp-preload">Fix: preload the hero, don't lazy-load it</button></div>
+    <p class="note">Text blocks can be LCP too: if the hero image is slow, a big paragraph often wins. The size used for an image is its visible area, reduced to its intrinsic size if it has been upscaled.</p>
+  </section>
+
+  <!-- INP -->
+  <section class="card" id="p-inp" role="tabpanel" aria-labelledby="tab-inp" hidden>
+    <h2>Interaction to Next Paint</h2>
+    <p class="note">One interaction's latency runs from the input until the next frame is painted. It has three parts: <b>input delay</b> (the main thread is busy with something else), <b>processing</b> (your event handlers run: pointerdown, pointerup and click for a tap), and <b>presentation delay</b> (style, layout and paint, then waiting for the next frame). Frames here come every 1000/60 ms.</p>
+    <div class="cols">
+      <div>
+        <div class="ctl"><label for="inBusy">Long task still running (input delay)</label><input type="range" id="inBusy" min="0" max="400" step="5" value="120" data-testid="inp-busy"><output id="inBusyOut"></output></div>
+        <div class="ctl"><label for="inDown">pointerdown handler</label><input type="range" id="inDown" min="0" max="300" step="5" value="10" data-testid="inp-down"><output id="inDownOut"></output></div>
+        <div class="ctl"><label for="inUp">pointerup handler</label><input type="range" id="inUp" min="0" max="300" step="5" value="5" data-testid="inp-up"><output id="inUpOut"></output></div>
+        <div class="ctl"><label for="inClick">click handler</label><input type="range" id="inClick" min="0" max="300" step="5" value="90" data-testid="inp-click"><output id="inClickOut"></output></div>
+        <div class="ctl"><label for="inRender">Style, layout &amp; paint work</label><input type="range" id="inRender" min="0" max="200" step="5" value="30" data-testid="inp-render"><output id="inRenderOut"></output></div>
+        <div class="btns">
+          <button type="button" class="btn" id="inRecord" data-testid="inp-record">Record this interaction</button>
+          <button type="button" class="btn ghost" id="inYield" data-testid="inp-yield">Fix: yield, then do the heavy work</button>
+          <button type="button" class="btn ghost" id="inClear" data-testid="inp-clear">Clear recorded</button>
+        </div>
+      </div>
+      <div>
+        <div aria-live="polite">
+          <div class="result" id="inpOne" data-testid="inp-one"></div>
+          <div class="bar" id="inpBar" aria-hidden="true"></div>
+          <div class="legend"><span><i style="background:#c9a227"></i>input delay</span><span><i style="background:#2d4a8a"></i>processing</span><span><i style="background:#7a9cd6"></i>presentation delay</span></div>
+          <p class="note" id="inpBreak" data-testid="inp-breakdown"></p>
+          <div class="result" id="inpAll" data-testid="inp-all"></div>
+        </div>
+        <p class="note">The page's INP is its worst interaction latency, except that one highest interaction is ignored for every 50 interactions, so a single outlier on a busy page doesn't set the score. Browsers report event durations rounded to 8 ms; this simulation shows exact values.</p>
+      </div>
+    </div>
+    <div class="tablewrap"><table class="data"><caption class="sr">Recorded interactions</caption><thead><tr><th scope="col">#</th><th scope="col">Input delay</th><th scope="col">Processing</th><th scope="col">Presentation</th><th scope="col">Latency</th></tr></thead><tbody id="inpRows" data-testid="inp-rows"></tbody></table></div>
+    <p class="note" data-testid="fid-note">History: First Input Delay (FID) measured only the input delay of the first interaction. INP replaced it as a Core Web Vital in March 2024 because it covers every interaction and all three phases.</p>
+  </section>
+
+  <!-- CLS -->
+  <section class="card" id="p-cls" role="tabpanel" aria-labelledby="tab-cls" hidden>
+    <h2>Cumulative Layout Shift</h2>
+    <div class="formula" data-testid="cls-formula">layout shift score = impact fraction × distance fraction<br>impact fraction = area of the union of every unstable element's before and after boxes (within the viewport) ÷ viewport area<br>distance fraction = the largest distance any unstable element moved ÷ the viewport's largest dimension</div>
+    <p class="note">An element is <em>unstable</em> when its start position changes between frames. Growing, or appearing for the first time, doesn't count. Shifts within 500 ms of a user input are excluded (hadRecentInput). Shifts are grouped into session windows: a window keeps going while the gap between shifts is under 1 s, and for at most 5 s. CLS is the largest window's total.</p>
+    <div class="btns"><button type="button" class="btn ghost" id="clsExample" data-testid="cls-example">web.dev worked example</button></div>
+    <div class="result" id="clsExampleOut" data-testid="cls-example-out" hidden></div>
+    <div class="cols">
+      <div>
+        <h3>A 360 × 640 phone viewport, late content</h3>
+        <div id="clsEvents"></div>
+        <h3>Fixes</h3>
+        <label class="chk"><input type="checkbox" id="fxImg" data-testid="fix-img"> Give the hero image width and height (reserve its box)</label>
+        <label class="chk"><input type="checkbox" id="fxAd" data-testid="fix-ad"> Reserve the ad slot with min-height</label>
+        <label class="chk"><input type="checkbox" id="fxFont" data-testid="fix-font"> Match the fallback font's metrics (size-adjust)</label>
+        <label class="chk"><input type="checkbox" id="fxBar" data-testid="fix-bar"> Overlay the promo bar instead of inserting it</label>
+      </div>
+      <div aria-live="polite">
+        <div class="result" id="clsRes" data-testid="cls-result"></div>
+        <p class="note" id="clsWin" data-testid="cls-windows"></p>
+      </div>
+    </div>
+    <div class="tablewrap"><table class="data"><caption class="sr">Layout shifts</caption><thead><tr><th scope="col">Shift</th><th scope="col">At</th><th scope="col">Impact</th><th scope="col">Distance</th><th scope="col">Score</th><th scope="col">Window</th></tr></thead><tbody id="clsRows" data-testid="cls-rows"></tbody></table></div>
+    <h3>Filmstrip: before (dashed) and after, impact region shaded</h3>
+    <div class="film" id="film" data-testid="film"></div>
+  </section>
+
+  <!-- p75 -->
+  <section class="card" id="p-p75" role="tabpanel" aria-labelledby="tab-p75" hidden>
+    <h2>Judged at the 75th percentile</h2>
+    <p class="note">A page passes a metric when at least 75% of visits are "good": the 75th percentile (p75) of the field data must be within the good threshold. This calculator uses the <b>nearest-rank</b> method: sort the n values, and p75 is the value at rank ⌈0.75 × n⌉. Field tools such as CrUX compute percentiles from their own aggregated data, so their figures can differ slightly.</p>
+    <div class="cols">
+      <div>
+        <label for="pMetric" class="sr">Metric</label>
+        <select id="pMetric" data-testid="p-metric" aria-label="Metric"><option value="LCP">LCP (ms)</option><option value="INP">INP (ms)</option><option value="CLS">CLS</option></select>
+        <label for="pData" class="sr">Samples</label>
+        <textarea id="pData" rows="6" data-testid="p-data" aria-label="Samples, separated by commas, spaces or new lines" style="margin-top:8px"></textarea>
+        <div class="btns"><button type="button" class="btn" id="pCalc" data-testid="p-calc">Calculate</button><button type="button" class="btn ghost" id="pGen" data-testid="p-gen">200 seeded samples</button></div>
+      </div>
+      <div aria-live="polite">
+        <div class="result" id="pRes" data-testid="p-result"></div>
+        <p class="note" id="pShare" data-testid="p-share"></p>
+      </div>
+    </div>
+    <svg id="pSvg" viewBox="0 0 640 200" data-testid="p-hist" role="img" aria-label="Histogram of samples"></svg>
+  </section>
+
+  <p class="sources">Sources: web.dev, "Web Vitals", "Largest Contentful Paint (LCP)", "Interaction to Next Paint (INP)", "Cumulative Layout Shift (CLS)", "Defining the Core Web Vitals metrics thresholds"; the W3C Layout Instability and Largest Contentful Paint specifications. Thresholds: LCP ≤ 2.5 s good, &gt; 4 s poor; INP ≤ 200 ms good, &gt; 500 ms poor; CLS ≤ 0.1 good, &gt; 0.25 poor, each at the 75th percentile. Page-speed tools don't show how Google ranks pages, and this lab doesn't claim to.</p>
+  <footer>Built by Zac Corbett · "Juniper &amp; Finch Bakery" is fictional · <code>?seed=N</code> seeds the sample distribution</footer>
+</div>
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  const SEED = (parseInt(params.get('seed'), 10) >>> 0) || 154;
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const el = (tag, attrs, parent) => { const e = document.createElementNS(svgNS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.append(e); return e; };
+
+  // ---------- thresholds ----------
+  const TH = { LCP: { good: 2500, poor: 4000, unit: 'ms' }, INP: { good: 200, poor: 500, unit: 'ms' }, CLS: { good: 0.1, poor: 0.25, unit: '' } };
+  const EPS = 1e-9;   // so 0.1 reached through floating-point sums (0.1000000000000000055…) still counts as 0.1
+  function classify(metric, v) {
+    const t = TH[metric];
+    if (v <= t.good + EPS) return 'good';
+    if (v <= t.poor + EPS) return 'needs-improvement';
+    return 'poor';
+  }
+  const LABEL = { good: 'Good', 'needs-improvement': 'Needs improvement', poor: 'Poor' };
+  const fmt = (metric, v) => metric === 'CLS' ? (Math.round(v * 10000) / 10000).toString() : metric === 'LCP' && v >= 1000 ? (v / 1000).toFixed(2) + ' s' : (Math.round(v * 10) / 10) + ' ms';
+  function setResult(box, metric, v, label, extra) {
+    const c = classify(metric, v);
+    box.className = 'result ' + c; box.dataset.rating = c; box.dataset.value = String(v);
+    box.innerHTML = `<span>${label}</span><b class="big">${fmt(metric, v)}</b><span class="badge ${c}">${LABEL[c]}</span>${extra ? `<span class="note">${extra}</span>` : ''}`;
+    return c;
+  }
+
+  // ---------- tabs ----------
+  const tabs = ['lcp', 'inp', 'cls', 'p75'];
+  function showTab(name, focus) {
+    for (const t of tabs) {
+      const b = $('tab-' + t), on = t === name;
+      b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; $('p-' + t).hidden = !on;
+      if (on && focus) b.focus();
+    }
+  }
+  tabs.forEach((t, i) => {
+    $('tab-' + t).addEventListener('click', () => showTab(t));
+    $('tab-' + t).addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); showTab(tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length], true); }
+    });
+  });
+
+  // ================= LCP =================
+  const LCP_DEFAULT = [
+    { id: 'logo', name: 'Logo image', w: 180, h: 60, t: 300, kind: 'image' },
+    { id: 'h1', name: 'Headline text', w: 360, h: 80, t: 600, kind: 'text' },
+    { id: 'intro', name: 'Intro paragraph', w: 360, h: 150, t: 700, kind: 'text' },
+    { id: 'cookie', name: 'Cookie notice text', w: 360, h: 120, t: 1200, kind: 'text' },
+    { id: 'hero', name: 'Hero image (lazy-loaded)', w: 360, h: 240, t: 2800, kind: 'image' }
+  ];
+  let lcpEls = LCP_DEFAULT.map((e) => ({ ...e }));
+  function computeLcp(els, inputAt) {
+    const order = els.map((e, i) => ({ ...e, area: e.w * e.h, i })).sort((a, b) => a.t - b.t || a.i - b.i);
+    const cands = []; let largest = 0;
+    for (const e of order) {
+      if (inputAt != null && e.t >= inputAt) break;          // reporting stops at the first input
+      if (e.area > largest) { cands.push(e); largest = e.area; }
+    }
+    const last = cands[cands.length - 1] || null;
+    return { candidates: cands.map((c) => c.id), lcp: last ? { id: last.id, time: last.t, area: last.area } : null };
+  }
+  const lcpInputAt = () => { const v = +$('lcpInput').value; return v >= 6000 ? null : v; };
+  function buildLcpCtl() {
+    const box = $('lcpCtl'); box.textContent = '';
+    for (const e of lcpEls) {
+      const d = document.createElement('div'); d.className = 'ctl';
+      d.innerHTML = `<label for="lcp-${e.id}">${e.name} <small>(${e.w}×${e.h})</small></label><input type="range" id="lcp-${e.id}" min="0" max="6000" step="50" value="${e.t}" data-testid="lcp-t-${e.id}"><output id="lcp-${e.id}-out"></output>`;
+      box.append(d);
+      d.querySelector('input').addEventListener('input', (ev) => { e.t = +ev.target.value; renderLcp(); });
+    }
+  }
+  const X0 = 150, X1 = 620, xOf = (t) => X0 + (t / 6000) * (X1 - X0), tOf = (x) => Math.max(0, Math.min(6000, Math.round(((x - X0) / (X1 - X0)) * 6000 / 50) * 50));
+  let lcpState = null;
+  function renderLcp() {
+    const inputAt = lcpInputAt();
+    $('lcpInputOut').textContent = inputAt == null ? 'none' : inputAt + ' ms';
+    const r = computeLcp(lcpEls, inputAt);
+    lcpState = { elements: lcpEls.map((e) => ({ id: e.id, w: e.w, h: e.h, t: e.t })), inputAt, ...r };
+    for (const e of lcpEls) { $('lcp-' + e.id + '-out').textContent = e.t + ' ms'; $('lcp-' + e.id).value = e.t; }
+    const box = $('lcpRes');
+    if (r.lcp) { const n = lcpEls.find((e) => e.id === r.lcp.id).name; setResult(box, 'LCP', r.lcp.time, 'LCP', `${n}, ${r.lcp.area.toLocaleString('en-US')} px²`); box.dataset.element = r.lcp.id; }
+    else { box.className = 'result'; box.dataset.element = ''; box.innerHTML = '<span>No LCP: the user interacted before anything painted.</span>'; }
+    const rows = $('lcpRows'); rows.textContent = '';
+    for (const e of [...lcpEls].sort((a, b) => a.t - b.t)) {
+      const tr = document.createElement('tr'); if (r.lcp && r.lcp.id === e.id) tr.className = 'lcp';
+      const after = inputAt != null && e.t >= inputAt;
+      tr.innerHTML = `<td>${e.name}</td><td>${(e.w * e.h).toLocaleString('en-US')}</td><td>${e.t} ms</td><td>${after ? 'after input: ignored' : r.candidates.includes(e.id) ? (r.lcp && r.lcp.id === e.id ? 'yes: final LCP' : 'yes') : 'no, smaller'}</td>`;
+      rows.append(tr);
+    }
+    // timeline
+    const s = $('lcpSvg'); s.textContent = '';
+    for (let t = 0; t <= 6000; t += 1000) { el('line', { x1: xOf(t), x2: xOf(t), y1: 14, y2: 224, stroke: '#d9d3c5' }, s); el('text', { x: xOf(t), y: 242, 'text-anchor': 'middle', 'font-size': 11, fill: '#4a545b' }, s).textContent = (t / 1000) + ' s'; }
+    el('rect', { x: X0, y: 14, width: xOf(2500) - X0, height: 6, fill: '#0b7a4b', opacity: .7 }, s);
+    el('rect', { x: xOf(2500), y: 14, width: xOf(4000) - xOf(2500), height: 6, fill: '#c9a227', opacity: .8 }, s);
+    el('rect', { x: xOf(4000), y: 14, width: X1 - xOf(4000), height: 6, fill: '#b3261e', opacity: .7 }, s);
+    if (inputAt != null) { el('line', { x1: xOf(inputAt), x2: xOf(inputAt), y1: 24, y2: 224, stroke: '#b3261e', 'stroke-dasharray': '4 3', 'stroke-width': 2 }, s); el('text', { x: xOf(inputAt) + 4, y: 34, 'font-size': 11, fill: '#b3261e' }, s).textContent = 'first input'; }
+    const maxA = Math.max(...lcpEls.map((e) => e.w * e.h));
+    lcpEls.forEach((e, i) => {
+      const y = 50 + i * 38, isL = r.lcp && r.lcp.id === e.id, cand = r.candidates.includes(e.id);
+      el('text', { x: 8, y: y + 4, 'font-size': 12, fill: '#1d2327' }, s).textContent = e.name.replace(' (lazy-loaded)', '');
+      el('line', { x1: X0, x2: X1, y1: y, y2: y, stroke: '#ece7da' }, s);
+      const rad = 5 + 11 * Math.sqrt((e.w * e.h) / maxA);
+      const c = el('circle', { cx: xOf(e.t), cy: y, r: rad, fill: isL ? '#2d4a8a' : cand ? '#7a9cd6' : '#fff', stroke: '#2d4a8a', 'stroke-width': 2, 'data-id': e.id, 'data-testid': 'dot-' + e.id, style: 'cursor:ew-resize;touch-action:none' }, s);
+      el('title', {}, c).textContent = `${e.name}: paints at ${e.t} ms`;
+      if (isL) el('text', { x: xOf(e.t), y: y - rad - 3, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 700, fill: '#2d4a8a' }, s).textContent = 'LCP';
+    });
+    s.setAttribute('aria-label', r.lcp ? `LCP timeline: the LCP is ${lcpEls.find((e) => e.id === r.lcp.id).name} at ${r.lcp.time} ms` : 'LCP timeline: no LCP');
+  }
+  // drag the dots
+  (function () {
+    const s = $('lcpSvg'); let drag = null;
+    const toX = (ev) => { const p = s.createSVGPoint(); p.x = ev.clientX; p.y = ev.clientY; return p.matrixTransform(s.getScreenCTM().inverse()).x; };
+    s.addEventListener('pointerdown', (ev) => { const id = ev.target.getAttribute && ev.target.getAttribute('data-id'); if (!id) return; drag = id; s.setPointerCapture(ev.pointerId); ev.preventDefault(); });
+    s.addEventListener('pointermove', (ev) => { if (!drag) return; const e = lcpEls.find((q) => q.id === drag); const t = tOf(toX(ev)); if (t !== e.t) { e.t = t; renderLcp(); } });
+    const end = () => { drag = null; };
+    s.addEventListener('pointerup', end); s.addEventListener('pointercancel', end);
+  })();
+  $('lcpInput').addEventListener('input', renderLcp);
+  $('lcpReset').addEventListener('click', () => { lcpEls.forEach((e, i) => { e.t = LCP_DEFAULT[i].t; }); $('lcpInput').value = 6000; renderLcp(); });
+  $('lcpPreload').addEventListener('click', () => { lcpEls.find((e) => e.id === 'hero').t = 1100; renderLcp(); });
+
+  // ================= INP =================
+  const FRAME = 1000 / 60;
+  function interaction(p) {
+    const inputDelay = p.busy;
+    const processing = p.down + p.up + p.click;
+    const workEnd = inputDelay + processing + p.render;
+    const paint = Math.ceil(workEnd / FRAME - 1e-9) * FRAME;     // next frame boundary at or after the rendering work
+    return { inputDelay, processing, presentation: paint - inputDelay - processing, latency: paint };
+  }
+  function inpOf(latencies) {
+    if (!latencies.length) return null;
+    const sorted = [...latencies].sort((a, b) => b - a);
+    const skip = Math.min(Math.floor(latencies.length / 50), sorted.length - 1);
+    return sorted[skip];
+  }
+  const recorded = [];
+  const inpParams = () => ({ busy: +$('inBusy').value, down: +$('inDown').value, up: +$('inUp').value, click: +$('inClick').value, render: +$('inRender').value });
+  let inpState = null;
+  function renderInp() {
+    const p = inpParams();
+    for (const [id, k] of [['inBusy', 'busy'], ['inDown', 'down'], ['inUp', 'up'], ['inClick', 'click'], ['inRender', 'render']]) $(id + 'Out').textContent = p[k] + ' ms';
+    const it = interaction(p);
+    setResult($('inpOne'), 'INP', it.latency, 'This interaction');
+    const bar = $('inpBar'); bar.textContent = '';
+    for (const [v, c] of [[it.inputDelay, '#c9a227'], [it.processing, '#2d4a8a'], [it.presentation, '#7a9cd6']]) { const sp = document.createElement('span'); sp.style.background = c; sp.style.width = (100 * v / Math.max(it.latency, 1)) + '%'; bar.append(sp); }
+    const r1 = (v) => Math.round(v * 10) / 10;
+    $('inpBreak').textContent = `Input delay ${r1(it.inputDelay)} ms + processing ${r1(it.processing)} ms + presentation delay ${r1(it.presentation)} ms = ${r1(it.latency)} ms.`;
+    const v = inpOf(recorded.map((r) => r.latency));
+    const all = $('inpAll');
+    if (v == null) { all.className = 'result'; all.innerHTML = '<span>Record interactions to get the page\'s INP.</span>'; all.dataset.value = ''; }
+    else setResult(all, 'INP', v, `Page INP over ${recorded.length} interaction${recorded.length === 1 ? '' : 's'}`, recorded.length >= 50 ? `highest ${Math.floor(recorded.length / 50)} ignored` : 'worst one');
+    const rows = $('inpRows'); rows.textContent = '';
+    recorded.forEach((r, i) => { const tr = document.createElement('tr'); tr.innerHTML = `<td>${i + 1}</td><td>${r1(r.inputDelay)}</td><td>${r1(r.processing)}</td><td>${r1(r.presentation)}</td><td>${r1(r.latency)}</td>`; rows.append(tr); });
+    inpState = { current: it, params: p, recorded: recorded.map((r) => r.latency), inp: v };
+  }
+  ['inBusy', 'inDown', 'inUp', 'inClick', 'inRender'].forEach((id) => $(id).addEventListener('input', renderInp));
+  $('inRecord').addEventListener('click', () => { recorded.push(interaction(inpParams())); renderInp(); });
+  $('inClear').addEventListener('click', () => { recorded.length = 0; renderInp(); });
+  $('inYield').addEventListener('click', () => {
+    // Paint the visual response first, then run the heavy part in a later task: the click handler only does light work.
+    $('inClick').value = 10; $('inBusy').value = 20; renderInp();
+    $('inpBreak').textContent += ' The heavy work now runs after the next paint (for example after scheduler.yield() or setTimeout), so it no longer delays this frame.';
+  });
+
+  // ================= CLS =================
+  function unionArea(rects) {
+    const xs = [...new Set(rects.flatMap((r) => [r.x, r.x + r.w]))].sort((a, b) => a - b);
+    let area = 0;
+    for (let i = 0; i < xs.length - 1; i++) {
+      const xa = xs[i], xb = xs[i + 1];
+      const ys = rects.filter((r) => r.x <= xa && r.x + r.w >= xb && r.h > 0).map((r) => [r.y, r.y + r.h]).sort((a, b) => a[0] - b[0]);
+      let len = 0, cs = -Infinity, ce = -Infinity;
+      for (const [a, b] of ys) { if (a > ce) { if (ce > cs) len += ce - cs; cs = a; ce = b; } else if (b > ce) ce = b; }
+      if (ce > cs) len += ce - cs;
+      area += len * (xb - xa);
+    }
+    return area;
+  }
+  const clip = (r, vw, vh) => { const x = Math.max(0, r.x), y = Math.max(0, r.y), x2 = Math.min(vw, r.x + r.w), y2 = Math.min(vh, r.y + r.h); return x2 > x && y2 > y ? { x, y, w: x2 - x, h: y2 - y } : null; };
+  function shiftScore(vw, vh, pairs) {
+    const regions = []; let maxMove = 0; const unstable = [];
+    for (const p of pairs) {
+      if (p.before.x === p.after.x && p.before.y === p.after.y) continue;
+      const a = clip(p.before, vw, vh), b = clip(p.after, vw, vh);
+      if (!a && !b) continue;
+      if (a) regions.push(a); if (b) regions.push(b);
+      unstable.push(p.id);
+      maxMove = Math.max(maxMove, Math.abs(p.after.x - p.before.x), Math.abs(p.after.y - p.before.y));
+    }
+    const impact = unionArea(regions) / (vw * vh);
+    const distance = maxMove / Math.max(vw, vh);
+    return { impact, distance, score: impact * distance, unstable };
+  }
+  function sessionWindows(shifts) {
+    const counted = shifts.filter((s) => !s.hadRecentInput).sort((a, b) => a.t - b.t);
+    const wins = []; let cur = null;
+    for (const s of counted) {
+      if (cur && s.t - cur.last < 1000 && s.t - cur.start < 5000) { cur.value += s.score; cur.last = s.t; cur.ids.push(s.id); }
+      else { cur = { start: s.t, last: s.t, value: s.score, ids: [s.id] }; wins.push(cur); }
+    }
+    const cls = wins.reduce((m, w) => Math.max(m, w.value), 0);
+    return { windows: wins.map((w) => ({ start: w.start, end: w.last, value: w.value, ids: w.ids })), cls };
+  }
+
+  const VW = 360, VH = 640, BX = 16, BW = 328;
+  const BLOCKS = [
+    ['bar', 'Promo bar', 0], ['header', 'Header', 56], ['h1', 'Headline', 72], ['hero', 'Hero image', 0], ['p1', 'Intro text', 120],
+    ['ad', 'Ad slot', 0], ['p2', 'Story text', 160], ['more', 'Related links', 200], ['footer', 'Footer', 120]
+  ];
+  const CLS_EVENTS = [
+    { id: 'font', label: 'Web font swaps in (intro text grows 120 → 144 px)', t: 450 },
+    { id: 'img', label: 'Hero image loads with no size (0 → 220 px)', t: 1100 },
+    { id: 'ad', label: 'Ad injected (0 → 100 px)', t: 1700 },
+    { id: 'tap', label: 'User taps "Read more" (intro text +80 px, 100 ms after the tap)', t: 3000 },
+    { id: 'bar', label: 'Promo bar inserted at the top (0 → 48 px)', t: 5200 }
+  ];
+  const evT = {}; CLS_EVENTS.forEach((e) => { evT[e.id] = e.t; });
+  function layout(h) { let y = 0; const out = {}; for (const [id] of BLOCKS) { out[id] = { x: BX, y, w: BW, h: h[id] }; y += h[id]; } return out; }
+  function clsScenario(times, fix) {
+    const h = {}; BLOCKS.forEach(([id, , hh]) => { h[id] = hh; });
+    if (fix.img) h.hero = 220; if (fix.ad) h.ad = 100;
+    const steps = [
+      { id: 'font', t: times.font, apply: () => { if (!fix.font) h.p1 += 24; } },
+      { id: 'img', t: times.img, apply: () => { h.hero = 220; } },
+      { id: 'ad', t: times.ad, apply: () => { h.ad = 100; } },
+      { id: 'tap', t: times.tap + 100, input: times.tap, apply: () => { h.p1 += 80; } },
+      { id: 'bar', t: times.bar, apply: () => { if (!fix.bar) h.bar = 48; } }
+    ].sort((a, b) => a.t - b.t);
+    const shifts = []; const inputs = steps.filter((s) => s.input != null).map((s) => s.input);
+    for (const st of steps) {
+      const before = layout(h); const hb = { ...h }; st.apply(); const after = layout(h);
+      const pairs = BLOCKS.map(([id]) => id).filter((id) => hb[id] > 0 && h[id] > 0).map((id) => ({ id, before: before[id], after: after[id] }));
+      const sc = shiftScore(VW, VH, pairs);
+      if (!sc.unstable.length) continue;
+      const hadRecentInput = inputs.some((ti) => st.t >= ti && st.t - ti <= 500);
+      shifts.push({ id: st.id, t: st.t, impact: sc.impact, distance: sc.distance, score: sc.score, hadRecentInput, unstable: sc.unstable,
+        pairs: pairs.filter((p) => sc.unstable.includes(p.id)), allBefore: before, allAfter: after });
+    }
+    return { shifts, ...sessionWindows(shifts) };
+  }
+  let clsState = null;
+  function buildClsCtl() {
+    const box = $('clsEvents');
+    for (const e of CLS_EVENTS) {
+      const d = document.createElement('div'); d.className = 'ctl';
+      d.innerHTML = `<label for="ev-${e.id}">${e.label}</label><input type="range" id="ev-${e.id}" min="0" max="8000" step="50" value="${e.t}" data-testid="ev-${e.id}"><output id="ev-${e.id}-out"></output>`;
+      box.append(d);
+      d.querySelector('input').addEventListener('input', (ev) => { evT[e.id] = +ev.target.value; renderCls(); });
+    }
+  }
+  const f4 = (v) => (Math.round(v * 10000) / 10000).toFixed(4);
+  function renderCls() {
+    CLS_EVENTS.forEach((e) => { $('ev-' + e.id + '-out').textContent = evT[e.id] + ' ms'; });
+    const fix = { img: $('fxImg').checked, ad: $('fxAd').checked, font: $('fxFont').checked, bar: $('fxBar').checked };
+    const r = clsScenario(evT, fix);
+    clsState = { viewport: { w: VW, h: VH }, times: { ...evT }, fix, shifts: r.shifts.map((s) => ({ id: s.id, t: s.t, impact: s.impact, distance: s.distance, score: s.score, hadRecentInput: s.hadRecentInput, pairs: s.pairs })), windows: r.windows, cls: r.cls };
+    setResult($('clsRes'), 'CLS', r.cls, 'CLS (largest session window)');
+    $('clsWin').textContent = r.windows.length ? r.windows.map((w, i) => `Window ${i + 1}: ${w.start}–${w.end} ms, ${w.ids.length} shift${w.ids.length > 1 ? 's' : ''}, total ${f4(w.value)}`).join('. ') + '.' : 'No counted layout shifts.';
+    const rows = $('clsRows'); rows.textContent = '';
+    const winOf = (id) => r.windows.findIndex((w) => w.ids.includes(id));
+    r.shifts.forEach((s) => {
+      const tr = document.createElement('tr'); if (s.hadRecentInput) tr.className = 'excluded';
+      tr.dataset.shift = s.id;
+      tr.innerHTML = `<td>${CLS_EVENTS.find((e) => e.id === s.id).label.split(' (')[0]}${s.hadRecentInput ? ' <small>(recent input: excluded)</small>' : ''}</td><td>${s.t} ms</td><td>${f4(s.impact)}</td><td>${f4(s.distance)}</td><td>${f4(s.score)}</td><td>${s.hadRecentInput ? '–' : winOf(s.id) + 1}</td>`;
+      rows.append(tr);
+    });
+    // filmstrip
+    const film = $('film'); film.textContent = '';
+    for (const s of r.shifts) {
+      const fig = document.createElement('figure');
+      const sv = el('svg', { viewBox: `0 0 ${VW} ${VH}`, role: 'img', 'aria-label': `Shift at ${s.t} ms: score ${f4(s.score)}` });
+      el('rect', { x: 0, y: 0, width: VW, height: VH, fill: '#fff', stroke: '#1d2327', 'stroke-width': 6 }, sv);
+      for (const p of s.pairs) { for (const rr of [p.before, p.after]) { const c = clip(rr, VW, VH); if (c) el('rect', { x: c.x, y: c.y, width: c.w, height: c.h, fill: '#b3261e', opacity: .18 }, sv); } }
+      for (const [id] of BLOCKS) { const a = s.allAfter[id]; if (a.h > 0) el('rect', { x: a.x, y: a.y, width: a.w, height: a.h - 4, fill: 'none', stroke: '#2d4a8a', 'stroke-width': 4 }, sv); }
+      for (const p of s.pairs) el('rect', { x: p.before.x, y: p.before.y, width: p.before.w, height: p.before.h - 4, fill: 'none', stroke: '#b3261e', 'stroke-width': 4, 'stroke-dasharray': '14 10' }, sv);
+      const cap = document.createElement('figcaption'); cap.textContent = `${s.t} ms · ${f4(s.score)}${s.hadRecentInput ? ' (excluded)' : ''}`;
+      fig.append(sv, cap); film.append(fig);
+    }
+  }
+  ['fxImg', 'fxAd', 'fxFont', 'fxBar'].forEach((id) => $(id).addEventListener('change', renderCls));
+  // web.dev worked example: an element taking half the viewport moves down by a quarter of the viewport height.
+  $('clsExample').addEventListener('click', () => {
+    const vw = 400, vh = 800;
+    const r = shiftScore(vw, vh, [{ id: 'box', before: { x: 0, y: 0, w: 400, h: 400 }, after: { x: 0, y: 200, w: 400, h: 400 } }]);
+    const o = $('clsExampleOut'); o.hidden = false; o.className = 'result';
+    o.innerHTML = `<span>Element covering half a ${vw}×${vh} viewport moves down 200 px:</span><span>impact <b data-testid="ex-impact">${r.impact}</b></span><span>× distance <b data-testid="ex-distance">${r.distance}</b></span><span>= score <b class="big" data-testid="ex-score">${r.score}</b></span>`;
+  });
+
+  // ================= p75 =================
+  function p75(values) {
+    const s = values.filter((v) => Number.isFinite(v)).sort((a, b) => a - b);
+    if (!s.length) return null;
+    const rank = Math.ceil(0.75 * s.length);
+    return { value: s[rank - 1], rank, n: s.length, sorted: s };
+  }
+  function genSamples(metric, seed) {
+    const r = mulberry32(seed + (metric === 'LCP' ? 0 : metric === 'INP' ? 1000 : 2000));
+    const out = [];
+    const med = { LCP: 1900, INP: 150, CLS: 0.05 }[metric], sig = { LCP: 0.45, INP: 0.6, CLS: 0.9 }[metric];
+    for (let i = 0; i < 200; i++) {
+      const u1 = Math.max(r(), 1e-12), u2 = r();
+      const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+      const v = med * Math.exp(sig * z);
+      out.push(metric === 'CLS' ? Math.round(v * 1000) / 1000 : Math.round(v));
+    }
+    return out;
+  }
+  let pState = null;
+  function renderP75() {
+    const metric = $('pMetric').value;
+    const vals = $('pData').value.split(/[\s,;]+/).filter(Boolean).map(Number);
+    const bad = vals.filter((v) => !Number.isFinite(v) || v < 0).length;
+    const clean = vals.filter((v) => Number.isFinite(v) && v >= 0);
+    const r = p75(clean);
+    const box = $('pRes');
+    if (!r) { box.className = 'result'; box.innerHTML = '<span>Enter some numbers.</span>'; pState = { metric, p75: null, n: 0 }; $('pShare').textContent = ''; $('pSvg').textContent = ''; return; }
+    setResult(box, metric, r.value, `p75 of ${r.n} samples (rank ${r.rank})`);
+    const cats = { good: 0, 'needs-improvement': 0, poor: 0 };
+    for (const v of clean) cats[classify(metric, v)]++;
+    const pct = (k) => (100 * cats[k] / r.n).toFixed(1) + '%';
+    $('pShare').textContent = `${pct('good')} good, ${pct('needs-improvement')} needs improvement, ${pct('poor')} poor.${bad ? ` ${bad} value${bad > 1 ? 's' : ''} ignored (not a number, or negative).` : ''} The page passes ${metric} only if at least 75% of samples are good, which is the same as p75 being good.`;
+    pState = { metric, p75: r.value, rank: r.rank, n: r.n, share: cats, ignored: bad };
+    // histogram
+    const s = $('pSvg'); s.textContent = '';
+    const t = TH[metric]; const max = Math.max(r.sorted[r.n - 1], t.poor * 1.3);
+    const B = 32, bw = (max) / B, counts = new Array(B).fill(0);
+    for (const v of clean) counts[Math.min(B - 1, Math.floor(v / bw))]++;
+    const cm = Math.max(...counts), L = 30, R = 630, top = 12, bot = 170, xw = (R - L) / B;
+    const X = (v) => L + (v / max) * (R - L);
+    counts.forEach((c, i) => { const mid = (i + .5) * bw; const cl = classify(metric, mid); el('rect', { x: L + i * xw + 1, y: bot - (c / cm) * (bot - top), width: xw - 2, height: (c / cm) * (bot - top), fill: cl === 'good' ? '#0b7a4b' : cl === 'poor' ? '#b3261e' : '#c9a227', opacity: .75 }, s); });
+    el('line', { x1: L, x2: R, y1: bot, y2: bot, stroke: '#1d2327' }, s);
+    for (const v of [t.good, t.poor]) { el('line', { x1: X(v), x2: X(v), y1: top, y2: bot, stroke: '#4a545b', 'stroke-dasharray': '3 3' }, s); el('text', { x: X(v), y: bot + 14, 'text-anchor': 'middle', 'font-size': 11, fill: '#4a545b' }, s).textContent = metric === 'CLS' ? v : v + ' ms'; }
+    el('line', { x1: X(r.value), x2: X(r.value), y1: top - 4, y2: bot, stroke: '#2d4a8a', 'stroke-width': 3 }, s);
+    el('text', { x: Math.min(X(r.value) + 4, R - 70), y: top + 8, 'font-size': 12, 'font-weight': 700, fill: '#2d4a8a' }, s).textContent = 'p75 ' + fmt(metric, r.value);
+    s.setAttribute('aria-label', `Histogram of ${r.n} ${metric} samples; p75 is ${fmt(metric, r.value)}`);
+  }
+  $('pCalc').addEventListener('click', renderP75);
+  $('pMetric').addEventListener('change', () => { $('pData').value = genSamples($('pMetric').value, SEED).join(', '); renderP75(); });
+  $('pGen').addEventListener('click', () => { $('pData').value = genSamples($('pMetric').value, SEED).join(', '); renderP75(); });
+
+  // ---------- boot ----------
+  buildLcpCtl(); renderLcp(); renderInp(); buildClsCtl(); renderCls();
+  $('pData').value = genSamples('LCP', SEED).join(', '); renderP75();
+  const tab = params.get('tab'); if (tabs.includes(tab)) showTab(tab);
+
+  window.__vitals = {
+    thresholds: TH, classify, seed: SEED,
+    get lcp() { return lcpState; }, get inp() { return inpState; }, get cls() { return clsState; }, get p75() { return pState; },
+    api: { computeLcp, interaction, inpOf, shiftScore, sessionWindows, p75, genSamples, FRAME }
+  };
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+{
+  "id": "154",
+  "slug": "154-vitals-lab",
+  "file": "lab/154-vitals-lab.html",
+  "title": "Core Web Vitals Lab — what LCP, INP and CLS actually measure",
+  "category": "Data Viz",
+  "tags": ["seo", "core-web-vitals", "performance", "svg", "simulation"],
+  "description": "Three simulations of the Core Web Vitals. In the LCP one, you drag each element's paint time on a timeline and watch which one becomes the Largest Contentful Paint, and how the first input stops reporting. The INP one splits an interaction into input delay, processing and presentation delay up to the next frame, and applies the one-in-fifty outlier rule. The CLS one computes each layout shift as impact fraction × distance fraction on a 360 × 640 viewport, draws a filmstrip, excludes shifts after a tap and groups the rest into session windows (under 1 s gaps, 5 s cap). Web.dev's thresholds are judged at the 75th percentile, with a nearest-rank p75 calculator. INP replaced FID in March 2024.",
+  "prompt": "Build a Core Web Vitals Lab that shows what LCP, INP and CLS actually measure, with interactive simulations. LCP: a page timeline where I drag resource timings to see which element becomes LCP. INP: event handlers with configurable work, showing the input delay, processing and presentation delay breakdown. CLS: layout shifts from late images, ads and fonts, with shift scores computed as impact fraction × distance fraction and session windows (5 s max, 1 s gap). Use the good / needs-improvement / poor thresholds at p75, show a p75 calculator over a sample distribution, and note that INP replaced FID in March 2024. The spec should check the CLS maths against web.dev's worked examples (recomputed independently), session windowing, threshold classification at the boundaries, and the p75 computation, and say which percentile method is used.",
+  "qa": {
+    "methodology": [
+      "Independent CLS oracle: the test has its own union-of-rectangles area (2-D coordinate compression with cell-centre tests, a different algorithm from the page's sweep). It recomputes impact and distance fractions for the web.dev worked example (0.75 × 0.25 = 0.1875), for a partly off-screen shift, for a two-element diagonal move worked by hand (43,800 / 480,000 × 60 / 800), and for every shift in the bundled scenario.",
+      "Session windows on the boundary: a gap of exactly 1,000 ms starts a new window, a shift exactly 5,000 ms after a window's first shift starts a new one, and seven shifts 900 ms apart split 6 + 1. The test's own windowing function has to agree on counts and on the largest total.",
+      "Threshold boundaries at both edges for each metric (2500/2501, 4000/4001, 200/201, 500/501, 0.1/0.1001, 0.25/0.2501), plus floating-point sums that land on 0.1 (0.07 + 0.03) and 0.25 (five 0.05s).",
+      "INP arithmetic: the test works out the next 60 Hz frame boundary itself and checks input delay, processing, presentation delay and total. Separately, the outlier rule is checked on 120 synthetic latencies (the 2 highest ignored, giving 650 ms), on 49 and 50 interactions, and on one.",
+      "p75 uses the nearest-rank method (the value at rank ⌈0.75n⌉), and the page says so. It's checked against the test's own implementation on 200 seeded samples, on 1..8 (6), on five values with junk ignored (400), and on a CLS list where the fourth value flips the rating."
+    ],
+    "risks": [
+      "The CLS scenario is a simplified block layout: one column, and shifts are only vertical except in the API cases. Real pages also shift horizontally and scroll, and the Layout Instability spec has details (such as how transformed and scrolled elements count) that this model doesn't cover.",
+      "INP's presentation delay is modelled as rendering work plus waiting for the next 60 Hz frame. Real browsers also wait on the compositor and GPU, and report durations rounded to 8 ms; the page says the simulation doesn't round.",
+      "LCP candidates use a fixed area for each element. The real metric uses the visible area, clipped to the viewport and to an image's intrinsic size, and it ignores some low-content images. The page states the rule but doesn't simulate it.",
+      "CrUX and other field tools compute percentiles from their own aggregated data, so their p75 can differ slightly from nearest-rank. The page says this rather than claiming to match them."
+    ],
+    "playwright": "Almost everything is checked through window.__vitals numbers compared with oracles written in the spec, so no assertion depends on pixels. Range inputs accept locator.fill() with a value, which made setting render times, handler costs and event times exact and identical on desktop and mobile. The one pointer test drags an SVG dot with page.mouse. It's skipped on the Pixel 7 project (the sliders cover touch) and asserts a 900–1100 ms window rather than an exact time, because the drop point depends on layout width. page.mouse doesn't scroll for you, so the test calls scrollIntoViewIfNeeded() before it drags. The hand-worked numbers in the spec (a two-box union with its 140 × 80 overlap subtracted, and 545 ms of work for the poor INP case) are checked against both the test's oracle and the page. Keyboard tab switching is checked with toBeFocused() and aria-selected.",
+    "coverage": [
+      "Threshold table and boundary classification",
+      "LCP candidates, input cut-off, preload fix, slider and drag",
+      "INP phases and frame alignment, yield fix, FID history note",
+      "INP outlier rule (1 per 50) and recorded interactions",
+      "CLS web.dev worked example and API geometry cases",
+      "Bundled CLS scenario vs independent recomputation, filmstrip",
+      "Session windows: 1 s gap and 5 s cap at the boundary",
+      "Fixes, hadRecentInput exclusion at 300 vs 550 ms",
+      "p75 nearest-rank on seeded and hand-made data, seed and keyboard tabs"
+    ]
+  },
+  "a11y": "The four simulations sit in an ARIA tablist that works with the arrow keys. Every slider is a native range input with a label and a visible output. Results are written as text with a rating word (Good, Needs improvement, Poor), not only a colour, inside aria-live regions. The SVG timeline, histogram and filmstrip frames have aria-labels that give their key values, and every number drawn in them also appears in a table."
+}

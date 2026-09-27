@@ -1,0 +1,38 @@
+{
+  "id": "153",
+  "slug": "153-sitemap-studio",
+  "file": "lab/153-sitemap-studio.html",
+  "title": "Sitemap Studio — build and validate XML sitemaps",
+  "category": "Tools",
+  "tags": ["seo", "xml-sitemaps", "robots-txt", "domparser", "validation"],
+  "description": "Paste a URL list, or crawl a bundled fictional pottery shop's link graph right in the page, and get sitemap XML checked against the sitemaps.org protocol. It rejects relative URLs and URLs from another host or protocol, entity-escapes &, ', \", < and >, percent-encodes non-ASCII, validates every lastmod as W3C Datetime, drops duplicates, and splits at 50,000 URLs or 50 MB into numbered sitemaps plus a sitemap index. URLs that a pasted robots.txt disallows are flagged using RFC 9309 matching. Every file is checked with DOMParser and can be downloaded.",
+  "prompt": "Build Sitemap Studio, a tool that builds and validates XML sitemaps. I paste a URL list, or crawl a bundled fictional mini-site's link graph in the page (no network), and it generates sitemap XML. Validate against the sitemaps.org protocol: absolute URLs on one host, XML entity escaping of & ' \" < >, W3C Datetime lastmod, and the 50,000 URL / 50 MB uncompressed limit with automatic splitting into a sitemap index. Flag duplicate URLs and warn about URLs blocked by a pasted robots.txt, and note that Google ignores priority and changefreq. Let me download the files. The spec should check that escaping is exact, that 120,000 URLs split into 3 files plus an index, that mixed hosts are rejected, that lastmod formats are validated, and that the XML is well-formed via DOMParser.",
+  "qa": {
+    "methodology": [
+      "Escaping oracle: the test has its own five-entity escaper, taken from the protocol's table, and requires the page's <loc> to equal it exactly. It then parses the file with DOMParser and requires textContent to round-trip to the raw URL, and the escaped span to contain no bare <, >, quote or unescaped ampersand.",
+      "Splitting at scale: 120,000 generated URLs must give sitemap-1..3.xml with 50,000 / 50,000 / 20,000 URLs plus sitemap_index.xml. Each part is parsed with DOMParser, its <url> count and first URL are checked, and its reported byte size must equal TextEncoder's UTF-8 length. The boundary is checked on both sides: 50,000 URLs make one file and 50,001 make two plus an index.",
+      "W3C Datetime table: eight valid forms from the W3C note (year only up to fractional seconds with a zone) and ten invalid ones: month 13, 30 February, 29 February in a non-leap year, a time with no zone, a +0100 offset without the colon, hour 24, slashes and prose.",
+      "Host and protocol rejection from both directions: a blog-subdomain sitemap rejects the www host, a different port and plain http. A relative sitemap location produces no sitemap at all.",
+      "robots.txt against RFC 9309 rules: longest match wins, Allow wins a tie, * and $ patterns, grouped user-agent lines, case-insensitive product tokens, the * fallback, an empty Disallow, and /robots.txt always being allowed."
+    ],
+    "risks": [
+      "The 50 MB limit can't practically be reached in a test, so that path is tested through build() with a lowered maxBytes (500). The real constant is asserted separately (52,428,800), but the full-size byte split is only exercised by the same code at a smaller limit.",
+      "The URL parser percent-encodes quotes and angle brackets, which would silently hide the escaping bug the spec looks for. The page therefore validates with new URL() but writes the URL as typed, percent-encoding only non-ASCII characters.",
+      "The robots matcher doesn't normalise percent-encoding before comparing paths (RFC 9309 section 2.2.2 asks for it), so /caf%C3%A9 and /café rules are treated as different.",
+      "Large outputs: the in-page DOMParser check and the preview are capped (60,000 URLs per file, 6,000 characters of preview) so a 120,000-URL build stays responsive; the downloads are always complete."
+    ],
+    "playwright": "Most assertions run DOMParser inside page.evaluate. That is the real browser parser, so a well-formedness failure is a real one, not a regex's opinion. Streaming the download with createReadStream() and comparing it byte-for-byte with the in-memory XML confirms the Blob download path. The 120,000-URL test is the slow one: filling the textarea and parsing three multi-megabyte files takes several seconds on the mobile project, so it has its own timeout rather than a raised global one. Web-first assertions on the status line avoided any waits after the Build click.",
+    "coverage": [
+      "Messy sample: relative, other host, wrong protocol, duplicate, non-ASCII",
+      "Exact entity escaping, DOMParser round-trip, well-formed badge",
+      "W3C Datetime valid/invalid table, bad lastmod kept as URL without lastmod",
+      "120,000 URLs → 3 sitemaps + index, byte sizes, parse each",
+      "50,000 / 50,001 boundary and the byte-limit split",
+      "Mixed hosts, ports and protocols; relative sitemap location",
+      "RFC 9309 matching rules and UI warnings per user-agent",
+      "Demo-site crawl: 404, noindex, canonical, external",
+      "Download content and filename, changefreq/priority note, ?seed repeatability"
+    ]
+  },
+  "a11y": "Every textarea and input has a visible label, and every control is a native button or checkbox. The status line and counts sit in an aria-live region. Issues are a list with the level written out in text (error, warning, info), not only colour. Each file row's View and Download buttons have aria-labels naming the file, and the XML preview can take focus so it can be scrolled with the keyboard."
+}

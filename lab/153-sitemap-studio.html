@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sitemap Studio — build and validate XML sitemaps</title>
+<meta name="description" content="Paste a URL list or crawl a bundled fictional site in the page, then generate sitemap XML validated against the sitemaps.org protocol: one host, entity escaping, W3C Datetime lastmod, the 50,000 URL / 50 MB limits with automatic splitting into a sitemap index, duplicates and robots.txt (RFC 9309) conflicts.">
+<style>
+  :root {
+    --ink: #0e1a2b; --ink-2: #16263d; --line: #2a3f5e; --grid: rgba(120,170,230,.08);
+    --paper: #e7eef8; --dim: #9fb3cc; --cyan: #5fd4e8; --amber: #f2b64a; --red: #ff7a6b; --green: #7fdc9a;
+    --mono: "Cascadia Mono", "Consolas", "SFMono-Regular", "Menlo", "Liberation Mono", monospace;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--ink); color: var(--paper); font: 15px/1.55 var(--sans); overflow-x: hidden;
+    background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 24px 24px; }
+  :focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+  a { color: var(--cyan); }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: var(--ink); background: var(--cyan); text-decoration: none; font: 700 13px/1 var(--mono); padding: 8px 12px; border-radius: 3px; }
+  a.back:hover { background: var(--amber); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 60px 16px 40px; }
+  header.top { border-bottom: 1px dashed var(--line); padding-bottom: 14px; margin-bottom: 18px; }
+  .tag { font: 600 12px/1.3 var(--mono); color: var(--cyan); margin: 0; overflow-wrap: anywhere; }
+  h1 { font: 700 clamp(34px, 6.5vw, 62px)/1.05 var(--mono); margin: 6px 0 8px; letter-spacing: -.02em; overflow-wrap: anywhere; }
+  h1 span { color: var(--amber); }
+  .lede { margin: 0; color: var(--dim); max-width: 70ch; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+  .panel { background: var(--ink-2); border: 1px solid var(--line); border-radius: 4px; padding: 14px 16px; min-width: 0; }
+  h2 { font: 700 15px/1.3 var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--amber); margin: 0 0 10px; }
+  label { display: block; font: 600 12px/1.3 var(--mono); color: var(--dim); margin: 10px 0 4px; }
+  textarea, input[type=text], input[type=number], select { width: 100%; max-width: 100%; min-width: 0; background: #0a1422; color: var(--paper); border: 1px solid var(--line); border-radius: 3px; font: 13px/1.45 var(--mono); padding: 8px 10px; }
+  textarea { resize: vertical; white-space: pre; overflow-wrap: normal; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin-top: 10px; }
+  .row > * { min-width: 0; }
+  .btn { min-height: 38px; padding: 8px 14px; border-radius: 3px; border: 1px solid var(--cyan); background: var(--cyan); color: var(--ink); font: 700 13px/1 var(--mono); cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--cyan); }
+  .btn:hover { background: var(--amber); border-color: var(--amber); color: var(--ink); }
+  .chk { display: flex; gap: 8px; align-items: center; font: 13px/1.3 var(--sans); color: var(--paper); margin: 8px 0 0; }
+  .chk input { width: 18px; height: 18px; }
+  .status { font: 700 14px/1.4 var(--mono); padding: 8px 10px; border-radius: 3px; margin: 0 0 10px; border: 1px solid var(--line); overflow-wrap: anywhere; }
+  .status.ok { color: var(--green); border-color: var(--green); }
+  .status.bad { color: var(--red); border-color: var(--red); }
+  .status.warn { color: var(--amber); border-color: var(--amber); }
+  ul.issues { list-style: none; margin: 0; padding: 0; max-height: 260px; overflow: auto; font: 12.5px/1.45 var(--mono); }
+  ul.issues li { padding: 5px 8px; border-left: 3px solid var(--line); margin-bottom: 4px; background: #0a1422; overflow-wrap: anywhere; }
+  ul.issues li.error { border-color: var(--red); }
+  ul.issues li.warning { border-color: var(--amber); }
+  ul.issues li.info { border-color: var(--cyan); }
+  ul.issues b { text-transform: uppercase; font-size: 11px; margin-right: 6px; }
+  li.error b { color: var(--red); } li.warning b { color: var(--amber); } li.info b { color: var(--cyan); }
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+  .stat { background: #0a1422; border: 1px solid var(--line); padding: 6px 8px; border-radius: 3px; min-width: 0; }
+  .stat small { display: block; font: 600 10.5px/1.3 var(--mono); color: var(--dim); text-transform: uppercase; }
+  .stat b { font: 700 18px/1.3 var(--mono); overflow-wrap: anywhere; }
+  table { width: 100%; border-collapse: collapse; font: 12.5px/1.4 var(--mono); }
+  th, td { text-align: left; padding: 6px 6px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+  th { color: var(--dim); font-weight: 600; font-size: 11px; text-transform: uppercase; }
+  td.num, th.num { text-align: right; }
+  pre.xml { background: #07101c; border: 1px solid var(--line); border-radius: 3px; padding: 10px; font: 12px/1.5 var(--mono); max-height: 380px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; margin: 8px 0 0; }
+  .xml .t { color: var(--cyan); } .xml .e { color: var(--amber); }
+  .crawl { font: 12px/1.5 var(--mono); max-height: 180px; overflow: auto; background: #0a1422; padding: 8px; border: 1px solid var(--line); margin-top: 8px; }
+  .crawl div { overflow-wrap: anywhere; }
+  .rules { font-size: 13.5px; color: var(--dim); }
+  .rules li { margin-bottom: 5px; }
+  .rules code, p code { font-family: var(--mono); color: var(--paper); font-size: 12.5px; overflow-wrap: anywhere; }
+  .wide { grid-column: 1 / -1; }
+  footer { margin-top: 24px; font: 12px/1.5 var(--mono); color: var(--dim); text-align: center; }
+  @media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="top">
+    <p class="tag">&lt;urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"&gt;</p>
+    <h1>Sitemap<span>/</span>Studio</h1>
+    <p class="lede">Paste URLs, or crawl a bundled fictional shop right here in the page, and get sitemap XML that follows the sitemaps.org protocol. It escapes entities, checks every lastmod, rejects URLs from other hosts, splits at 50,000 URLs or 50 MB into a sitemap index, and warns about URLs your robots.txt blocks. Nothing is fetched: it works only on what you give it.</p>
+  </header>
+
+  <div class="grid">
+    <section class="panel" aria-labelledby="h-in">
+      <h2 id="h-in">1 · URLs in</h2>
+      <label for="loc">Sitemap location (sets the allowed protocol and host)</label>
+      <input id="loc" type="text" data-testid="loc" value="https://www.harbor-lane-pottery.example/sitemap.xml" spellcheck="false" autocomplete="off">
+      <label for="urls">One URL per line, optionally followed by a space and a W3C Datetime lastmod</label>
+      <textarea id="urls" rows="10" data-testid="urls" spellcheck="false"></textarea>
+      <div class="row">
+        <button type="button" class="btn" id="build" data-testid="build">Build sitemap</button>
+        <button type="button" class="btn ghost" id="crawl" data-testid="crawl">Crawl the demo site</button>
+        <button type="button" class="btn ghost" id="sample" data-testid="sample">Load messy sample</button>
+      </div>
+      <div class="row">
+        <div style="flex:1 1 140px"><label for="gen-n" style="margin-top:0">Generate N test URLs</label><input id="gen-n" type="number" min="1" max="200000" step="1" value="1000" data-testid="gen-n"></div>
+        <button type="button" class="btn ghost" id="gen" data-testid="gen">Generate</button>
+      </div>
+      <label class="chk"><input type="checkbox" id="optCf" data-testid="opt-cf"> Add &lt;changefreq&gt; and &lt;priority&gt; (Google ignores both)</label>
+      <div class="crawl" id="crawlLog" data-testid="crawl-log" hidden aria-label="Crawl log"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="h-robots">
+      <h2 id="h-robots">2 · robots.txt (RFC 9309)</h2>
+      <label for="robots">Paste the site's robots.txt: sitemap URLs it disallows are flagged</label>
+      <textarea id="robots" rows="9" data-testid="robots" spellcheck="false"></textarea>
+      <label for="ua">Check as user-agent (product token)</label>
+      <input id="ua" type="text" value="Googlebot" data-testid="ua" spellcheck="false" autocomplete="off">
+      <p class="rules" style="margin:8px 0 0">Groups are matched on the product token, case-insensitively, falling back to <code>User-agent: *</code>. The most specific (longest) matching rule wins, and <code>Allow</code> wins a tie. <code>*</code> and <code>$</code> are supported.</p>
+    </section>
+
+    <section class="panel wide" aria-labelledby="h-out">
+      <h2 id="h-out">3 · Validation &amp; output</h2>
+      <div aria-live="polite" id="live">
+        <p class="status" id="status" data-testid="status">Nothing built yet.</p>
+        <div class="stats">
+          <div class="stat"><small>URLs in sitemap</small><b id="sUrls" data-testid="count-urls">0</b></div>
+          <div class="stat"><small>Files</small><b id="sFiles" data-testid="count-files">0</b></div>
+          <div class="stat"><small>Errors</small><b id="sErr" data-testid="count-errors">0</b></div>
+          <div class="stat"><small>Warnings</small><b id="sWarn" data-testid="count-warnings">0</b></div>
+        </div>
+      </div>
+      <ul class="issues" id="issues" data-testid="issues" aria-label="Validation issues"></ul>
+      <div style="overflow-x:auto;margin-top:10px">
+        <table>
+          <caption class="rules" style="text-align:left;caption-side:top;padding-bottom:4px">Generated files (sizes are uncompressed UTF-8 bytes)</caption>
+          <thead><tr><th scope="col">File</th><th scope="col" class="num">URLs</th><th scope="col" class="num">Bytes</th><th scope="col">Well-formed</th><th scope="col"><span class="sr">Actions</span></th></tr></thead>
+          <tbody id="files" data-testid="files"></tbody>
+        </table>
+      </div>
+      <pre class="xml" id="preview" data-testid="preview" tabindex="0" aria-label="XML preview"></pre>
+    </section>
+
+    <section class="panel wide" aria-labelledby="h-rules">
+      <h2 id="h-rules">The rules this checks</h2>
+      <ul class="rules">
+        <li><b>One host, one protocol.</b> sitemaps.org: all URLs in a sitemap must use the same protocol and host as the sitemap file itself. URLs from another host (or <code>http</code> in an <code>https</code> sitemap) are rejected.</li>
+        <li><b>Absolute, under 2,048 characters.</b> <code>&lt;loc&gt;</code> must be a full URL beginning with the protocol, and less than 2,048 characters.</li>
+        <li><b>Entity escaping.</b> Data values must be entity-escaped: <code>&amp;</code> → <code>&amp;amp;</code>, <code>'</code> → <code>&amp;apos;</code>, <code>"</code> → <code>&amp;quot;</code>, <code>&gt;</code> → <code>&amp;gt;</code>, <code>&lt;</code> → <code>&amp;lt;</code>. The file is UTF-8, and non-ASCII characters in URLs are percent-encoded.</li>
+        <li><b>lastmod in W3C Datetime.</b> <code>YYYY</code>, <code>YYYY-MM</code>, <code>YYYY-MM-DD</code>, or a date with time and a time zone designator such as <code>2026-09-01T14:30:00+00:00</code> or <code>…Z</code>. A time without a zone is invalid. Google's documentation says it uses lastmod when it's consistently and verifiably accurate.</li>
+        <li><b>50,000 URLs or 50 MB.</b> A sitemap may hold at most 50,000 URLs and be at most 50 MB (52,428,800 bytes) uncompressed. Bigger lists are split, and a sitemap index lists the parts; an index can itself list up to 50,000 sitemaps.</li>
+        <li><b>priority and changefreq.</b> They're valid in the protocol (priority 0.0–1.0), but Google's documentation says it ignores both.</li>
+        <li><b>Duplicates and blocked URLs.</b> Duplicate URLs are dropped with a warning. A URL that robots.txt disallows can't be crawled, so listing it sends a mixed signal; it's flagged, not removed.</li>
+      </ul>
+      <p class="rules">Sources: the sitemaps.org protocol (sitemaps.org/protocol.html); RFC 9309, the Robots Exclusion Protocol; Google Search Central, "Build and submit a sitemap".</p>
+    </section>
+  </div>
+  <footer>Built by Zac Corbett · pure client-side JavaScript, no network · the demo shop "Harbor Lane Pottery" is fictional · <code>?seed=N</code> seeds the generated test URLs</footer>
+</div>
+<style>.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }</style>
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  const SEED = (parseInt(params.get('seed'), 10) >>> 0) || 153;
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+  const MAX_URLS = 50000, MAX_BYTES = 52428800, MAX_LOC = 2048;
+  const NS = 'http://www.sitemaps.org/schemas/sitemap/0.9';
+
+  // ---------- escaping ----------
+  const ENT = { '&': '&amp;', "'": '&apos;', '"': '&quot;', '>': '&gt;', '<': '&lt;' };
+  const esc = (s) => String(s).replace(/[&'"<>]/g, (c) => ENT[c]);
+  function pctNonAscii(s) {
+    let out = '', changed = false;
+    for (const ch of s) { if (ch.codePointAt(0) > 127) { out += encodeURIComponent(ch); changed = true; } else out += ch; }
+    return { out, changed };
+  }
+  function utf8Len(s) {
+    let n = 0;
+    for (let i = 0; i < s.length; i++) {
+      const c = s.charCodeAt(i);
+      if (c < 0x80) n += 1; else if (c < 0x800) n += 2;
+      else if (c >= 0xD800 && c <= 0xDBFF) { n += 4; i++; } else n += 3;
+    }
+    return n;
+  }
+
+  // ---------- W3C Datetime ----------
+  const W3C = /^(\d{4})(?:-(\d{2})(?:-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-](\d{2}):(\d{2})))?)?)?$/;
+  function validLastmod(s) {
+    const m = W3C.exec(s);
+    if (!m) return false;
+    const y = +m[1];
+    if (m[2] !== undefined) { const mo = +m[2]; if (mo < 1 || mo > 12) return false;
+      if (m[3] !== undefined) { const d = +m[3]; const dim = new Date(Date.UTC(y, mo, 0)).getUTCDate(); if (d < 1 || d > dim) return false; } }
+    if (m[4] !== undefined) { if (+m[4] > 23 || +m[5] > 59) return false; if (m[6] !== undefined && +m[6] > 59) return false; }
+    if (m[8] !== undefined) { if (+m[8] > 14 || +m[9] > 59) return false; }
+    return true;
+  }
+
+  // ---------- robots.txt (RFC 9309) ----------
+  function parseRobots(txt) {
+    const groups = []; let cur = null, lastWasUA = false;
+    for (const raw of String(txt).split(/\r\n|\r|\n/)) {
+      const line = raw.replace(/#.*$/, '').trim();
+      if (!line) continue;
+      const i = line.indexOf(':'); if (i < 0) continue;
+      const key = line.slice(0, i).trim().toLowerCase(), val = line.slice(i + 1).trim();
+      if (key === 'user-agent') {
+        if (!cur || !lastWasUA) { cur = { agents: [], rules: [] }; groups.push(cur); }
+        cur.agents.push(val.toLowerCase()); lastWasUA = true;
+      } else if (key === 'allow' || key === 'disallow') {
+        lastWasUA = false;
+        if (!cur) continue;
+        if (val === '') continue;                      // empty rule matches nothing
+        cur.rules.push({ allow: key === 'allow', path: val, re: patternRe(val) });
+      } else { lastWasUA = false; }
+    }
+    return groups;
+  }
+  function patternRe(p) {
+    let anchored = false;
+    if (p.endsWith('$')) { anchored = true; p = p.slice(0, -1); }
+    const body = p.split('*').map((part) => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*');
+    return new RegExp('^' + body + (anchored ? '$' : ''));
+  }
+  function rulesFor(groups, ua) {
+    const token = String(ua || '').trim().toLowerCase();
+    const named = groups.filter((g) => g.agents.includes(token));
+    const use = named.length ? named : groups.filter((g) => g.agents.includes('*'));
+    return use.flatMap((g) => g.rules);
+  }
+  function robotsVerdict(rules, pathQuery) {
+    if (pathQuery === '/robots.txt') return { allowed: true, rule: null };
+    let best = null;
+    for (const r of rules) {
+      if (!r.re.test(pathQuery)) continue;
+      const len = r.path.length;
+      if (!best || len > best.path.length || (len === best.path.length && r.allow && !best.allow)) best = r;
+    }
+    return { allowed: !best || best.allow, rule: best };
+  }
+
+  // ---------- core build ----------
+  function build(lines, opts) {
+    opts = opts || {};
+    const maxUrls = opts.maxUrls || MAX_URLS, maxBytes = opts.maxBytes || MAX_BYTES;
+    const issues = [];
+    const add = (level, msg, line) => issues.push({ level, msg, line });
+    let base;
+    try { base = new URL(opts.loc); } catch (e) { base = null; }
+    if (!base || !/^https?:$/.test(base.protocol)) {
+      add('error', 'The sitemap location is not an absolute http(s) URL, so the allowed host is unknown.', 0);
+      return finish([], issues, opts, null);
+    }
+    const robotsRules = opts.robots ? rulesFor(parseRobots(opts.robots), opts.ua) : [];
+    const seen = new Map(); const entries = [];
+    let nonAsciiCount = 0, blocked = 0;
+    lines.forEach((raw, idx) => {
+      const ln = idx + 1;
+      const line = raw.trim();
+      if (!line || line.startsWith('#')) return;
+      const parts = line.split(/\s+/);
+      if (parts.length > 2) { add('error', `Line ${ln}: a URL can't contain spaces (percent-encode them as %20).`, ln); return; }
+      let [loc, lastmod] = parts;
+      let u;
+      try { u = new URL(loc); } catch (e) { u = null; }
+      if (!u || !/^https?:\/\//i.test(loc)) { add('error', `Line ${ln}: "${loc}" isn't an absolute URL. <loc> must start with the protocol.`, ln); return; }
+      if (u.protocol !== base.protocol || u.host !== base.host) {
+        add('error', `Line ${ln}: ${u.protocol}//${u.host} doesn't match the sitemap's ${base.protocol}//${base.host}. A sitemap may only list URLs from its own protocol and host. Rejected.`, ln); return;
+      }
+      const enc = pctNonAscii(loc);
+      if (enc.changed) { nonAsciiCount++; loc = enc.out; }
+      if (loc.length >= MAX_LOC) { add('error', `Line ${ln}: the URL is ${loc.length} characters; it must be less than 2,048. Rejected.`, ln); return; }
+      if (seen.has(loc)) { add('warning', `Line ${ln}: duplicate of line ${seen.get(loc)}, dropped.`, ln); return; }
+      seen.set(loc, ln);
+      if (lastmod !== undefined && !validLastmod(lastmod)) {
+        add('error', `Line ${ln}: lastmod "${lastmod}" isn't W3C Datetime (YYYY-MM-DD, or with time and zone like 2026-09-01T14:30:00+00:00). The URL is kept without it.`, ln);
+        lastmod = undefined;
+      }
+      if (robotsRules.length) {
+        const v = robotsVerdict(robotsRules, u.pathname + u.search);
+        if (!v.allowed) { blocked++; add('warning', `Line ${ln}: ${u.pathname}${u.search} is disallowed by robots.txt (${v.rule.allow ? 'Allow' : 'Disallow'}: ${v.rule.path}). Crawlers can't fetch it, so either unblock it or leave it out.`, ln); }
+      }
+      entries.push({ loc, lastmod });
+    });
+    if (nonAsciiCount) add('info', `${nonAsciiCount} URL${nonAsciiCount > 1 ? 's had' : ' had'} non-ASCII characters; they were percent-encoded (UTF-8).`, 0);
+    return finish(entries, issues, Object.assign({}, opts, { maxUrls, maxBytes }), base, blocked);
+  }
+
+  function urlEntry(e, cf) {
+    let s = '  <url>\n    <loc>' + esc(e.loc) + '</loc>\n';
+    if (e.lastmod) s += '    <lastmod>' + esc(e.lastmod) + '</lastmod>\n';
+    if (cf) s += '    <changefreq>' + (e.changefreq || 'weekly') + '</changefreq>\n    <priority>' + (e.priority || '0.5') + '</priority>\n';
+    return s + '  </url>\n';
+  }
+  const HEAD = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="' + NS + '">\n';
+  const TAIL = '</urlset>\n';
+
+  function finish(entries, issues, opts, base, blocked) {
+    const files = [];
+    if (base) {
+      const cf = !!opts.cf;
+      const headB = utf8Len(HEAD), tailB = utf8Len(TAIL);
+      let cur = [], curBytes = headB + tailB, curMax = '';
+      const flush = () => { if (!cur.length) return; files.push({ parts: cur, count: cur.length, bytes: curBytes, lastmod: curMax }); cur = []; curBytes = headB + tailB; curMax = ''; };
+      for (const e of entries) {
+        const s = urlEntry(e, cf); const b = utf8Len(s);
+        if (cur.length && (cur.length >= opts.maxUrls || curBytes + b > opts.maxBytes)) flush();
+        cur.push(s); curBytes += b;
+        if (e.lastmod && e.lastmod > curMax) curMax = e.lastmod;
+      }
+      flush();
+      const dir = base.href.replace(/[^/]*$/, '');
+      if (files.length === 1) { files[0].name = 'sitemap.xml'; }
+      else files.forEach((f, i) => { f.name = `sitemap-${i + 1}.xml`; });
+      files.forEach((f) => { f.xml = HEAD + f.parts.join('') + TAIL; delete f.parts; f.kind = 'urlset'; });
+      if (files.length > 1) {
+        let x = '<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="' + NS + '">\n';
+        for (const f of files) x += '  <sitemap>\n    <loc>' + esc(dir + f.name) + '</loc>\n' + (f.lastmod ? '    <lastmod>' + esc(f.lastmod) + '</lastmod>\n' : '') + '  </sitemap>\n';
+        x += '</sitemapindex>\n';
+        files.push({ name: 'sitemap_index.xml', kind: 'index', count: files.length, bytes: utf8Len(x), xml: x });
+        issues.push({ level: 'info', msg: `${entries.length.toLocaleString('en-US')} URLs is over the limit for one file, so they were split into ${files.length - 1} sitemaps plus sitemap_index.xml. Submit the index.`, line: 0 });
+      }
+      if (cf) issues.push({ level: 'info', msg: 'changefreq and priority are valid protocol fields, but Google has said it ignores them. Other search engines may read them.', line: 0 });
+      if (!entries.length) issues.push({ level: 'error', msg: 'No valid URLs left to put in a sitemap.', line: 0 });
+    }
+    const result = {
+      files: files.map((f) => ({ name: f.name, kind: f.kind, count: f.count, bytes: f.bytes, xml: f.xml })),
+      issues, urls: entries.length, blocked: blocked || 0,
+      errors: issues.filter((i) => i.level === 'error').length,
+      warnings: issues.filter((i) => i.level === 'warning').length,
+      robotsLine: base ? 'Sitemap: ' + (files.length > 1 ? base.href.replace(/[^/]*$/, '') + 'sitemap_index.xml' : base.href) : ''
+    };
+    return result;
+  }
+
+  function wellFormed(xml) {
+    const doc = new DOMParser().parseFromString(xml, 'application/xml');
+    return !doc.getElementsByTagName('parsererror').length && doc.documentElement.namespaceURI === NS;
+  }
+
+  // ---------- demo site: Harbor Lane Pottery (fictional) ----------
+  const H = 'https://www.harbor-lane-pottery.example';
+  const SITE = {
+    '/': { lastmod: '2026-09-02', links: ['/shop/', '/about/', '/journal/', '/workshops/', '/cart/', 'https://instagram.example/harborlane'] },
+    '/shop/': { lastmod: '2026-09-01', links: ['/shop/mugs/', '/shop/bowls/', '/shop/vases/', '/shop/?sort=price', '/'] },
+    '/shop/?sort=price': { lastmod: '2026-09-01', canonical: '/shop/', links: ['/shop/mugs/'] },
+    '/shop/mugs/': { lastmod: '2026-08-28', links: ['/shop/mugs/tide-pool-mug', '/shop/mugs/kiln-speckle-mug', '/shop/'] },
+    '/shop/mugs/tide-pool-mug': { lastmod: '2026-08-20T09:15:00-05:00', links: ['/cart/add?sku=TP-01&qty=1', '/shop/mugs/'] },
+    '/shop/mugs/kiln-speckle-mug': { lastmod: '2026-08-21', links: ['/shop/mugs/'] },
+    '/shop/bowls/': { lastmod: '2026-08-15', links: ['/shop/bowls/salt-marsh-bowl', '/shop/bowls/discontinued-bowl'] },
+    '/shop/bowls/salt-marsh-bowl': { lastmod: '2026-08-12', links: ['/shop/bowls/'] },
+    '/shop/vases/': { lastmod: '2026-07-30', links: ['/shop/vases/bud-vase-"moss"', '/shop/'] },
+    '/shop/vases/bud-vase-"moss"': { lastmod: '2026-07-30', links: [] },
+    '/about/': { lastmod: '2026-03-10', links: ['/about/studio', '/'] },
+    '/about/studio': { lastmod: '2026-03-10', links: [] },
+    '/journal/': { lastmod: '2026-09-02', links: ['/journal/glazes-&-firing', '/journal/drafts/wip', '/'] },
+    '/journal/glazes-&-firing': { lastmod: '2026-06-18', links: ['/journal/'] },
+    '/journal/drafts/wip': { lastmod: '2026-09-02', noindex: true, links: [] },
+    '/workshops/': { lastmod: '2026-08-01', links: ['/workshops/wheel-basics', '/'] },
+    '/workshops/wheel-basics': { lastmod: '2026-08-01', links: [] },
+    '/cart/': { lastmod: '2026-01-01', noindex: true, links: [] }
+  };
+  const DEMO_ROBOTS = '# Harbor Lane Pottery (fictional)\nUser-agent: *\nDisallow: /cart/\nDisallow: /search\nAllow: /search/help\nDisallow: /*?sort=\n\nUser-agent: ExampleBot\nDisallow: /\n\nSitemap: https://www.harbor-lane-pottery.example/sitemap.xml\n';
+
+  function crawl() {
+    const log = []; const out = [];
+    const queue = ['/']; const seen = new Set(['/']);
+    while (queue.length) {
+      const p = queue.shift(); const pg = SITE[p];
+      if (!pg) { log.push(`404  ${p}  (linked, but no such page: skipped)`); continue; }
+      let note = 'added';
+      if (pg.noindex) note = 'noindex: left out';
+      else if (pg.canonical && pg.canonical !== p) note = `canonical → ${pg.canonical}: left out`;
+      else out.push(H + p + ' ' + pg.lastmod);
+      log.push(`200  ${p}  ${note}`);
+      for (const href of pg.links) {
+        let u; try { u = new URL(href, H + p); } catch (e) { continue; }
+        if (u.origin !== H) { log.push(`ext  ${u.href}  (other host: not followed)`); continue; }
+        const key = decodeURI(u.pathname) + u.search;
+        const k = SITE[key] ? key : (SITE[href] ? href : key);
+        if (!seen.has(k)) { seen.add(k); queue.push(k); }
+      }
+    }
+    return { urls: out, log };
+  }
+
+  const MESSY = [
+    'https://www.harbor-lane-pottery.example/ 2026-09-02',
+    'https://www.harbor-lane-pottery.example/shop/ 2026-09-01T10:00:00+00:00',
+    'https://www.harbor-lane-pottery.example/search?q=mug&color=blue 2026-09-01',
+    '/shop/bowls/',
+    'https://www.harbor-lane-pottery.example/shop/ 2026-09-01',
+    'http://www.harbor-lane-pottery.example/about/',
+    'https://shop.harbor-lane-pottery.example/gift-cards',
+    'https://www.harbor-lane-pottery.example/journal/ 2026-13-01',
+    'https://www.harbor-lane-pottery.example/workshops/ 2026-08-01T09:30',
+    'https://www.harbor-lane-pottery.example/cart/checkout',
+    'https://www.harbor-lane-pottery.example/search/help 2026-02',
+    'https://www.harbor-lane-pottery.example/shop/vases/bud-vase-"moss"?note=<new>&tag=\'gift\'',
+    'https://www.harbor-lane-pottery.example/journal/café-glazes 2026-05-04'
+  ].join('\n');
+
+  function generate(n) {
+    const r = mulberry32(SEED);
+    const sections = ['shop', 'journal', 'workshops', 'glossary', 'makers'];
+    const lines = new Array(n);
+    for (let i = 0; i < n; i++) {
+      const s = sections[Math.floor(r() * sections.length)];
+      const d = new Date(Date.UTC(2025, 0, 1) + Math.floor(r() * 600) * 86400000).toISOString().slice(0, 10);
+      lines[i] = `${H}/${s}/item-${i + 1} ${d}`;
+    }
+    return lines;
+  }
+
+  // ---------- UI ----------
+  const S = { result: null, selected: 0 };
+  function render(res) {
+    S.result = res; S.selected = 0;
+    res.files.forEach((f) => { f.wellFormed = f.count <= 60000 ? wellFormed(f.xml) : null; });
+    const st = $('status');
+    const clean = !res.errors && !res.warnings;
+    st.className = 'status ' + (res.errors ? 'bad' : res.warnings ? 'warn' : 'ok');
+    st.textContent = res.files.length
+      ? `${clean ? 'Valid' : res.errors ? 'Built with errors' : 'Built with warnings'}: ${res.urls.toLocaleString('en-US')} URL${res.urls === 1 ? '' : 's'} in ${res.files.length} file${res.files.length === 1 ? '' : 's'}. ${res.robotsLine}`
+      : 'No sitemap: fix the errors below.';
+    $('sUrls').textContent = res.urls.toLocaleString('en-US');
+    $('sFiles').textContent = res.files.length;
+    $('sErr').textContent = res.errors; $('sWarn').textContent = res.warnings;
+    const ul = $('issues'); ul.textContent = '';
+    const shown = res.issues.slice(0, 400);
+    for (const it of shown) { const li = document.createElement('li'); li.className = it.level; li.dataset.level = it.level; const b = document.createElement('b'); b.textContent = it.level; li.append(b, document.createTextNode(it.msg)); ul.append(li); }
+    if (res.issues.length > shown.length) { const li = document.createElement('li'); li.className = 'info'; li.textContent = `… and ${res.issues.length - shown.length} more.`; ul.append(li); }
+    const tb = $('files'); tb.textContent = '';
+    res.files.forEach((f, i) => {
+      const tr = document.createElement('tr'); tr.dataset.testid = 'file-row';
+      tr.setAttribute('data-testid', 'file-' + f.name);
+      tr.innerHTML = `<td>${f.name}</td><td class="num">${f.kind === 'index' ? f.count + ' maps' : f.count.toLocaleString('en-US')}</td><td class="num">${f.bytes.toLocaleString('en-US')}</td><td>${f.wellFormed === null ? 'not checked' : f.wellFormed ? '✓ parses' : '✗ broken'}</td><td></td>`;
+      const td = tr.lastChild;
+      const view = document.createElement('button'); view.type = 'button'; view.className = 'btn ghost'; view.textContent = 'View'; view.setAttribute('aria-label', 'View ' + f.name);
+      view.addEventListener('click', () => { S.selected = i; preview(); });
+      const dl = document.createElement('button'); dl.type = 'button'; dl.className = 'btn'; dl.textContent = 'Download'; dl.setAttribute('aria-label', 'Download ' + f.name); dl.setAttribute('data-testid', 'dl-' + f.name);
+      dl.addEventListener('click', () => download(f));
+      td.style.whiteSpace = 'nowrap'; td.append(view, document.createTextNode(' '), dl);
+      tb.append(tr);
+    });
+    preview();
+  }
+  function preview() {
+    const pre = $('preview'); const f = S.result && S.result.files[S.selected];
+    if (!f) { pre.textContent = ''; return; }
+    const LIM = 6000;
+    let t = f.xml.length > LIM ? f.xml.slice(0, LIM) + `\n… (${(f.xml.length - LIM).toLocaleString('en-US')} more characters in the download)` : f.xml;
+    pre.innerHTML = t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/(&amp;(?:amp|apos|quot|lt|gt);)/g, '<span class="e">$1</span>').replace(/(&lt;\/?[a-z_:]+|\?&gt;|&lt;\?xml)/gi, '<span class="t">$1</span>');
+    pre.setAttribute('aria-label', 'XML preview of ' + f.name);
+  }
+  function download(f) {
+    const blob = new Blob([f.xml], { type: 'application/xml' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = f.name;
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }
+  function run() {
+    const res = build($('urls').value.split(/\r\n|\r|\n/), { loc: $('loc').value.trim(), robots: $('robots').value, ua: $('ua').value, cf: $('optCf').checked });
+    render(res); return res;
+  }
+
+  $('build').addEventListener('click', run);
+  $('crawl').addEventListener('click', () => {
+    const c = crawl();
+    $('loc').value = H + '/sitemap.xml';
+    $('urls').value = c.urls.join('\n');
+    const log = $('crawlLog'); log.hidden = false; log.textContent = '';
+    for (const l of c.log) { const d = document.createElement('div'); d.textContent = l; log.append(d); }
+    run();
+  });
+  $('sample').addEventListener('click', () => { $('loc').value = H + '/sitemap.xml'; $('urls').value = MESSY; $('crawlLog').hidden = true; run(); });
+  $('gen').addEventListener('click', () => {
+    const n = Math.max(1, Math.min(200000, Math.floor(+$('gen-n').value) || 1));
+    $('loc').value = H + '/sitemap.xml';
+    $('urls').value = generate(n).join('\n'); $('crawlLog').hidden = true;
+    run();
+  });
+  $('robots').value = DEMO_ROBOTS;
+  $('urls').value = MESSY;
+  run();
+
+  window.__sitemap = {
+    get result() { return S.result; },
+    build: (lines, opts) => build(lines, opts),
+    validLastmod, esc,
+    robots: (txt, ua, path) => robotsVerdict(rulesFor(parseRobots(txt), ua), path).allowed,
+    limits: { MAX_URLS, MAX_BYTES, MAX_LOC }, seed: SEED
+  };
+})();
+</script>
+</body>
+</html>

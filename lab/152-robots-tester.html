@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>robots.txt Tester — RFC 9309, rule by rule</title>
+<meta name="description" content="Paste a robots.txt and test URLs against Googlebot, Bingbot or your own crawler token. Implements RFC 9309 matching: group selection by product token, longest match wins, allow wins ties, * and $ wildcards, percent-encoding normalisation and the 500 KiB parse limit. Shows which rule matched and why, and lists Sitemap lines.">
+<style>
+  :root {
+    --paper: #f3efe3;
+    --sheet: #fbf9f2;
+    --ink: #1f2a1f;
+    --muted: #5d6656;
+    --rule: #cfc8b2;
+    --grid: rgba(60, 90, 60, .07);
+    --allow: #1e7a3c;
+    --allow-soft: #d7efdc;
+    --deny: #b3261e;
+    --deny-soft: #f7dcd8;
+    --hi: #b0701a;
+    --mono: "Cascadia Mono", Consolas, "SF Mono", Menlo, "DejaVu Sans Mono", monospace;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--paper);
+    background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 22px 22px;
+    color: var(--ink); font: 15px/1.5 var(--sans); overflow-x: hidden;
+  }
+  :focus-visible { outline: 3px solid var(--hi); outline-offset: 2px; }
+  a { color: #24582e; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: var(--sheet); background: var(--ink); text-decoration: none; font: 700 13px/1 var(--mono); padding: 8px 12px; border-radius: 3px; }
+  a.back:hover { background: var(--allow); }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 58px 16px 48px; }
+  header { border-bottom: 3px double var(--ink); padding-bottom: 12px; }
+  .kicker { font: 700 12px/1.3 var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--hi); margin: 0 0 6px; }
+  h1 { font: 800 clamp(28px, 6vw, 48px)/1.05 var(--mono); letter-spacing: -.03em; margin: 0; overflow-wrap: anywhere; }
+  h1 em { font-style: normal; color: var(--allow); }
+  .lede { max-width: 72ch; color: var(--muted); margin: 10px 0 0; }
+  .cols { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px; margin-top: 18px; }
+  @media (max-width: 820px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+  .panel { background: var(--sheet); border: 1px solid var(--rule); border-radius: 4px; padding: 14px 16px; min-width: 0; box-shadow: 3px 3px 0 rgba(31, 42, 31, .12); }
+  .panel + .panel { margin-top: 16px; }
+  .panel h2 { font: 700 13px/1.3 var(--mono); letter-spacing: .12em; text-transform: uppercase; margin: 0 0 10px; }
+  label, .lbl { display: block; font: 700 12px/1.3 var(--mono); color: var(--muted); margin: 0 0 4px; }
+  textarea, input[type=text], select { width: 100%; max-width: 100%; min-width: 0; font: 14px/1.45 var(--mono); color: var(--ink); background: #fff; border: 1px solid var(--rule); border-radius: 3px; padding: 8px 10px; }
+  textarea { resize: vertical; }
+  #robots { min-height: 260px; white-space: pre; overflow-wrap: normal; overflow-x: auto; }
+  #urls { min-height: 120px; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; margin-top: 10px; }
+  .row > * { min-width: 0; }
+  .grow { flex: 1 1 180px; }
+  .btn { min-height: 38px; padding: 7px 16px; border-radius: 3px; border: 2px solid var(--ink); background: var(--ink); color: var(--sheet); font: 700 14px var(--mono); cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--ink); }
+  .btn:hover { background: var(--allow); border-color: var(--allow); color: #fff; }
+  .meta { font: 12px/1.4 var(--mono); color: var(--muted); margin: 6px 0 0; overflow-wrap: anywhere; }
+  .warn { list-style: none; margin: 8px 0 0; padding: 0; font: 12.5px/1.45 var(--mono); }
+  .warn li { padding: 4px 8px; border-left: 3px solid var(--hi); background: #fbf1df; margin-top: 4px; overflow-wrap: anywhere; }
+  .err { color: var(--deny); font: 13px var(--mono); min-height: 1.2em; margin: 6px 0 0; }
+  .groupline { font: 13px/1.5 var(--mono); padding: 8px 10px; background: #fff; border: 1px dashed var(--rule); overflow-wrap: anywhere; }
+  .results { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .res { border: 1px solid var(--rule); border-radius: 3px; background: #fff; padding: 10px 12px; min-width: 0; }
+  .res .top { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+  .stamp { font: 800 12px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; padding: 5px 8px; border: 2px solid currentColor; border-radius: 2px; transform: rotate(-2deg); }
+  .res[data-verdict=allowed] .stamp { color: var(--allow); background: var(--allow-soft); }
+  .res[data-verdict=disallowed] .stamp { color: var(--deny); background: var(--deny-soft); }
+  .res .u { font: 700 14px var(--mono); overflow-wrap: anywhere; min-width: 0; }
+  .res .why { font-size: 13.5px; margin: 6px 0 0; overflow-wrap: anywhere; }
+  .res code, .note code { font: 13px var(--mono); background: #efece0; padding: 0 3px; overflow-wrap: anywhere; }
+  .cands { width: 100%; border-collapse: collapse; margin-top: 8px; font: 12.5px/1.4 var(--mono); table-layout: fixed; }
+  .cands th, .cands td { text-align: left; padding: 3px 6px; border-top: 1px solid #ebe6d6; overflow-wrap: anywhere; vertical-align: top; }
+  .cands th { color: var(--muted); font-weight: 700; }
+  .cands th:nth-child(1) { width: 3.2em; } .cands th:nth-child(2) { width: 6.5em; } .cands th:nth-child(4) { width: 4.5em; } .cands th:nth-child(5) { width: 5em; }
+  .cands tr.win td { background: #fff4cf; font-weight: 700; }
+  .sitemaps { list-style: none; margin: 0; padding: 0; font: 13px/1.5 var(--mono); }
+  .sitemaps li { padding: 4px 0; border-top: 1px dotted var(--rule); overflow-wrap: anywhere; }
+  .sitemaps .bad { color: var(--deny); }
+  .note { font-size: 14px; }
+  .note p { margin: 0 0 8px; max-width: 75ch; }
+  .note ul { margin: 0 0 8px; padding-left: 20px; }
+  .refs { font: 12.5px/1.6 var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+  footer { margin-top: 28px; color: var(--muted); font: 12px var(--mono); }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<main class="wrap">
+  <header>
+    <p class="kicker">Technical SEO · crawl control</p>
+    <h1>robots.txt <em>Tester</em></h1>
+    <p class="lede">Paste a robots.txt, list some URLs and pick a crawler. Each URL is matched with the rules of <a href="https://www.rfc-editor.org/rfc/rfc9309" rel="noopener">RFC 9309</a> (Robots Exclusion Protocol, 2022), and the page shows which group was chosen, which rule won and why. Nothing is fetched: it all runs on the text you paste.</p>
+  </header>
+
+  <div class="cols">
+    <section class="panel" aria-labelledby="h-in">
+      <h2 id="h-in">1 · robots.txt</h2>
+      <div class="row" style="margin-top:0">
+        <div class="grow">
+          <label for="sample">Load an example</label>
+          <select id="sample" data-testid="sample">
+            <option value="rfc">RFC 9309 §5.1 example</option>
+            <option value="shop">Fictional shop (Juniper &amp; Rye Outfitters)</option>
+            <option value="google">Google's precedence examples</option>
+            <option value="empty">Empty file</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:10px">
+        <label for="robots">robots.txt contents</label>
+        <textarea id="robots" data-testid="robots" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+      </div>
+      <p class="meta" id="size" data-testid="size"></p>
+      <ul class="warn" id="warnings" data-testid="warnings" aria-label="Parser notes"></ul>
+    </section>
+
+    <section class="panel" aria-labelledby="h-test">
+      <h2 id="h-test">2 · Crawler and URLs</h2>
+      <div class="row" style="margin-top:0">
+        <div class="grow">
+          <label for="ua">Crawler</label>
+          <select id="ua" data-testid="ua">
+            <option value="googlebot">Googlebot</option>
+            <option value="googlebot-image">Googlebot-Image (falls back to Googlebot)</option>
+            <option value="bingbot">Bingbot</option>
+            <option value="custom">Custom product token…</option>
+          </select>
+        </div>
+        <div class="grow" id="customWrap" hidden>
+          <label for="custom">Product token(s), most specific first</label>
+          <input type="text" id="custom" data-testid="custom" value="ExampleBot" spellcheck="false" autocomplete="off" autocapitalize="off" aria-describedby="uaerr">
+        </div>
+      </div>
+      <p class="err" id="uaerr" data-testid="ua-error" role="alert"></p>
+      <div>
+        <label for="urls">URLs or paths, one per line</label>
+        <textarea id="urls" data-testid="urls" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+      </div>
+      <div class="row">
+        <button class="btn" id="run" data-testid="run" type="button">Test URLs</button>
+        <button class="btn ghost" id="copy" data-testid="copy" type="button">Copy results</button>
+        <span class="meta" id="copied" role="status" aria-live="polite"></span>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="h-res" style="margin-top:16px">
+    <h2 id="h-res">3 · Verdicts</h2>
+    <p class="groupline" id="group" data-testid="group"></p>
+    <p class="meta" id="summary" data-testid="summary" aria-live="polite" role="status"></p>
+    <ol class="results" id="results" data-testid="results"></ol>
+  </section>
+
+  <div class="cols">
+    <section class="panel" aria-labelledby="h-sm">
+      <h2 id="h-sm">Sitemap lines</h2>
+      <ul class="sitemaps" id="sitemaps" data-testid="sitemaps"></ul>
+      <p class="meta">Sitemap is not part of RFC 9309's rules; §2.3 allows crawlers to read other records such as it. The line applies to the whole file, not to a group, and should be an absolute URL. A single sitemap may list at most 50,000 URLs and be at most 50 MB (52,428,800 bytes) uncompressed (sitemaps.org protocol); split larger ones and use a sitemap index.</p>
+    </section>
+    <section class="panel note" aria-labelledby="h-note" data-testid="notes">
+      <h2 id="h-note">Read this before blocking anything</h2>
+      <p><strong>robots.txt controls crawling, not indexing.</strong> A disallowed URL can still be indexed (without its content) if other pages link to it. To keep a page out of results, use <code>&lt;meta name="robots" content="noindex"&gt;</code> or an <code>X-Robots-Tag: noindex</code> HTTP header, and leave the page crawlable: if robots.txt blocks it, the crawler never sees the noindex.</p>
+      <p>How the matching works (RFC 9309 §2.2):</p>
+      <ul>
+        <li>The crawler obeys the group whose user-agent matches its product token, case-insensitively. Groups naming the same token are combined. With no match it uses the <code>*</code> group, and with no <code>*</code> group nothing is blocked.</li>
+        <li>Among the chosen group's rules, the match with the most octets wins. If an allow and a disallow match equally, allow wins. No match means allowed, and <code>/robots.txt</code> itself is always allowed.</li>
+        <li><code>*</code> matches any run of characters, and <code>$</code> at the end anchors the end of the path. To match a literal <code>*</code> or <code>$</code>, write <code>%2A</code> or <code>%24</code>.</li>
+        <li>Non-ASCII characters are UTF-8 percent-encoded before comparison, and percent-encoded unreserved characters (letters, digits, <code>- . _ ~</code>) are decoded, so <code>/%62%61%7A</code> equals <code>/baz</code>. Matching is case-sensitive.</li>
+        <li>Crawlers must parse at least 500 KiB (512,000 bytes). Google stops there, and so does this tester: rules after that point are ignored.</li>
+        <li>A 4xx on robots.txt means crawlers may crawl everything; a 5xx or network error means they should treat the whole site as disallowed.</li>
+        <li><code>crawl-delay</code> is not in RFC 9309. Google ignores it; some other crawlers, including Bingbot, read it.</li>
+      </ul>
+      <p class="refs">Sources: RFC 9309 (rfc-editor.org/rfc/rfc9309) · Google Search Central, "How Google interprets the robots.txt specification" · sitemaps.org/protocol.html</p>
+    </section>
+  </div>
+  <footer>Zac's Lab · a crawler-behaviour tester, not a guarantee of any search engine's behaviour.</footer>
+</main>
+
+<script>
+(() => {
+  'use strict';
+  const LIMIT = 500 * 1024;
+  const SAMPLES = {
+    rfc: [
+      'User-Agent: *',
+      'Disallow: *.gif$',
+      'Disallow: /example/',
+      'Allow: /publications/',
+      '',
+      'User-Agent: foobot',
+      'Disallow:/',
+      'Allow:/example/page.html',
+      'Allow:/example/allowed.gif',
+      '',
+      'User-Agent: barbot',
+      'User-Agent: bazbot',
+      'Disallow: /example/page.html',
+      '',
+      'User-Agent: quxbot',
+      ''
+    ].join('\n'),
+    shop: [
+      '# robots.txt for a fictional outdoor-gear shop (Juniper & Rye Outfitters)',
+      'User-agent: *',
+      'Disallow: /cart',
+      'Disallow: /checkout/',
+      'Disallow: /*?sessionid=',
+      'Disallow: /search',
+      'Allow: /search/guides$',
+      'Disallow: /*.pdf$',
+      '',
+      'User-agent: Googlebot',
+      'User-agent: Bingbot',
+      'Disallow: /cart',
+      'Disallow: /checkout/',
+      'Disallow: /*?sessionid=',
+      'Allow: /media/',
+      'Disallow: /media/private/',
+      '',
+      'User-agent: Googlebot-Image',
+      'Disallow: /media/drafts/',
+      '',
+      'Sitemap: https://juniper-rye.example/sitemap-index.xml',
+      'Sitemap: /sitemap-products.xml'
+    ].join('\n'),
+    google: [
+      '# One group per row of Google\'s "order of precedence" table.',
+      '# Pick "Custom" and try a token: rowa … rowf',
+      'user-agent: rowa',
+      'allow: /p',
+      'disallow: /',
+      '',
+      'user-agent: rowb',
+      'allow: /folder',
+      'disallow: /folder',
+      '',
+      'user-agent: rowc',
+      'allow: /page',
+      'disallow: /*.htm',
+      '',
+      'user-agent: rowd',
+      'allow: /page',
+      'disallow: /*.ph',
+      '',
+      'user-agent: rowe',
+      'allow: /$',
+      'disallow: /'
+    ].join('\n'),
+    empty: ''
+  };
+  const SAMPLE_URLS = {
+    rfc: ['/example/page.html', '/example/allowed.gif', '/example/other.html', '/publications/report.gif', '/publications/report.html', '/cat.gif', '/robots.txt'],
+    shop: ['https://juniper-rye.example/', '/cart', '/cart/items', '/checkout/pay', '/tents?sessionid=81', '/search?q=tent', '/search/guides', '/search/guides/winter', '/catalog.pdf', '/media/tent.jpg', '/media/private/plan.jpg', '/media/drafts/new.jpg'],
+    google: ['/page', '/folder/page', '/page.htm', '/page.php5', '/', '/page.htm'],
+    empty: ['/', '/anything']
+  };
+  const PRESETS = { googlebot: ['Googlebot'], 'googlebot-image': ['Googlebot-Image', 'Googlebot'], bingbot: ['Bingbot'] };
+
+  const $ = (id) => document.getElementById(id);
+  const enc = new TextEncoder();
+  const hex2 = (n) => n.toString(16).toUpperCase().padStart(2, '0');
+  const isHex = (b) => (b >= 48 && b <= 57) || (b >= 65 && b <= 70) || (b >= 97 && b <= 102);
+  const UNRESERVED = /[A-Za-z0-9\-._~]/;
+
+  // RFC 9309 §2.2.2: non-ASCII octets are percent-encoded; percent-encoded unreserved ASCII is decoded; hex is upper-cased.
+  // In a URL (not a pattern), literal * and $ are encoded so that only %2A / %24 in a rule can match them.
+  function normalise(s, isPattern) {
+    const b = enc.encode(s);
+    let out = '';
+    for (let i = 0; i < b.length; i++) {
+      const c = b[i];
+      if (c === 0x25 && i + 2 < b.length && isHex(b[i + 1]) && isHex(b[i + 2])) {
+        const v = parseInt(String.fromCharCode(b[i + 1], b[i + 2]), 16);
+        const ch = String.fromCharCode(v);
+        out += v < 0x80 && UNRESERVED.test(ch) ? ch : '%' + hex2(v);
+        i += 2;
+      } else if (c >= 0x80 || c <= 0x20 || c === 0x7f) out += '%' + hex2(c);
+      else if (!isPattern && (c === 0x2a || c === 0x24)) out += '%' + hex2(c);
+      else out += String.fromCharCode(c);
+    }
+    return out;
+  }
+
+  // Wildcard matcher on octet strings: * = any run, trailing $ = end of path. Anchored at the start.
+  function matches(pattern, path) {
+    let anchored = false;
+    let pat = pattern;
+    if (pat.endsWith('$')) { anchored = true; pat = pat.slice(0, -1); }
+    let pos = [0];
+    for (const ch of pat) {
+      if (ch === '*') {
+        const from = pos[0];
+        pos = [];
+        for (let i = from; i <= path.length; i++) pos.push(i);
+      } else {
+        const next = [];
+        for (const p of pos) if (p < path.length && path[p] === ch) next.push(p + 1);
+        pos = next;
+        if (!pos.length) return false;
+      }
+    }
+    return anchored ? pos.includes(path.length) : pos.length > 0;
+  }
+
+  function productToken(v) {
+    const t = v.trim();
+    if (t === '*') return '*';
+    const m = t.match(/^[A-Za-z_-]+/);
+    return m ? m[0].toLowerCase() : '';
+  }
+
+  function parse(text) {
+    const groups = [];
+    const sitemaps = [];
+    const warnings = [];
+    const other = [];
+    let cur = null;
+    let lastWasRule = false;
+    let bytes = 0;
+    let truncatedAt = 0;
+    const lines = text.split(/\r\n|\r|\n/);
+    for (let n = 0; n < lines.length; n++) {
+      let line = lines[n];
+      if (n === 0) line = line.replace(/^﻿/, '');
+      const size = enc.encode(line).length + 1;
+      if (bytes + size > LIMIT + 1) { truncatedAt = n + 1; break; }
+      bytes += size;
+      const hash = line.indexOf('#');
+      const body = (hash >= 0 ? line.slice(0, hash) : line).trim();
+      if (!body) continue;
+      const colon = body.indexOf(':');
+      if (colon < 0) { warnings.push(`Line ${n + 1}: no colon, ignored ("${body.slice(0, 40)}")`); continue; }
+      const key = body.slice(0, colon).trim().toLowerCase();
+      const value = body.slice(colon + 1).trim();
+      if (key === 'user-agent') {
+        if (!cur || lastWasRule) { cur = { agents: [], tokens: [], rules: [], line: n + 1 }; groups.push(cur); }
+        cur.agents.push(value);
+        const tok = productToken(value);
+        cur.tokens.push(tok);
+        if (!tok) warnings.push(`Line ${n + 1}: user-agent "${value}" has no valid product token (letters, "_" and "-")`);
+        lastWasRule = false;
+      } else if (key === 'allow' || key === 'disallow') {
+        if (!cur) { warnings.push(`Line ${n + 1}: ${key} before any user-agent line, ignored`); continue; }
+        const rule = { type: key, value, pattern: value ? normalise(value, true) : '', line: n + 1 };
+        if (value && value[0] !== '/' && value[0] !== '*') warnings.push(`Line ${n + 1}: "${value}" does not start with "/" or "*"`);
+        cur.rules.push(rule);
+        lastWasRule = true;
+      } else if (key === 'sitemap') {
+        sitemaps.push({ url: value, line: n + 1, absolute: /^https?:\/\/[^\s/]+/i.test(value) });
+      } else {
+        other.push({ key, value, line: n + 1 });
+        if (key === 'crawl-delay') warnings.push(`Line ${n + 1}: crawl-delay is not part of RFC 9309 (Google ignores it)`);
+        else warnings.push(`Line ${n + 1}: unknown record "${key}", ignored`);
+      }
+    }
+    if (truncatedAt) warnings.push(`File is over 500 KiB: everything from line ${truncatedAt} on is ignored (RFC 9309 §2.5 parsing limit)`);
+    return { groups, sitemaps, warnings, other, bytes: enc.encode(text).length, truncatedAt };
+  }
+
+  function selectGroup(parsed, tokens) {
+    for (const t of tokens) {
+      const want = t.toLowerCase();
+      const hit = parsed.groups.filter((g) => g.tokens.includes(want));
+      if (hit.length) return { by: t, star: false, groups: hit, rules: hit.flatMap((g) => g.rules) };
+    }
+    const star = parsed.groups.filter((g) => g.tokens.includes('*'));
+    if (star.length) return { by: '*', star: true, groups: star, rules: star.flatMap((g) => g.rules) };
+    return { by: null, star: false, groups: [], rules: [] };
+  }
+
+  function pathOf(url) {
+    let u = url.trim();
+    u = u.replace(/^[a-z][a-z0-9+.-]*:\/\/[^/?#]*/i, '');
+    const hash = u.indexOf('#');
+    if (hash >= 0) u = u.slice(0, hash);
+    if (!u) u = '/';
+    if (u[0] !== '/') u = '/' + u;
+    return u;
+  }
+
+  function evaluate(parsed, tokens, url) {
+    const sel = selectGroup(parsed, tokens);
+    const raw = pathOf(url);
+    const path = normalise(raw, false);
+    const cands = [];
+    for (const r of sel.rules) {
+      if (!r.pattern) continue;
+      if (matches(r.pattern, path)) cands.push({ type: r.type, value: r.value, pattern: r.pattern, line: r.line, length: r.pattern.length });
+    }
+    let win = null;
+    for (const c of cands) {
+      if (!win || c.length > win.length || (c.length === win.length && c.type === 'allow' && win.type === 'disallow')) win = c;
+    }
+    let allowed; let reason;
+    if (path === '/robots.txt') { allowed = true; reason = '/robots.txt is always allowed (RFC 9309 §2.2.2).'; win = null; }
+    else if (!sel.groups.length) { allowed = true; reason = 'No group applies to this crawler and there is no * group, so no rules apply.'; }
+    else if (!win) { allowed = true; reason = sel.rules.length ? 'No rule in the group matches this path, so it is allowed.' : 'The group has no rules, so everything is allowed.'; }
+    else {
+      allowed = win.type === 'allow';
+      const tie = cands.some((c) => c !== win && c.length === win.length && c.type !== win.type);
+      const beaten = cands.filter((c) => c !== win && c.length < win.length);
+      reason = `${win.type}: ${win.value} (line ${win.line}) is the longest match at ${win.length} octets` +
+        (tie ? '; an allow and a disallow of the same length both match, and allow wins the tie' : '') +
+        (beaten.length ? `, beating ${beaten.length} shorter match${beaten.length > 1 ? 'es' : ''}` : '') + '.';
+    }
+    return { url, path, allowed, rule: win, candidates: cands, reason, group: { by: sel.by, star: sel.star, lines: sel.groups.map((g) => g.line) } };
+  }
+
+  function tokensFromUI() {
+    const v = $('ua').value;
+    if (PRESETS[v]) return { tokens: PRESETS[v], error: '' };
+    const toks = $('custom').value.split(/[\s,]+/).filter(Boolean);
+    if (!toks.length) return { tokens: [], error: 'Enter a product token, for example ExampleBot.' };
+    const bad = toks.find((t) => !/^[A-Za-z_-]+$/.test(t));
+    if (bad) return { tokens: [], error: `"${bad}" is not a valid product token: RFC 9309 allows only letters, "_" and "-".` };
+    return { tokens: toks, error: '' };
+  }
+
+  const el = (tag, attrs = {}, text) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); if (text != null) e.textContent = text; return e; };
+
+  const state = { parsed: null, tokens: [], results: [], copied: '' };
+
+  function render() {
+    const parsed = parse($('robots').value);
+    state.parsed = parsed;
+    const kib = (parsed.bytes / 1024).toFixed(1);
+    $('size').textContent = `${parsed.bytes.toLocaleString('en-US')} bytes (${kib} KiB) · ${parsed.groups.length} group${parsed.groups.length === 1 ? '' : 's'} · limit 500 KiB`;
+    const w = $('warnings'); w.replaceChildren(...parsed.warnings.map((t) => el('li', {}, t)));
+    const sm = $('sitemaps');
+    sm.replaceChildren(...(parsed.sitemaps.length ? parsed.sitemaps.map((s) => {
+      const li = el('li', { 'data-testid': 'sitemap' }, `${s.url} (line ${s.line})`);
+      if (!s.absolute) { li.classList.add('bad'); li.append(' — not an absolute URL'); }
+      return li;
+    }) : [el('li', {}, 'No Sitemap lines found.')]));
+
+    const { tokens, error } = tokensFromUI();
+    $('uaerr').textContent = error;
+    state.tokens = tokens;
+    const res = $('results');
+    if (error) { res.replaceChildren(); $('group').textContent = ''; $('summary').textContent = ''; state.results = []; return; }
+    const urls = $('urls').value.split(/\n/).map((s) => s.trim()).filter(Boolean);
+    state.results = urls.map((u) => evaluate(parsed, tokens, u));
+    const sel = selectGroup(parsed, tokens);
+    $('group').textContent = sel.groups.length
+      ? `Crawler tokens [${tokens.join(', ')}] → ${sel.star ? 'no specific group, so the * group' : `group for "${sel.by}"`} (starting on line${sel.groups.length > 1 ? 's' : ''} ${sel.groups.map((g) => g.line).join(', ')}${sel.groups.length > 1 ? ', combined' : ''}) · ${sel.rules.length} rule${sel.rules.length === 1 ? '' : 's'}`
+      : `Crawler tokens [${tokens.join(', ')}] → no matching group and no * group: every URL is allowed.`;
+    res.replaceChildren(...state.results.map((r, i) => {
+      const li = el('li', { class: 'res', 'data-testid': 'result', 'data-verdict': r.allowed ? 'allowed' : 'disallowed', 'data-line': r.rule ? String(r.rule.line) : '' });
+      const top = el('div', { class: 'top' });
+      top.append(el('span', { class: 'stamp' }, r.allowed ? 'Allowed' : 'Disallowed'), el('span', { class: 'u' }, r.url));
+      li.append(top);
+      const why = el('p', { class: 'why', 'data-testid': 'why' });
+      why.textContent = `Path matched: ${r.path} · ${r.reason}`;
+      li.append(why);
+      if (r.candidates.length) {
+        const t = el('table', { class: 'cands' });
+        t.append(el('caption', { class: 'meta', style: 'text-align:left' }, `Matching rules for URL ${i + 1}`));
+        const hr = el('tr'); ['Line', 'Type', 'Pattern', 'Octets', ''].forEach((h) => hr.append(el('th', { scope: 'col' }, h)));
+        t.append(hr);
+        for (const c of r.candidates) {
+          const tr = el('tr', c === r.rule ? { class: 'win' } : {});
+          [String(c.line), c.type, c.value, String(c.length), c === r.rule ? 'wins' : ''].forEach((v) => tr.append(el('td', {}, v)));
+          t.append(tr);
+        }
+        li.append(t);
+      }
+      return li;
+    }));
+    const a = state.results.filter((r) => r.allowed).length;
+    $('summary').textContent = `${state.results.length} URL${state.results.length === 1 ? '' : 's'} tested: ${a} allowed, ${state.results.length - a} disallowed.`;
+  }
+
+  function loadSample(key) {
+    $('robots').value = SAMPLES[key];
+    $('urls').value = SAMPLE_URLS[key].join('\n');
+    if (key === 'rfc') { $('ua').value = 'custom'; $('custom').value = 'foobot'; }
+    else if (key === 'google') { $('ua').value = 'custom'; $('custom').value = 'rowa'; }
+    else if (key === 'shop') { $('ua').value = 'googlebot'; }
+    $('customWrap').hidden = $('ua').value !== 'custom';
+    render();
+  }
+
+  $('sample').addEventListener('change', (e) => loadSample(e.target.value));
+  $('ua').addEventListener('change', () => { $('customWrap').hidden = $('ua').value !== 'custom'; if ($('ua').value === 'custom') $('custom').focus(); render(); });
+  $('run').addEventListener('click', render);
+  $('custom').addEventListener('keydown', (e) => { if (e.key === 'Enter') render(); });
+  $('copy').addEventListener('click', () => {
+    const text = state.results.map((r) => `${r.allowed ? 'ALLOW' : 'BLOCK'}\t${r.url}\t${r.rule ? `${r.rule.type}: ${r.rule.value} (line ${r.rule.line})` : '-'}`).join('\n');
+    state.copied = text;
+    try { navigator.clipboard && navigator.clipboard.writeText(text).catch(() => {}); } catch (e) { /* clipboard unavailable */ }
+    $('copied').textContent = `Copied ${state.results.length} lines.`;
+  });
+
+  const q = new URLSearchParams(location.search);
+  const start = SAMPLES[q.get('sample')] != null ? q.get('sample') : 'shop';
+  $('sample').value = start;
+  loadSample(start);
+
+  window.__robots = {
+    parse, normalise, matches, selectGroup, pathOf, evaluate, LIMIT,
+    check: (text, tokens, url) => evaluate(parse(text), tokens, url),
+    get state() { return state; },
+    render
+  };
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+{
+  "id": "150",
+  "slug": "150-serp-preview",
+  "file": "lab/150-serp-preview.html",
+  "title": "SERP & Social Preview — see your snippet before Google does",
+  "category": "Tools",
+  "tags": ["technical-seo", "serp", "open-graph", "canvas-measuretext", "csv"],
+  "description": "Type a title, URL and meta description, or paste a page's HTML to pull them out, and see approximate desktop and mobile search-result snippets. The text is cut by measured pixel width with canvas measureText, not by character count, and the layout assumptions are shown. Open Graph and X card previews come with checks for a missing og:image, the wrong aspect ratio and a title that repeats the h1. A bulk mode reads a CSV of pages and flags duplicate titles and descriptions and titles that will probably be cut.",
+  "prompt": "Build a SERP and social preview tool. I enter a title, URL and description (or paste HTML to extract them) and see approximate desktop and mobile search-result previews. Truncate by measured pixel width using canvas measureText with a system font stack, and explain that it's approximate: Google truncates by width, and roughly 580–600px is commonly cited for desktop titles. Add Open Graph and Twitter/X card previews, and flag a missing og:image, the wrong aspect ratio (1.91:1 recommended for large cards) and a title that duplicates the h1. Offer a bulk mode where I paste CSV rows of pages, review all the snippets and see duplicates flagged. The spec should check the truncation behaviour (a longer string never shows more text than fits, and the ellipsis appears only when over the limit), extraction from HTML, duplicate detection in bulk mode and the OG warnings.",
+  "qa": {
+    "methodology": [
+      "Independent measurement: the spec measures text with its own canvas in the same browser and wraps it with its own greedy loop, then checks each line the page renders. Every line must fit its width, the line count must match, and the ellipsis must appear exactly when the text needs more lines than allowed.",
+      "Monotonic truncation: a title is built up word by word. Below 600 px it is shown whole with no ellipsis; above, it is cut at a word boundary, and every longer version shows exactly the same visible text, so adding words never reveals more.",
+      "Width, not characters: 60 narrow characters (i, l, t) fit under 600 px while 60 wide ones (M, W, O) don't, and the page's verdict follows the measurement, not the count.",
+      "Extraction from HTML: entities are decoded, whitespace is collapsed, the canonical becomes the URL, og:title wins on the card, the attribute name is matched case-insensitively, and a missing canonical leaves the URL alone.",
+      "Bulk CSV: the spec builds its own CSV (quoted commas and doubled quotes included) and tallies duplicate groups itself, ignoring case and spacing. The page's per-row flags, the summary line and the 'duplicate of row n' notes must all agree with that tally."
+    ],
+    "risks": [
+      "Real search results use different fonts, widths and layouts from one day or device to the next, and Google rewrites many titles. The page shows its assumptions and calls the previews approximate.",
+      "Canvas metrics depend on the installed fonts (Arial on Windows, Liberation Sans on Linux). The spec measures in the same browser, so it tests consistency rather than exact pixel values.",
+      "Mobile layout values (2 title lines and 3 description lines at 316 px) are illustrative, not published limits.",
+      "Images are never fetched, so the image's size has to come from og:image:width and og:image:height or be typed in."
+    ],
+    "playwright": "page.evaluate ran the spec's own canvas measurements and greedy wrap inside the page, which let the oracle use the same font rendering as the page without reusing the page's fit() function. The previews render each line as its own span, so allTextContents() gives the exact visible lines to check. evaluateAll on data-id attributes gives a short, readable list of which checks fired. Keyboard tab switching is covered with keyboard.press on both projects. Everything passed on the first run. That is less reassuring than it sounds: the risk that matters, whether these approximations match a real results page, can't be tested here at all. Nothing fetches a live SERP, and a screenshot of one would go stale within weeks.",
+    "coverage": [
+      "Width vs character truncation, 600 px desktop title line",
+      "Word-by-word title sweep: ellipsis iff over the limit, no extra text revealed",
+      "Two-line desktop and three-line mobile descriptions",
+      "HTML extraction, entities, canonical, og:title, case-insensitive meta",
+      "og:image missing, aspect ratios 1.91:1 / 2:1 / 1:1 / 4:1 / portrait, twitter:card",
+      "Title and h1 duplicate note, bulk CSV duplicates, measured cut titles, bad header"
+    ]
+  },
+  "a11y": "The mode switch is an ARIA tablist with arrow-key support. Every field is a labelled native input, select or textarea, and a bad URL is announced with role=alert. The checks list is a polite live region, and each item states its level in text. Each preview is an article with an aria-label, and the bulk results are a table with a caption and column headers."
+}

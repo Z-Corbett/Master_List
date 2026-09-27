@@ -1,0 +1,35 @@
+{
+  "id": "152",
+  "slug": "152-robots-tester",
+  "file": "lab/152-robots-tester.html",
+  "title": "robots.txt Tester — RFC 9309, rule by rule",
+  "category": "Tools",
+  "tags": ["technical-seo", "robots-txt", "rfc-9309", "crawling", "wildcards"],
+  "description": "Paste a robots.txt, list some URLs and pick Googlebot, Googlebot-Image, Bingbot or your own product token. Each URL is matched with the RFC 9309 rules: the group is picked by case-insensitive product token (most specific first, same-name groups combined, * as the fallback), the longest matching rule wins and allow wins a tie, with * and $ wildcards and percent-encoding normalisation. The page shows the chosen group, every matching rule with its length and the one that won. It also lists Sitemap lines, enforces the 500 KiB parse limit, and explains that robots.txt controls crawling, not indexing.",
+  "prompt": "Build a robots.txt tester that implements RFC 9309 properly. Group selection by the most specific user-agent match on a case-insensitive product token; allow and disallow; longest match wins with allow winning ties; * and $ wildcards; percent-encoding normalisation; mention the 500 KiB parse limit. I paste a robots.txt and test URLs against Googlebot, Bingbot and a custom agent, and it shows which rule matched and why. Add a Sitemap: extractor and a note that robots.txt controls crawling, not indexing (noindex needs a meta tag or header, and a blocked page's noindex can't be seen). The spec should check the RFC's own examples plus Google's documented matching examples (/fish vs /fish.html, /*.php$, allow/disallow ties), recomputed by an independent matcher in the test.",
+  "qa": {
+    "methodology": [
+      "Independent oracle: the spec has its own regex-based matcher (* to .*, a trailing $ to an end anchor, longest pattern wins, allow wins ties). The page walks sets of positions instead, so the two implementations share no code. The RFC 9309 §5.1 example is transcribed by hand into per-bot rule lists, and 9 paths × 6 crawlers are compared against the oracle.",
+      "Published reference cases: every row of Google's path-matching table (/, /$, /fish, /fish*, /fish/, /*.php, /*.php$, /fish*.php) must block exactly the URLs Google lists as matches and none of its non-matches, and every row of Google's order-of-precedence table must pick the documented winner, including the /page vs /*.ph tie that allow wins.",
+      "RFC details: groups naming the same crawler are merged (§2.2.1), /robots.txt is always allowed, the percent-encoding rows of §2.2.2 (U+30C4 to %E3%83%84, %62%61%7A to baz) hold, and %2A and %24 match a literal * and $. The test confirms the UTF-8 bytes of U+30C4 with Node's Buffer rather than trusting the page.",
+      "The 500 KiB limit is tested with a generated file just over 512,000 bytes: a rule before the limit applies, and the same rule placed after it is ignored, with a warning. The same rule inside the limit still counts.",
+      "UI paths: group selection when switching crawlers, fallback from Googlebot-Image to Googlebot's group (never to *), a refused invalid token, Sitemap extraction, and copy-as-text for the fictional shop sample."
+    ],
+    "risks": [
+      "Percent-encoding normalisation is simplified: it decodes only unreserved characters and doesn't re-encode reserved ones by URI context, so the RFC's ?baz=https://foo.bar row isn't reproduced. The page says which rules it applies.",
+      "Crawler fallbacks beyond the RFC (Googlebot-Image using Googlebot's group) follow Google's crawler documentation and are modelled as ordered product tokens. Other crawlers may behave differently.",
+      "Real crawlers differ on edge cases the RFC leaves open, such as rules without a leading slash, so a tester can only promise RFC behaviour, not any one engine's.",
+      "Line-based byte counting assumes \\n line ends; CRLF files count one byte less per line against the 500 KiB limit."
+    ],
+    "playwright": "Most assertions call window.__robots.check() through page.evaluate, which let the spec sweep the RFC and Google tables quickly, about 150 URL and rule pairs, without driving the textarea for each one. Web-first assertions on data-verdict and data-line attributes then check that the UI shows the same verdicts and the winning line. selectOption drives the crawler switch, and toBeFocused checks that choosing 'Custom' moves focus to the token field. Two things went wrong at first. The first test run timed out because fill() typed a 512 KB robots.txt too slowly, so that test now sets the textarea value directly and presses the real Test button. My hand-counted line numbers for the RFC sample were also off by one; the page was right. Playwright can't show that a real crawler agrees, so the value here rests on the published examples being the oracle.",
+    "coverage": [
+      "RFC 9309 §5.1 and §5.2 examples; §2.2.1 group merging",
+      "Google path-matching table and order-of-precedence table",
+      "Product-token matching, most specific first, * fallback, no-group allow-all, invalid token",
+      "Percent-encoding normalisation, %2A/%24 literals, case sensitivity",
+      "Comments, blank lines in groups, empty Disallow, orphan rules, crawl-delay note",
+      "Sitemap extraction, 500 KiB limit, copy-as-text, crawling-vs-indexing note"
+    ]
+  },
+  "a11y": "Every control is a labelled native textarea, select, input or button, and an invalid crawler token is announced through role=alert. Picking 'Custom' moves focus to the token field. The verdict summary is a polite live region; each result states Allowed or Disallowed in text as well as colour, and its matching rules are a real table with a caption and column headers."
+}

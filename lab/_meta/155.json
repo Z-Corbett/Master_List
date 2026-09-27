@@ -1,0 +1,38 @@
+{
+  "id": "155",
+  "slug": "155-link-graph",
+  "file": "lab/155-link-graph.html",
+  "title": "Internal Link Graph — find orphans and PageRank flow",
+  "category": "Data Viz",
+  "tags": ["seo", "pagerank", "graph", "svg", "internal-linking", "bfs"],
+  "description": "Paste a site's internal links as from -> to lines, or use the bundled 42-page fictional outdoor shop. The page draws a seeded force-directed graph in SVG, sized by PageRank and shaded by click depth. It lists orphan pages, click depth from home (breadth-first search), and broken internal links whose targets aren't in the page list. It computes the original PageRank (damping 0.85, iterated until the total change is under 1e-13), treating dangling pages as linking to every page, and explains that choice. It then suggests links, from the closest page in the same section, that bring every page within a target depth. The page says clearly that this is a teaching model, not Google's ranking.",
+  "prompt": "Build an Internal Link Graph tool that finds orphans and shows PageRank flow. I paste a list of from -> to links, or use a bundled fictional site of about 40 pages, and it draws a seeded force-directed graph in SVG. Compute orphan pages (no inbound links), click depth from the home page by BFS, and the original PageRank with a damping of 0.85, iterated to convergence, with dangling nodes handled and explained. Note that it's a teaching model, not Google's current ranking. Also find broken internal links (targets not in the page list), and suggest links to add that make deep pages shallower. The spec should check PageRank against an independent power iteration in the test (it sums to 1, within 1e-9), plus the orphans, the BFS depths and the broken-link detection.",
+  "qa": {
+    "methodology": [
+      "PageRank oracle: the test builds the dense Google matrix itself (column-stochastic links, with dangling columns set to 1/N, then damped and teleported) and power-iterates it. Every page's rank must match the page's sparse implementation within 1e-9, and the total must be 1 within 1e-9. The test also checks that the result satisfies the formula as a fixed point, to 1e-10.",
+      "Hand-solved cases: a 3-cycle gives exactly 1/3 each; A → B with B dangling gives PR(A) = 0.5 / 1.425 ≈ 0.3509. In the demo, each orphan sits exactly on the floor (1 − d)/N + d · dangling mass / N, which is the minimum rank.",
+      "Depth oracle: the test has its own level-by-level BFS over the edge list, compared for all 42 pages, and again after moving the home page to /blog/. A shortcut through the sale page (depth 2 rather than 3) and the 6-deep checklist chain are asserted by name.",
+      "Suggestions are verified by effect, not wording: the test adds the suggested links to the edges itself, re-runs its BFS and requires every page to be within the target depth (3, and then 2). Applying them in the UI must leave 0 orphans and a max depth of 3.",
+      "Parsing edge cases: duplicate links count once, self-links are ignored, an unknown link source is added as a page, a malformed line is reported by line number, and both -> and → are accepted."
+    ],
+    "risks": [
+      "Dangling-node handling is a modelling choice. Spreading dangling rank uniformly is the standard one, but removing dangling nodes or adding self-loops gives different numbers; the page explains which it uses.",
+      "Paths are compared as exact strings, so /a and /a/ are different pages, and so are the same path with different query strings. A real crawl would normalise these first.",
+      "The greedy suggester is a heuristic. It picks the closest-in-section page within the depth budget, so it isn't guaranteed to use the fewest links, and it may suggest linking to a page that should really be noindexed or removed.",
+      "The force layout is O(N²) per iteration, run 320 times synchronously. That's instant at 42 pages but would stall the main thread at a few thousand."
+    ],
+    "playwright": "The spec reads window.__graph.state and checks it against oracles in the test file (the dense-matrix PageRank and a BFS), so the graph drawing is only checked for counts: 42 nodes, one line per edge, and three broken-link markers. Rather than assert a guessed ranking order, the spec checks the orphan-floor identity, which can be derived: an orphan gets only the teleport share plus its cut of the dangling pool. Seed determinism compares the position maps from two page loads with toEqual. Keyboard support is checked with focus() and Enter on an SVG <g role=button>. The mobile click on a node uses force because the circle can sit under a neighbour's label.",
+    "coverage": [
+      "PageRank vs dense power iteration, sum, fixed point, orphan floor",
+      "Hand-solved cycle and dangling-node graphs",
+      "Orphans list, count, table highlight",
+      "BFS depths vs oracle, home change, unreachable pages",
+      "Broken links list, markers, fix by adding the page",
+      "Suggestions reach depth ≤ 3 and ≤ 2, apply and focus",
+      "Parse errors, duplicates, self-links, unknown sources",
+      "Seeded layout determinism and bounds, node and edge counts",
+      "Keyboard and click node details"
+    ]
+  },
+  "a11y": "Every node is an SVG group with role=button, tabindex=0 and an aria-label giving its path, depth, orphan status and PageRank; Enter or Space opens its details in an aria-live panel. The whole graph is also given as a table with depth, in-links, out-links and PageRank, so nothing depends on seeing the picture. The findings are plain lists, orphans are marked in text as well as colour, and all inputs are labelled."
+}

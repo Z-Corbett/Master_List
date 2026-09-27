@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SERP &amp; Social Preview — see your snippet before Google does</title>
+<meta name="description" content="Enter a title, URL and description, or paste HTML, and see approximate desktop and mobile search-result snippets truncated by measured pixel width, plus Open Graph and X card previews with warnings for a missing og:image, a wrong aspect ratio and a title that repeats the h1. Bulk mode checks a CSV of pages for duplicate titles and descriptions.">
+<style>
+  :root {
+    --bg: #eeeaf6;
+    --card: #ffffff;
+    --ink: #1c1838;
+    --muted: #5f5a78;
+    --line: #d8d2ea;
+    --accent: #4b36c9;
+    --accent-soft: #e4defc;
+    --link: #2b3fb3;
+    --crumb: #3d6b45;
+    --snip: #4a4a55;
+    --bad: #b42318;
+    --bad-soft: #fde6e3;
+    --warn: #9a5b00;
+    --warn-soft: #fdf0d6;
+    --info: #22577a;
+    --info-soft: #e0eef7;
+    --ok: #1f7a4a;
+    --serp: Arial, "Liberation Sans", "Helvetica Neue", Helvetica, sans-serif;
+    --sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    --mono: Consolas, "Cascadia Mono", Menlo, monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--sans); overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; background: var(--accent); color: #fff; text-decoration: none; font: 700 13px/1 var(--sans); padding: 9px 13px; border-radius: 999px; box-shadow: 0 2px 8px rgba(75, 54, 201, .35); }
+  a.back:hover { background: var(--ink); }
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 60px 16px 48px; }
+  header { display: grid; gap: 6px; }
+  .kicker { margin: 0; font: 700 12px/1.2 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+  h1 { margin: 0; font: 800 clamp(28px, 5.4vw, 46px)/1.08 var(--sans); letter-spacing: -.025em; overflow-wrap: anywhere; }
+  h1 span { background: linear-gradient(transparent 62%, #cfc5ff 62%); }
+  .lede { margin: 4px 0 0; max-width: 74ch; color: var(--muted); }
+  .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 18px 0 0; }
+  .tab { border: 1px solid var(--line); background: var(--card); color: var(--ink); padding: 8px 16px; border-radius: 999px; font: 700 14px var(--sans); cursor: pointer; min-height: 38px; }
+  .tab[aria-selected=true] { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .grid { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 16px; margin-top: 14px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; min-width: 0; }
+  .card + .card { margin-top: 16px; }
+  .card h2 { margin: 0 0 10px; font: 800 15px/1.3 var(--sans); }
+  .card h3 { margin: 14px 0 8px; font: 700 13px/1.3 var(--sans); color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+  .field { display: grid; gap: 4px; margin-bottom: 10px; min-width: 0; }
+  .field label { font: 700 12.5px/1.2 var(--sans); color: var(--muted); }
+  .count { font: 12px var(--mono); color: var(--muted); }
+  .count.over { color: var(--bad); font-weight: 700; }
+  input[type=text], input[type=url], input[type=number], textarea, select { width: 100%; min-width: 0; max-width: 100%; font: 14px/1.4 var(--sans); padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fbfaff; color: var(--ink); }
+  textarea { resize: vertical; min-height: 70px; }
+  textarea.code { font: 13px/1.45 var(--mono); min-height: 150px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .btn { min-height: 38px; padding: 8px 15px; border-radius: 8px; border: 0; background: var(--accent); color: #fff; font: 700 14px var(--sans); cursor: pointer; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn:hover { filter: brightness(1.1); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  details summary { cursor: pointer; font-weight: 700; margin: 4px 0 8px; }
+  .scroller { overflow-x: auto; max-width: 100%; padding-bottom: 4px; }
+  .result { font-family: var(--serp); }
+  .result .site { display: flex; align-items: center; gap: 10px; }
+  .fav { width: 28px; height: 28px; border-radius: 50%; background: var(--accent-soft); display: grid; place-items: center; font: 700 12px var(--serp); color: var(--accent); flex: none; }
+  .site .nm { font-size: 14px; color: #202124; line-height: 1.3; }
+  .site .crumb { font-size: 12px; color: var(--crumb); line-height: 1.3; white-space: nowrap; }
+  .result .t { color: var(--link); margin: 6px 0 3px; }
+  .result .t span, .result .d span { display: block; white-space: nowrap; }
+  .result .d { color: var(--snip); }
+  .desk { width: 600px; }
+  .desk .t { font-size: 20px; line-height: 26px; }
+  .desk .d { font-size: 14px; line-height: 22px; }
+  .mob { width: 340px; padding: 12px; border-radius: 16px; background: #fff; box-shadow: 0 1px 6px rgba(28, 24, 56, .18); }
+  .mob .t { font-size: 18px; line-height: 24px; }
+  .mob .d { font-size: 14px; line-height: 21px; }
+  .stage { background: #f7f6fb; border: 1px dashed var(--line); border-radius: 10px; padding: 16px; }
+  .metrics { font: 12px/1.5 var(--mono); color: var(--muted); margin: 8px 0 0; overflow-wrap: anywhere; }
+  .social { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 14px; }
+  .og { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #fff; min-width: 0; }
+  .og .img { background: repeating-linear-gradient(45deg, #ece8f8, #ece8f8 10px, #f6f4fc 10px, #f6f4fc 20px); display: grid; place-items: center; color: var(--muted); font: 12px/1.3 var(--mono); text-align: center; padding: 8px; overflow-wrap: anywhere; }
+  .og .img.missing { background: var(--bad-soft); color: var(--bad); }
+  .og .body { padding: 10px 12px; }
+  .og .dom { font: 12px var(--sans); color: var(--muted); text-transform: uppercase; overflow-wrap: anywhere; }
+  .og .ttl { font: 700 15px/1.3 var(--sans); margin: 2px 0; overflow-wrap: anywhere; }
+  .og .dsc { font: 13px/1.4 var(--sans); color: var(--muted); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .x .img { border-radius: 14px; margin: 8px 8px 0; }
+  .issues { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .issues li { padding: 8px 10px; border-radius: 8px; font-size: 14px; border-left: 4px solid; overflow-wrap: anywhere; }
+  .issues li[data-level=error] { background: var(--bad-soft); border-color: var(--bad); }
+  .issues li[data-level=warning] { background: var(--warn-soft); border-color: var(--warn); }
+  .issues li[data-level=info] { background: var(--info-soft); border-color: var(--info); }
+  .issues li.none { background: #e3f4ea; border-color: var(--ok); }
+  .lvl { font: 700 11px var(--mono); text-transform: uppercase; margin-right: 6px; }
+  table.bulk { border-collapse: collapse; width: 100%; font-size: 13px; }
+  table.bulk th, table.bulk td { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+  table.bulk th { font-size: 12px; color: var(--muted); }
+  .flag { display: inline-block; font: 700 11px/1 var(--mono); padding: 3px 6px; border-radius: 4px; margin: 1px 2px; }
+  .flag.dup { background: var(--bad-soft); color: var(--bad); }
+  .flag.trunc { background: var(--warn-soft); color: var(--warn); }
+  .flag.miss { background: #eee; color: #444; }
+  .err { color: var(--bad); font-size: 13px; min-height: 1.2em; margin: 4px 0 0; }
+  .notes { font-size: 14px; color: var(--ink); }
+  .notes p, .notes li { max-width: 80ch; }
+  .notes table { border-collapse: collapse; font-size: 13px; margin: 6px 0; }
+  .notes th, .notes td { border: 1px solid var(--line); padding: 4px 8px; text-align: left; }
+  .refs { font: 12px/1.6 var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<main class="wrap">
+  <header>
+    <p class="kicker">Technical SEO · snippets</p>
+    <h1>SERP &amp; Social <span>Preview</span></h1>
+    <p class="lede">See roughly how a page's title and description will look in search results on desktop and mobile, and how its link card will look when shared. Truncation is by measured pixel width, not characters, because that is how search engines cut titles. It is an approximation: the real limits vary, and Google can rewrite titles and snippets.</p>
+  </header>
+
+  <div class="tabs" role="tablist" aria-label="Mode">
+    <button class="tab" role="tab" id="tab-single" aria-selected="true" aria-controls="pane-single" data-testid="tab-single">Single page</button>
+    <button class="tab" role="tab" id="tab-bulk" aria-selected="false" aria-controls="pane-bulk" data-testid="tab-bulk" tabindex="-1">Bulk (CSV)</button>
+  </div>
+
+  <section id="pane-single" role="tabpanel" aria-labelledby="tab-single">
+    <div class="grid">
+      <div>
+        <div class="card">
+          <h2>Snippet</h2>
+          <div class="field">
+            <label for="title">Title</label>
+            <input type="text" id="title" data-testid="title">
+            <span class="count" id="title-count" data-testid="title-count"></span>
+          </div>
+          <div class="field">
+            <label for="url">URL</label>
+            <input type="url" id="url" data-testid="url" spellcheck="false" autocapitalize="off">
+            <span class="err" id="url-err" data-testid="url-error" role="alert"></span>
+          </div>
+          <div class="field">
+            <label for="desc">Meta description</label>
+            <textarea id="desc" data-testid="desc"></textarea>
+            <span class="count" id="desc-count" data-testid="desc-count"></span>
+          </div>
+          <div class="field">
+            <label for="h1">Page h1 (for the duplicate check)</label>
+            <input type="text" id="h1" data-testid="h1">
+          </div>
+          <h3>Social</h3>
+          <div class="field">
+            <label for="ogimg">og:image URL</label>
+            <input type="url" id="ogimg" data-testid="og-image" spellcheck="false" autocapitalize="off">
+          </div>
+          <div class="two">
+            <div class="field"><label for="ogw">Image width (px)</label><input type="number" id="ogw" min="1" data-testid="og-w"></div>
+            <div class="field"><label for="ogh">Image height (px)</label><input type="number" id="ogh" min="1" data-testid="og-h"></div>
+          </div>
+          <div class="field">
+            <label for="tcard">twitter:card</label>
+            <select id="tcard" data-testid="twitter-card">
+              <option value="">(missing)</option>
+              <option value="summary">summary</option>
+              <option value="summary_large_image">summary_large_image</option>
+            </select>
+          </div>
+        </div>
+        <div class="card">
+          <details id="extract-box">
+            <summary>Paste HTML to extract these fields</summary>
+            <label class="count" for="html">Page HTML (it is parsed, never fetched or run)</label>
+            <textarea class="code" id="html" data-testid="html" spellcheck="false"></textarea>
+            <div class="row" style="margin-top:8px">
+              <button class="btn" type="button" id="extract" data-testid="extract">Extract</button>
+              <button class="btn ghost" type="button" id="sample-html" data-testid="sample-html">Load sample HTML</button>
+            </div>
+            <p class="count" id="extract-msg" data-testid="extract-msg" role="status" aria-live="polite"></p>
+          </details>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h2>Search results (approximate)</h2>
+          <h3>Desktop · 600 px column</h3>
+          <div class="stage scroller">
+            <article class="result desk" data-testid="desk" aria-label="Desktop search result preview">
+              <div class="site"><span class="fav" aria-hidden="true" id="fav1"></span><div><div class="nm" id="nm1"></div><div class="crumb" id="cr1" data-testid="crumb"></div></div></div>
+              <div class="t" id="dt" data-testid="desk-title"></div>
+              <div class="d" id="dd" data-testid="desk-desc"></div>
+            </article>
+          </div>
+          <p class="metrics" id="dm" data-testid="desk-metrics"></p>
+          <h3>Mobile · 340 px card</h3>
+          <div class="stage scroller">
+            <article class="result mob" data-testid="mob" aria-label="Mobile search result preview">
+              <div class="site"><span class="fav" aria-hidden="true" id="fav2"></span><div><div class="nm" id="nm2"></div><div class="crumb" id="cr2"></div></div></div>
+              <div class="t" id="mt" data-testid="mob-title"></div>
+              <div class="d" id="md" data-testid="mob-desc"></div>
+            </article>
+          </div>
+          <p class="metrics" id="mm" data-testid="mob-metrics"></p>
+        </div>
+        <div class="card">
+          <h2>Link cards</h2>
+          <div class="social">
+            <div>
+              <h3>Open Graph (large link preview)</h3>
+              <div class="og" data-testid="og-card">
+                <div class="img" id="og-img" data-testid="og-img"></div>
+                <div class="body"><div class="dom" id="og-dom"></div><div class="ttl" id="og-ttl"></div><div class="dsc" id="og-dsc"></div></div>
+              </div>
+            </div>
+            <div>
+              <h3>X card</h3>
+              <div class="og x" data-testid="x-card">
+                <div class="img" id="x-img"></div>
+                <div class="body"><div class="ttl" id="x-ttl"></div><div class="dom" id="x-dom"></div></div>
+              </div>
+            </div>
+          </div>
+          <p class="metrics">Images are never loaded here (the page makes no external requests); the grey box is drawn at the declared aspect ratio.</p>
+        </div>
+        <div class="card">
+          <h2 id="issues-h">Checks</h2>
+          <ul class="issues" id="issues" data-testid="issues" aria-labelledby="issues-h" aria-live="polite"></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="pane-bulk" role="tabpanel" aria-labelledby="tab-bulk" hidden>
+    <div class="card" style="margin-top:14px">
+      <h2>Bulk review</h2>
+      <p class="count">CSV with a header row: <code>url,title,description</code> (any order, quotes allowed).</p>
+      <label class="count" for="csv">CSV rows</label>
+      <textarea class="code" id="csv" data-testid="csv" spellcheck="false"></textarea>
+      <div class="row" style="margin-top:8px">
+        <button class="btn" type="button" id="bulk-run" data-testid="bulk-run">Review all</button>
+        <button class="btn ghost" type="button" id="bulk-sample" data-testid="bulk-sample">Load sample CSV</button>
+      </div>
+      <p class="err" id="csv-err" data-testid="csv-error" role="alert"></p>
+      <p id="bulk-sum" data-testid="bulk-summary" role="status" aria-live="polite"></p>
+      <div class="scroller">
+        <table class="bulk" id="bulk" data-testid="bulk-table">
+          <caption class="count" style="text-align:left">Each row's desktop title and description, measured</caption>
+          <thead><tr><th scope="col">#</th><th scope="col">Page</th><th scope="col">Title (px)</th><th scope="col">Description (px)</th><th scope="col">Flags</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="card notes" style="margin-top:16px" data-testid="notes" aria-labelledby="notes-h">
+    <h2 id="notes-h">How the preview measures, and what it can't know</h2>
+    <p><strong>Width, not characters.</strong> Google truncates titles and descriptions by the space they take up, not by a character count. About 580–600 px is the commonly cited width for a desktop title, which is why "60 characters" is only a rule of thumb: sixty narrow letters fit where forty wide ones don't. This page measures text with <code>canvas.measureText</code> in an Arial-compatible system font and cuts at a word boundary with an ellipsis. The layout assumptions are:</p>
+    <table data-testid="limits">
+      <thead><tr><th scope="col">Preview</th><th scope="col">Title</th><th scope="col">Description</th></tr></thead>
+      <tbody><tr><td>Desktop</td><td>1 line × 600 px at 20 px</td><td>2 lines × 600 px at 14 px</td></tr>
+      <tr><td>Mobile</td><td>2 lines × 316 px at 18 px</td><td>3 lines × 316 px at 14 px</td></tr></tbody>
+    </table>
+    <ul>
+      <li>These are approximations. Real results depend on the device, the font, the query and the layout of the day, and Google often rewrites titles (drawing on the title element, headings, og:title and anchor text) and picks its own snippet from the page text.</li>
+      <li>A title that repeats the h1 exactly is not an error, and Google has not called it a problem. It is flagged as a note because the title is often the better place for extra context, such as the brand.</li>
+      <li>Open Graph: 1.91:1 (for example 1200 × 630) is the widely used size for large link previews. X documents 2:1 for <code>summary_large_image</code>, so the check accepts roughly 1.8:1 to 2.05:1. X falls back to og:title, og:description and og:image when its own tags are missing, but <code>twitter:card</code> itself has no fallback.</li>
+      <li>Google has said the meta keywords tag is ignored, so it isn't checked.</li>
+    </ul>
+    <p class="refs">Sources: Google Search Central, "Influencing your title links in search results" and "Control your snippets in search results" · ogp.me · developer.x.com "Cards markup" and "Summary card with large image"</p>
+  </section>
+</main>
+
+<script>
+(() => {
+  'use strict';
+  const FAMILY = 'Arial, "Liberation Sans", "Helvetica Neue", Helvetica, sans-serif';
+  const LAYOUT = {
+    desktop: { title: { px: 600, size: 20, lines: 1 }, desc: { px: 600, size: 14, lines: 2 } },
+    mobile: { title: { px: 316, size: 18, lines: 2 }, desc: { px: 316, size: 14, lines: 3 } }
+  };
+  const ELL = ' …';
+  const SAMPLE = {
+    title: 'Sourdough Classes in Portland | Larkspur Bakehouse',
+    url: 'https://larkspur-bakehouse.example/classes/sourdough-basics',
+    desc: 'Learn to bake a crackly, open-crumb sourdough loaf in our three-hour hands-on class. Small groups of eight, all ingredients included, and you take home your own starter, two loaves and a feeding schedule for the weeks ahead.',
+    h1: 'Sourdough Basics Class'
+  };
+  const SAMPLE_HTML = `<!doctype html>
+<html lang="en">
+<head>
+  <title>Rye &amp; Caraway Loaf — Larkspur Bakehouse</title>
+  <meta name="description" content="A dense, tangy rye loaf with toasted caraway, baked every Friday.   Order by Thursday noon.">
+  <link rel="canonical" href="https://larkspur-bakehouse.example/bread/rye-caraway">
+  <meta property="og:title" content="Our Friday rye &amp; caraway loaf">
+  <meta property="og:description" content="Baked every Friday. Order by Thursday noon.">
+  <meta property="og:image" content="https://larkspur-bakehouse.example/img/rye-square.jpg">
+  <meta property="og:image:width" content="1080">
+  <meta property="og:image:height" content="1080">
+</head>
+<body><h1>Rye &amp; Caraway Loaf — Larkspur Bakehouse</h1><p>…</p></body>
+</html>`;
+  const SAMPLE_CSV = `url,title,description
+https://larkspur-bakehouse.example/,Larkspur Bakehouse | Sourdough & Pastry in Portland,"Fresh sourdough, laminated pastry and seasonal cakes, baked daily in Portland."
+https://larkspur-bakehouse.example/classes,Baking Classes | Larkspur Bakehouse,"Hands-on sourdough, croissant and pie classes for small groups."
+https://larkspur-bakehouse.example/classes/pie,Baking Classes | Larkspur Bakehouse,"Learn flaky, all-butter pie crust, then bake a seasonal fruit pie to take home."
+https://larkspur-bakehouse.example/wholesale,Wholesale Bread for Cafés & Restaurants in the Portland Metro Area | Larkspur Bakehouse,"Fresh sourdough, laminated pastry and seasonal cakes, baked daily in Portland."
+https://larkspur-bakehouse.example/about,About Us,
+https://larkspur-bakehouse.example/contact,  baking classes | LARKSPUR bakehouse ,"Find us, call us, or send a note about an order."`;
+
+  const $ = (id) => document.getElementById(id);
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const fontFor = (size) => `${size}px ${FAMILY}`;
+  function measure(text, size) { ctx.font = fontFor(size); return ctx.measureText(text).width; }
+  const clean = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+
+  // Greedy word wrap into at most `lines` lines of `px` width; if the text doesn't fit, the last line is cut at a
+  // word boundary and ends with an ellipsis that also has to fit.
+  function fit(text, spec) {
+    const t = clean(text);
+    const W = (s) => measure(s, spec.size);
+    const queue = t ? t.split(' ') : [];
+    const out = [];
+    let cur = '';
+    while (queue.length) {
+      const w = queue[0];
+      const cand = cur ? cur + ' ' + w : w;
+      if (W(cand) <= spec.px) { cur = cand; queue.shift(); continue; }
+      if (!cur) { // one word wider than the line: break it by characters
+        let k = 1;
+        while (k < w.length && W(w.slice(0, k + 1)) <= spec.px) k++;
+        out.push(w.slice(0, k));
+        queue[0] = w.slice(k);
+      } else { out.push(cur); cur = ''; }
+      if (out.length === spec.lines) break;
+    }
+    if (cur && out.length < spec.lines) { out.push(cur); cur = ''; }
+    const truncated = queue.length > 0;
+    if (truncated && out.length) {
+      let last = out[out.length - 1];
+      while (last && W(last + ELL) > spec.px) {
+        const sp = last.lastIndexOf(' ');
+        last = sp > 0 ? last.slice(0, sp) : last.slice(0, -1);
+      }
+      out[out.length - 1] = last + ELL;
+    }
+    return { lines: out, truncated, width: W(t), limit: spec.px * spec.lines, text: t };
+  }
+
+  function crumbs(url) {
+    try {
+      const u = new URL(url);
+      if (!/^https?:$/.test(u.protocol)) return null;
+      const segs = u.pathname.split('/').filter(Boolean).map((s) => { try { return decodeURIComponent(s); } catch (e) { return s; } });
+      return { host: u.hostname, text: [u.origin].concat(segs).join(' › '), name: u.hostname.replace(/^www\./, '').split('.')[0] };
+    } catch (e) { return null; }
+  }
+
+  const RATIO = { target: 1.91, min: 1.8, max: 2.05 };
+
+  function checks(f, snap) {
+    const out = [];
+    const add = (id, level, text) => out.push({ id, level, text });
+    if (!clean(f.title)) add('no-title', 'error', 'The title is empty. Search engines will make one up from the page.');
+    else if (snap.desktop.title.truncated) add('title-trunc', 'warning', `The title is about ${Math.round(snap.desktop.title.width)} px wide at 20 px, over the ~600 px desktop line, so it will probably be cut.`);
+    if (!clean(f.desc)) add('no-desc', 'warning', 'No meta description. Google will pick a snippet from the page text.');
+    else if (snap.desktop.desc.truncated) add('desc-trunc', 'info', 'The description is longer than two desktop lines, so the end will probably be cut.');
+    if (f.url && !crumbs(f.url)) add('bad-url', 'error', 'The URL is not an absolute http(s) URL.');
+    if (clean(f.title) && clean(f.h1) && clean(f.title).toLowerCase() === clean(f.h1).toLowerCase()) add('title-h1-dup', 'info', 'The title is identical to the h1. Not an error, but the title could carry more context, such as the brand.');
+    if (!clean(f.ogImage)) add('no-og-image', 'error', 'No og:image. Shared links will show no picture, or whatever image the platform picks.');
+    else {
+      const w = +f.ogW; const h = +f.ogH;
+      if (!(w > 0 && h > 0)) add('og-size-unknown', 'info', 'No image size given (og:image:width / og:image:height), so the aspect ratio can\'t be checked.');
+      else {
+        const r = w / h;
+        if (r < RATIO.min || r > RATIO.max) add('og-ratio', 'warning', `The image is ${w} × ${h} (${r.toFixed(2)}:1). Large link cards expect about 1.91:1, for example 1200 × 630, so it will be cropped or shown small.`);
+      }
+    }
+    if (!f.card) add('no-twitter-card', 'warning', 'No twitter:card tag. X needs it to show a card; it has no fallback.');
+    return out;
+  }
+
+  const state = { fields: null, snap: null, issues: [], extracted: null, bulk: null };
+
+  function readFields() {
+    return { title: $('title').value, url: $('url').value.trim(), desc: $('desc').value, h1: $('h1').value, ogImage: $('ogimg').value.trim(), ogW: $('ogw').value, ogH: $('ogh').value, card: $('tcard').value, ogTitle: state.extracted && state.extracted.ogTitle, ogDesc: state.extracted && state.extracted.ogDesc };
+  }
+
+  function paintLines(el, lines) { el.replaceChildren(...lines.map((l) => { const s = document.createElement('span'); s.textContent = l; return s; })); }
+
+  function render() {
+    const f = readFields();
+    const snap = {};
+    for (const dev of ['desktop', 'mobile']) snap[dev] = { title: fit(f.title, LAYOUT[dev].title), desc: fit(f.desc, LAYOUT[dev].desc) };
+    state.fields = f; state.snap = snap;
+    const c = crumbs(f.url);
+    $('url-err').textContent = f.url && !c ? 'Enter an absolute URL starting with http:// or https://' : '';
+    for (const [n, dev, t, d] of [[1, 'desktop', 'dt', 'dd'], [2, 'mobile', 'mt', 'md']]) {
+      $('nm' + n).textContent = c ? c.name : 'example';
+      $('cr' + n).textContent = c ? c.text : '';
+      $('fav' + n).textContent = c ? c.name.slice(0, 1).toUpperCase() : '?';
+      paintLines($(t), snap[dev].title.lines);
+      paintLines($(d), snap[dev].desc.lines);
+    }
+    const tt = clean(f.title); const dd = clean(f.desc);
+    $('title-count').textContent = `${tt.length} characters · ${Math.round(snap.desktop.title.width)} px of ~600 px`;
+    $('title-count').classList.toggle('over', snap.desktop.title.truncated);
+    $('desc-count').textContent = `${dd.length} characters · ${Math.round(snap.desktop.desc.width)} px of ~1,200 px (2 lines)`;
+    $('desc-count').classList.toggle('over', snap.desktop.desc.truncated);
+    $('dm').textContent = `title ${snap.desktop.title.truncated ? 'truncated' : 'fits'} · description ${snap.desktop.desc.truncated ? 'truncated' : 'fits'}`;
+    $('mm').textContent = `title ${snap.mobile.title.truncated ? 'truncated' : 'fits'} · description ${snap.mobile.desc.truncated ? 'truncated' : 'fits'}`;
+
+    // link cards
+    const ogT = clean(f.ogTitle) || tt; const ogD = clean(f.ogDesc) || dd;
+    const w = +f.ogW; const h = +f.ogH;
+    for (const [img, ratio] of [[$('og-img'), 1.91], [$('x-img'), f.card === 'summary' ? 1 : 2]]) {
+      img.classList.toggle('missing', !f.ogImage);
+      img.style.aspectRatio = f.ogImage && w > 0 && h > 0 ? `${w} / ${h}` : String(ratio);
+      img.textContent = f.ogImage ? `${f.ogImage}${w > 0 && h > 0 ? ` · ${w} × ${h}` : ''}` : 'No og:image';
+    }
+    $('og-dom').textContent = c ? c.host : '';
+    $('og-ttl').textContent = ogT; $('og-dsc').textContent = ogD;
+    $('x-ttl').textContent = ogT; $('x-dom').textContent = c ? `From ${c.host}` : '';
+    $('x-img').closest('.og').hidden = false;
+
+    state.issues = checks(f, snap);
+    const ul = $('issues');
+    ul.replaceChildren(...(state.issues.length ? state.issues.map((i) => {
+      const li = document.createElement('li');
+      li.dataset.level = i.level; li.dataset.id = i.id; li.dataset.testid = 'issue';
+      const b = document.createElement('span'); b.className = 'lvl'; b.textContent = i.level;
+      li.append(b, i.text);
+      return li;
+    }) : [Object.assign(document.createElement('li'), { className: 'none', textContent: 'No problems found.' })]));
+  }
+
+  function extract(html) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const meta = (sel) => { const m = doc.querySelector(sel); return m ? clean(m.getAttribute('content')) : ''; };
+    const canon = doc.querySelector('link[rel~="canonical" i]');
+    const h1 = doc.querySelector('h1');
+    return {
+      title: clean(doc.title),
+      desc: meta('meta[name="description" i]'),
+      url: canon ? clean(canon.getAttribute('href')) : '',
+      h1: h1 ? clean(h1.textContent) : '',
+      ogTitle: meta('meta[property="og:title"]'),
+      ogDesc: meta('meta[property="og:description"]'),
+      ogImage: meta('meta[property="og:image"]') || meta('meta[property="og:image:url"]'),
+      ogW: meta('meta[property="og:image:width"]'),
+      ogH: meta('meta[property="og:image:height"]'),
+      card: meta('meta[name="twitter:card"]') || meta('meta[property="twitter:card"]')
+    };
+  }
+
+  function applyExtract() {
+    const x = extract($('html').value);
+    state.extracted = x;
+    $('title').value = x.title; $('desc').value = x.desc; $('h1').value = x.h1;
+    if (x.url) $('url').value = x.url;
+    $('ogimg').value = x.ogImage; $('ogw').value = x.ogW; $('ogh').value = x.ogH;
+    $('tcard').value = ['summary', 'summary_large_image'].includes(x.card) ? x.card : '';
+    const found = ['title', 'desc', 'url', 'h1', 'ogImage', 'card'].filter((k) => x[k]).length;
+    $('extract-msg').textContent = `Extracted ${found} of 6 fields${x.url ? '' : ' (no canonical, URL left as it was)'}.`;
+    render();
+  }
+
+  // ---- bulk ----
+  function parseCSV(text) {
+    const rows = []; let row = []; let field = ''; let q = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (q) {
+        if (ch === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else q = false; }
+        else field += ch;
+      } else if (ch === '"') q = true;
+      else if (ch === ',') { row.push(field); field = ''; }
+      else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(field); rows.push(row); row = []; field = ''; }
+      else field += ch;
+    }
+    if (field !== '' || row.length) { row.push(field); rows.push(row); }
+    return rows.filter((r) => r.some((c) => c.trim() !== ''));
+  }
+  const key = (s) => clean(s).toLowerCase();
+
+  function bulk(text) {
+    const rows = parseCSV(text);
+    if (!rows.length) return { error: 'Paste some CSV first.' };
+    const head = rows[0].map((h) => h.trim().toLowerCase());
+    const ix = { url: head.indexOf('url'), title: head.indexOf('title'), desc: head.indexOf('description') };
+    if (ix.url < 0 || ix.title < 0 || ix.desc < 0) return { error: 'The header row must name url, title and description.' };
+    const pages = rows.slice(1).map((r, i) => ({ n: i + 1, url: clean(r[ix.url]), title: clean(r[ix.title]), desc: clean(r[ix.desc]) }));
+    const groups = { title: new Map(), desc: new Map() };
+    for (const p of pages) {
+      for (const [k, v] of [['title', p.title], ['desc', p.desc]]) {
+        if (!v) continue;
+        const g = groups[k].get(key(v)) || []; g.push(p.n); groups[k].set(key(v), g);
+      }
+    }
+    for (const p of pages) {
+      const t = fit(p.title, LAYOUT.desktop.title); const d = fit(p.desc, LAYOUT.desktop.desc);
+      p.titlePx = Math.round(t.width); p.descPx = Math.round(d.width);
+      p.flags = [];
+      if (!p.title) p.flags.push('no-title'); else if (t.truncated) p.flags.push('trunc-title');
+      if (!p.desc) p.flags.push('no-desc'); else if (d.truncated) p.flags.push('trunc-desc');
+      const gt = p.title && groups.title.get(key(p.title));
+      if (gt && gt.length > 1) { p.flags.push('dup-title'); p.dupTitleWith = gt.filter((n) => n !== p.n); }
+      const gd = p.desc && groups.desc.get(key(p.desc));
+      if (gd && gd.length > 1) { p.flags.push('dup-desc'); p.dupDescWith = gd.filter((n) => n !== p.n); }
+    }
+    const dupGroups = (m) => [...m.values()].filter((g) => g.length > 1);
+    return { pages, dupTitleGroups: dupGroups(groups.title), dupDescGroups: dupGroups(groups.desc) };
+  }
+
+  const FLAG_TEXT = { 'no-title': 'no title', 'no-desc': 'no description', 'trunc-title': 'title cut', 'trunc-desc': 'description cut', 'dup-title': 'duplicate title', 'dup-desc': 'duplicate description' };
+
+  function renderBulk() {
+    const r = bulk($('csv').value);
+    state.bulk = r;
+    const tb = $('bulk').tBodies[0];
+    $('csv-err').textContent = r.error || '';
+    if (r.error) { tb.replaceChildren(); $('bulk-sum').textContent = ''; return; }
+    tb.replaceChildren(...r.pages.map((p) => {
+      const tr = document.createElement('tr');
+      tr.dataset.testid = 'bulk-row'; tr.dataset.flags = p.flags.join(' ');
+      const td = (t) => { const c = document.createElement('td'); c.textContent = t; return c; };
+      const flags = document.createElement('td');
+      for (const f of p.flags) {
+        const s = document.createElement('span');
+        s.className = 'flag ' + (f.startsWith('dup') ? 'dup' : f.startsWith('trunc') ? 'trunc' : 'miss');
+        const with_ = f === 'dup-title' ? p.dupTitleWith : f === 'dup-desc' ? p.dupDescWith : null;
+        s.textContent = FLAG_TEXT[f] + (with_ ? ` (= row ${with_.join(', ')})` : '');
+        flags.append(s);
+      }
+      const page = td(''); const b = document.createElement('strong'); b.textContent = p.title || '(no title)'; page.append(b, document.createElement('br'), p.url);
+      tr.append(td(String(p.n)), page, td(String(p.titlePx)), td(String(p.descPx)), flags);
+      return tr;
+    }));
+    const n = r.pages.length;
+    const dt = r.pages.filter((p) => p.flags.includes('dup-title')).length;
+    const dd = r.pages.filter((p) => p.flags.includes('dup-desc')).length;
+    const cut = r.pages.filter((p) => p.flags.includes('trunc-title')).length;
+    $('bulk-sum').textContent = `${n} pages · ${dt} share a title (${r.dupTitleGroups.length} group${r.dupTitleGroups.length === 1 ? '' : 's'}) · ${dd} share a description (${r.dupDescGroups.length} group${r.dupDescGroups.length === 1 ? '' : 's'}) · ${cut} title${cut === 1 ? '' : 's'} likely cut`;
+  }
+
+  // ---- wiring ----
+  for (const id of ['title', 'url', 'desc', 'h1', 'ogimg', 'ogw', 'ogh', 'tcard']) $(id).addEventListener('input', render);
+  $('tcard').addEventListener('change', render);
+  $('extract').addEventListener('click', applyExtract);
+  $('sample-html').addEventListener('click', () => { $('html').value = SAMPLE_HTML; applyExtract(); });
+  $('bulk-run').addEventListener('click', renderBulk);
+  $('bulk-sample').addEventListener('click', () => { $('csv').value = SAMPLE_CSV; renderBulk(); });
+
+  const tabs = [$('tab-single'), $('tab-bulk')];
+  function selectTab(t) {
+    for (const x of tabs) { const on = x === t; x.setAttribute('aria-selected', String(on)); x.tabIndex = on ? 0 : -1; $(x.getAttribute('aria-controls')).hidden = !on; }
+    t.focus();
+    if (t === tabs[1] && !state.bulk) { $('csv').value = $('csv').value || SAMPLE_CSV; renderBulk(); }
+  }
+  tabs.forEach((t, i) => {
+    t.addEventListener('click', () => selectTab(t));
+    t.addEventListener('keydown', (e) => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); selectTab(tabs[(i + 1) % 2]); } });
+  });
+
+  $('title').value = SAMPLE.title; $('url').value = SAMPLE.url; $('desc').value = SAMPLE.desc; $('h1').value = SAMPLE.h1;
+  $('ogimg').value = 'https://larkspur-bakehouse.example/img/sourdough-class.jpg'; $('ogw').value = '1200'; $('ogh').value = '630';
+  $('tcard').value = 'summary_large_image';
+  render();
+  if (new URLSearchParams(location.search).get('mode') === 'bulk') selectTab(tabs[1]);
+
+  window.__serp = { FAMILY, LAYOUT, ELL, measure, fit, extract, parseCSV, bulk, get state() { return state; } };
+})();
+</script>
+</body>
+</html>

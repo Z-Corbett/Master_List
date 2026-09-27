@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Structured Data Builder — JSON-LD without the guesswork</title>
+<meta name="description" content="Form-driven JSON-LD builders for LocalBusiness, Organization, Person, Product with Offer, Article, Event, BreadcrumbList and FAQPage, validated live against Google Search Central's required and recommended properties. Paste existing JSON-LD to lint it with line numbers: parse errors, unknown types, missing properties and wrong value types.">
+<style>
+  :root {
+    --bg: #0e1320;
+    --panel: #151c2d;
+    --panel2: #1b2438;
+    --line: #2a3550;
+    --ink: #e6e9f2;
+    --muted: #97a0b8;
+    --violet: #b69cff;
+    --teal: #46d9c2;
+    --amber: #f3c969;
+    --red: #ff8a80;
+    --blue: #8cc4ff;
+    --mono: "Cascadia Code", "Cascadia Mono", Consolas, "SF Mono", Menlo, "DejaVu Sans Mono", monospace;
+    --sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: radial-gradient(1200px 500px at 80% -10%, #22204a 0%, transparent 60%), var(--bg); color: var(--ink); font: 15px/1.5 var(--sans); overflow-x: hidden; min-height: 100vh; }
+  :focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+  a { color: var(--blue); }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; background: var(--violet); color: #140f2b; text-decoration: none; font: 700 13px/1 var(--mono); padding: 8px 12px; border-radius: 6px; }
+  a.back:hover { background: var(--teal); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 60px 16px 48px; }
+  .kicker { margin: 0 0 6px; font: 600 12px/1.2 var(--mono); color: var(--teal); letter-spacing: .12em; text-transform: uppercase; }
+  h1 { margin: 0; font: 800 clamp(28px, 5.6vw, 48px)/1.08 var(--sans); letter-spacing: -.02em; overflow-wrap: anywhere; }
+  h1 code { font-family: var(--mono); color: var(--violet); font-weight: 700; }
+  .lede { color: var(--muted); max-width: 74ch; margin: 10px 0 0; }
+  .types { display: flex; flex-wrap: wrap; gap: 6px; margin: 18px 0 0; padding: 0; border: 0; }
+  .types legend { font: 600 12px var(--mono); color: var(--muted); margin-bottom: 6px; padding: 0; }
+  .types label { cursor: pointer; }
+  .types input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .types span { display: inline-block; padding: 7px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); font: 600 13px var(--mono); }
+  .types input:checked + span { background: var(--violet); color: #140f2b; border-color: var(--violet); }
+  .types input:focus-visible + span { outline: 2px solid var(--teal); outline-offset: 2px; }
+  .grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 16px; margin-top: 14px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
+  .panel + .panel { margin-top: 16px; }
+  .panel h2 { margin: 0 0 12px; font: 700 14px/1.3 var(--mono); color: var(--violet); }
+  .field { display: grid; gap: 4px; margin-bottom: 10px; min-width: 0; }
+  .field label { font: 600 12px/1.3 var(--mono); color: var(--muted); }
+  .field .req { color: var(--red); }
+  .field .rec { color: var(--amber); }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  input[type=text], select, textarea { width: 100%; min-width: 0; max-width: 100%; background: var(--panel2); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; font: 14px/1.4 var(--sans); }
+  textarea { font: 13px/1.5 var(--mono); resize: vertical; min-height: 90px; }
+  textarea.lint { min-height: 220px; white-space: pre; overflow-wrap: normal; overflow-x: auto; }
+  .note { font-size: 13px; color: var(--muted); margin: 4px 0 10px; }
+  .note.faq { color: var(--amber); border-left: 3px solid var(--amber); padding-left: 10px; }
+  .btn { min-height: 36px; padding: 7px 14px; border-radius: 6px; border: 1px solid var(--teal); background: var(--teal); color: #07231e; font: 700 13px var(--mono); cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--teal); }
+  .btn:hover { filter: brightness(1.1); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .code { display: grid; grid-template-columns: auto minmax(0, 1fr); background: #0a0f1a; border: 1px solid var(--line); border-radius: 8px; max-height: 520px; overflow: auto; }
+  .code pre { margin: 0; padding: 10px 12px; font: 13px/1.55 var(--mono); }
+  .code .gut { color: #4d5877; text-align: right; user-select: none; border-right: 1px solid var(--line); padding-right: 8px; }
+  .code .src { color: #d7dcf0; white-space: pre; }
+  .issues { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; }
+  .issues li { background: var(--panel2); border-radius: 6px; padding: 7px 10px; border-left: 4px solid var(--muted); font-size: 13.5px; overflow-wrap: anywhere; }
+  .issues li[data-level=error] { border-color: var(--red); }
+  .issues li[data-level=warning] { border-color: var(--amber); }
+  .issues li[data-level=info] { border-color: var(--blue); }
+  .issues li.clean { border-color: var(--teal); color: var(--teal); }
+  .tag { font: 700 11px var(--mono); text-transform: uppercase; margin-right: 6px; }
+  li[data-level=error] .tag { color: var(--red); } li[data-level=warning] .tag { color: var(--amber); } li[data-level=info] .tag { color: var(--blue); }
+  .sum { font: 13px var(--mono); color: var(--muted); margin: 8px 0 0; }
+  .rules { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .rules th, .rules td { text-align: left; vertical-align: top; padding: 7px 8px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+  .rules th { color: var(--muted); font: 600 12px var(--mono); }
+  .rules code { font: 12.5px var(--mono); }
+  .rules .r { color: var(--red); } .rules .m { color: var(--amber); }
+  .scroll { overflow-x: auto; }
+  .refs { font: 12px/1.6 var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<main class="wrap">
+  <header>
+    <p class="kicker">Technical SEO · structured data</p>
+    <h1>Structured Data <code>Builder</code></h1>
+    <p class="lede">Fill in a form and get JSON-LD that is checked live against the required and recommended properties in Google Search Central's documentation for that rich result. Or paste JSON-LD you already have and lint it, with line numbers. Everything runs in the page; nothing is fetched.</p>
+  </header>
+
+  <fieldset class="types" id="types" data-testid="types">
+    <legend>Schema type</legend>
+  </fieldset>
+
+  <div class="grid">
+    <section class="panel" aria-labelledby="form-h">
+      <h2 id="form-h">Fields</h2>
+      <p class="note"><span class="req" style="color:var(--red)">●</span> required by Google · <span style="color:var(--amber)">●</span> recommended. Empty fields are left out of the output.</p>
+      <p class="note faq" id="faq-note" data-testid="faq-note" hidden>Since August 2023, Google shows FAQ rich results only for well-known, authoritative government and health websites. The markup is still valid schema.org, but most sites won't get the rich result.</p>
+      <form id="form" data-testid="form" onsubmit="return false"></form>
+    </section>
+
+    <section aria-label="Output">
+      <div class="panel">
+        <h2 id="out-h">JSON-LD</h2>
+        <div class="code" data-testid="output-box"><pre class="gut" id="gut" aria-hidden="true"></pre><pre class="src" id="out" data-testid="output" tabindex="0" aria-labelledby="out-h"></pre></div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn" type="button" id="copy" data-testid="copy">Copy as &lt;script&gt; block</button>
+          <button class="btn ghost" type="button" id="to-lint" data-testid="to-lint">Send to linter</button>
+          <span class="sum" id="copied" data-testid="copied" role="status" aria-live="polite"></span>
+        </div>
+        <p class="sum" id="b-sum" data-testid="builder-summary" aria-live="polite"></p>
+        <ul class="issues" id="b-issues" data-testid="builder-issues" aria-label="Validation of the generated JSON-LD"></ul>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel" style="margin-top:16px" aria-labelledby="lint-h">
+    <h2 id="lint-h">Lint existing JSON-LD</h2>
+    <p class="note">Paste the JSON, or the whole <code>&lt;script type="application/ld+json"&gt;</code> block (or a page with several). Line numbers refer to what you paste.</p>
+    <label class="sum" for="lint-in" style="display:block;margin:0 0 4px">JSON-LD to lint</label>
+    <textarea class="lint" id="lint-in" data-testid="lint-input" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+    <div class="row" style="margin-top:8px">
+      <button class="btn" type="button" id="lint-run" data-testid="lint-run">Lint</button>
+      <button class="btn ghost" type="button" id="lint-sample" data-testid="lint-sample">Load a broken example</button>
+    </div>
+    <p class="sum" id="l-sum" data-testid="lint-summary" role="status" aria-live="polite"></p>
+    <ul class="issues" id="l-issues" data-testid="lint-issues" aria-label="Lint results"></ul>
+  </section>
+
+  <section class="panel" style="margin-top:16px" aria-labelledby="rules-h">
+    <h2 id="rules-h">The rules this page checks</h2>
+    <p class="note">Encoded from Google Search Central's structured data documentation (the main properties for each type, not every optional one). Google can only show a rich result when the required properties are present, and even then it isn't guaranteed. Validate finished pages with Google's Rich Results Test.</p>
+    <div class="scroll">
+      <table class="rules" data-testid="rules">
+        <caption class="note" style="text-align:left">Required and recommended properties by type</caption>
+        <thead><tr><th scope="col">Type</th><th scope="col">Required</th><th scope="col">Recommended</th><th scope="col">Source</th></tr></thead>
+        <tbody id="rules-body"></tbody>
+      </table>
+    </div>
+    <p class="note">Value checks: <code>price</code> must be a number (or a numeric string) with a "." decimal and no currency symbol or thousands separator; <code>priceCurrency</code> is a three-letter ISO 4217 code; dates are ISO 8601; URLs are absolute; GTINs must have a valid GS1 check digit; <code>position</code> is an integer.</p>
+    <p class="refs">Sources: developers.google.com/search/docs/appearance/structured-data (local-business, organization, merchant-listing, article, event, breadcrumb, faqpage) · schema.org · Google Search Central blog, "Changes to HowTo and FAQ rich results" (August 2023)</p>
+  </section>
+</main>
+
+<script>
+(() => {
+  'use strict';
+  const G = 'https://developers.google.com/search/docs/appearance/structured-data/';
+  const RULES = {
+    LocalBusiness: { req: ['name', 'address'], rec: ['url', 'telephone', 'image', 'priceRange', 'geo', 'openingHoursSpecification'], src: 'Local business', href: G + 'local-business' },
+    Organization: { req: [], rec: ['name', 'url', 'logo', 'description', 'sameAs', 'contactPoint'], src: 'Organization (no required properties)', href: G + 'organization' },
+    Person: { req: ['name'], rec: ['url', 'sameAs', 'jobTitle', 'image'], src: 'schema.org Person; Google reads it as an author or in a ProfilePage, with no Person rich result of its own', href: 'https://schema.org/Person' },
+    Product: { req: ['name', 'image', 'offers'], rec: ['description', 'brand', 'sku', ['gtin', 'gtin8', 'gtin12', 'gtin13', 'gtin14', 'mpn']], src: 'Merchant listing (Product)', href: G + 'merchant-listing' },
+    Offer: { req: ['price', 'priceCurrency'], rec: ['availability', 'itemCondition', 'url'], src: 'Merchant listing (Offer)', href: G + 'merchant-listing', nested: true },
+    Article: { req: [], rec: ['headline', 'image', 'datePublished', 'dateModified', 'author'], src: 'Article (no required properties)', href: G + 'article' },
+    Event: { req: ['name', 'startDate', 'location'], rec: ['description', 'endDate', 'eventStatus', 'eventAttendanceMode', 'image', 'offers', 'organizer', 'performer'], src: 'Event', href: G + 'event' },
+    Place: { req: ['address'], rec: ['name'], src: 'Event (location)', href: G + 'event', nested: true },
+    BreadcrumbList: { req: ['itemListElement'], rec: [], src: 'Breadcrumb (at least two ListItems)', href: G + 'breadcrumb' },
+    ListItem: { req: ['position', 'name'], rec: [], src: 'Breadcrumb (item is required except on the last ListItem)', href: G + 'breadcrumb' },
+    FAQPage: { req: ['mainEntity'], rec: [], src: 'FAQ (rich result limited since 2023)', href: G + 'faqpage' },
+    Question: { req: ['name', 'acceptedAnswer'], rec: [], src: 'FAQ', href: G + 'faqpage' },
+    Answer: { req: ['text'], rec: [], src: 'FAQ', href: G + 'faqpage' },
+    'Offer (in an Event)': { req: [], rec: ['price', 'priceCurrency', 'availability', 'url', 'validFrom'], src: 'Event (offers): ticket offers have no merchant-listing requirements', href: G + 'event', nested: true }
+  };
+  const LOCAL_SUBTYPES = ['LocalBusiness', 'BicycleStore', 'Bakery', 'Restaurant', 'CafeOrCoffeeShop', 'Dentist', 'Plumber', 'HairSalon', 'AutoRepair', 'BookStore', 'Store', 'FoodEstablishment', 'ProfessionalService', 'LegalService', 'MedicalBusiness', 'HomeAndConstructionBusiness', 'AutomotiveBusiness', 'HealthAndBeautyBusiness', 'LodgingBusiness', 'Hotel'];
+  const ARTICLE_TYPES = ['Article', 'NewsArticle', 'BlogPosting'];
+  const EVENT_TYPES = ['Event', 'MusicEvent', 'SportsEvent', 'Festival', 'TheaterEvent', 'EducationEvent', 'BusinessEvent', 'ComedyEvent', 'DanceEvent', 'ExhibitionEvent', 'FoodEvent', 'LiteraryEvent', 'SocialEvent'];
+  const OTHER_TYPES = ['Thing', 'CreativeWork', 'WebPage', 'WebSite', 'ProfilePage', 'AboutPage', 'ContactPage', 'ItemPage', 'CollectionPage', 'AggregateOffer', 'AggregateRating', 'Rating', 'Review', 'Brand', 'PostalAddress', 'GeoCoordinates', 'OpeningHoursSpecification', 'VirtualLocation', 'ImageObject', 'VideoObject', 'ContactPoint', 'EntryPoint', 'SearchAction', 'HowTo', 'Recipe', 'JobPosting', 'Course', 'SoftwareApplication', 'MerchantReturnPolicy', 'OfferShippingDetails', 'MonetaryAmount', 'QuantitativeValue', 'PropertyValue', 'EventVenue', 'PerformingGroup', 'MusicGroup', 'Corporation', 'NGO', 'EducationalOrganization', 'OnlineStore', 'ItemList', 'SiteNavigationElement', 'Service', 'Country', 'City', 'State', 'UnitPriceSpecification', 'PriceSpecification', 'DefinedRegion', 'ShippingDeliveryTime'];
+  const KNOWN = new Set([...Object.keys(RULES), ...LOCAL_SUBTYPES, ...ARTICLE_TYPES, ...EVENT_TYPES, ...OTHER_TYPES]);
+  const ruleFor = (t) => (LOCAL_SUBTYPES.includes(t) && !['Store', 'FoodEstablishment'].includes(t) ? 'LocalBusiness' : ARTICLE_TYPES.includes(t) ? 'Article' : EVENT_TYPES.includes(t) ? 'Event' : t === 'Store' || t === 'FoodEstablishment' ? 'LocalBusiness' : t);
+  const ENUMS = {
+    availability: ['InStock', 'OutOfStock', 'PreOrder', 'BackOrder', 'Discontinued', 'InStoreOnly', 'LimitedAvailability', 'OnlineOnly', 'PreSale', 'SoldOut', 'Reserved', 'MadeToOrder'],
+    itemCondition: ['NewCondition', 'UsedCondition', 'RefurbishedCondition', 'DamagedCondition'],
+    eventStatus: ['EventScheduled', 'EventCancelled', 'EventPostponed', 'EventRescheduled', 'EventMovedOnline'],
+    eventAttendanceMode: ['OfflineEventAttendanceMode', 'OnlineEventAttendanceMode', 'MixedEventAttendanceMode']
+  };
+  const DATE_KEYS = ['startDate', 'endDate', 'datePublished', 'dateModified', 'validFrom', 'priceValidUntil', 'foundingDate', 'birthDate', 'uploadDate', 'previousStartDate'];
+  const URL_KEYS = ['url', 'logo', 'item', 'sameAs', 'image', 'menu'];
+  const ISO_DATE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])(T([01]\d|2[0-3]):[0-5]\d(:[0-5]\d(\.\d+)?)?(Z|[+-]([01]\d|2[0-3]):?[0-5]\d)?)?$/;
+
+  // ---------- a JSON parser that remembers where everything is ----------
+  const lineCol = (src, pos) => { let line = 1; let last = -1; for (let i = 0; i < pos && i < src.length; i++) if (src[i] === '\n') { line++; last = i; } return { line, col: pos - last }; };
+
+  function parseAt(src, start, end) {
+    let i = start;
+    const fail = (msg, pos) => { throw { msg, pos: Math.min(pos, src.length) }; };
+    const ws = () => {
+      while (i < end) {
+        const c = src[i];
+        if (c === ' ' || c === '\t' || c === '\n' || c === '\r') i++;
+        else if (c === '/' && (src[i + 1] === '/' || src[i + 1] === '*')) fail('JSON does not allow comments', i);
+        else break;
+      }
+    };
+    function str() {
+      const p = i; i++;
+      let v = '';
+      while (i < end) {
+        const c = src[i];
+        if (c === '"') { i++; return { t: 'str', v, pos: p }; }
+        if (c === '\n' || c === '\r') fail('unescaped line break inside a string', i);
+        if (c === '\\') {
+          const e = src[i + 1];
+          const map = { '"': '"', '\\': '\\', '/': '/', b: '\b', f: '\f', n: '\n', r: '\r', t: '\t' };
+          if (e in map) { v += map[e]; i += 2; continue; }
+          if (e === 'u' && /^[0-9a-fA-F]{4}$/.test(src.slice(i + 2, i + 6))) { v += String.fromCharCode(parseInt(src.slice(i + 2, i + 6), 16)); i += 6; continue; }
+          fail(`invalid escape "\\${e || ''}" in a string`, i);
+        }
+        v += c; i++;
+      }
+      fail('unterminated string', p);
+    }
+    function num() {
+      const re = /-?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?/y;
+      re.lastIndex = i;
+      const m = re.exec(src);
+      if (!m || !m[0] || m[0] === '-') fail('invalid number', i);
+      const p = i; i += m[0].length;
+      if (i < end && /[0-9A-Za-z_.]/.test(src[i])) fail('invalid number', p);
+      return { t: 'num', v: Number(m[0]), pos: p };
+    }
+    function value() {
+      ws();
+      if (i >= end) fail('unexpected end of input, a value was expected', i);
+      const c = src[i];
+      if (c === '{') return obj();
+      if (c === '[') return arr();
+      if (c === '"') return str();
+      if (c === "'") fail('strings must use double quotes, not single quotes', i);
+      if (c === '-' || (c >= '0' && c <= '9')) return num();
+      for (const [lit, v] of [['true', true], ['false', false], ['null', null]]) if (src.startsWith(lit, i)) { const p = i; i += lit.length; return { t: 'lit', v, pos: p }; }
+      fail(`unexpected character "${c}"`, i);
+    }
+    function obj() {
+      const p = i; i++;
+      const props = [];
+      let comma = -1;
+      ws();
+      if (src[i] === '}') { i++; return { t: 'obj', pos: p, props }; }
+      for (;;) {
+        ws();
+        if (i >= end) fail(`unexpected end of input: the object opened on line ${lineCol(src, p).line} is never closed`, i);
+        if (src[i] === '}' && comma >= 0) fail('trailing comma before "}"', comma);
+        if (src[i] === "'") fail('property names must use double quotes, not single quotes', i);
+        if (src[i] !== '"') fail('property names must be in double quotes', i);
+        const k = str();
+        ws();
+        if (src[i] !== ':') fail(`expected ":" after the property name "${k.v}"`, i);
+        i++;
+        const v = value();
+        props.push({ key: k.v, kpos: k.pos, v });
+        ws();
+        if (src[i] === ',') { comma = i; i++; continue; }
+        if (src[i] === '}') { i++; return { t: 'obj', pos: p, props }; }
+        if (i >= end) fail(`unexpected end of input: the object opened on line ${lineCol(src, p).line} is never closed`, i);
+        fail('expected "," or "}" after a property value (is a comma missing?)', i);
+      }
+    }
+    function arr() {
+      const p = i; i++;
+      const items = [];
+      let comma = -1;
+      ws();
+      if (src[i] === ']') { i++; return { t: 'arr', pos: p, items }; }
+      for (;;) {
+        ws();
+        if (src[i] === ']' && comma >= 0) fail('trailing comma before "]"', comma);
+        items.push(value());
+        ws();
+        if (src[i] === ',') { comma = i; i++; continue; }
+        if (src[i] === ']') { i++; return { t: 'arr', pos: p, items }; }
+        if (i >= end) fail(`unexpected end of input: the array opened on line ${lineCol(src, p).line} is never closed`, i);
+        fail('expected "," or "]" after an array item (is a comma missing?)', i);
+      }
+    }
+    ws();
+    if (i >= end) fail('empty: there is no JSON here', i);
+    const root = value();
+    ws();
+    if (i < end) fail('unexpected text after the end of the JSON', i);
+    return root;
+  }
+  const plain = (n) => n.t === 'obj' ? Object.fromEntries(n.props.map((p) => [p.key, plain(p.v)])) : n.t === 'arr' ? n.items.map(plain) : n.v;
+
+  function blocksOf(src) {
+    if (!/<script\b/i.test(src)) return [{ start: 0, end: src.length }];
+    const out = [];
+    const re = /<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi;
+    let m;
+    while ((m = re.exec(src))) {
+      if (!/type\s*=\s*["']?application\/ld\+json/i.test(m[1])) continue;
+      const start = m.index + m[0].indexOf('>') + 1;
+      out.push({ start, end: start + m[2].length });
+    }
+    return out;
+  }
+
+  function lev(a, b) {
+    const d = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+    for (let j = 1; j <= b.length; j++) d[0][j] = j;
+    for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    return d[a.length][b.length];
+  }
+  function suggest(t) {
+    let best = null; let bd = 4;
+    for (const k of KNOWN) { const d = lev(t.toLowerCase(), k.toLowerCase()); if (d < bd) { bd = d; best = k; } }
+    return best;
+  }
+  function gtinOk(s) {
+    if (!/^(\d{8}|\d{12}|\d{13}|\d{14})$/.test(s)) return false;
+    const digits = s.split('').map(Number);
+    const check = digits.pop();
+    let sum = 0;
+    digits.reverse().forEach((d, i) => { sum += d * (i % 2 === 0 ? 3 : 1); });
+    return (10 - (sum % 10)) % 10 === check;
+  }
+
+  // ---------- the linter ----------
+  function lint(src) {
+    const issues = [];
+    const add = (level, pos, code, msg) => issues.push({ level, code, msg, line: pos == null ? null : lineCol(src, pos).line });
+    const get = (o, k) => o.props.find((p) => p.key === k);
+    const empty = (n) => !n || (n.t === 'str' && !n.v.trim()) || n.t === 'lit' && n.v === null || (n.t === 'arr' && !n.items.length);
+    const has = (o, k) => (Array.isArray(k) ? k : [k]).some((x) => !empty(get(o, x) && get(o, x).v));
+    const typesOf = (o) => { const t = get(o, '@type'); if (!t) return []; const v = plain(t.v); return (Array.isArray(v) ? v : [v]).filter((x) => typeof x === 'string'); };
+    const blocks = blocksOf(src);
+    if (!blocks.length) { add('error', 0, 'no-block', 'No <script type="application/ld+json"> block was found.'); return { issues, data: [] }; }
+    const data = [];
+    for (const b of blocks) {
+      let root;
+      try { root = parseAt(src, b.start, b.end); } catch (e) {
+        if (!e || e.pos == null) throw e;
+        const lc = lineCol(src, e.pos);
+        add('error', e.pos, 'parse', `Parse error at line ${lc.line}, column ${lc.col}: ${e.msg}.`);
+        continue;
+      }
+      data.push(plain(root));
+      const tops = root.t === 'arr' ? root.items : [root];
+      for (const top of tops) {
+        if (top.t !== 'obj') { add('error', top.pos, 'top', 'The top level must be an object (or an array of objects).'); continue; }
+        checkContext(top);
+        const graph = top.props.find((p) => p.key === '@graph');
+        if (graph) {
+          if (graph.v.t !== 'arr') add('error', graph.v.pos, 'graph', '@graph must be an array.');
+          else graph.v.items.forEach((n) => checkNode(n, null));
+        } else checkNode(top, null);
+      }
+    }
+    function checkContext(o) {
+      const c = o.props.find((p) => p.key === '@context');
+      if (!c) { add('error', o.pos, 'context', 'Missing "@context": use "https://schema.org".'); return; }
+      const ok = (v) => typeof v === 'string' && /^https?:\/\/schema\.org\/?$/.test(v);
+      const v = plain(c.v);
+      if (!(ok(v) || (Array.isArray(v) && v.some(ok)))) add('error', c.v.pos, 'context', `"@context" should be "https://schema.org", not ${JSON.stringify(v)}.`);
+    }
+
+    function checkNode(n, parentKey, parentRule) {
+      if (n.t === 'arr') { n.items.forEach((x) => checkNode(x, parentKey, parentRule)); return; }
+      if (n.t !== 'obj') return;
+      const seen = new Set();
+      for (const p of n.props) { if (seen.has(p.key)) add('warning', p.kpos, 'dup-key', `"${p.key}" appears twice in this object; the last value wins.`); seen.add(p.key); }
+      const types = typesOf(n);
+      let ownRule = null;
+      const tprop = get(n, '@type');
+      for (const t of types) {
+        if (!KNOWN.has(t)) {
+          const s = suggest(t);
+          add('error', tprop.v.pos, 'unknown-type', `Unknown @type "${t}".${s ? ` Did you mean "${s}"?` : ''}`);
+          continue;
+        }
+        const rk = ruleFor(t) === 'Offer' && parentRule === 'Event' ? 'Offer (in an Event)' : ruleFor(t);
+        if (!ownRule && RULES[rk]) ownRule = rk;
+        const rule = RULES[rk];
+        if (!rule) continue;
+        for (const r of rule.req) if (!has(n, r)) add('error', n.pos, 'missing-required', `${t} is missing the required property "${Array.isArray(r) ? r.join('" or "') : r}".`);
+        if (parentKey == null || rule.nested) for (const r of rule.rec) if (!has(n, r)) add('warning', n.pos, 'missing-recommended', `${t} is missing the recommended property "${Array.isArray(r) ? r[0] : r}".`);
+        if (rk === 'FAQPage') add('info', n.pos, 'faq-limited', 'FAQ rich results have been shown only for well-known, authoritative government and health sites since August 2023.');
+        if (rk === 'BreadcrumbList') {
+          const list = get(n, 'itemListElement');
+          if (list && list.v.t === 'arr') {
+            if (list.v.items.length < 2) add('warning', list.v.pos, 'few-items', 'Google expects a BreadcrumbList to have at least two ListItems.');
+            list.v.items.forEach((it, idx) => {
+              if (it.t === 'obj' && idx < list.v.items.length - 1 && !has(it, 'item')) add('error', it.pos, 'missing-required', `ListItem ${idx + 1} is missing "item" (only the last breadcrumb may leave it out).`);
+            });
+          }
+        }
+        if (rk === 'Product') {
+          const offers = get(n, 'offers');
+          if (offers) for (const o of offers.v.t === 'arr' ? offers.v.items : [offers.v]) if (o.t === 'obj' && !typesOf(o).length) add('error', o.pos, 'offer-type', 'Each offer needs "@type": "Offer" (or "AggregateOffer").');
+        }
+        if (rk === 'Event') {
+          const loc = get(n, 'location');
+          if (loc && loc.v.t === 'obj' && !typesOf(loc.v).length) add('warning', loc.v.pos, 'location-type', 'The location should have "@type": "Place" (or "VirtualLocation" for an online event).');
+        }
+      }
+      for (const p of n.props) {
+        const v = p.v;
+        if (p.key === 'price') {
+          if (v.t === 'num') { if (!(v.v >= 0)) add('error', v.pos, 'bad-price', 'price must not be negative.'); }
+          else if (v.t === 'str') { if (!/^\d+(\.\d+)?$/.test(v.v.trim())) add('error', v.pos, 'bad-price', `price "${v.v}" should be a plain number such as 19.99: no currency symbol, no thousands separator, "." for decimals.`); }
+          else add('error', v.pos, 'bad-price', 'price should be a number.');
+        } else if (p.key === 'priceCurrency') {
+          if (v.t !== 'str' || !/^[A-Z]{3}$/.test(v.v)) add('error', v.pos, 'bad-currency', `priceCurrency ${JSON.stringify(plain(v))} should be a three-letter ISO 4217 code such as "USD".`);
+        } else if (DATE_KEYS.includes(p.key)) {
+          if (v.t !== 'str' || !ISO_DATE.test(v.v)) add('error', v.pos, 'bad-date', `${p.key} ${JSON.stringify(plain(v))} is not an ISO 8601 date, such as "2026-11-14" or "2026-11-14T19:00:00-05:00".`);
+        } else if (p.key === 'position') {
+          if (v.t !== 'num' || !Number.isInteger(v.v)) add('error', v.pos, 'bad-position', `position ${JSON.stringify(plain(v))} should be an integer such as 1.`);
+        } else if (/^gtin(8|12|13|14)?$/.test(p.key)) {
+          const s = String(plain(v));
+          if (!gtinOk(s)) add('error', v.pos, 'bad-gtin', `${p.key} "${s}" is not a valid GTIN (8, 12, 13 or 14 digits with a correct check digit).`);
+        } else if (p.key in ENUMS) {
+          const s = v.t === 'str' ? v.v : '';
+          const m = s.match(/^https?:\/\/schema\.org\/(\w+)$/);
+          if (!m || !ENUMS[p.key].includes(m[1])) add('warning', v.pos, 'bad-enum', `${p.key} should be one of the schema.org values, written as a URL such as "https://schema.org/${ENUMS[p.key][0]}".`);
+        } else if (p.key === 'latitude' || p.key === 'longitude') {
+          const x = Number(plain(v)); const lim = p.key === 'latitude' ? 90 : 180;
+          if (!(Math.abs(x) <= lim) || (v.t === 'str' && !v.v.trim())) add('error', v.pos, 'bad-geo', `${p.key} should be a number between −${lim} and ${lim}.`);
+        } else if (URL_KEYS.includes(p.key)) {
+          for (const u of v.t === 'arr' ? v.items : [v]) if (u.t === 'str' && !/^https?:\/\/[^\s/]+\.[^\s]+$/.test(u.v)) add('warning', u.pos, 'bad-url', `${p.key} "${u.v}" should be an absolute URL.`);
+        }
+        if (v.t === 'obj' || v.t === 'arr') checkNode(v, p.key, ownRule);
+      }
+    }
+    issues.sort((a, b) => (a.line || 0) - (b.line || 0));
+    return { issues, data };
+  }
+
+  // ---------- builders ----------
+  const S = 'https://schema.org/';
+  const lines = (s) => String(s || '').split('\n').map((x) => x.trim()).filter(Boolean);
+  function compact(v) {
+    if (Array.isArray(v)) { const a = v.map(compact).filter((x) => x !== undefined); return a.length ? a : undefined; }
+    if (v && typeof v === 'object') {
+      const o = {};
+      for (const [k, x] of Object.entries(v)) { const c = compact(x); if (c !== undefined) o[k] = c; }
+      const keys = Object.keys(o).filter((k) => k !== '@type');
+      return keys.length ? o : undefined;
+    }
+    if (typeof v === 'string') return v.trim() ? v.trim() : undefined;
+    if (typeof v === 'number') return Number.isFinite(v) ? v : undefined;
+    return v === null ? undefined : v;
+  }
+  const num = (s) => (String(s).trim() === '' ? undefined : Number(s));
+  const addr = (v) => ({ '@type': 'PostalAddress', streetAddress: v.street, addressLocality: v.locality, addressRegion: v.region, postalCode: v.postal, addressCountry: v.country });
+  const F = (k, label, def, o = {}) => ({ k, label, def, ...o });
+  const ADDR = (d) => [F('street', 'Street address', d[0]), F('locality', 'City', d[1], { half: 1 }), F('region', 'Region', d[2], { half: 1 }), F('postal', 'Postal code', d[3], { half: 1 }), F('country', 'Country (ISO code)', d[4], { half: 1 })];
+  const SITE = 'https://tidewater-bikes.example';
+  const HOME = ['418 Harbor Lane', 'Norfolk', 'VA', '23510', 'US'];
+
+  const BUILDERS = {
+    LocalBusiness: {
+      fields: [F('subtype', 'Sub-type (@type)', 'BicycleStore', { select: LOCAL_SUBTYPES.slice(0, 10) }), F('name', 'Name', 'Tidewater Bicycle Works', { need: 'req' }), F('url', 'URL', SITE + '/', { need: 'rec' }), F('telephone', 'Telephone', '+1-757-555-0142', { need: 'rec' }), F('image', 'Image URL', SITE + '/img/shopfront.jpg', { need: 'rec' }), F('priceRange', 'Price range', '$$', { need: 'rec' }), ...ADDR(HOME).map((f) => ({ ...f, need: 'req' })), F('lat', 'Latitude', '36.84681', { half: 1, need: 'rec' }), F('lng', 'Longitude', '-76.28522', { half: 1, need: 'rec' }), F('days', 'Open days (comma-separated)', 'Monday, Tuesday, Wednesday, Thursday, Friday', { need: 'rec' }), F('opens', 'Opens', '09:00', { half: 1 }), F('closes', 'Closes', '18:00', { half: 1 })],
+      build: (v) => ({ '@context': 'https://schema.org', '@type': v.subtype || 'LocalBusiness', name: v.name, url: v.url, telephone: v.telephone, image: v.image, priceRange: v.priceRange, address: addr(v), geo: { '@type': 'GeoCoordinates', latitude: num(v.lat), longitude: num(v.lng) }, openingHoursSpecification: [{ '@type': 'OpeningHoursSpecification', dayOfWeek: v.days.split(',').map((d) => d.trim()).filter(Boolean), opens: v.opens, closes: v.closes }] })
+    },
+    Organization: {
+      fields: [F('name', 'Name', 'Tidewater Bicycle Works', { need: 'rec' }), F('url', 'URL', SITE + '/', { need: 'rec' }), F('logo', 'Logo URL', SITE + '/img/logo-512.png', { need: 'rec' }), F('description', 'Description', 'An independent bicycle shop and repair workshop.', { need: 'rec' }), F('sameAs', 'Profiles (sameAs), one URL per line', 'https://social.example/tidewaterbikes\nhttps://video.example/@tidewaterbikes', { area: 1, need: 'rec' }), F('phone', 'Customer service phone', '+1-757-555-0142', { need: 'rec' }), F('contactType', 'Contact type', 'customer service')],
+      build: (v) => ({ '@context': 'https://schema.org', '@type': 'Organization', name: v.name, url: v.url, logo: v.logo, description: v.description, sameAs: lines(v.sameAs), contactPoint: { '@type': 'ContactPoint', telephone: v.phone, contactType: v.phone ? v.contactType : '' } })
+    },
+    Person: {
+      fields: [F('name', 'Name', 'Juniper Okafor', { need: 'req' }), F('jobTitle', 'Job title', 'Head Mechanic', { need: 'rec' }), F('url', 'Profile URL', SITE + '/team/juniper', { need: 'rec' }), F('image', 'Photo URL', SITE + '/img/team/juniper.jpg', { need: 'rec' }), F('sameAs', 'Profiles (sameAs), one per line', 'https://social.example/juniper.fixes.bikes', { area: 1, need: 'rec' }), F('worksFor', 'Works for (organization name)', 'Tidewater Bicycle Works')],
+      build: (v) => ({ '@context': 'https://schema.org', '@type': 'Person', name: v.name, jobTitle: v.jobTitle, url: v.url, image: v.image, sameAs: lines(v.sameAs), worksFor: { '@type': 'Organization', name: v.worksFor } })
+    },
+    Product: {
+      fields: [F('name', 'Product name', 'Harbor Commuter 7-Speed Bicycle', { need: 'req' }), F('image', 'Image URL', SITE + '/img/harbor-commuter.jpg', { need: 'req' }), F('description', 'Description', 'A steel-framed seven-speed commuter with fenders, rack and dynamo lights.', { need: 'rec' }), F('brand', 'Brand', 'Tidewater', { need: 'rec' }), F('sku', 'SKU', 'TBW-HC7-M', { need: 'rec', half: 1 }), F('gtin13', 'GTIN-13', '0614141000036', { need: 'rec', half: 1 }), F('price', 'Price (number only)', '649.00', { need: 'req', half: 1 }), F('currency', 'Currency (ISO 4217)', 'USD', { need: 'req', half: 1 }), F('availability', 'Availability', 'InStock', { select: ENUMS.availability.slice(0, 5), need: 'rec' }), F('condition', 'Condition', 'NewCondition', { select: ENUMS.itemCondition, need: 'rec' }), F('offerUrl', 'Offer URL', SITE + '/bikes/harbor-commuter', { need: 'rec' })],
+      build: (v) => ({ '@context': 'https://schema.org', '@type': 'Product', name: v.name, image: v.image, description: v.description, brand: { '@type': 'Brand', name: v.brand }, sku: v.sku, gtin13: v.gtin13, offers: { '@type': 'Offer', price: v.price, priceCurrency: v.currency, availability: v.availability && S + v.availability, itemCondition: v.condition && S + v.condition, url: v.offerUrl } })
+    },
+    Article: {
+      fields: [F('atype', 'Article type', 'BlogPosting', { select: ARTICLE_TYPES }), F('headline', 'Headline', 'How to Winterize Your Commuter Bike in Five Steps', { need: 'rec' }), F('image', 'Image URL', SITE + '/img/blog/winterize.jpg', { need: 'rec' }), F('datePublished', 'Published (ISO 8601)', '2026-09-14T08:00:00-04:00', { need: 'rec' }), F('dateModified', 'Modified (ISO 8601)', '2026-09-20T10:30:00-04:00', { need: 'rec' }), F('author', 'Author name', 'Juniper Okafor', { need: 'rec' }), F('authorUrl', 'Author URL', SITE + '/team/juniper')],
+      build: (v) => ({ '@context': 'https://schema.org', '@type': v.atype, headline: v.headline, image: v.image ? [v.image] : [], datePublished: v.datePublished, dateModified: v.dateModified, author: [{ '@type': 'Person', name: v.author, url: v.authorUrl }] })
+    },
+    Event: {
+      fields: [F('name', 'Event name', 'Harbor Lights Night Ride', { need: 'req' }), F('startDate', 'Start (ISO 8601)', '2026-12-05T18:30:00-05:00', { need: 'req' }), F('endDate', 'End (ISO 8601)', '2026-12-05T21:00:00-05:00', { need: 'rec' }), F('status', 'Status', 'EventScheduled', { select: ENUMS.eventStatus, need: 'rec' }), F('mode', 'Attendance', 'OfflineEventAttendanceMode', { select: ENUMS.eventAttendanceMode, need: 'rec' }), F('description', 'Description', 'A slow, lit-up 10-mile group ride along the waterfront, finishing with cocoa at the shop.', { need: 'rec' }), F('image', 'Image URL', SITE + '/img/events/harbor-lights.jpg', { need: 'rec' }), F('venue', 'Venue name', 'Tidewater Bicycle Works', { need: 'req' }), ...ADDR(HOME).map((f) => ({ ...f, need: 'req' })), F('organizer', 'Organizer', 'Tidewater Bicycle Works', { need: 'rec' }), F('performer', 'Performer', 'The Spoke Tones', { need: 'rec' }), F('price', 'Ticket price', '15', { half: 1, need: 'rec' }), F('currency', 'Currency', 'USD', { half: 1 }), F('ticketUrl', 'Ticket URL', SITE + '/events/harbor-lights'), F('validFrom', 'On sale from (ISO 8601)', '2026-10-01T09:00:00-04:00')],
+      build: (v) => ({ '@context': 'https://schema.org', '@type': 'Event', name: v.name, startDate: v.startDate, endDate: v.endDate, eventStatus: v.status && S + v.status, eventAttendanceMode: v.mode && S + v.mode, description: v.description, image: v.image ? [v.image] : [], location: { '@type': 'Place', name: v.venue, address: addr(v) }, organizer: { '@type': 'Organization', name: v.organizer, url: SITE + '/' }, performer: { '@type': 'PerformingGroup', name: v.performer }, offers: { '@type': 'Offer', price: v.price, priceCurrency: v.price ? v.currency : '', url: v.ticketUrl, availability: v.price ? S + 'InStock' : '', validFrom: v.validFrom } })
+    },
+    BreadcrumbList: {
+      fields: [F('crumbs', 'Breadcrumbs, one per line: Name | URL (the last may skip the URL)', `Home | ${SITE}/\nBikes | ${SITE}/bikes/\nHarbor Commuter 7-Speed`, { area: 1, need: 'req' })],
+      build: (v) => ({ '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: lines(v.crumbs).map((l, i) => { const [name, url] = l.split('|').map((x) => x.trim()); return { '@type': 'ListItem', position: i + 1, name, item: url }; }) })
+    },
+    FAQPage: {
+      fields: [F('qa', 'Questions and answers ("Q:" and "A:" lines, a blank line between pairs)', 'Q: Do you rent bikes?\nA: Yes. Commuter and cargo bikes rent by the day, with a helmet and lock included.\n\nQ: How long does a tune-up take?\nA: Most tune-ups are ready the next working day.', { area: 1, need: 'req' })],
+      build: (v) => ({ '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: String(v.qa || '').split(/\n\s*\n/).map((blk) => { const q = (blk.match(/^\s*Q:\s*(.+)$/mi) || [])[1]; const a = (blk.match(/^\s*A:\s*([\s\S]+)$/mi) || [])[1]; return { '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a && a.replace(/\s+/g, ' ') } }; }) })
+    }
+  };
+  const TYPES = Object.keys(BUILDERS);
+
+  // ---------- UI ----------
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => s.replace(/</g, '\\u003c');
+  const state = { type: 'LocalBusiness', values: {}, json: '', obj: null, builder: null, lintResult: null, copied: '' };
+  for (const t of TYPES) state.values[t] = Object.fromEntries(BUILDERS[t].fields.map((f) => [f.k, f.def]));
+
+  function renderIssues(ul, sum, res) {
+    const e = res.issues.filter((i) => i.level === 'error').length;
+    const w = res.issues.filter((i) => i.level === 'warning').length;
+    const n = res.issues.filter((i) => i.level === 'info').length;
+    sum.textContent = `${e} error${e === 1 ? '' : 's'} · ${w} warning${w === 1 ? '' : 's'} · ${n} note${n === 1 ? '' : 's'}`;
+    ul.replaceChildren(...(res.issues.length ? res.issues.map((i) => {
+      const li = document.createElement('li');
+      li.dataset.testid = 'issue'; li.dataset.level = i.level; li.dataset.code = i.code; li.dataset.line = i.line == null ? '' : String(i.line);
+      const tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = `${i.level}${i.line ? ` · line ${i.line}` : ''}`;
+      li.append(tag, i.msg);
+      return li;
+    }) : [Object.assign(document.createElement('li'), { className: 'clean', textContent: 'No problems found.' })]));
+  }
+
+  function buildForm() {
+    const form = $('form');
+    const b = BUILDERS[state.type];
+    const vals = state.values[state.type];
+    form.replaceChildren();
+    let pair = null;
+    for (const f of b.fields) {
+      const wrap = document.createElement('div'); wrap.className = 'field';
+      const id = 'f-' + f.k;
+      const lab = document.createElement('label'); lab.htmlFor = id; lab.textContent = f.label + ' ';
+      if (f.need) { const dot = document.createElement('span'); dot.className = f.need; dot.textContent = '●'; dot.setAttribute('aria-label', f.need === 'req' ? '(required)' : '(recommended)'); lab.append(dot); }
+      let input;
+      if (f.select) { input = document.createElement('select'); for (const o of f.select) input.append(new Option(o, o)); }
+      else if (f.area) { input = document.createElement('textarea'); input.rows = 5; }
+      else { input = document.createElement('input'); input.type = 'text'; input.spellcheck = false; }
+      input.id = id; input.dataset.testid = id; input.value = vals[f.k];
+      input.addEventListener('input', () => { vals[f.k] = input.value; renderOutput(); });
+      wrap.append(lab, input);
+      if (f.half) { if (!pair) { pair = document.createElement('div'); pair.className = 'pair'; form.append(pair); } pair.append(wrap); if (pair.children.length === 2) pair = null; }
+      else { pair = null; form.append(wrap); }
+    }
+    $('faq-note').hidden = state.type !== 'FAQPage';
+  }
+
+  function renderOutput() {
+    const b = BUILDERS[state.type];
+    const obj = compact(b.build(state.values[state.type])) || { '@context': 'https://schema.org', '@type': state.type };
+    const json = JSON.stringify(obj, null, 2);
+    state.obj = obj; state.json = json;
+    $('out').textContent = json;
+    $('gut').textContent = json.split('\n').map((_, i) => i + 1).join('\n');
+    state.builder = lint(json);
+    renderIssues($('b-issues'), $('b-sum'), state.builder);
+  }
+
+  const scriptBlock = () => `<script type="application/ld+json">\n${esc(state.json)}\n</` + 'script>';
+
+  function selectType(t) {
+    state.type = t;
+    buildForm();
+    renderOutput();
+  }
+
+  const fs = $('types');
+  for (const t of TYPES) {
+    const lab = document.createElement('label');
+    const r = document.createElement('input'); r.type = 'radio'; r.name = 'type'; r.value = t; r.dataset.testid = 'type-' + t; r.checked = t === state.type;
+    r.addEventListener('change', () => selectType(t));
+    const s = document.createElement('span'); s.textContent = t === 'Product' ? 'Product + Offer' : t;
+    lab.append(r, s); fs.append(lab);
+  }
+
+  const rb = $('rules-body');
+  for (const [t, r] of Object.entries(RULES)) {
+    const tr = document.createElement('tr');
+    const td = (html) => { const c = document.createElement('td'); c.append(...html); return c; };
+    const codes = (arr, cls) => arr.length ? arr.map((x, i) => { const c = document.createElement('code'); c.className = cls; c.textContent = (Array.isArray(x) ? x.join(' / ') : x) + (i < arr.length - 1 ? ', ' : ''); return c; }) : ['—'];
+    const th = document.createElement('th'); th.scope = 'row'; th.textContent = t;
+    const a = document.createElement('a'); a.href = r.href; a.textContent = r.src; a.rel = 'noopener';
+    tr.append(th, td(codes(r.req, 'r')), td(codes(r.rec, 'm')), td([a]));
+    tr.dataset.type = t;
+    rb.append(tr);
+  }
+
+  $('copy').addEventListener('click', () => {
+    const text = scriptBlock();
+    state.copied = text;
+    try { navigator.clipboard && navigator.clipboard.writeText(text).catch(() => {}); } catch (e) { /* no clipboard */ }
+    $('copied').textContent = `Copied a ${text.split('\n').length}-line <script> block.`;
+  });
+  function runLint() { state.lintResult = lint($('lint-in').value); renderIssues($('l-issues'), $('l-sum'), state.lintResult); }
+  $('to-lint').addEventListener('click', () => { $('lint-in').value = scriptBlock(); runLint(); $('lint-in').focus({ preventScroll: false }); });
+  $('lint-run').addEventListener('click', runLint);
+  const BROKEN = `<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Prodcut",
+  "name": "Harbor Commuter 7-Speed Bicycle",
+  "offers": {
+    "@type": "Offer",
+    "price": "$649.00",
+    "priceCurrency": "usd"
+  }
+}
+<\/script>`;
+  $('lint-sample').addEventListener('click', () => { $('lint-in').value = BROKEN; runLint(); });
+
+  const q = new URLSearchParams(location.search).get('type');
+  if (TYPES.includes(q)) { state.type = q; fs.querySelector(`input[value="${q}"]`).checked = true; }
+  buildForm();
+  renderOutput();
+
+  window.__schema = { RULES, BUILDERS, lint, gtinOk, compact, scriptBlock, select: (t) => { fs.querySelector(`input[value="${t}"]`).click(); }, get state() { return state; } };
+})();
+</script>
+</body>
+</html>

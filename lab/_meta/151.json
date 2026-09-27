@@ -1,0 +1,35 @@
+{
+  "id": "151",
+  "slug": "151-schema-builder",
+  "file": "lab/151-schema-builder.html",
+  "title": "Structured Data Builder — JSON-LD without the guesswork",
+  "category": "Tools",
+  "tags": ["technical-seo", "json-ld", "schema-org", "linter", "rich-results"],
+  "description": "Form-driven JSON-LD builders for LocalBusiness (with a sub-type), Organization, Person, Product with Offer, Article, Event, BreadcrumbList and FAQPage. The output is checked live against a rules table of required and recommended properties taken from Google Search Central's documentation, with each rule citing its source. A linter reads pasted JSON-LD or whole script blocks with its own position-aware parser, so parse errors, unknown @types (with a 'did you mean'), missing properties and wrong value types such as '$649.00' prices are reported with line numbers. The output can be copied as a script block that is safe to paste.",
+  "prompt": "Build a structured data builder. Form-driven builders for LocalBusiness (with a sub-type), Organization, Person, Product with Offer, Article, Event, BreadcrumbList and FAQPage, with a note that FAQ rich results are now limited mostly to authoritative government and health sites. Show live JSON-LD output, and validate the required and recommended properties for each type against Google's documentation (encode the rules as a table and cite the docs). Let me paste existing JSON-LD to lint it: parse errors with line numbers, unknown @type, missing required properties and wrong value types (e.g. a price as a string with a currency symbol). Copy as a <script type=\"application/ld+json\"> block. The spec should check that each builder's output parses and contains the required properties, that linting catches planted errors with the correct line numbers, and that the output round-trips through the linter clean.",
+  "qa": {
+    "methodology": [
+      "The spec has its own table of required properties for each type, written from Google Search Central's pages, and checks both the builders' JSON.parse'd output and the page's rules table against it. Nested requirements are checked too: Offer price and priceCurrency, an Event's Place address, a ListItem's item except on the last one, and an FAQ Question's answer.",
+      "Round trip: for all eight types, the copied <script> block is pasted into the linter through the UI and must come back with 0 errors and 0 warnings, with the FAQ restriction as the only note. The JSON inside the block must deep-equal the builder's object.",
+      "Line-number oracle: each planted error (trailing comma, missing comma, single quotes, unquoted key, a // comment, a raw line break in a string, an unclosed object) is placed in a known document. The test finds the offending character itself and computes its line; the page must report that line.",
+      "Value types: prices ($19.99, 1,299.00, 19,99, '19.99 USD' and negative numbers rejected; 19.99 and '19.99' accepted), ISO 4217 currencies, ISO 8601 dates, integer positions, schema.org enumeration URLs and absolute URLs. GTIN check digits are computed in the test with the GS1 algorithm and checked against a published valid EAN-13.",
+      "Pasted pages: two ld+json blocks among other HTML and a non-JSON-LD script, with an @graph, report issues at their line in the whole paste. The builder is checked live: blanking a required field raises an error, and a name containing </script> is escaped as \\u003c inside the copied block."
+    ],
+    "risks": [
+      "Google's documentation changes. The rules table covers the main required and recommended properties for each rich result, not every optional one, and it will need updating when the documentation does.",
+      "The @type list is a curated subset of schema.org, so a valid but rare type is reported as unknown. The message suggests a check rather than asserting it is wrong.",
+      "Offer rules depend on context: merchant-listing requirements apply to a Product's offer but not to event tickets, which only have recommended properties. The page handles those two contexts only.",
+      "Passing the linter doesn't guarantee a rich result; the page says to confirm with Google's Rich Results Test."
+    ],
+    "playwright": "Most lint cases go through window.__schema.lint() via page.evaluate, which kept dozens of planted documents fast to check, while the round-trip test drives the real copy button, textarea and Lint button for all eight types on both projects. The type picker is a radio group whose inputs are visually hidden, so the spec clicks the visible labels, and one test uses keyboard.press('ArrowRight') to check that native radio arrow keys rebuild the form. A literal </script> in a sample string would have ended the page's own script; I spotted it in review and escaped it before the first load. Probing the page before the spec existed then caught two real bugs: the linter hit a temporal-dead-zone error, and event ticket offers were being held to merchant-listing rules (itemCondition). The spec also caught a mistake of its own: a test looked for the first '//' as the planted comment, but that was the one in https://schema.org.",
+    "coverage": [
+      "All eight builders: parse, @context, required and nested required properties",
+      "Copy block → linter round trip, clean for every type; Send to linter",
+      "Parse errors with line and column; unclosed objects",
+      "Unknown @type suggestions; missing required vs recommended",
+      "Price, currency, date, GTIN, position, enum and URL checks",
+      "Multi-block pages and @graph, </script> escaping, rules table, FAQ note, keyboard"
+    ]
+  },
+  "a11y": "The type picker is a native radio group in a fieldset with a legend, so it works with arrow keys. Every form field has a label, and its required or recommended marker has an accessible name. The output is focusable, and validation and lint summaries are polite live regions whose items give level and line number in text, not colour alone. The rules are a table with a caption and row headers."
+}

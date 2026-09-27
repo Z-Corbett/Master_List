@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>hreflang Checker — reciprocity, codes and x-default</title>
+<meta name="description" content="Paste a set of pages with their hreflang annotations, as HTML link tags or as a sitemap with xhtml:link, and check them against Google's documentation: ISO 639-1 language and ISO 3166-1 alpha-2 region codes (en-UK should be en-GB, es-419 isn't supported), return links, self-references, x-default, duplicate codes and canonical conflicts, with the cluster drawn as a matrix.">
+<style>
+  :root {
+    --bg: #fbf8f3; --card: #ffffff; --ink: #14213d; --ink-2: #4b5670; --rule: #d9dde6; --band: #14213d;
+    --teal: #0f6b73; --teal-bg: #e2f2f1; --tang: #d9531e; --tang-bg: #fde8dd; --gold: #9a6a00; --gold-bg: #fdf1cc;
+    --ok: #17753f; --ok-bg: #e0f3e7;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --mono: "Cascadia Mono", "Consolas", "SFMono-Regular", "Menlo", "Liberation Mono", monospace;
+    --cond: "Bahnschrift", "Arial Narrow", "Segoe UI", Arial, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--sans); overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--tang); outline-offset: 2px; }
+  a { color: var(--teal); }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: #fff; background: var(--tang); text-decoration: none; font: 700 13px/1 var(--cond); letter-spacing: .04em; padding: 8px 12px; border-radius: 999px; }
+  a.back:hover { background: var(--band); }
+  .band { background: var(--band); color: #fff; padding: 58px 16px 22px; }
+  .band .in { max-width: 1160px; margin: 0 auto; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; padding: 0; list-style: none; }
+  .chips li { font: 700 12px/1 var(--mono); padding: 5px 8px; border-radius: 3px; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.3); }
+  .chips li.x { background: var(--tang); border-color: var(--tang); }
+  .chips li.bad { text-decoration: line-through; opacity: .75; }
+  h1 { font: 700 clamp(34px, 7vw, 66px)/1 var(--cond); margin: 0 0 10px; letter-spacing: -.01em; overflow-wrap: anywhere; }
+  h1 code { font: inherit; color: #ffb38f; }
+  .lede { margin: 0; max-width: 72ch; color: #d6dcea; }
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 18px 16px 40px; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+  .card { background: var(--card); border: 1px solid var(--rule); border-top: 4px solid var(--teal); border-radius: 6px; padding: 14px 16px; min-width: 0; }
+  .wide { grid-column: 1 / -1; }
+  h2 { font: 700 20px/1.2 var(--cond); letter-spacing: .02em; margin: 0 0 8px; }
+  h3 { font: 700 13px/1.3 var(--cond); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); margin: 14px 0 6px; }
+  label { display: block; font: 600 13px/1.3 var(--sans); color: var(--ink-2); margin: 0 0 6px; }
+  textarea { width: 100%; min-width: 0; max-width: 100%; font: 12.5px/1.5 var(--mono); padding: 9px 10px; border: 1px solid var(--rule); border-radius: 4px; background: #fdfdfd; color: var(--ink); resize: vertical; white-space: pre; overflow-wrap: normal; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .btn { min-height: 40px; padding: 8px 14px; border-radius: 4px; border: 2px solid var(--teal); background: var(--teal); color: #fff; font: 700 14px/1 var(--cond); letter-spacing: .03em; cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--teal); }
+  .btn:hover { background: var(--band); border-color: var(--band); color: #fff; }
+  .hint { font-size: 13px; color: var(--ink-2); margin: 8px 0 0; }
+  .hint code, .rules code, .issues code { font: 12.5px var(--mono); overflow-wrap: anywhere; }
+  .status { font: 700 16px/1.35 var(--cond); padding: 10px 12px; border-radius: 4px; border: 2px solid var(--rule); margin: 0 0 10px; overflow-wrap: anywhere; }
+  .status.ok { color: var(--ok); border-color: var(--ok); background: var(--ok-bg); }
+  .status.bad { color: var(--tang); border-color: var(--tang); background: var(--tang-bg); }
+  .status.warn { color: var(--gold); border-color: var(--gold); background: var(--gold-bg); }
+  .counts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+  .counts div { border: 1px solid var(--rule); border-radius: 4px; padding: 6px 8px; min-width: 0; }
+  .counts small { display: block; font: 700 11px/1.3 var(--cond); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+  .counts b { font: 700 22px/1.2 var(--cond); }
+  ul.issues { list-style: none; margin: 0; padding: 0; max-height: 420px; overflow: auto; }
+  ul.issues li { border-left: 4px solid var(--rule); background: #f7f8fb; padding: 6px 9px; margin-bottom: 5px; font-size: 13.5px; overflow-wrap: anywhere; }
+  ul.issues li.error { border-color: var(--tang); }
+  ul.issues li.warning { border-color: var(--gold); }
+  ul.issues li.info { border-color: var(--teal); }
+  ul.issues .lvl { font: 700 11px/1 var(--cond); letter-spacing: .08em; text-transform: uppercase; margin-right: 6px; }
+  li.error .lvl { color: var(--tang); } li.warning .lvl { color: var(--gold); } li.info .lvl { color: var(--teal); }
+  ul.issues .kind { font: 11.5px var(--mono); color: var(--ink-2); margin-right: 6px; }
+  .matrix-wrap { overflow-x: auto; max-width: 100%; position: relative; }
+  table.matrix { border-collapse: separate; border-spacing: 3px; font: 12px/1.3 var(--mono); }
+  table.matrix th { font: 700 11.5px/1.25 var(--mono); color: var(--ink-2); padding: 4px 6px; text-align: left; vertical-align: bottom; max-width: 11em; overflow-wrap: anywhere; }
+  table.matrix thead th { text-align: center; }
+  table.matrix td { position: relative; min-width: 5.2em; text-align: center; padding: 6px 4px; border-radius: 3px; border: 1px solid var(--rule); background: #fafafa; color: var(--ink-2); }
+  td[data-state="ok"], td[data-state="self"] { background: var(--ok-bg); border-color: #9fd1b2; color: var(--ok); font-weight: 700; }
+  td[data-state="no-return"], td[data-state="no-self"] { background: var(--tang-bg); border-color: var(--tang); color: var(--tang); font-weight: 700; }
+  td[data-state="missing"] { background: #fff; border: 2px dashed var(--tang); color: var(--tang); }
+  td[data-state="gap"] { background: var(--gold-bg); border-color: #e2c877; color: var(--gold); }
+  td.canon-bad { box-shadow: inset 0 0 0 2px var(--gold); }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--ink-2); margin: 8px 0 0; }
+  .legend span::before { content: ""; display: inline-block; width: 11px; height: 11px; margin-right: 5px; vertical-align: -1px; border-radius: 2px; border: 1px solid var(--rule); }
+  .legend .l-ok::before { background: var(--ok-bg); border-color: #9fd1b2; }
+  .legend .l-nr::before { background: var(--tang-bg); border-color: var(--tang); }
+  .legend .l-mi::before { background: #fff; border: 2px dashed var(--tang); }
+  .legend .l-gap::before { background: var(--gold-bg); border-color: #e2c877; }
+  .rules { font-size: 14px; }
+  .rules li { margin-bottom: 6px; }
+  .cite { font-size: 13px; color: var(--ink-2); border-left: 3px solid var(--teal); padding: 6px 10px; background: var(--teal-bg); margin: 10px 0 0; overflow-wrap: anywhere; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  footer { text-align: center; font-size: 12.5px; color: var(--ink-2); margin-top: 20px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } .counts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<header class="band">
+  <div class="in">
+    <ul class="chips" aria-hidden="true"><li>en-US</li><li>en-GB</li><li class="bad">en-UK</li><li>de</li><li>zh-Hant-TW</li><li class="bad">es-419</li><li class="x">x-default</li></ul>
+    <h1><code>hreflang</code> Checker</h1>
+    <p class="lede">Paste the hreflang annotations for a set of pages, as HTML <code>&lt;link&gt;</code> tags or as a sitemap with <code>xhtml:link</code>, and check them the way Google's documentation describes: valid codes, return links, self-references, x-default, duplicate codes and canonical conflicts. Nothing is fetched. It only reads what you paste.</p>
+  </div>
+</header>
+<div class="wrap">
+  <div class="grid">
+    <section class="card" aria-labelledby="h-in">
+      <h2 id="h-in">1 · Your pages</h2>
+      <label for="src">HTML mode: start each page with a line <code>== https://…</code>, then paste its <code>&lt;link&gt;</code> tags. Sitemap mode: paste a whole <code>&lt;urlset&gt;</code>.</label>
+      <textarea id="src" rows="18" data-testid="src" spellcheck="false"></textarea>
+      <div class="row">
+        <button type="button" class="btn" id="run" data-testid="check">Check</button>
+        <button type="button" class="btn ghost" id="exValid" data-testid="ex-valid">Valid example</button>
+        <button type="button" class="btn ghost" id="exBroken" data-testid="ex-broken">Broken example</button>
+        <button type="button" class="btn ghost" id="exSitemap" data-testid="ex-sitemap">Sitemap example</button>
+      </div>
+      <p class="hint">The format is detected: text containing <code>&lt;urlset</code> is read as a sitemap (canonicals can't be checked there, because sitemaps don't carry them). The bundled sites, Lumen Tea Co. and Kestrel Bike Works, are fictional, on <code>.example</code> domains.</p>
+    </section>
+
+    <section class="card" aria-labelledby="h-out">
+      <h2 id="h-out">2 · Findings</h2>
+      <div aria-live="polite" id="live">
+        <p class="status" id="status" data-testid="status">Not checked yet.</p>
+        <div class="counts">
+          <div><small>Pages</small><b id="cPages" data-testid="count-pages">0</b></div>
+          <div><small>Annotations</small><b id="cAnn" data-testid="count-annotations">0</b></div>
+          <div><small>Errors</small><b id="cErr" data-testid="count-errors">0</b></div>
+          <div><small>Warnings</small><b id="cWarn" data-testid="count-warnings">0</b></div>
+        </div>
+      </div>
+      <ul class="issues" id="issues" data-testid="issues" aria-label="Issues found"></ul>
+    </section>
+
+    <section class="card wide" aria-labelledby="h-mx">
+      <h2 id="h-mx">3 · The cluster as a matrix</h2>
+      <p class="hint" style="margin-top:0">Each row is a page, and each cell is the hreflang code that page gives the column's page. The diagonal is the self-reference. A link only counts when it goes both ways.</p>
+      <div id="matrices" data-testid="matrices"></div>
+      <div class="legend"><span class="l-ok">two-way (or self)</span><span class="l-nr">no return link from the column page / no self-reference</span><span class="l-mi">missing: the column page links here, this row doesn't link back</span><span class="l-gap">neither page lists the other</span></div>
+    </section>
+
+    <section class="card wide" aria-labelledby="h-rules">
+      <h2 id="h-rules">What it checks, and where each rule comes from</h2>
+      <ul class="rules">
+        <li><b>Language: ISO 639-1.</b> The first code must be a two-letter ISO 639-1 language, such as <code>en</code>, <code>de</code> or <code>ja</code> (not <code>jp</code>, which is a country). Three-letter codes aren't supported. The check uses an embedded copy of all 183 ISO 639-1 codes.</li>
+        <li><b>Region: ISO 3166-1 alpha-2, optional.</b> A second code can give the country: <code>en-GB</code>, not <code>en-UK</code>. <code>UK</code>, <code>EU</code> and <code>UN</code> are reserved rather than assigned, and Google says it ignores that part of the annotation. A region can't be used on its own, because Google doesn't derive a language from a country. The check uses an embedded copy of all 249 assigned ISO 3166-1 alpha-2 codes.</li>
+        <li><b>Script: ISO 15924, optional.</b> Google also accepts a script subtag, as in <code>zh-Hant</code> or <code>zh-Hant-TW</code>. This tool knows the common scripts, and it warns rather than errs on any other four-letter subtag.</li>
+        <li><b>UN M.49 regions such as <code>es-419</code>: not supported.</b> <code>es-419</code> is valid BCP 47 (Spanish for Latin America and the Caribbean), but Google's hreflang documentation names it as unsupported: only ISO 639-1 languages and ISO 3166-1 alpha-2 regions are. So this tool reports it as an error. Use country codes (<code>es-MX</code>, <code>es-AR</code>, …), or plain <code>es</code> with <code>x-default</code>.</li>
+        <li><b>Return links.</b> If page X lists page Y, page Y must list page X. Otherwise the pair may be ignored.</li>
+        <li><b>Self-reference.</b> Each language version must list itself as well as all the other versions.</li>
+        <li><b>x-default.</b> Optional, but recommended: it names the page for users whose language matches no version, such as a language picker. A missing x-default is a warning.</li>
+        <li><b>Duplicate codes.</b> One page can't send the same language-region pair to two different URLs. The same annotation repeated is only a warning.</li>
+        <li><b>Canonical conflicts.</b> Every hreflang target should be the canonical URL of its version. A page whose <code>rel="canonical"</code> points elsewhere is telling Google to index a different URL, which contradicts being an hreflang alternate.</li>
+        <li><b>Fully qualified URLs.</b> Alternate URLs must include the protocol and host. A relative <code>href</code> is an error.</li>
+      </ul>
+      <p class="cite" data-testid="citation">Sources: Google Search Central, "Tell Google about localized versions of your page" (developers.google.com/search/docs/specialty/international/localized-versions). It says: "Only language codes listed in ISO 639-1 and region codes listed in ISO 3166-1 Alpha 2 are supported; other codes that aren't listed in those standards, such as es-419, aren't supported." It also covers return links, self-references, x-default, the sitemap <code>xhtml:link</code> form, and the <code>en-UK</code> mistake. On canonicals, Google Search Central, "How to specify a canonical URL": "If you're using hreflang elements, make sure to specify a canonical page in the same language". Code lists: ISO 639-1, ISO 3166-1 (officially assigned alpha-2 codes), and ISO 15924.</p>
+    </section>
+  </div>
+  <footer>Built by Zac Corbett · pure client-side JavaScript, no network · Lumen Tea Co. and Kestrel Bike Works are fictional</footer>
+</div>
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+
+  // ---------- embedded code lists ----------
+  // ISO 639-1: all 183 two-letter language codes.
+  const LANG = new Set(('aa ab ae af ak am an ar as av ay az ba be bg bi bm bn bo br bs ca ce ch co cr cs cu cv cy da de dv dz ee el en eo es et eu ' +
+    'fa ff fi fj fo fr fy ga gd gl gn gu gv ha he hi ho hr ht hu hy hz ia id ie ig ii ik io is it iu ja jv ka kg ki kj kk kl km kn ko kr ks ku kv kw ky ' +
+    'la lb lg li ln lo lt lu lv mg mh mi mk ml mn mr ms mt my na nb nd ne ng nl nn no nr nv ny oc oj om or os pa pi pl ps pt qu rm rn ro ru rw ' +
+    'sa sc sd se sg si sk sl sm sn so sq sr ss st su sv sw ta te tg th ti tk tl tn to tr ts tt tw ty ug uk ur uz ve vi vo wa wo xh yi yo za zh zu').split(' '));
+  // ISO 3166-1 alpha-2: all 249 officially assigned codes.
+  const REGION = new Set(('AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ ' +
+    'CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR ' +
+    'GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP ' +
+    'KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ ' +
+    'NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW ' +
+    'SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ ' +
+    'UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW').split(' '));
+  // Exceptionally or transitionally reserved alpha-2 codes: look like countries, aren't assigned.
+  const RESERVED = { UK: 'the United Kingdom is GB', EU: 'the European Union', UN: 'the United Nations', EZ: 'the eurozone', AC: 'Ascension Island (use SH)', CP: 'Clipperton Island', DG: 'Diego Garcia (use IO)', EA: 'Ceuta and Melilla (use ES)', IC: 'the Canary Islands (use ES)', TA: 'Tristan da Cunha (use SH)', FX: 'metropolitan France (use FR)', SU: 'the former USSR' };
+  // ISO 15924: common scripts (not the full list; others are warned about, not rejected).
+  const SCRIPT = new Set('Arab Armn Beng Cyrl Deva Ethi Geor Grek Gujr Guru Hang Hani Hans Hant Hebr Hira Jpan Kana Khmr Knda Kore Laoo Latn Mlym Mong Mymr Orya Sinh Taml Telu Thaa Thai Tibt'.split(' '));
+  // Country codes often typed where a language code belongs.
+  const LANG_HINT = { jp: 'ja (Japanese)', cn: 'zh (Chinese)', dk: 'da (Danish)', gr: 'el (Greek)', cz: 'cs (Czech)', ua: 'uk (Ukrainian)', vn: 'vi (Vietnamese)', us: 'en (English)', gb: 'en (English)', mx: 'es (Spanish)', at: 'de (German)',
+    iw: 'he (Hebrew; iw was withdrawn)', ji: 'yi (Yiddish; ji was withdrawn)', in: 'id for Indonesian (in was withdrawn), or a language plus IN for India, such as hi-IN or en-IN' };
+
+  function parseCode(raw) {
+    const v = String(raw == null ? '' : raw).trim();
+    const bad = (kind, message) => ({ ok: false, kind, message });
+    if (!v) return bad('malformed', 'the hreflang value is empty.');
+    if (/^x-default$/i.test(v)) return { ok: true, xdefault: true, canon: 'x-default' };
+    if (v.includes('_')) return bad('underscore', `"${v}" uses an underscore. hreflang codes use a hyphen: ${v.replace(/_/g, '-')}.`);
+    const parts = v.split('-');
+    if (parts.length > 3 || parts.some((p) => !p) || !/^[A-Za-z]+$/.test(parts[0])) return bad('malformed', `"${v}" isn't language[-Script][-REGION].`);
+    const lang = parts[0].toLowerCase();
+    if (lang.length === 3) return bad('invalid-language', `"${lang}" is a three-letter code. Google supports only two-letter ISO 639-1 language codes.`);
+    if (lang.length !== 2 || !LANG.has(lang)) {
+      const hint = LANG_HINT[lang];
+      const asRegion = REGION.has(lang.toUpperCase());
+      return bad('invalid-language', `"${lang}" isn't an ISO 639-1 language code.` + (hint ? ` Did you mean ${hint}?` : '') +
+        (asRegion && parts.length === 1 ? ` ${lang.toUpperCase()} is a country, and a region can't be used on its own: Google doesn't derive the language from a country.` : ''));
+    }
+    let script = null, region = null;
+    const rest = parts.slice(1);
+    if (rest.length === 2) { script = rest[0]; region = rest[1]; }
+    else if (rest.length === 1) { if (rest[0].length === 4) script = rest[0]; else region = rest[0]; }
+    let warning = null;
+    if (script !== null) {
+      if (!/^[A-Za-z]{4}$/.test(script)) return bad('malformed', `"${script}" in "${v}" isn't a four-letter ISO 15924 script.`);
+      script = script[0].toUpperCase() + script.slice(1).toLowerCase();
+      if (!SCRIPT.has(script)) warning = { kind: 'unknown-script', message: `"${script}" isn't one of the common ISO 15924 scripts this tool knows. Check it's a real script code.` };
+    }
+    if (region !== null) {
+      if (/^\d{3}$/.test(region)) return bad('unsupported-region', `"${region}" is a UN M.49 area code (419 is Latin America and the Caribbean). Google's hreflang documentation says only ISO 3166-1 alpha-2 regions are supported, and names es-419 as unsupported. Use a country, such as ${lang}-MX or ${lang}-AR, or just ${lang}.`);
+      if (!/^[A-Za-z]{2}$/.test(region)) return bad('malformed', `"${region}" in "${v}" isn't a two-letter region code.`);
+      const R = region.toUpperCase();
+      if (RESERVED[R]) return bad('invalid-region', `"${R}" isn't an assigned ISO 3166-1 alpha-2 code (it's reserved: ${RESERVED[R]}). ${R === 'UK' ? `Use ${lang}-GB. ` : ''}Google ignores a region code like this.`);
+      if (!REGION.has(R)) return bad('invalid-region', `"${R}" isn't an ISO 3166-1 alpha-2 country code.`);
+      region = R;
+    }
+    return { ok: true, canon: lang + (script ? '-' + script : '') + (region ? '-' + region : ''), lang, script, region, warning };
+  }
+
+  // ---------- input parsing ----------
+  const absUrl = (s) => /^https?:\/\/[^/\s]+/i.test(s);
+  function norm(s) { try { return new URL(s).href; } catch (e) { return null; } }
+
+  function parseInput(text) {
+    const src = String(text || '');
+    const errors = [];
+    if (/<urlset[\s>]/i.test(src)) return parseSitemap(src, errors);
+    const pages = []; let cur = null; let pre = '';
+    const blocks = [];
+    src.split(/\r\n|\r|\n/).forEach((line, i) => {
+      const m = /^\s*==\s*(\S+)\s*$/.exec(line);
+      if (m) { cur = { raw: m[1], line: i + 1, body: '' }; blocks.push(cur); }
+      else if (cur) cur.body += line + '\n';
+      else pre += line;
+    });
+    if (/<link\b/i.test(pre)) errors.push('Some <link> tags come before the first "== https://…" line, so they don\'t belong to a page. They were skipped.');
+    const seen = new Set();
+    for (const b of blocks) {
+      if (!absUrl(b.raw) || !norm(b.raw)) { errors.push(`Line ${b.line}: "${b.raw}" isn't an absolute URL, so it can't be a page address.`); continue; }
+      const url = norm(b.raw);
+      if (seen.has(url)) { errors.push(`Line ${b.line}: ${url} appears twice. Only the first block is used.`); continue; }
+      seen.add(url);
+      const doc = new DOMParser().parseFromString('<!doctype html><html><head>' + b.body + '</head><body></body></html>', 'text/html');
+      const anns = []; let canonical = null;
+      for (const ln of doc.querySelectorAll('link')) {
+        const rels = (ln.getAttribute('rel') || '').toLowerCase().split(/\s+/);
+        if (rels.includes('canonical') && canonical === null) {
+          try { canonical = new URL(ln.getAttribute('href') || '', url).href; } catch (e) { canonical = null; }
+        }
+        if (rels.includes('alternate') && ln.hasAttribute('hreflang')) anns.push({ raw: ln.getAttribute('hreflang'), hrefRaw: (ln.getAttribute('href') || '').trim() });
+      }
+      pages.push({ url, canonical, anns });
+    }
+    return { mode: 'html', pages, errors };
+  }
+
+  const SM = 'http://www.sitemaps.org/schemas/sitemap/0.9', XH = 'http://www.w3.org/1999/xhtml';
+  function parseSitemap(src, errors) {
+    const doc = new DOMParser().parseFromString(src.trim(), 'application/xml');
+    if (doc.getElementsByTagName('parsererror').length) { errors.push('The sitemap isn\'t well-formed XML, so it couldn\'t be read. Check for unescaped & characters and unclosed tags.'); return { mode: 'sitemap', pages: [], errors }; }
+    const pages = []; const seen = new Set();
+    const urls = doc.getElementsByTagNameNS(SM, 'url');
+    if (!urls.length) errors.push(`No <url> elements in the sitemaps.org namespace (${SM}) were found.`);
+    for (const u of urls) {
+      const locEl = Array.from(u.children).find((c) => c.namespaceURI === SM && c.localName === 'loc');
+      const loc = locEl ? locEl.textContent.trim() : '';
+      if (!absUrl(loc) || !norm(loc)) { errors.push(`A <url> has no absolute <loc> ("${loc}"). It was skipped.`); continue; }
+      const url = norm(loc);
+      if (seen.has(url)) { errors.push(`${url} is listed twice. Only the first <url> is used.`); continue; }
+      seen.add(url);
+      const anns = [];
+      for (const l of u.getElementsByTagNameNS(XH, 'link')) {
+        if ((l.getAttribute('rel') || '').toLowerCase() !== 'alternate' || !l.hasAttribute('hreflang')) continue;
+        anns.push({ raw: l.getAttribute('hreflang'), hrefRaw: (l.getAttribute('href') || '').trim() });
+      }
+      if (!anns.length && u.getElementsByTagName('xhtml:link').length) errors.push(`${url}: its xhtml:link elements aren't in the ${XH} namespace. Declare xmlns:xhtml on the <urlset>.`);
+      pages.push({ url, canonical: null, anns });
+    }
+    return { mode: 'sitemap', pages, errors };
+  }
+
+  // ---------- the checks ----------
+  function check(text) {
+    const P = parseInput(text);
+    const issues = [];
+    const add = (level, kind, page, msg) => issues.push({ level, kind, page, msg });
+    P.errors.forEach((e) => add('error', 'parse', null, e));
+    const byUrl = new Map(P.pages.map((p) => [p.url, p]));
+    let annCount = 0;
+    for (const p of P.pages) {
+      p.links = [];
+      for (const a of p.anns) {
+        annCount++;
+        const c = parseCode(a.raw);
+        if (!c.ok) add('error', c.kind, p.url, `hreflang="${a.raw}": ${c.message}`);
+        else if (c.warning) add('warning', c.warning.kind, p.url, `hreflang="${a.raw}": ${c.warning.message}`);
+        if (!absUrl(a.hrefRaw) || !norm(a.hrefRaw)) { add('error', 'relative-url', p.url, `hreflang="${a.raw}" href="${a.hrefRaw}": alternate URLs must be fully qualified, with the protocol and host.`); continue; }
+        p.links.push({ raw: a.raw, key: c.ok ? c.canon.toLowerCase() : a.raw.trim().toLowerCase(), code: c.ok ? c.canon : a.raw.trim(), valid: c.ok, x: !!c.xdefault, href: norm(a.hrefRaw) });
+      }
+    }
+    for (const p of P.pages) {
+      if (!p.anns.length) { add('info', 'no-annotations', p.url, 'This page has no hreflang annotations.'); continue; }
+      // duplicates on one page
+      const byKey = new Map();
+      for (const l of p.links) { if (!byKey.has(l.key)) byKey.set(l.key, []); byKey.get(l.key).push(l); }
+      for (const [, ls] of byKey) {
+        const hrefs = [...new Set(ls.map((l) => l.href))];
+        if (hrefs.length > 1) add('error', 'duplicate-code', p.url, `hreflang="${ls[0].code}" is given to ${hrefs.length} different URLs: ${hrefs.join(', ')}. Each language-region pair can point to only one URL.`);
+        else if (ls.length > 1) add('warning', 'repeated', p.url, `hreflang="${ls[0].code}" → ${hrefs[0]} is repeated ${ls.length} times.`);
+      }
+      // self-reference
+      if (p.links.length && !p.links.some((l) => l.href === p.url)) add('error', 'no-self', p.url, 'The page doesn\'t list itself. Each version must include a self-referencing hreflang annotation.');
+      // return links
+      const reported = new Set();
+      for (const l of p.links) {
+        if (l.href === p.url || reported.has(l.href)) continue;
+        reported.add(l.href);
+        const q = byUrl.get(l.href);
+        if (!q) { add('warning', 'unverified-target', p.url, `${l.href} (hreflang="${l.code}") isn't in the pasted set, so its return link can't be checked.`); continue; }
+        if (!q.links.some((m) => m.href === p.url)) add('error', 'no-return', p.url, `No return link: this page lists ${l.href} as "${l.code}", but ${l.href} doesn't list this page back.`);
+      }
+    }
+    // canonical conflicts
+    for (const q of P.pages) {
+      if (!q.canonical || q.canonical === q.url) continue;
+      const refs = P.pages.filter((p) => p.links && p.links.some((l) => l.href === q.url)).map((p) => p.url);
+      if (refs.length) add('error', 'canonical-conflict', q.url, `Its canonical points to ${q.canonical}, but it's an hreflang target (listed by ${refs.join(', ')}). Point hreflang at canonical URLs only, or make this page self-canonical.`);
+    }
+    // the same URL given different codes by different pages
+    const codesFor = new Map();
+    for (const p of P.pages) for (const l of p.links) {
+      if (l.x || !l.valid) continue;
+      if (!codesFor.has(l.href)) codesFor.set(l.href, new Map());
+      const m = codesFor.get(l.href); if (!m.has(l.key)) m.set(l.key, { code: l.code, from: [] }); m.get(l.key).from.push(p.url);
+    }
+    for (const [href, m] of codesFor) if (m.size > 1) add('warning', 'inconsistent-code', href, `Pages disagree about this URL's language: ${[...m.values()].map((v) => `"${v.code}" (from ${v.from.length} page${v.from.length > 1 ? 's' : ''})`).join(' vs ')}.`);
+    // clusters: connected components of pasted pages
+    const parent = new Map(P.pages.map((p) => [p.url, p.url]));
+    const find = (u) => { while (parent.get(u) !== u) { parent.set(u, parent.get(parent.get(u))); u = parent.get(u); } return u; };
+    for (const p of P.pages) for (const l of p.links) if (byUrl.has(l.href)) parent.set(find(p.url), find(l.href));
+    const groups = new Map();
+    for (const p of P.pages) { const r = find(p.url); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(p); }
+    const clusters = [];
+    for (const [, ps] of groups) {
+      if (!ps.some((p) => p.links.length)) continue;
+      clusters.push(ps.map((p) => p.url));
+      if (!ps.some((p) => p.links.some((l) => l.x))) add('warning', 'no-x-default', ps[0].url, `No x-default in the cluster of ${ps.length} page${ps.length > 1 ? 's' : ''} starting ${ps[0].url}. It's optional, but it tells Google which page to show users whose language matches none of these.`);
+      for (let i = 0; i < ps.length; i++) for (let j = i + 1; j < ps.length; j++) {
+        const a = ps[i], b = ps[j];
+        if (!a.links.length || !b.links.length) continue;
+        if (!a.links.some((l) => l.href === b.url) && !b.links.some((l) => l.href === a.url)) add('warning', 'missing-sibling', a.url, `${a.url} and ${b.url} are in the same cluster but neither lists the other. Every version should list every other version.`);
+      }
+    }
+    const result = {
+      mode: P.mode,
+      pages: P.pages.map((p) => ({ url: p.url, canonical: p.canonical, links: (p.links || []).map((l) => ({ code: l.code, href: l.href, valid: l.valid })) })),
+      clusters, issues, annotations: annCount,
+      errors: issues.filter((i) => i.level === 'error').length,
+      warnings: issues.filter((i) => i.level === 'warning').length
+    };
+    return result;
+  }
+
+  // ---------- examples (fictional) ----------
+  function htmlBlocks(pages) {
+    return pages.map((p) => ['== ' + p.url, ...(p.canonical ? [`<link rel="canonical" href="${p.canonical}">`] : []),
+      ...p.alts.map(([c, h]) => `<link rel="alternate" hreflang="${c}" href="${h}">`)].join('\n')).join('\n\n');
+  }
+  const LT = 'https://www.lumentea.example';
+  const LT_SET = [['x-default', LT + '/'], ['en-US', LT + '/en-us/'], ['en-GB', LT + '/en-gb/'], ['de', LT + '/de/'], ['fr-CA', LT + '/fr-ca/'], ['zh-Hant-TW', LT + '/zh-tw/']];
+  const VALID = htmlBlocks(LT_SET.map(([, u]) => ({ url: u, canonical: u, alts: LT_SET })));
+  const KB = 'https://www.kestrelbikes.example';
+  const BROKEN = htmlBlocks([
+    { url: KB + '/en-us/', canonical: KB + '/en-us/', alts: [['en-US', KB + '/en-us/'], ['en-UK', KB + '/en-gb/'], ['es-419', KB + '/es/'], ['de', KB + '/de/'], ['jp', KB + '/ja/']] },
+    { url: KB + '/en-gb/', canonical: KB + '/en-gb/', alts: [['en-GB', KB + '/en-gb/'], ['en-US', KB + '/en-us/'], ['fr', KB + '/fr/']] },
+    { url: KB + '/es/', canonical: KB + '/es/', alts: [['en-US', KB + '/en-us/'], ['en-GB', KB + '/en-gb/']] },
+    { url: KB + '/de/', canonical: KB + '/de/', alts: [['de', KB + '/de/'], ['de', KB + '/de/sale/'], ['en-US', KB + '/en-us/']] },
+    { url: KB + '/ja/', canonical: KB + '/en-us/', alts: [['ja', KB + '/ja/'], ['en-US', KB + '/en-us/']] },
+    { url: KB + '/fr/', canonical: KB + '/fr/', alts: [['fr', KB + '/fr/'], ['en-US', '/en-us/']] }
+  ]);
+  const SM_SET = [['en', LT + '/en/'], ['de', LT + '/de/'], ['fr', LT + '/fr/'], ['x-default', LT + '/en/']];
+  const SITEMAP = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"\n        xmlns:xhtml="http://www.w3.org/1999/xhtml">\n' +
+    ['/en/', '/de/', '/fr/'].map((path) => {
+      const alts = path === '/fr/' ? SM_SET.filter(([c]) => c !== 'de') : SM_SET;       // the French page forgot the German version
+      return `  <url>\n    <loc>${LT}${path}</loc>\n` + alts.map(([c, h]) => `    <xhtml:link rel="alternate" hreflang="${c}" href="${h}"/>\n`).join('') + '  </url>\n';
+    }).join('') + '</urlset>\n';
+
+  // ---------- UI ----------
+  let last = null;
+  const shortUrl = (u) => { try { const x = new URL(u); return x.pathname + x.search; } catch (e) { return u; } };
+  function render(res) {
+    last = res;
+    const st = $('status');
+    st.className = 'status ' + (res.errors ? 'bad' : res.warnings ? 'warn' : res.pages.length ? 'ok' : 'bad');
+    st.textContent = !res.pages.length ? 'No pages found. Start each page with "== https://…", or paste a <urlset>.'
+      : res.errors ? `${res.errors} error${res.errors > 1 ? 's' : ''} and ${res.warnings} warning${res.warnings === 1 ? '' : 's'} across ${res.pages.length} pages (${res.mode === 'sitemap' ? 'sitemap' : 'HTML'} mode).`
+      : res.warnings ? `No errors, ${res.warnings} warning${res.warnings > 1 ? 's' : ''} across ${res.pages.length} pages (${res.mode === 'sitemap' ? 'sitemap' : 'HTML'} mode).`
+      : `Clean: ${res.pages.length} pages, every annotation valid and reciprocal (${res.mode === 'sitemap' ? 'sitemap' : 'HTML'} mode).`;
+    $('cPages').textContent = res.pages.length; $('cAnn').textContent = res.annotations;
+    $('cErr').textContent = res.errors; $('cWarn').textContent = res.warnings;
+    const ul = $('issues'); ul.textContent = '';
+    const order = { error: 0, warning: 1, info: 2 };
+    for (const it of [...res.issues].sort((a, b) => order[a.level] - order[b.level])) {
+      const li = document.createElement('li'); li.className = it.level; li.dataset.level = it.level; li.dataset.kind = it.kind; if (it.page) li.dataset.page = it.page;
+      const l = document.createElement('span'); l.className = 'lvl'; l.textContent = it.level;
+      const k = document.createElement('span'); k.className = 'kind'; k.textContent = it.kind;
+      const pg = document.createElement('code'); pg.textContent = it.page ? shortUrl(it.page) + ' ' : '';
+      li.append(l, k, pg, document.createTextNode(it.msg)); ul.append(li);
+    }
+    if (!res.issues.length) { const li = document.createElement('li'); li.className = 'info'; li.textContent = 'No issues.'; ul.append(li); }
+    renderMatrices(res);
+  }
+  function renderMatrices(res) {
+    const box = $('matrices'); box.textContent = '';
+    const byUrl = new Map(res.pages.map((p) => [p.url, p]));
+    res.clusters.forEach((cl, ci) => {
+      const wrap = document.createElement('div'); wrap.className = 'matrix-wrap';
+      const t = document.createElement('table'); t.className = 'matrix'; t.setAttribute('data-testid', 'matrix-' + ci);
+      const cap = document.createElement('caption'); cap.className = 'sr'; cap.textContent = `hreflang cluster ${ci + 1}: rows list, columns are listed`; t.append(cap);
+      const hr = document.createElement('tr'); const corner = document.createElement('th'); corner.innerHTML = '<span class="sr">page</span>'; hr.append(corner);
+      for (const u of cl) { const th = document.createElement('th'); th.scope = 'col'; th.textContent = shortUrl(u); hr.append(th); }
+      const xth = document.createElement('th'); xth.scope = 'col'; xth.textContent = 'x-default'; hr.append(xth);
+      const th0 = document.createElement('thead'); th0.append(hr); t.append(th0);
+      const tb = document.createElement('tbody');
+      for (const r of cl) {
+        const rp = byUrl.get(r); const tr = document.createElement('tr');
+        const rh = document.createElement('th'); rh.scope = 'row'; rh.textContent = shortUrl(r); tr.append(rh);
+        for (const c of cl) {
+          const cp = byUrl.get(c);
+          const codes = rp.links.filter((l) => l.href === c && l.code.toLowerCase() !== 'x-default').map((l) => l.code);
+          const back = cp.links.some((l) => l.href === r);
+          const has = rp.links.some((l) => l.href === c);
+          let state;
+          if (r === c) state = has ? 'self' : 'no-self';
+          else if (has) state = back ? 'ok' : 'no-return';
+          else state = back ? 'missing' : 'gap';
+          const td = document.createElement('td'); td.dataset.state = state; td.dataset.row = r; td.dataset.col = c;
+          if (cp.canonical && cp.canonical !== c && has) td.classList.add('canon-bad');
+          const label = codes.join(', ') || (has ? 'x-default' : '—');
+          td.textContent = label + (state === 'no-return' ? ' ✗' : state === 'no-self' ? ' ✗' : '');
+          td.title = { self: 'lists itself', 'no-self': 'no self-reference', ok: 'two-way', 'no-return': 'column page does not link back', missing: 'column page links here; this row does not link back', gap: 'neither lists the other' }[state];
+          const sr = document.createElement('span'); sr.className = 'sr'; sr.textContent = ' (' + td.title + ')'; td.append(sr);
+          tr.append(td);
+        }
+        const xs = rp.links.filter((l) => l.code.toLowerCase() === 'x-default').map((l) => shortUrl(l.href));
+        const xd = document.createElement('td'); xd.dataset.state = xs.length ? 'ok' : 'gap'; xd.dataset.col = 'x-default'; xd.textContent = xs.join(', ') || '—'; tr.append(xd);
+        tb.append(tr);
+      }
+      t.append(tb); wrap.append(t); box.append(wrap);
+    });
+    if (!res.clusters.length) { const p = document.createElement('p'); p.className = 'hint'; p.textContent = 'No annotated pages to draw.'; box.append(p); }
+  }
+  function run() { const r = check($('src').value); render(r); return r; }
+  $('run').addEventListener('click', run);
+  $('exValid').addEventListener('click', () => { $('src').value = VALID; run(); });
+  $('exBroken').addEventListener('click', () => { $('src').value = BROKEN; run(); });
+  $('exSitemap').addEventListener('click', () => { $('src').value = SITEMAP; run(); });
+  $('src').value = BROKEN; run();
+
+  window.__hreflang = {
+    check, parseCode,
+    get result() { return last; },
+    lists: { language: [...LANG], region: [...REGION], script: [...SCRIPT], reserved: Object.keys(RESERVED) },
+    examples: { valid: VALID, broken: BROKEN, sitemap: SITEMAP }
+  };
+})();
+</script>
+</body>
+</html>

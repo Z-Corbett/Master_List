@@ -1,0 +1,35 @@
+{
+  "id": "149",
+  "slug": "149-seo-audit",
+  "file": "lab/149-seo-audit.html",
+  "title": "SEO Audit — technical checks you can run as tests",
+  "category": "QA & Testing",
+  "tags": ["technical-seo", "audit", "domparser", "code-generation", "regression-tests"],
+  "description": "Paste a page's HTML, or load one of four sample pages (one clean, three with planted problems), and run 30 technical SEO checks on the parsed document, each with a severity, the evidence and a fix. The checks cover the title and its approximate width, the meta description, h1 and heading order, canonical, robots noindex/nofollow, meta refresh, lang, viewport, alt text, generic and empty links, hreflang, JSON-LD, Open Graph and twitter:card, mixed content, render-blocking head scripts and oversized data URIs. 'Export as Playwright tests' then writes a ready-to-run seo.spec.ts with one test per check that passes today, so a later regression fails the build.",
+  "prompt": "Build an SEO audit page whose checks can run as tests. I paste an HTML document, or pick one of several bundled sample pages with planted problems. Parse it with DOMParser and run about 25 checks, each with a severity and a fix: title present, unique and a sensible length (approximate, width-based); meta description; one h1 and no skipped heading levels; canonical present, absolute and self-referencing; robots meta noindex/nofollow; lang; viewport; img alt; link text quality ('click here'); hreflang reciprocity within the doc; JSON-LD that parses and has @context/@type; Open Graph and Twitter card basics; mixed-content http URLs; a render-blocking script in head without defer/async; and large inline data URIs. The killer feature is 'Export as Playwright tests': generate a ready-to-run seo.spec.ts asserting the checks that pass today, so they fail if someone regresses them. The spec should check that each planted problem is detected (and the clean sample passes), that the severity counts match an independent tally, and that the exported spec is syntactically valid TypeScript-ish: at minimum balanced braces, one test( per check, and correct selectors.",
+  "qa": {
+    "methodology": [
+      "Planted-problem oracle: for each sample, the spec lists which checks must fail and which don't apply, written from what was planted. The failing set must match exactly, so a missed problem or a false alarm both fail. The clean sample must pass all 30 checks.",
+      "Independent tally: the spec keeps its own severity for each check and adds up the expected errors, warnings and notices from the planted lists. The count badges, the per-row severities, the pass and N/A counts and the 'problems only' filter must all agree.",
+      "The export is executed, not just inspected: the generated seo.spec.ts is compiled as JavaScript, test(), describe() and beforeEach() are collected by small stand-ins, and each generated test body runs against a real Playwright page served the sample HTML at its PAGE_URL through page.route. All 30 tests pass on the clean page. On a copy with four regressions (noindex, a changed canonical, a removed alt and an http image), exactly those four tests fail.",
+      "Static checks on the exported text: one test( per passing check, braces and brackets balance outside string literals, every page.locator() selector is valid CSS, and each toHaveCount(n) is true of the sample's own HTML under DOMParser.",
+      "Width, not length: the title check is compared with the test's own canvas measurement. 80 narrow characters pass, 40 wide ones fail, and titles on either side of the 200–600 px band get the expected verdict."
+    ],
+    "risks": [
+      "These are hygiene checks on one document, not ranking predictions. The page says so, and it treats multiple h1s as a notice, since Google has said they're fine.",
+      "hreflang reciprocity can only be half-checked from one page (its self-reference and its own links); the return links must be checked on each alternate.",
+      "Canvas widths depend on installed fonts, so an exported width test run on another OS may differ by a few pixels near the limits.",
+      "The exported spec checks the rendered DOM, so a site that injects tags with client-side JavaScript may pass there and still fail here, or the other way round."
+    ],
+    "playwright": "The most useful feature was page.route: it serves any HTML at any https URL, with no network, so the generated spec can run against the exact document that produced it, and against a regressed copy. expect.configure({ timeout }) keeps the deliberately failing regression run short. Downloads are checked with waitForEvent('download') and download.path(), and the file's text must equal the page's export. The first run failed across the board, which exposed a real bug: literal </script> tags inside the sample HTML strings ended the page's own script early, so the leftover meta refresh ran as live HTML and the page navigated away. The samples now escape them as <\\/script>. Next, running the export against the 'leftovers' sample failed because its meta refresh redirected the real browser mid-test; that test now uses the content sample, and the redirect is a nice demonstration of why meta refresh gets flagged. The bracket-balance check first failed on a regex literal containing quote characters, which fooled the test's string stripper; the generator now uses a quote-free character class.",
+    "coverage": [
+      "Clean sample: 30/30 pass, zero counts",
+      "Three flawed samples: exact failing and N/A sets, severity tallies, problems-only filter",
+      "Evidence text: relative canonical, h2 -> h4, en-UK, relative and conflicting hreflang, JSON-LD block numbers, http subresources, data URIs in img and style",
+      "Width-based title length",
+      "Export: test( count, balanced braces and brackets, compiles, selectors valid, counts true",
+      "Export executed: passes on its source, catches four regressions, flawed-page export, download, regenerates after edits"
+    ]
+  },
+  "a11y": "Inputs are labelled native controls, and the URL field has a description of how the URL is used. The tally and summary are a polite live region. Each check's status and severity are written in text, not just colour, and checks are grouped under headings. Exporting moves focus to the spec's heading, and the generated code sits in a focusable, labelled region."
+}

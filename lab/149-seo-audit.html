@@ -1,0 +1,719 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SEO Audit — technical checks you can run as tests</title>
+<meta name="description" content="Paste a page's HTML, or pick a sample with planted problems, and run about thirty technical SEO checks: title, description, headings, canonical, robots, lang, viewport, alt text, link text, hreflang, JSON-LD, Open Graph, mixed content, render-blocking scripts and large data URIs. Then export the passing checks as a ready-to-run Playwright spec.">
+<style>
+  :root {
+    --paper: #f6f5f1;
+    --sheet: #ffffff;
+    --ink: #1d1f24;
+    --muted: #62656e;
+    --rule: #dcdad2;
+    --err: #c0271b;
+    --err-soft: #fbe5e2;
+    --warn: #a86400;
+    --warn-soft: #fcefd7;
+    --note: #2a5a8c;
+    --note-soft: #e3edf8;
+    --pass: #22754a;
+    --pass-soft: #e0f1e7;
+    --na: #8a8c93;
+    --serif: Georgia, "Iowan Old Style", "Times New Roman", serif;
+    --sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    --mono: Consolas, "Cascadia Mono", Menlo, "DejaVu Sans Mono", monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--paper); color: var(--ink); font: 15px/1.55 var(--sans); overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--note); outline-offset: 2px; }
+  a { color: var(--note); }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; background: var(--ink); color: #fff; text-decoration: none; font: 700 13px/1 var(--sans); padding: 8px 12px; border-radius: 2px; }
+  a.back:hover { background: var(--err); }
+  .wrap { max-width: 1140px; margin: 0 auto; padding: 60px 16px 48px; }
+  header { border-top: 6px solid var(--ink); padding-top: 14px; }
+  .kicker { margin: 0; font: 700 12px/1.3 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--err); }
+  h1 { margin: 6px 0 0; font: 700 clamp(30px, 6vw, 52px)/1.04 var(--serif); letter-spacing: -.015em; overflow-wrap: anywhere; }
+  .lede { max-width: 72ch; color: var(--muted); margin: 10px 0 0; }
+  .grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 18px; margin-top: 20px; }
+  @media (max-width: 920px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  .sheet { background: var(--sheet); border: 1px solid var(--rule); padding: 16px; min-width: 0; box-shadow: 0 1px 0 var(--rule), 0 10px 24px -18px rgba(0, 0, 0, .35); }
+  .sheet + .sheet { margin-top: 18px; }
+  .sheet h2 { margin: 0 0 12px; font: 700 20px/1.2 var(--serif); }
+  .field { display: grid; gap: 4px; margin-bottom: 10px; min-width: 0; }
+  .field label { font: 700 12px/1.3 var(--sans); color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  select, input[type=text], textarea { width: 100%; max-width: 100%; min-width: 0; border: 1px solid var(--rule); background: #fcfcfa; color: var(--ink); border-radius: 2px; padding: 8px 10px; font: 14px/1.4 var(--sans); }
+  textarea { font: 12.5px/1.5 var(--mono); min-height: 320px; resize: vertical; white-space: pre; overflow-wrap: normal; overflow-x: auto; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .btn { min-height: 38px; padding: 8px 16px; border: 2px solid var(--ink); background: var(--ink); color: #fff; font: 700 14px var(--sans); border-radius: 2px; cursor: pointer; }
+  .btn.alt { background: var(--err); border-color: var(--err); }
+  .btn.ghost { background: transparent; color: var(--ink); }
+  .btn:hover { filter: brightness(1.15); }
+  .tally { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-bottom: 12px; }
+  @media (max-width: 520px) { .tally { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .tally div { border: 1px solid var(--rule); padding: 8px; text-align: center; min-width: 0; }
+  .tally b { display: block; font: 700 26px/1 var(--serif); }
+  .tally span { font: 700 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); overflow-wrap: anywhere; }
+  .tally .e b { color: var(--err); } .tally .w b { color: var(--warn); } .tally .n b { color: var(--note); } .tally .p b { color: var(--pass); } .tally .x b { color: var(--na); }
+  .grp { margin: 14px 0 6px; font: 700 13px/1.3 var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); border-bottom: 1px solid var(--rule); padding-bottom: 4px; }
+  .checks { list-style: none; margin: 0; padding: 0; }
+  .chk { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; padding: 8px 0; border-bottom: 1px dashed var(--rule); }
+  .badge { font: 700 10.5px/1 var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 5px 6px; border: 1.5px solid currentColor; align-self: start; min-width: 64px; text-align: center; }
+  .chk[data-status=pass] .badge { color: var(--pass); background: var(--pass-soft); }
+  .chk[data-status=na] .badge { color: var(--na); }
+  .chk[data-status=fail][data-severity=error] .badge { color: var(--err); background: var(--err-soft); }
+  .chk[data-status=fail][data-severity=warning] .badge { color: var(--warn); background: var(--warn-soft); }
+  .chk[data-status=fail][data-severity=notice] .badge { color: var(--note); background: var(--note-soft); }
+  .chk .nm { font-weight: 700; overflow-wrap: anywhere; }
+  .chk .dt { grid-column: 2; font-size: 13.5px; color: var(--muted); overflow-wrap: anywhere; }
+  .chk .fx { grid-column: 2; font-size: 13.5px; overflow-wrap: anywhere; }
+  .chk .fx::before { content: "Fix: "; font-weight: 700; color: var(--ink); }
+  .chk[data-status=pass] .fx, .chk[data-status=na] .fx { display: none; }
+  .toggle { font-size: 14px; display: flex; gap: 6px; align-items: center; }
+  .export pre { margin: 0; max-height: 460px; overflow: auto; background: #16181d; color: #e8e6df; padding: 12px 14px; font: 12.5px/1.55 var(--mono); border-radius: 2px; white-space: pre; }
+  .meta { font: 12.5px/1.5 var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+  .notes p, .notes li { max-width: 80ch; }
+  .notes ul { padding-left: 20px; }
+  .refs { font: 12px/1.6 var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<main class="wrap">
+  <header>
+    <p class="kicker">Technical SEO · inspection report</p>
+    <h1>SEO Audit</h1>
+    <p class="lede">Paste a page's HTML, or load one of the sample pages with planted problems. About thirty technical checks run on the parsed document, each with a severity and a fix. Then export the checks that pass as a Playwright spec, so a future change that breaks one fails your build. The HTML is parsed with DOMParser; nothing in it runs and nothing is fetched.</p>
+  </header>
+
+  <div class="grid">
+    <section class="sheet" aria-labelledby="in-h">
+      <h2 id="in-h">The page</h2>
+      <div class="field">
+        <label for="sample">Sample page</label>
+        <select id="sample" data-testid="sample">
+          <option value="clean">Clean product page (passes everything)</option>
+          <option value="leftovers">Launch-day leftovers (noindex, staging canonical…)</option>
+          <option value="content">Content and links (alt text, "click here", hreflang)</option>
+          <option value="tech">Markup and performance (JSON-LD, mixed content…)</option>
+          <option value="custom">My own HTML</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="url">Page URL (where this HTML is served)</label>
+        <input type="text" id="url" data-testid="url" spellcheck="false" autocapitalize="off" autocomplete="off" aria-describedby="url-help">
+        <span class="meta" id="url-help">Used for the self-canonical, hreflang self-reference and mixed-content checks, and as PAGE_URL in the export.</span>
+      </div>
+      <div class="field">
+        <label for="html">HTML</label>
+        <textarea id="html" data-testid="html" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+      </div>
+      <div class="row">
+        <button class="btn" id="run" type="button" data-testid="run">Run audit</button>
+        <button class="btn alt" id="export" type="button" data-testid="export">Export as Playwright tests</button>
+      </div>
+    </section>
+
+    <section class="sheet" aria-labelledby="rep-h">
+      <h2 id="rep-h">Report</h2>
+      <div class="tally" data-testid="tally" aria-describedby="summary">
+        <div class="e"><b id="count-error" data-testid="count-error">0</b><span>Errors</span></div>
+        <div class="w"><b id="count-warning" data-testid="count-warning">0</b><span>Warnings</span></div>
+        <div class="n"><b id="count-notice" data-testid="count-notice">0</b><span>Notices</span></div>
+        <div class="p"><b id="count-pass" data-testid="count-pass">0</b><span>Passed</span></div>
+        <div class="x"><b id="count-na" data-testid="count-na">0</b><span>N/A</span></div>
+      </div>
+      <p class="meta" id="summary" data-testid="summary" role="status" aria-live="polite"></p>
+      <label class="toggle"><input type="checkbox" id="only-fail" data-testid="only-fail"> Show problems only</label>
+      <div id="report" data-testid="report"></div>
+    </section>
+  </div>
+
+  <section class="sheet export" id="export-box" data-testid="export-box" aria-labelledby="ex-h" style="margin-top:18px" hidden>
+    <h2 id="ex-h" tabindex="-1">seo.spec.ts</h2>
+    <p class="meta" id="ex-meta" data-testid="export-meta"></p>
+    <div class="row" style="margin-bottom:10px">
+      <button class="btn" id="download" type="button" data-testid="download">Download seo.spec.ts</button>
+      <button class="btn ghost" id="copy" type="button" data-testid="copy">Copy</button>
+      <span class="meta" id="copied" role="status" aria-live="polite"></span>
+    </div>
+    <pre id="spec" data-testid="spec" tabindex="0" aria-label="Generated Playwright spec"></pre>
+  </section>
+
+  <section class="sheet notes" style="margin-top:18px" aria-labelledby="n-h">
+    <h2 id="n-h">What these checks can and can't tell you</h2>
+    <ul>
+      <li>They are technical hygiene checks on one HTML document, not a ranking forecast. Google has not documented most of them as ranking factors; they are about getting crawled, indexed and shown correctly.</li>
+      <li>Title and description widths are measured with canvas at 20 px and 14 px in an Arial-compatible font. Google truncates by width, and about 580–600 px is the commonly cited desktop title width, so treat the limit as approximate.</li>
+      <li>Google has said multiple h1 elements are fine, so "one h1" is a notice about clarity, not an error. Google has also said it ignores the meta keywords tag.</li>
+      <li>hreflang: each language version must list itself and all its alternates, with fully qualified URLs, and the other pages must link back. Only this page's half of that can be seen here, so run the audit on each alternate too.</li>
+      <li>robots.txt is a separate file; a noindex only works if crawlers are allowed to fetch the page and see it. The exported spec also checks the <code>X-Robots-Tag</code> response header, which pasted HTML can't show.</li>
+    </ul>
+    <p class="refs">Sources: Google Search Central (title links, snippets, canonicalization, robots meta tag, localized versions/hreflang, structured data, links crawlable) · ogp.me · W3C mixed content · web.dev render-blocking resources</p>
+  </section>
+</main>
+
+<script>
+(() => {
+  'use strict';
+  const FONT = 'Arial, "Liberation Sans", "Helvetica Neue", Helvetica, sans-serif';
+  const TITLE_MIN = 200; const TITLE_MAX = 600; const DESC_MAX = 1200; const DATA_MAX = 10240;
+  const GENERIC = ['click here', 'here', 'read more', 'more', 'learn more', 'click', 'link', 'this link', 'this page', 'go', 'details'];
+  const HREFLANG_RE = '^(x-default|[a-z]{2}(-[a-z]{4})?(-([a-z]{2}|[0-9]{3}))?)$';
+  const OG = ['og:title', 'og:type', 'og:image', 'og:url'];
+  const CARDS = ['summary', 'summary_large_image', 'app', 'player'];
+  const MIXED_SEL = 'script[src], img[src], iframe[src], source[src], video[src], audio[src], embed[src], track[src], input[type="image" i][src], object[data], video[poster], img[srcset], source[srcset], link[href]';
+  const LINK_RES = ['stylesheet', 'icon', 'preload', 'modulepreload', 'manifest', 'apple-touch-icon'];
+  const ROBOTS_SEL = (w) => [`meta[name="robots" i][content*="${w}" i]`, `meta[name="googlebot" i][content*="${w}" i]`];
+
+  const canvas = document.createElement('canvas').getContext('2d');
+  const measure = (t, size) => { canvas.font = `${size}px ${FONT}`; return canvas.measureText(t).width; };
+  const clean = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+  const q = (s) => "'" + String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n').replace(/\r/g, '\\r') + "'";
+  const isAbs = (u) => /^https?:\/\//i.test(u);
+
+  // --- the checks. run() looks at the parsed document; spec() returns the body of a Playwright test for a pass. ---
+  const CHECKS = [];
+  const def = (c) => CHECKS.push(c);
+  const pass = (detail) => ({ status: 'pass', detail });
+  const fail = (detail) => ({ status: 'fail', detail });
+  const na = (detail) => ({ status: 'na', detail });
+  const countSpec = (sel, n) => [`await expect(page.locator(${q(sel)})).toHaveCount(${n});`];
+  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+
+  // Title and description
+  def({ id: 'title-present', group: 'Title and description', sev: 'error', name: 'Title is present',
+    fix: 'Add a <title> in the <head> that names the page and, usually, the site.',
+    run: ({ doc }) => clean(doc.title) ? pass(`"${clean(doc.title)}"`) : fail('There is no <title>, or it is empty.'),
+    spec: () => ['await expect(page).toHaveTitle(/\\S/);'] });
+  def({ id: 'title-single', group: 'Title and description', sev: 'warning', name: 'Exactly one <title>',
+    fix: 'Keep a single <title>; browsers and crawlers use the first and the rest are noise, usually from a template and a plugin both adding one.',
+    run: ({ doc }) => { const n = doc.querySelectorAll('title:not(svg title)').length; return n === 0 ? na('No title.') : n === 1 ? pass('One <title>.') : fail(`${n} <title> elements.`); },
+    spec: () => countSpec('title:not(svg title)', 1) });
+  def({ id: 'title-length', group: 'Title and description', sev: 'warning', name: 'Title length is sensible (approximate, by width)',
+    fix: `Aim for roughly ${TITLE_MIN}–${TITLE_MAX} px at 20 px Arial (very roughly 25–60 characters). Put the distinctive words first, since the end may be cut.`,
+    run: ({ doc }) => {
+      const t = clean(doc.title); if (!t) return na('No title.');
+      const w = Math.round(measure(t, 20));
+      if (w > TITLE_MAX) return fail(`About ${w} px wide, over the ~${TITLE_MAX} px desktop line, so it will probably be truncated.`);
+      if (w < TITLE_MIN) return fail(`Only about ${w} px wide (${t.length} characters): too short to describe the page well.`);
+      return pass(`About ${w} px wide (${t.length} characters).`);
+    },
+    spec: () => [
+      'const width = await page.evaluate(() => {',
+      "  const ctx = document.createElement('canvas').getContext('2d');",
+      `  ctx.font = ${q('20px ' + FONT)};`,
+      '  return ctx.measureText(document.title).width;',
+      '});',
+      `expect(width).toBeGreaterThanOrEqual(${TITLE_MIN});`,
+      `expect(width).toBeLessThanOrEqual(${TITLE_MAX});`] });
+  const descs = (doc) => [...doc.querySelectorAll('meta[name="description" i]')];
+  def({ id: 'desc-present', group: 'Title and description', sev: 'warning', name: 'Meta description is present',
+    fix: 'Add <meta name="description" content="…"> with a specific summary of the page. Google may still choose its own snippet.',
+    run: ({ doc }) => { const d = descs(doc)[0]; return d && clean(d.getAttribute('content')) ? pass(`${clean(d.getAttribute('content')).length} characters.`) : fail('No meta description, or it is empty.'); },
+    spec: () => ["await expect(page.locator('meta[name=\"description\" i]').first()).toHaveAttribute('content', /\\S/);"] });
+  def({ id: 'desc-single', group: 'Title and description', sev: 'warning', name: 'Only one meta description',
+    fix: 'Remove the duplicate meta description so there is exactly one.',
+    run: ({ doc }) => { const n = descs(doc).length; return n === 0 ? na('None.') : n === 1 ? pass('One.') : fail(`${n} meta description tags.`); },
+    spec: () => countSpec('meta[name="description" i]', 1) });
+  def({ id: 'desc-length', group: 'Title and description', sev: 'notice', name: 'Description fits about two lines',
+    fix: `Keep the key message within roughly ${DESC_MAX} px at 14 px (about two desktop lines, very roughly 150–160 characters).`,
+    run: ({ doc }) => {
+      const d = descs(doc)[0]; const t = d && clean(d.getAttribute('content')); if (!t) return na('No description.');
+      const w = Math.round(measure(t, 14));
+      return w <= DESC_MAX ? pass(`About ${w} px.`) : fail(`About ${w} px, more than two desktop lines, so the end will probably be cut.`);
+    },
+    spec: () => [
+      "const text = await page.locator('meta[name=\"description\" i]').first().getAttribute('content');",
+      'const width = await page.evaluate((t) => {',
+      "  const ctx = document.createElement('canvas').getContext('2d');",
+      `  ctx.font = ${q('14px ' + FONT)};`,
+      "  return ctx.measureText(t.replace(/\\s+/g, ' ').trim()).width;",
+      '}, text);',
+      `expect(width).toBeLessThanOrEqual(${DESC_MAX});`] });
+
+  // Headings
+  def({ id: 'h1-one', group: 'Headings', sev: 'notice', name: 'One h1',
+    fix: 'Use one h1 that states what the page is about. (Several h1s are allowed; one is simply clearer.)',
+    run: ({ doc }) => { const n = doc.querySelectorAll('h1').length; return n === 1 ? pass(`"${clean(doc.querySelector('h1').textContent)}"`) : fail(n ? `${n} h1 elements.` : 'No h1.'); },
+    spec: () => countSpec('h1', 1) });
+  const skipsIn = (doc) => { const out = []; let prev = 0; for (const h of doc.querySelectorAll('h1, h2, h3, h4, h5, h6')) { const level = Number(h.tagName[1]); if (prev && level > prev + 1) out.push('h' + prev + ' -> h' + level); prev = level; } return out; };
+  def({ id: 'heading-order', group: 'Headings', sev: 'notice', name: 'Heading levels don\'t skip',
+    fix: 'Go down one level at a time (h2 then h3). Style headings with CSS rather than picking a level for its size.',
+    run: ({ doc }) => { if (!doc.querySelector('h1, h2, h3, h4, h5, h6')) return na('No headings.'); const s = skipsIn(doc); return s.length ? fail(`Skips: ${s.join(', ')}.`) : pass('No skipped levels.'); },
+    spec: () => [
+      'const skips = await page.evaluate(() => {',
+      '  const out = [];',
+      '  let prev = 0;',
+      "  for (const h of document.querySelectorAll('h1, h2, h3, h4, h5, h6')) {",
+      '    const level = Number(h.tagName[1]);',
+      "    if (prev && level > prev + 1) out.push('h' + prev + ' -> h' + level);",
+      '    prev = level;',
+      '  }',
+      '  return out;',
+      '});',
+      'expect(skips).toEqual([]);'] });
+
+  // Indexing
+  const CANON = 'link[rel~="canonical" i]';
+  const canon = (doc) => [...doc.querySelectorAll(CANON)];
+  def({ id: 'canonical-present', group: 'Indexing', sev: 'warning', name: 'One canonical link',
+    fix: 'Add exactly one <link rel="canonical" href="…"> in the head. With several, Google may ignore them all.',
+    run: ({ doc }) => { const n = canon(doc).length; return n === 1 ? pass(canon(doc)[0].getAttribute('href') || '(empty)') : fail(n ? `${n} canonical links.` : 'No canonical link.'); },
+    spec: () => countSpec(CANON, 1) });
+  def({ id: 'canonical-absolute', group: 'Indexing', sev: 'warning', name: 'Canonical URL is absolute',
+    fix: 'Use a fully qualified URL, such as https://www.example.com/page, not a relative path.',
+    run: ({ doc }) => { const c = canon(doc); if (c.length !== 1) return na('Needs exactly one canonical.'); const h = (c[0].getAttribute('href') || '').trim(); return isAbs(h) ? pass(h) : fail(`"${h}" is not absolute.`); },
+    spec: () => [`await expect(page.locator(${q(CANON)})).toHaveAttribute('href', new RegExp('^https?://', 'i'));`] });
+  def({ id: 'canonical-self', group: 'Indexing', sev: 'warning', name: 'Canonical points to this page',
+    fix: 'On the preferred version of a page, point the canonical at its own URL. Only point it elsewhere on true duplicates.',
+    run: ({ doc, url }) => { const c = canon(doc); if (c.length !== 1) return na('Needs exactly one canonical.'); if (!url) return na('No page URL given.'); const h = (c[0].getAttribute('href') || '').trim(); return h === url ? pass('Self-referencing.') : fail(`Points to "${h}", not ${url}.`); },
+    spec: () => [`await expect(page.locator(${q(CANON)})).toHaveAttribute('href', PAGE_URL);`] });
+  const robotsSpec = (words) => [
+    'const response = await page.goto(PAGE_URL);',
+    "const header = (response && response.headers()['x-robots-tag']) || '';",
+    `expect(header).not.toMatch(new RegExp(${q(words.join('|'))}, 'i'));`,
+    `await expect(page.locator(${q(words.flatMap(ROBOTS_SEL).join(', '))})).toHaveCount(0);`];
+  const robotsHit = (doc, words) => words.flatMap(ROBOTS_SEL).some((s) => doc.querySelector(s));
+  def({ id: 'robots-noindex', group: 'Indexing', sev: 'error', name: 'Not blocked by noindex',
+    fix: 'Remove noindex (or "none") from the robots meta tag. It is often left over from a staging site.',
+    run: ({ doc }) => robotsHit(doc, ['noindex', 'none']) ? fail('A robots meta tag says noindex, so the page will be dropped from results.') : pass('No noindex in the HTML.'),
+    spec: () => robotsSpec(['noindex', 'none']) });
+  def({ id: 'robots-nofollow', group: 'Indexing', sev: 'warning', name: 'Links are not all nofollow',
+    fix: 'Remove nofollow from the robots meta tag; use rel="nofollow" on individual links instead.',
+    run: ({ doc }) => robotsHit(doc, ['nofollow', 'none']) ? fail('A robots meta tag says nofollow for every link on the page.') : pass('No page-wide nofollow.'),
+    spec: () => robotsSpec(['nofollow', 'none']) });
+  def({ id: 'meta-refresh', group: 'Indexing', sev: 'warning', name: 'No meta refresh redirect',
+    fix: 'Use a server-side 301 redirect instead; Google recommends it over meta refresh.',
+    run: ({ doc }) => doc.querySelector('meta[http-equiv="refresh" i]') ? fail('The page redirects with <meta http-equiv="refresh">.') : pass('None.'),
+    spec: () => countSpec('meta[http-equiv="refresh" i]', 0) });
+  def({ id: 'meta-keywords', group: 'Indexing', sev: 'notice', name: 'No meta keywords tag',
+    fix: 'Remove it. Google has said it ignores the meta keywords tag, and it tells competitors your target terms.',
+    run: ({ doc }) => doc.querySelector('meta[name="keywords" i]') ? fail('A meta keywords tag is present.') : pass('None.'),
+    spec: () => countSpec('meta[name="keywords" i]', 0) });
+
+  // Mobile and language
+  const LANG_RE = '^[a-z]{2,3}(-[a-z0-9]{1,8})*$';
+  def({ id: 'lang', group: 'Mobile and language', sev: 'warning', name: '<html lang> is set',
+    fix: 'Add lang to the html element, for example <html lang="en-GB">.',
+    run: ({ doc }) => { const l = (doc.documentElement.getAttribute('lang') || '').trim(); return new RegExp(LANG_RE, 'i').test(l) ? pass(`lang="${l}"`) : fail(l ? `"${l}" is not a valid language tag.` : 'No lang attribute.'); },
+    spec: () => [`await expect(page.locator('html')).toHaveAttribute('lang', new RegExp(${q(LANG_RE)}, 'i'));`] });
+  def({ id: 'viewport', group: 'Mobile and language', sev: 'warning', name: 'Responsive viewport meta tag',
+    fix: 'Add <meta name="viewport" content="width=device-width, initial-scale=1">. Google indexes the mobile rendering of pages.',
+    run: ({ doc }) => { const v = doc.querySelector('meta[name="viewport" i]'); return v && /width=device-width/.test(v.getAttribute('content') || '') ? pass(v.getAttribute('content')) : fail(v ? 'The viewport tag lacks width=device-width.' : 'No viewport meta tag.'); },
+    spec: () => ["await expect(page.locator('meta[name=\"viewport\" i]').first()).toHaveAttribute('content', /width=device-width/);"] });
+
+  // Content and links
+  def({ id: 'img-alt', group: 'Content and links', sev: 'warning', name: 'Every image has an alt attribute',
+    fix: 'Describe informative images in alt; give purely decorative ones alt="".',
+    run: ({ doc }) => { const all = doc.querySelectorAll('img').length; if (!all) return na('No images.'); const n = doc.querySelectorAll('img:not([alt])').length; return n ? fail(`${n} of ${all} images have no alt attribute.`) : pass(`${plural(all, 'image')}, all with alt.`); },
+    spec: () => countSpec('img:not([alt])', 0) });
+  const genericIn = (doc) => [...doc.querySelectorAll('a[href]')].map((a) => a.textContent.replace(/\s+/g, ' ').trim().toLowerCase()).filter((t) => GENERIC.includes(t));
+  def({ id: 'link-text', group: 'Content and links', sev: 'notice', name: 'No generic link text',
+    fix: 'Say where the link goes: "our oolong brewing guide", not "click here". Google uses anchor text to understand the target.',
+    run: ({ doc }) => { if (!doc.querySelector('a[href]')) return na('No links.'); const g = genericIn(doc); return g.length ? fail(`Generic text: ${g.map((t) => `"${t}"`).join(', ')}.`) : pass('All link text is descriptive.'); },
+    spec: () => [
+      "const generic = await page.evaluate((words) => Array.from(document.querySelectorAll('a[href]'))",
+      "  .map((a) => a.textContent.replace(/\\s+/g, ' ').trim().toLowerCase())",
+      `  .filter((t) => words.includes(t)), ${JSON.stringify(GENERIC).replace(/"/g, "'")});`,
+      'expect(generic).toEqual([]);'] });
+  const nameless = (root) => [...root.querySelectorAll('a[href]')].filter((a) => !((a.getAttribute('aria-label') || '').trim() || a.getAttribute('aria-labelledby') || a.textContent.trim() || [...a.querySelectorAll('img[alt]')].some((i) => i.getAttribute('alt').trim()) || (a.getAttribute('title') || '').trim())).map((a) => a.getAttribute('href'));
+  def({ id: 'link-empty', group: 'Content and links', sev: 'warning', name: 'Every link has text',
+    fix: 'Give icon-only links text: visible text, an aria-label, or alt text on the image inside.',
+    run: ({ doc }) => { if (!doc.querySelector('a[href]')) return na('No links.'); const e = nameless(doc); return e.length ? fail(`${plural(e.length, 'link')} with no text: ${e.join(', ')}.`) : pass('All links have text.'); },
+    spec: () => [
+      "const empty = await page.evaluate(() => Array.from(document.querySelectorAll('a[href]')).filter((a) => !(",
+      "  (a.getAttribute('aria-label') || '').trim() || a.getAttribute('aria-labelledby') || a.textContent.trim() ||",
+      "  Array.from(a.querySelectorAll('img[alt]')).some((i) => i.getAttribute('alt').trim()) || (a.getAttribute('title') || '').trim()",
+      ")).map((a) => a.getAttribute('href')));",
+      'expect(empty).toEqual([]);'] });
+
+  // International
+  const ALT = 'link[rel~="alternate" i][hreflang]';
+  const alts = (doc) => [...doc.querySelectorAll(ALT)].map((l) => ({ code: (l.getAttribute('hreflang') || '').trim(), href: (l.getAttribute('href') || '').trim() }));
+  const badCode = (c) => !new RegExp(HREFLANG_RE, 'i').test(c) || /-uk$/i.test(c);
+  def({ id: 'hreflang-valid', group: 'International (hreflang)', sev: 'error', name: 'hreflang codes are valid',
+    fix: 'Use an ISO 639-1 language, optionally with an ISO 3166-1 alpha-2 region (en-GB, not en-UK), or x-default.',
+    run: ({ doc }) => { const a = alts(doc); if (!a.length) return na('No hreflang links.'); const b = a.filter((x) => badCode(x.code)).map((x) => x.code); return b.length ? fail(`Invalid: ${b.join(', ')}${b.some((c) => /-uk$/i.test(c)) ? ' (the UK region code is GB)' : ''}.`) : pass(a.map((x) => x.code).join(', ')); },
+    spec: () => [
+      `const codes = await page.locator(${q(ALT)}).evaluateAll((els) => els.map((l) => l.getAttribute('hreflang').trim()));`,
+      `const re = new RegExp(${q(HREFLANG_RE)}, 'i');`,
+      "expect(codes.filter((c) => !re.test(c) || c.toLowerCase().endsWith('-uk'))).toEqual([]);"] });
+  def({ id: 'hreflang-self', group: 'International (hreflang)', sev: 'warning', name: 'hreflang set includes this page',
+    fix: 'Each language version must list itself as well as its alternates.',
+    run: ({ doc, url }) => { const a = alts(doc); if (!a.length) return na('No hreflang links.'); if (!url) return na('No page URL given.'); return a.some((x) => x.href === url) ? pass('Self-reference present.') : fail(`No hreflang link points to ${url}.`); },
+    spec: () => [
+      `const self = await page.locator(${q(ALT)}).evaluateAll((els, url) => els.filter((l) => l.getAttribute('href') === url).length, PAGE_URL);`,
+      'expect(self).toBeGreaterThanOrEqual(1);'] });
+  def({ id: 'hreflang-consistent', group: 'International (hreflang)', sev: 'warning', name: 'hreflang URLs are absolute and unambiguous',
+    fix: 'Use fully qualified URLs, and give each language-region code one URL.',
+    run: ({ doc }) => {
+      const a = alts(doc); if (!a.length) return na('No hreflang links.');
+      const probs = a.filter((x) => !isAbs(x.href)).map((x) => `${x.code} → "${x.href}" is relative`);
+      const m = new Map(); for (const x of a) { const k = x.code.toLowerCase(); m.set(k, new Set([...(m.get(k) || []), x.href])); }
+      for (const [k, s] of m) if (s.size > 1) probs.push(`${k} points to ${s.size} different URLs`);
+      return probs.length ? fail(probs.join('; ') + '.') : pass(`${plural(a.length, 'alternate')}, all absolute.`);
+    },
+    spec: () => [
+      `const alts = await page.locator(${q(ALT)}).evaluateAll((els) => els.map((l) => [l.getAttribute('hreflang').trim().toLowerCase(), l.getAttribute('href').trim()]));`,
+      "expect(alts.filter(([, href]) => !new RegExp('^https?://', 'i').test(href))).toEqual([]);",
+      'const byCode = new Map();',
+      'for (const [code, href] of alts) byCode.set(code, new Set([...(byCode.get(code) || []), href]));',
+      'expect([...byCode.values()].filter((s) => s.size > 1)).toEqual([]);'] });
+
+  // Structured data and social
+  const LD = 'script[type="application/ld+json" i]';
+  const ldBlocks = (doc) => [...doc.querySelectorAll(LD)].map((s, i) => { try { return { i, ok: true, v: JSON.parse(s.textContent) }; } catch (e) { return { i, ok: false, err: e.message }; } });
+  def({ id: 'jsonld-parse', group: 'Structured data and social', sev: 'error', name: 'JSON-LD parses',
+    fix: 'Fix the JSON syntax (trailing commas and unescaped quotes are the usual culprits). Google ignores a block it can\'t parse.',
+    run: ({ doc }) => { const b = ldBlocks(doc); if (!b.length) return na('No JSON-LD.'); const bad = b.filter((x) => !x.ok); return bad.length ? fail(bad.map((x) => `block ${x.i + 1}: ${x.err}`).join('; ')) : pass(`${plural(b.length, 'block')} parse.`); },
+    spec: () => [
+      `const errors = await page.locator(${q(LD)}).evaluateAll((els) => els.flatMap((s, i) => {`,
+      '  try { JSON.parse(s.textContent); return []; } catch (e) { return [i + 1]; }',
+      '}));',
+      'expect(errors).toEqual([]);'] });
+  def({ id: 'jsonld-type', group: 'Structured data and social', sev: 'warning', name: 'JSON-LD has @context and @type',
+    fix: 'Each item needs "@context": "https://schema.org" and an "@type" (or an "@graph" of typed items).',
+    run: ({ doc }) => {
+      const b = ldBlocks(doc).filter((x) => x.ok); if (!b.length) return na('No parseable JSON-LD.');
+      const bad = [];
+      b.forEach((x) => (Array.isArray(x.v) ? x.v : [x.v]).forEach((o) => { if (!o || typeof o !== 'object' || !String(o['@context'] || '').includes('schema.org') || !(o['@type'] || o['@graph'])) bad.push(x.i + 1); }));
+      return bad.length ? fail(`Block ${[...new Set(bad)].join(', ')} lacks @context or @type.`) : pass('All items typed.');
+    },
+    spec: () => [
+      `const untyped = await page.locator(${q(LD)}).evaluateAll((els) => els.flatMap((s, i) => {`,
+      '  let v;',
+      '  try { v = JSON.parse(s.textContent); } catch (e) { return []; }',
+      "  return (Array.isArray(v) ? v : [v]).filter((o) => !o || typeof o !== 'object' || !String(o['@context'] || '').includes('schema.org') || !(o['@type'] || o['@graph'])).map(() => i + 1);",
+      '}));',
+      'expect(untyped).toEqual([]);'] });
+  def({ id: 'og-basics', group: 'Structured data and social', sev: 'notice', name: 'Open Graph basics',
+    fix: 'Add og:title, og:type, og:image and og:url (the four ogp.me marks as required) so shared links render as cards.',
+    run: ({ doc }) => { const miss = OG.filter((p) => { const m = doc.querySelector(`meta[property="${p}"]`); return !(m && clean(m.getAttribute('content'))); }); return miss.length ? fail(`Missing: ${miss.join(', ')}.`) : pass(OG.join(', ')); },
+    spec: () => OG.map((p) => `await expect(page.locator(${q(`meta[property="${p}"]`)}).first()).toHaveAttribute('content', /\\S/);`) });
+  def({ id: 'twitter-card', group: 'Structured data and social', sev: 'notice', name: 'twitter:card is set',
+    fix: 'Add <meta name="twitter:card" content="summary_large_image">. X falls back to Open Graph for the rest, but not for the card type.',
+    run: ({ doc }) => { const m = doc.querySelector('meta[name="twitter:card" i]'); const v = m ? clean(m.getAttribute('content')) : ''; return CARDS.includes(v) ? pass(v) : fail(v ? `"${v}" is not a card type.` : 'No twitter:card.'); },
+    spec: () => [`await expect(page.locator('meta[name="twitter:card" i]').first()).toHaveAttribute('content', new RegExp(${q('^(' + CARDS.join('|') + ')$')}));`] });
+
+  // Performance and security
+  const mixedIn = (root) => {
+    const out = [];
+    for (const el of root.querySelectorAll(MIXED_SEL)) {
+      if (el.tagName === 'LINK' && !(el.getAttribute('rel') || '').toLowerCase().split(/\s+/).some((r) => LINK_RES.includes(r))) continue;
+      for (const attr of ['src', 'href', 'data', 'poster', 'srcset']) {
+        const v = el.getAttribute(attr);
+        if (!v) continue;
+        const urls = attr === 'srcset' ? v.split(',').map((p) => p.trim().split(/\s+/)[0]) : [v.trim()];
+        for (const u of urls) if (/^http:\/\//i.test(u)) out.push(u);
+      }
+    }
+    return out;
+  };
+  def({ id: 'mixed-content', group: 'Performance and security', sev: 'error', name: 'No mixed content',
+    fix: 'Load every script, stylesheet, image and frame over https. Browsers block or warn on http subresources on an https page.',
+    run: ({ doc, url }) => { if (!/^https:/i.test(url)) return na('Only applies to https pages.'); const m = mixedIn(doc); return m.length ? fail(`http:// subresources: ${m.join(', ')}.`) : pass('Every subresource is https or relative.'); },
+    spec: () => [
+      'const insecure = await page.evaluate(([sel, rels]) => {',
+      '  const out = [];',
+      '  for (const el of document.querySelectorAll(sel)) {',
+      "    if (el.tagName === 'LINK' && !(el.getAttribute('rel') || '').toLowerCase().split(/\\s+/).some((r) => rels.includes(r))) continue;",
+      "    for (const attr of ['src', 'href', 'data', 'poster', 'srcset']) {",
+      '      const v = el.getAttribute(attr);',
+      '      if (!v) continue;',
+      "      const urls = attr === 'srcset' ? v.split(',').map((p) => p.trim().split(/\\s+/)[0]) : [v.trim()];",
+      "      for (const u of urls) if (u.toLowerCase().startsWith('http://')) out.push(u);",
+      '    }',
+      '  }',
+      '  return out;',
+      `}, [${q(MIXED_SEL)}, ${JSON.stringify(LINK_RES).replace(/"/g, "'")}]);`,
+      'expect(insecure).toEqual([]);'] });
+  const BLOCKING = 'head script[src]:not([async]):not([defer]):not([type="module" i])';
+  def({ id: 'render-blocking', group: 'Performance and security', sev: 'warning', name: 'No render-blocking scripts in <head>',
+    fix: 'Add defer (or async for independent scripts) to external scripts in the head, or move them to the end of the body.',
+    run: ({ doc }) => { const s = [...doc.querySelectorAll(BLOCKING)].map((x) => x.getAttribute('src')); return s.length ? fail(`Blocking: ${s.join(', ')}.`) : pass('Head scripts are deferred, async or modules.'); },
+    spec: () => countSpec(BLOCKING, 0) });
+  const bigData = (root) => {
+    const out = [];
+    for (const el of root.querySelectorAll('*')) {
+      for (const a of el.attributes) { const i = a.value.indexOf('data:'); if (i >= 0 && a.value.length - i > DATA_MAX) out.push(`<${el.tagName.toLowerCase()} ${a.name}> ${Math.round((a.value.length - i) / 1024)} KB`); }
+      if (el.tagName === 'STYLE') for (const m of el.textContent.matchAll(/data:[\w+/=;,:.%-]+/g)) if (m[0].length > DATA_MAX) out.push(`<style> ${Math.round(m[0].length / 1024)} KB`);
+    }
+    return out;
+  };
+  def({ id: 'data-uri', group: 'Performance and security', sev: 'notice', name: `No inline data URIs over ${DATA_MAX / 1024} KB`,
+    fix: 'Serve large images as files so they can be cached and lazy-loaded; inline only tiny icons.',
+    run: ({ doc }) => { const b = bigData(doc); return b.length ? fail(b.join('; ') + '.') : pass('None over the limit.'); },
+    spec: () => [
+      'const big = await page.evaluate((max) => {',
+      '  const out = [];',
+      "  for (const el of document.querySelectorAll('*')) {",
+      '    for (const a of el.attributes) {',
+      "      const i = a.value.indexOf('data:');",
+      '      if (i >= 0 && a.value.length - i > max) out.push(el.tagName + \' \' + a.name);',
+      '    }',
+      "    if (el.tagName === 'STYLE') for (const m of el.textContent.matchAll(/data:[\\w+/=;,:.%-]+/g)) if (m[0].length > max) out.push('STYLE');",
+      '  }',
+      '  return out;',
+      `}, ${DATA_MAX});`,
+      'expect(big).toEqual([]);'] });
+
+  // --- samples (fictional shop; .example domains) ---
+  const SHOP = 'https://fernhill-tea.example';
+  const BIG_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA' + 'A'.repeat(16000);
+  const SAMPLES = {
+    clean: { url: SHOP + '/teas/oolong', html: `<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Roasted Oolong Loose-Leaf Tea | Fernhill Tea Co.</title>
+<meta name="description" content="A charcoal-roasted Taiwanese oolong with notes of honey and toasted grain. Brew at 90 °C for three minutes; it resteeps well. 100 g pouch.">
+<link rel="canonical" href="${SHOP}/teas/oolong">
+<link rel="alternate" hreflang="en-GB" href="${SHOP}/teas/oolong">
+<link rel="alternate" hreflang="de-DE" href="${SHOP}/de/tees/oolong">
+<link rel="alternate" hreflang="x-default" href="${SHOP}/teas/oolong">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Roasted Oolong Loose-Leaf Tea">
+<meta property="og:url" content="${SHOP}/teas/oolong">
+<meta property="og:image" content="${SHOP}/img/oolong-1200x630.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="${SHOP}/css/site.css">
+<link rel="icon" href="/favicon.svg">
+<script src="${SHOP}/js/cart.js" defer><\/script>
+<script type="module" src="/js/reviews.js"><\/script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Product",
+  "name": "Roasted Oolong Loose-Leaf Tea",
+  "image": "${SHOP}/img/oolong-1200x630.jpg",
+  "offers": { "@type": "Offer", "price": "14.50", "priceCurrency": "GBP", "availability": "https://schema.org/InStock" }
+}
+<\/script>
+</head>
+<body>
+<header><a href="/"><img src="/img/logo.svg" alt="Fernhill Tea Co. home"></a>
+<a href="/basket" aria-label="Basket"><svg width="20" height="20" aria-hidden="true"><title>basket</title><circle cx="10" cy="10" r="8"/></svg></a></header>
+<main>
+<h1>Roasted Oolong</h1>
+<img src="/img/oolong-leaves.jpg" srcset="/img/oolong-leaves-2x.jpg 2x" alt="Dark, twisted oolong leaves in a ceramic dish">
+<h2>Tasting notes</h2>
+<p>Honey, toasted grain and a long, sweet finish.</p>
+<h3>Brewing</h3>
+<p>Read <a href="/guides/brewing-oolong">our oolong brewing guide</a> before your first pot.</p>
+<h2>Delivery</h2>
+<p>Free UK delivery over £30.</p>
+<img src="/img/divider.svg" alt="">
+</main>
+</body>
+</html>` },
+    leftovers: { url: SHOP + '/teas/sencha', html: `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<meta http-equiv="refresh" content="0; url=${SHOP}/teas/sencha-new">
+<title>Buy Japanese Sencha Green Tea Online: Steamed First-Flush Loose Leaf Sencha from Shizuoka | Fernhill Tea Co.</title>
+<meta name="description" content="A bright, grassy first-flush sencha from Shizuoka. Brew at 70 °C for one minute.">
+<meta name="keywords" content="sencha, green tea, buy sencha, japanese tea">
+<link rel="canonical" href="/teas/sencha">
+<meta property="og:type" content="website">
+<meta property="og:title" content="First-Flush Sencha">
+<meta property="og:url" content="${SHOP}/teas/sencha">
+<meta property="og:image" content="${SHOP}/img/sencha-1200x630.jpg">
+<meta name="twitter:card" content="summary">
+<script src="/js/cart.js" defer><\/script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "Product", "name": "First-Flush Sencha"}<\/script>
+</head>
+<body>
+<h1>First-Flush Sencha</h1>
+<h2>Tasting notes</h2>
+<h4>Brewing</h4>
+<p>Cooler water keeps it sweet. See <a href="/guides/green-tea">the green tea guide</a>.</p>
+<h1>You might also like</h1>
+<img src="/img/sencha.jpg" alt="Bright green sencha needles">
+</body>
+</html>` },
+    content: { url: SHOP + '/teas/', html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teas</title>
+<link rel="canonical" href="${SHOP}/teas/">
+<link rel="alternate" hreflang="en-UK" href="${SHOP}/uk/teas/">
+<link rel="alternate" hreflang="de" href="/de/tees/">
+<link rel="alternate" hreflang="de" href="${SHOP}/de/tee/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="All our teas">
+<meta property="og:url" content="${SHOP}/teas/">
+<meta property="og:image" content="${SHOP}/img/teas-1200x630.jpg">
+<meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+<h1>All our teas</h1>
+<a href="/basket"><svg width="20" height="20" aria-hidden="true"><circle cx="10" cy="10" r="8"/></svg></a>
+<h2>Green</h2>
+<img src="/img/sencha.jpg">
+<p>Our greens are shipped within a week of arrival. <a href="/teas/green">Click here</a>.</p>
+<h2>Oolong</h2>
+<img src="/img/oolong.jpg">
+<p>Roasted and unroasted. <a href="/teas/oolong">Read more</a></p>
+</body>
+</html>` },
+    tech: { url: SHOP + '/gift-box', html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tea Tasting Gift Box | Fernhill Tea Co.</title>
+<title>Gift Box</title>
+<meta name="description" content="Six loose-leaf teas in a recyclable tin, with a tasting card for each.">
+<meta name="description" content="Gift box.">
+<link rel="canonical" href="${SHOP}/gift-box">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Tea Tasting Gift Box">
+<meta property="og:url" content="${SHOP}/gift-box">
+<link rel="stylesheet" href="${SHOP}/css/site.css">
+<script src="http://widgets.fernhill-tea.example/chat.js"><\/script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Product",
+  "name": "Tea Tasting Gift Box",
+}
+<\/script>
+<script type="application/ld+json">
+{ "@context": "https://schema.org", "name": "Fernhill Tea Co." }
+<\/script>
+</head>
+<body>
+<h1>Tea Tasting Gift Box</h1>
+<img src="http://images.fernhill-tea.example/gift-box.jpg" alt="An open tin of six tea pouches">
+<img src="${BIG_PNG}" alt="Tasting card">
+<h2>What's inside</h2>
+<p>Six teas, from sencha to a smoky lapsang. <a href="/teas/">Browse every tea</a>.</p>
+</body>
+</html>` }
+  };
+
+  // --- running and rendering ---
+  const $ = (id) => document.getElementById(id);
+  const state = { results: [], counts: null, spec: '', exported: false, copied: '', downloads: 0 };
+
+  function audit(html, url) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const ctx = { doc, url: url.trim(), html };
+    return CHECKS.map((c) => ({ id: c.id, group: c.group, sev: c.sev, name: c.name, fix: c.fix, ...c.run(ctx) }));
+  }
+  function tally(results) {
+    const t = { error: 0, warning: 0, notice: 0, pass: 0, na: 0 };
+    for (const r of results) { if (r.status === 'fail') t[r.sev]++; else t[r.status]++; }
+    return t;
+  }
+
+  function render() {
+    state.results = audit($('html').value, $('url').value);
+    state.counts = tally(state.results);
+    for (const k of Object.keys(state.counts)) $('count-' + k).textContent = state.counts[k];
+    const c = state.counts;
+    $('summary').textContent = `${CHECKS.length} checks: ${plural(c.error, 'error')}, ${plural(c.warning, 'warning')}, ${plural(c.notice, 'notice')}, ${c.pass} passed, ${c.na} not applicable.`;
+    const onlyFail = $('only-fail').checked;
+    const box = $('report');
+    box.replaceChildren();
+    let group = null; let ul = null;
+    for (const r of state.results) {
+      if (onlyFail && r.status !== 'fail') continue;
+      if (r.group !== group) {
+        group = r.group;
+        const h = document.createElement('h3'); h.className = 'grp'; h.textContent = group;
+        ul = document.createElement('ul'); ul.className = 'checks';
+        box.append(h, ul);
+      }
+      const li = document.createElement('li');
+      li.className = 'chk'; li.dataset.testid = 'check'; li.dataset.id = r.id; li.dataset.status = r.status; li.dataset.severity = r.sev;
+      const b = document.createElement('span'); b.className = 'badge'; b.textContent = r.status === 'fail' ? r.sev : r.status === 'pass' ? 'pass' : 'n/a';
+      const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = r.name;
+      const dt = document.createElement('span'); dt.className = 'dt'; dt.textContent = r.detail;
+      const fx = document.createElement('span'); fx.className = 'fx'; fx.textContent = r.fix;
+      li.append(b, nm, dt, fx);
+      ul.append(li);
+    }
+    if (!box.children.length) box.textContent = 'No problems found.';
+    if (state.exported) buildSpec();
+  }
+
+  function buildSpec() {
+    const url = $('url').value.trim();
+    const passing = state.results.filter((r) => r.status === 'pass');
+    const ctx = { url };
+    const out = [
+      "import { test, expect } from '@playwright/test';",
+      '',
+      "// seo.spec.ts, generated by Zac's Lab SEO Audit.",
+      `// Locks in the ${passing.length} checks that pass today; if a later change breaks one, its test fails.`,
+      '// Title and description widths use canvas measureText at 20 px / 14 px Arial, so they are approximate.',
+      url ? `const PAGE_URL = ${q(url)};` : "const PAGE_URL = process.env.SEO_URL || 'http://localhost:3000/';",
+      '',
+      `test.describe(${q('SEO regression: ' + (url || 'page'))}, () => {`,
+      '  test.beforeEach(async ({ page }) => {',
+      '    await page.goto(PAGE_URL);',
+      '  });'
+    ];
+    for (const r of passing) {
+      const c = CHECKS.find((x) => x.id === r.id);
+      out.push('', `  test(${q(`${c.name} [${c.id}]`)}, async ({ page }) => {`);
+      for (const line of c.spec(ctx)) out.push('    ' + line);
+      out.push('  });');
+    }
+    out.push('});', '');
+    state.spec = out.join('\n');
+    state.specChecks = passing.map((r) => r.id);
+    $('spec').textContent = state.spec;
+    $('ex-meta').textContent = `${plural(passing.length, 'test')} from ${passing.length} passing checks; ${state.results.length - passing.length} failing or not-applicable checks left out. Run with: npx playwright test seo.spec.ts`;
+  }
+
+  function loadSample(key) {
+    if (SAMPLES[key]) { $('html').value = SAMPLES[key].html; $('url').value = SAMPLES[key].url; }
+    render();
+  }
+
+  $('sample').addEventListener('change', (e) => loadSample(e.target.value));
+  $('run').addEventListener('click', () => { $('sample').value = SAMPLES[$('sample').value] && $('html').value === SAMPLES[$('sample').value].html ? $('sample').value : 'custom'; render(); });
+  $('only-fail').addEventListener('change', render);
+  $('export').addEventListener('click', () => {
+    render();
+    state.exported = true;
+    buildSpec();
+    $('export-box').hidden = false;
+    $('ex-h').focus();
+  });
+  $('copy').addEventListener('click', () => {
+    state.copied = state.spec;
+    try { navigator.clipboard && navigator.clipboard.writeText(state.spec).catch(() => {}); } catch (e) { /* no clipboard */ }
+    $('copied').textContent = 'Copied.';
+  });
+  $('download').addEventListener('click', () => {
+    const blob = new Blob([state.spec], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'seo.spec.ts';
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    state.downloads++;
+  });
+
+  const start = new URLSearchParams(location.search).get('sample');
+  const first = SAMPLES[start] ? start : 'clean';
+  $('sample').value = first;
+  loadSample(first);
+
+  window.__audit = { CHECKS: CHECKS.map((c) => ({ id: c.id, sev: c.sev, group: c.group, name: c.name })), SAMPLES, audit, tally, get state() { return state; } };
+})();
+</script>
+</body>
+</html>

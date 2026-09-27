@@ -1,0 +1,40 @@
+{
+  "id": "156",
+  "slug": "156-hreflang-checker",
+  "file": "lab/156-hreflang-checker.html",
+  "title": "hreflang Checker — reciprocity, codes and x-default",
+  "category": "Tools",
+  "tags": ["seo", "hreflang", "international-seo", "iso-codes", "validation"],
+  "description": "Paste a set of pages with their hreflang annotations, as HTML link tags or as a sitemap with xhtml:link, or load a bundled fictional example. The checker validates every code against embedded ISO 639-1 and ISO 3166-1 alpha-2 lists (en-UK should be en-GB, and jp should be ja), rejects UN M.49 regions such as es-419 because Google documents them as unsupported, and checks return links, self-references, x-default, duplicate language-region pairs, relative URLs and canonical conflicts. The cluster is drawn as a matrix of who lists whom, and each rule cites Google's documentation.",
+  "prompt": "Build an hreflang Checker: reciprocity, codes and x-default. I paste a set of pages with their hreflang annotations (HTML link tags or sitemap xhtml:link), or use bundled examples, and it validates them. Check ISO 639-1 language codes and optional ISO 3166-1 alpha-2 regions (the classic error is en-UK, which should be en-GB), return links, self-references, x-default, duplicate language-region pairs, and canonical conflicts (a page whose canonical points elsewhere shouldn't be an hreflang target). Show the cluster as a matrix. Find out whether Google supports UN M.49 regions like es-419 in hreflang, implement that, and cite the doc on the page; if you can't confirm it, make it a warning and say why. The spec should check that each planted error class is detected, that a valid cluster passes clean, and that code validation uses embedded ISO lists.",
+  "qa": {
+    "methodology": [
+      "Research first: Google's 'Tell Google about localized versions of your page' says that only ISO 639-1 languages and ISO 3166-1 alpha-2 regions are supported, 'such as es-419, aren't supported'. So es-419 (and any three-digit UN M.49 region) is an error, not a warning. The quote and the URL are on the page, and a test asserts both.",
+      "Planted errors: the broken example plants one of each class (en-UK, es-419, jp, a one-way link, a missing self-reference, a duplicate de, a canonical pointing elsewhere, a relative href, and no x-default). The test requires each kind on the exact page it was planted on. It also requires that no-return fires only on the two pairs that really are one-way.",
+      "Clean baseline: the valid example (six pages including x-default and zh-Hant-TW) must give zero issues and 36 matrix cells that are all self or two-way. A hand-built cluster with en-GB and sr-Latn must also be clean. Each check is then tested by making one change to a clean cluster and requiring exactly that one issue kind.",
+      "Code table: 27 codes with the expected result worked out from the standards, not from the page. They cover case folding (EN-gb gives en-GB), scripts, reserved regions (UK, EU, UN), unassigned XX, UN M.49 (419, 150, 002), three-letter and country-as-language codes (eng, jp, GB), underscores and malformed shapes.",
+      "Embedded lists: the page exposes its ISO lists. The test requires exactly 183 unique ISO 639-1 codes and 249 unique ISO 3166-1 alpha-2 codes, spot-checks codes that are easy to get wrong (kr and se are real languages; iw, in and ji were withdrawn; XK, AN and YU aren't assigned), and records every network request while all three examples run, requiring none."
+    ],
+    "risks": [
+      "Only two of Google's three methods are read: HTML link tags and sitemaps. Annotations in HTTP Link headers aren't parsed.",
+      "The script list is the common ISO 15924 scripts, not the full registry, so a rare but real script gets a warning rather than a pass.",
+      "Canonicals come only from pasted HTML. Sitemap mode can't see them, so canonical conflicts go unchecked there, and the page says so.",
+      "URLs are compared after WHATWG URL normalisation only. Two URLs that a server treats as the same (trailing slash, case in the path, tracking parameters) are treated as different pages."
+    ],
+    "playwright": "Most tests call window.__hreflang.check() through page.evaluate with inputs the spec builds itself, using small html() and cluster() helpers that generate reciprocal clusters and then break exactly one thing. That kept each assertion down to 'exactly this issue kind, on this page'. The matrix is checked through data-state and data-row/data-col attributes on the cells, not colours. page.on('request') records traffic while all three examples run, as a direct check that validation uses the embedded lists. The sitemap sample is re-parsed with the browser's DOMParser to confirm its namespaces and link count. The page-specific tests passed on their first run. The shared smoke test did catch a real bug on the Pixel 7 project: the screen-reader-only text in each matrix cell is absolutely positioned, and with no positioned ancestor it escaped the matrix's scroll container and widened the page by 19 px. Making the wrapper position: relative fixed it.",
+    "coverage": [
+      "Valid example and hand-built cluster pass clean; 36-cell matrix",
+      "Broken example: every planted error class on the right page",
+      "27-code validation table, messages, unknown script warning",
+      "Embedded ISO 639-1 (183) and ISO 3166-1 (249) lists; no requests",
+      "Return links, matrix states, unverifiable targets",
+      "Self-reference and x-default",
+      "Duplicate codes, repeated annotations, inconsistent codes",
+      "Canonical conflicts, relative canonicals resolved",
+      "Sitemap xhtml:link mode, missing namespace, broken XML",
+      "es-419 reasoning and on-page citation",
+      "HTML-mode parse errors and keyboard use"
+    ]
+  },
+  "a11y": "The input is a labelled textarea, and every action is a native button, so all of it works from the keyboard. The status line and counts are in an aria-live region. Each issue states its level and kind in text, not only in colour. The matrix is a real table with column and row headers, and each cell has hidden text describing its state (two-way, no return link, missing, no self-reference), so it reads correctly in a screen reader and doesn't rely on colour."
+}
