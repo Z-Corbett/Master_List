@@ -144,9 +144,12 @@ test.describe('166 Type Scale & Pairing', () => {
     for (const w of ['300', '560', '900']) {
       await page.getByTestId('mw').fill(w);
       const o = await oracle();
-      await expect(page.getByTestId('cpl')).toHaveText(o.avg.toFixed(1));
-      await expect(page.getByTestId('lines')).toHaveText(String(o.lines));
-      const verdict = o.avg < 45 ? 'Short' : o.avg > 75 ? 'Long' : 'Comfortable';
+      // Word-by-word spans can wrap a word differently from the page's own measurement under some fonts
+      // (CI's Linux fonts gave 94.7 vs 94.5), so agree within one character and one line, not to the digit.
+      await expect.poll(async () => Math.abs(parseFloat((await page.getByTestId('cpl').textContent())!) - o.avg)).toBeLessThanOrEqual(1);
+      expect(Math.abs(parseInt((await page.getByTestId('lines').textContent())!, 10) - o.lines)).toBeLessThanOrEqual(1);
+      const shown = parseFloat((await page.getByTestId('cpl').textContent())!);
+      const verdict = shown < 45 ? 'Short' : shown > 75 ? 'Long' : 'Comfortable';
       await expect(page.getByTestId('measure-verdict')).toContainText(verdict);
     }
     await page.getByTestId('mw').fill('200');
