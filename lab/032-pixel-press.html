@@ -230,14 +230,21 @@
   function redo() { if (!redoStack.length) return; undoStack.push(snap()); restore(redoStack.pop()); updateHistory(); toast('Redone'); }
   function updateHistory() { $('undo').disabled = !undoStack.length; $('redo').disabled = !redoStack.length; }
 
+  // Debounced autosave. The status says "Saving…" while a write is pending (it used to keep showing the
+  // previous "Saved locally", so a quick reload could lose the last edit), and leaving the page flushes it.
   let saveT = 0;
+  function writeNow() {
+    clearTimeout(saveT); saveT = 0;
+    try { localStorage.setItem(KEY, JSON.stringify({ size: S.size, frames: S.frames, cur: S.cur, color: S.color, palette: S.palette })); $('saved').textContent = 'Saved locally'; }
+    catch (e) { $('saved').textContent = 'Autosave unavailable'; }
+  }
   function save() {
     clearTimeout(saveT);
-    saveT = setTimeout(() => {
-      try { localStorage.setItem(KEY, JSON.stringify({ size: S.size, frames: S.frames, cur: S.cur, color: S.color, palette: S.palette })); $('saved').textContent = 'Saved locally'; }
-      catch (e) { $('saved').textContent = 'Autosave unavailable'; }
-    }, 250);
+    $('saved').textContent = 'Saving…';
+    saveT = setTimeout(writeNow, 250);
   }
+  addEventListener('pagehide', () => { if (saveT) writeNow(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && saveT) writeNow(); });
   const toastEl = $('toast'); let toastT = 0;
   function toast(m) { toastEl.textContent = m; clearTimeout(toastT); toastT = setTimeout(() => { toastEl.textContent = ''; }, 2500); }
 

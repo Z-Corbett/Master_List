@@ -147,5 +147,11 @@ test.describe('032 Pixel Press', () => {
     await page.reload();
     expect(await page.evaluate(() => (window as any).__pixel.size)).toBe(16);
     expect(await px(page, 15, 15)).toBe(color);
+
+    // regression: an edit made just before leaving is flushed on pagehide, not lost in the 250 ms debounce
+    await clickCell(page, 0, 15);
+    await expect(page.getByTestId('save-status')).toHaveText('Saving…');
+    await page.reload();
+    expect(await px(page, 0, 15)).toBe(color);
   });
 });
