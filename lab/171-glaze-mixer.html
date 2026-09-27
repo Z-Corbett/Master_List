@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glaze Mixer — recipes, batches and the unity formula</title>
+<meta name="description" content="Enter a ceramic glaze recipe in percentages of common raw materials plus colorant additions, scale it to a batch, and compute the Unity Molecular Formula (Seger formula) from published oxide analyses and molecular weights built from IUPAC atomic weights.">
+<style>
+  :root {
+    --kiln: #1f1b18;
+    --kiln-2: #2c2622;
+    --ash: #e9e4da;
+    --slip: #f7f4ee;
+    --celadon: #8fb3a0;
+    --celadon-2: #5e8a74;
+    --tenmoku: #7a3a16;
+    --rutile: #c48a3f;
+    --cobalt: #2f4f8f;
+    --ink: #221e1b;
+    --ink-2: #5d564f;
+    --line: #d9d1c3;
+    --warn: #9c2d13;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --serif: "Book Antiqua", "Palatino Linotype", Palatino, Georgia, serif;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--ash); color: var(--ink); font: 15px/1.55 var(--sans); overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--rutile); outline-offset: 2px; }
+  a { color: var(--celadon-2); }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: var(--slip); background: var(--kiln); text-decoration: none; font: 600 13px/1 var(--sans); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--rutile); }
+  .hero { background: radial-gradient(ellipse at 70% 120%, rgba(196,138,63,.55), transparent 55%), radial-gradient(ellipse at 10% -30%, rgba(143,179,160,.35), transparent 55%), var(--kiln); color: var(--slip); padding: 64px 16px 28px; }
+  .hero-in { max-width: 1120px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: end; }
+  .kicker { margin: 0; font: 700 12px/1.3 var(--sans); letter-spacing: .22em; text-transform: uppercase; color: var(--rutile); }
+  h1 { font: 400 clamp(38px, 6.5vw, 66px)/1.02 var(--serif); margin: 6px 0 10px; overflow-wrap: anywhere; }
+  h1 em { color: var(--celadon); }
+  .lede { margin: 0; color: #d9d1c3; max-width: 70ch; }
+  .tiles { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tiles span { width: 34px; height: 46px; border-radius: 4px 4px 10px 10px; box-shadow: inset 0 -10px 0 rgba(0,0,0,.18); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 18px 16px 40px; }
+  .safety { background: var(--slip); border: 2px solid var(--warn); border-left-width: 10px; border-radius: 10px; padding: 12px 16px; margin: 0 0 16px; }
+  .safety h2 { font: 800 16px/1.3 var(--sans); letter-spacing: .05em; text-transform: uppercase; color: var(--warn); margin: 0 0 4px; }
+  .safety ul { margin: 0; padding-left: 20px; }
+  .safety li { margin: 2px 0; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  .card { background: var(--slip); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
+  h2 { font: 400 24px/1.2 var(--serif); margin: 0 0 10px; }
+  h3 { font: 700 12.5px/1.3 var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-2); margin: 16px 0 6px; }
+  label, .lbl { display: block; font: 600 12.5px/1.3 var(--sans); color: var(--ink-2); margin-bottom: 3px; }
+  input[type=number], select { width: 100%; min-width: 0; font: 15px var(--sans); padding: 7px 8px; border: 1px solid #c4b9a6; border-radius: 6px; background: #fff; color: var(--ink); }
+  .rows { display: grid; gap: 6px; }
+  .mrow { display: grid; grid-template-columns: minmax(0, 1fr) 92px 40px; gap: 6px; align-items: center; }
+  .x { width: 40px; height: 38px; border: 1px solid #c4b9a6; border-radius: 6px; background: #fff; color: var(--warn); font: 700 18px/1 var(--sans); cursor: pointer; }
+  .btn { min-height: 38px; padding: 8px 13px; border-radius: 6px; border: 1px solid var(--kiln); background: var(--kiln); color: var(--slip); font: 600 14px/1 var(--sans); cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--kiln); }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; align-items: center; }
+  .sum { font: 600 14px var(--mono); }
+  .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 12px; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  caption { text-align: left; font-size: 13px; color: var(--ink-2); padding-bottom: 6px; }
+  th, td { padding: 5px 6px; border-bottom: 1px solid var(--line); text-align: right; }
+  th { font: 700 11px/1.3 var(--sans); letter-spacing: .05em; text-transform: uppercase; color: var(--ink-2); }
+  th:first-child, td:first-child { text-align: left; }
+  td { font-family: var(--mono); font-size: 13.5px; }
+  td:first-child { font-family: var(--sans); }
+  tfoot td, tfoot th { font-weight: 700; border-top: 2px solid var(--ink-2); }
+  .tablewrap { overflow-x: auto; max-width: 100%; }
+  .umf { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .col { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 8px; min-width: 0; }
+  .col h4 { margin: 0 0 4px; font: 700 11px/1.3 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+  .col dl { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 8px; font: 14px/1.4 var(--mono); }
+  .col dt { margin: 0; } .col dd { margin: 0; text-align: right; }
+  .kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+  .kpi { background: var(--kiln-2); color: var(--slip); border-radius: 8px; padding: 8px 10px; min-width: 0; }
+  .kpi small { display: block; font: 700 11px/1.3 var(--sans); letter-spacing: .07em; text-transform: uppercase; color: var(--rutile); }
+  .kpi b { font: 600 22px/1.3 var(--mono); overflow-wrap: anywhere; }
+  .warns { list-style: none; margin: 8px 0 0; padding: 0; }
+  .warns li { color: var(--warn); font-weight: 600; margin: 4px 0; }
+  .note { font-size: 13.5px; color: var(--ink-2); margin: 8px 0 0; }
+  .sources { margin-top: 16px; font-size: 13.5px; }
+  .sources li { margin: 4px 0; overflow-wrap: anywhere; }
+  .cta { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; background: var(--kiln); color: var(--slip); border-radius: 10px; padding: 14px 16px; }
+  .cta p { margin: 0; min-width: 0; flex: 1 1 260px; }
+  .cta a { color: var(--kiln); background: var(--rutile); font-weight: 700; padding: 8px 12px; border-radius: 6px; text-decoration: none; }
+  footer { margin-top: 20px; text-align: center; font-size: 12.5px; color: var(--ink-2); }
+  @media (max-width: 880px) { .grid { grid-template-columns: minmax(0, 1fr); } .hero-in { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 460px) { .umf { grid-template-columns: minmax(0, 1fr); } .mrow { grid-template-columns: minmax(0, 1fr) 76px 40px; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<header class="hero">
+  <div class="hero-in">
+    <div>
+      <p class="kicker">Ceramics · glaze chemistry</p>
+      <h1>Glaze <em>Mixer</em></h1>
+      <p class="lede">Enter a recipe as percentages of raw materials, add colorants on top, scale it to a batch, and see its Unity Molecular Formula (the Seger formula): moles of each oxide with the fluxes set to 1.0, built from published material analyses and molecular weights computed from IUPAC atomic weights.</p>
+    </div>
+    <div class="tiles" aria-hidden="true"><span style="background:var(--celadon)"></span><span style="background:var(--tenmoku)"></span><span style="background:var(--cobalt)"></span><span style="background:var(--rutile)"></span><span style="background:#e8e2d4"></span></div>
+  </div>
+</header>
+<main class="wrap">
+  <section class="safety" data-testid="glaze-safety" role="note" aria-labelledby="safe-h">
+    <h2 id="safe-h">Raw glaze materials can be toxic</h2>
+    <ul>
+      <li>Wear a properly fitted respirator (e.g. N95 or P100) when handling dry materials; silica dust causes silicosis. Clean up wet, never by sweeping.</li>
+      <li>Barium, lead and some colorants (cobalt, copper, manganese, chrome and others) are hazardous. This tool has no lead or barium materials, on purpose.</li>
+      <li>The UMF can't tell you a fired glaze is food-safe. Only a lab leach test of the fired ware can.</li>
+      <li>Fire test tiles in your own kiln before any production batch: materials, application and firing all change the result.</li>
+    </ul>
+  </section>
+
+  <div class="grid">
+    <section class="card" aria-labelledby="rec-h">
+      <h2 id="rec-h">Recipe</h2>
+      <div class="bar" style="margin-top:0">
+        <label for="preset" style="margin:0">Load</label>
+        <select id="preset" data-testid="preset" style="width:auto;flex:1 1 200px">
+          <option value="">Choose a sample…</option>
+          <option value="leach">Leach 4-3-2-1 (cone 10 clear; Custer as the feldspar)</option>
+          <option value="simple">Whiting + kaolin + silica (simple test)</option>
+          <option value="celadon">Leach 4-3-2-1 + 1% red iron oxide</option>
+        </select>
+      </div>
+      <h3>Base materials (%)</h3>
+      <div class="rows" id="base" data-testid="base-rows"></div>
+      <div class="bar">
+        <button class="btn ghost" type="button" id="addBase" data-testid="add-base">+ Material</button>
+        <span class="sum" data-testid="base-sum" aria-live="polite"></span>
+      </div>
+      <h3>Colorants and additions (% on top)</h3>
+      <div class="rows" id="adds" data-testid="add-rows"></div>
+      <div class="bar"><button class="btn ghost" type="button" id="addAdd" data-testid="add-add">+ Colorant</button></div>
+      <ul class="warns" data-testid="warns" aria-live="polite"></ul>
+
+      <h3>Batch</h3>
+      <div class="fields">
+        <div><label for="batch">Dry base batch (g)</label><input type="number" id="batch" data-testid="batch" value="1000" min="1" step="any" inputmode="decimal"></div>
+      </div>
+      <div class="tablewrap" style="margin-top:10px">
+        <table data-testid="batch-table">
+          <caption>Weigh-out, rounded to 0.1 g</caption>
+          <thead><tr><th scope="col">Material</th><th scope="col">%</th><th scope="col">Grams</th></tr></thead>
+          <tbody id="batchRows"></tbody>
+          <tfoot><tr><th scope="row">Total dry</th><td></td><td data-testid="dry-total">0</td></tr></tfoot>
+        </table>
+      </div>
+      <p class="note" data-testid="water-note"></p>
+    </section>
+
+    <section class="card" aria-labelledby="umf-h">
+      <h2 id="umf-h">Unity Molecular Formula</h2>
+      <div class="umf" aria-live="polite" data-testid="umf">
+        <div class="col"><h4>Fluxes (RO · R₂O)</h4><dl id="c-flux"></dl></div>
+        <div class="col"><h4>Stabilisers (R₂O₃)</h4><dl id="c-stab"></dl></div>
+        <div class="col"><h4>Glass formers (RO₂)</h4><dl id="c-glass"></dl></div>
+      </div>
+      <div class="kpis">
+        <div class="kpi"><small>Flux total</small><b data-testid="flux-sum">—</b></div>
+        <div class="kpi"><small>SiO₂ : Al₂O₃</small><b data-testid="si-al">—</b></div>
+      </div>
+      <p class="note">Moles of each oxide = Σ (material % × oxide % ÷ 100) ÷ oxide molecular weight, then everything is divided by the total moles of flux oxides. Colorant additions are left out of the UMF (a common convention); loss on ignition (CO₂, water) burns off and never counts. B₂O₃ is listed with the stabilisers by convention, though it acts as a flux. A thermal-expansion estimate is deliberately not shown: published coefficient sets disagree, and I won't present one without a source I can check.</p>
+      <div class="tablewrap" style="margin-top:10px">
+        <table data-testid="mw-table">
+          <caption>Molecular weights, computed from IUPAC 2021 conventional atomic weights</caption>
+          <thead><tr><th scope="col">Oxide</th><th scope="col">g/mol</th><th scope="col">Moles</th></tr></thead>
+          <tbody id="mwRows"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <section class="card sources" aria-labelledby="mat-h" data-testid="materials">
+    <h2 id="mat-h">Material analyses used</h2>
+    <div class="tablewrap">
+      <table>
+        <caption>Oxide weight % (fired, LOI excluded). Real materials vary from lot to lot.</caption>
+        <thead id="matHead"></thead>
+        <tbody id="matRows"></tbody>
+      </table>
+    </div>
+    <ol>
+      <li>Theoretical compounds (silica SiO₂, whiting CaCO₃, talc Mg₃Si₄O₁₀(OH)₂, wollastonite CaSiO₃, zinc oxide ZnO) are computed here from their formulas and atomic weights. Digitalfire lists the same theoretical talc (MgO 31.87, SiO₂ 63.38) and wollastonite (CaO 48.28, SiO₂ 51.72). Real talc and wollastonite always carry impurities.</li>
+      <li>EPK kaolin: Digitalfire <a href="https://digitalfire.com/material/ep+kaolin" rel="noopener">EP Kaolin</a>, the Feldspar Corp. 2001 analysis.</li>
+      <li>Custer feldspar: Digitalfire <a href="https://digitalfire.com/material/custer+feldspar+(pre-2000)" rel="noopener">Custer Feldspar (pre-2000)</a>. Later lots were reported lower in K₂O, and Digitalfire reports the mine stopped supplying it in 2024. Treat it as a historical analysis.</li>
+      <li>Nepheline syenite: Digitalfire <a href="https://digitalfire.com/material/nepheline+syenite" rel="noopener">generic analysis</a>, consistent with its A270 grade page (within the listed tolerances).</li>
+      <li>Gerstley borate: Digitalfire <a href="https://digitalfire.com/material/gerstley+borate" rel="noopener">Gerstley Borate</a>, matching New Mexico Clay's <a href="https://nmclay.com/gerstley-borate-original" rel="noopener">typical analysis</a> to 0.1%. A natural, variable material.</li>
+      <li>Ferro frit 3134: Digitalfire <a href="https://digitalfire.com/material/ferro+frit+3134" rel="noopener">Ferro Frit 3134</a> (includes 2% Al₂O₃). The older analysis on Ceramics Today's <a href="https://ceramicstoday.glazy.org/frits.html" rel="noopener">frit chart</a> (SiO₂ 46.5, CaO 20.1, B₂O₃ 23.1, Na₂O 10.3) has no alumina.</li>
+      <li>Atomic weights: IUPAC abridged standard atomic weights (2021).</li>
+    </ol>
+  </section>
+
+  <div class="cta">
+    <p>Need chemistry, finance or engineering math turned into a tool people can trust, with tests that recompute every number? Let's talk.</p>
+    <a href="../index.html#services">See services →</a>
+  </div>
+  <footer>Built by Zac Corbett · runs in your browser, nothing is sent anywhere · a calculation aid, not a safety or food-safety certification</footer>
+</main>
+
+<script>
+(() => {
+  'use strict';
+  // IUPAC abridged standard atomic weights (2021).
+  const AW = { H: 1.008, B: 10.81, C: 12.011, O: 15.999, Na: 22.990, Mg: 24.305, Al: 26.982, Si: 28.085, P: 30.974, K: 39.098, Ca: 40.078, Ti: 47.867, Fe: 55.845, Zn: 65.38 };
+  const F = (spec) => Object.entries(spec).reduce((s, [el, n]) => s + AW[el] * n, 0);
+  const OX = {
+    Na2O: { f: { Na: 2, O: 1 }, g: 'flux', label: 'Na₂O' }, K2O: { f: { K: 2, O: 1 }, g: 'flux', label: 'K₂O' },
+    CaO: { f: { Ca: 1, O: 1 }, g: 'flux', label: 'CaO' }, MgO: { f: { Mg: 1, O: 1 }, g: 'flux', label: 'MgO' }, ZnO: { f: { Zn: 1, O: 1 }, g: 'flux', label: 'ZnO' },
+    Al2O3: { f: { Al: 2, O: 3 }, g: 'stab', label: 'Al₂O₃' }, B2O3: { f: { B: 2, O: 3 }, g: 'stab', label: 'B₂O₃' }, Fe2O3: { f: { Fe: 2, O: 3 }, g: 'stab', label: 'Fe₂O₃' },
+    SiO2: { f: { Si: 1, O: 2 }, g: 'glass', label: 'SiO₂' }, TiO2: { f: { Ti: 1, O: 2 }, g: 'glass', label: 'TiO₂' }, P2O5: { f: { P: 2, O: 5 }, g: 'glass', label: 'P₂O₅' },
+  };
+  const MW = {}; for (const k in OX) MW[k] = F(OX[k].f);
+  const pct = (part, whole) => (100 * part) / whole;
+  const CaCO3 = F({ Ca: 1, C: 1, O: 3 }), TALC = F({ Mg: 3, Si: 4, O: 12, H: 2 }), WOLL = F({ Ca: 1, Si: 1, O: 3 });
+
+  const MATERIALS = {
+    silica:  { name: 'Silica (quartz, 325 mesh)', ox: { SiO2: 100 } },
+    epk:     { name: 'EPK kaolin', ox: { CaO: 0.18, K2O: 0.33, MgO: 0.10, Na2O: 0.06, TiO2: 0.37, Al2O3: 37.36, P2O5: 0.24, SiO2: 45.73, Fe2O3: 0.79 } },
+    whiting: { name: 'Whiting (calcium carbonate)', ox: { CaO: pct(MW.CaO, CaCO3) } },
+    custer:  { name: 'Custer feldspar (pre-2000 analysis)', ox: { CaO: 0.30, K2O: 10.00, Na2O: 3.00, Al2O3: 17.00, SiO2: 68.50, Fe2O3: 0.10 } },
+    neph:    { name: 'Nepheline syenite', ox: { CaO: 0.70, K2O: 4.60, Na2O: 9.80, Al2O3: 23.30, SiO2: 60.70, MgO: 0.10, Fe2O3: 0.10 } },
+    gerstley:{ name: 'Gerstley borate', ox: { CaO: 19.40, K2O: 0.40, MgO: 3.50, Na2O: 4.00, B2O3: 26.80, Al2O3: 1.00, SiO2: 14.80, Fe2O3: 0.40, P2O5: 0.10, TiO2: 0.10 } },
+    f3134:   { name: 'Ferro frit 3134', ox: { CaO: 19.51, B2O3: 22.79, SiO2: 45.56, Na2O: 10.14, Al2O3: 2.00 } },
+    talc:    { name: 'Talc (theoretical)', ox: { MgO: pct(3 * MW.MgO, TALC), SiO2: pct(4 * MW.SiO2, TALC) } },
+    woll:    { name: 'Wollastonite (theoretical)', ox: { CaO: pct(MW.CaO, WOLL), SiO2: pct(MW.SiO2, WOLL) } },
+    zinc:    { name: 'Zinc oxide', ox: { ZnO: 100 } },
+  };
+  const COLORANTS = {
+    rio:    { name: 'Red iron oxide', hazard: '' },
+    cobalt: { name: 'Cobalt carbonate', hazard: 'Cobalt compounds are toxic; avoid skin contact and dust.' },
+    copper: { name: 'Copper carbonate', hazard: 'Copper compounds are toxic and copper can make a fired glaze leach; leach-test food surfaces.' },
+    rutile: { name: 'Rutile', hazard: '' },
+  };
+  const PRESETS = {
+    leach:   { base: [['custer', 40], ['silica', 30], ['whiting', 20], ['epk', 10]], adds: [] },
+    simple:  { base: [['whiting', 25], ['epk', 30], ['silica', 45]], adds: [] },
+    celadon: { base: [['custer', 40], ['silica', 30], ['whiting', 20], ['epk', 10]], adds: [['rio', 1]] },
+  };
+  const $ = (s) => document.querySelector(s);
+  const fmt3 = (x) => x.toFixed(3);
+
+  // Pure model: base = [[id, pct]], adds = [[id, pct]] → UMF and batch
+  function compute(base, adds, batch = 1000) {
+    const rows = base.filter(([id, p]) => MATERIALS[id] && p > 0);
+    const sum = rows.reduce((s, [, p]) => s + p, 0);
+    const norm = rows.map(([id, p]) => [id, sum > 0 ? (p * 100) / sum : 0]);
+    const moles = {}; for (const k in OX) moles[k] = 0;
+    for (const [id, p] of norm) for (const [ox, w] of Object.entries(MATERIALS[id].ox)) moles[ox] += (p * w / 100) / MW[ox];
+    const fluxMoles = Object.keys(OX).filter((k) => OX[k].g === 'flux').reduce((s, k) => s + moles[k], 0);
+    const umf = {}; for (const k in OX) umf[k] = fluxMoles > 0 ? moles[k] / fluxMoles : 0;
+    const addRows = adds.filter(([id, p]) => COLORANTS[id] && p > 0);
+    const batchRows = norm.map(([id, p]) => ({ id, pct: p, g: batch * p / 100 }));
+    const addBatch = addRows.map(([id, p]) => ({ id, pct: p, g: batch * p / 100 }));
+    const dry = batch + addBatch.reduce((s, r) => s + r.g, 0);
+    return { sum, norm, moles, fluxMoles, umf, fluxSum: Object.keys(OX).filter((k) => OX[k].g === 'flux').reduce((s, k) => s + umf[k], 0),
+      siAl: umf.Al2O3 > 0 ? umf.SiO2 / umf.Al2O3 : null, batchRows, addBatch, dry, water: [dry * 0.8, dry * 1.0] };
+  }
+
+  // ── rows UI ──
+  let uid = 0;
+  function row(container, kind, id, p) {
+    const n = ++uid; const div = document.createElement('div'); div.className = 'mrow'; div.dataset.kind = kind;
+    const opts = kind === 'base' ? MATERIALS : COLORANTS;
+    div.innerHTML = `<select aria-label="${kind === 'base' ? 'Material' : 'Colorant'} ${n}" data-testid="${kind}-sel">${Object.entries(opts).map(([k, m]) => `<option value="${k}">${m.name}</option>`).join('')}</select>` +
+      `<input type="number" min="0" step="any" inputmode="decimal" aria-label="${kind === 'base' ? 'Material' : 'Colorant'} ${n} percent" data-testid="${kind}-pct">` +
+      `<button type="button" class="x" aria-label="Remove ${kind === 'base' ? 'material' : 'colorant'} ${n}" data-testid="${kind}-remove">×</button>`;
+    div.querySelector('select').value = id; div.querySelector('input').value = p;
+    div.querySelector('button').addEventListener('click', () => {
+      const next = div.nextElementSibling || div.previousElementSibling; div.remove(); render();
+      (next ? next.querySelector('input') : document.getElementById(kind === 'base' ? 'addBase' : 'addAdd')).focus({ preventScroll: true });
+    });
+    container.appendChild(div); return div;
+  }
+  const read = (container) => [...container.querySelectorAll('.mrow')].map((r) => [r.querySelector('select').value, parseFloat(r.querySelector('input').value) || 0]);
+  function load(name) {
+    const p = PRESETS[name]; if (!p) return;
+    $('#base').innerHTML = ''; $('#adds').innerHTML = '';
+    p.base.forEach(([id, v]) => row($('#base'), 'base', id, v)); p.adds.forEach(([id, v]) => row($('#adds'), 'add', id, v));
+    render();
+  }
+
+  function render() {
+    const base = read($('#base')), adds = read($('#adds'));
+    const batch = parseFloat($('#batch').value) || 0;
+    const r = compute(base, adds, batch); const warns = [];
+    if (base.some(([, p]) => p < 0) || adds.some(([, p]) => p < 0)) warns.push('Negative percentages are ignored.');
+    if (r.sum > 0 && Math.abs(r.sum - 100) > 0.005) warns.push(`Base materials add up to ${+r.sum.toFixed(2)}%, not 100%. They have been normalised to 100% for the batch and the UMF.`);
+    if (r.sum === 0) warns.push('Enter at least one base material.');
+    if (r.sum > 0 && r.fluxMoles === 0) warns.push('This recipe has no flux oxides, so no unity formula can be computed.');
+    const ids = base.map(([id]) => id); if (new Set(ids).size !== ids.length) warns.push('A material is listed twice; the amounts are added together.');
+    for (const [id, p] of adds) if (p > 0 && COLORANTS[id] && COLORANTS[id].hazard) warns.push(COLORANTS[id].hazard);
+    $('[data-testid=warns]').innerHTML = [...new Set(warns)].map((w) => `<li>${w}</li>`).join('');
+    $('[data-testid=base-sum]').textContent = `Base total: ${+r.sum.toFixed(2)}%`;
+    // batch table
+    const g1 = (g) => g.toFixed(1);
+    $('#batchRows').innerHTML = r.batchRows.map((b) => `<tr><td>${MATERIALS[b.id].name}</td><td>${b.pct.toFixed(2)}</td><td data-testid="g-${b.id}">${g1(b.g)}</td></tr>`).join('') +
+      r.addBatch.map((b) => `<tr><td>+ ${COLORANTS[b.id].name}</td><td>+${b.pct.toFixed(2)}</td><td data-testid="g-${b.id}">${g1(b.g)}</td></tr>`).join('');
+    $('[data-testid=dry-total]').textContent = g1(r.dry);
+    $('[data-testid=water-note]').textContent = r.dry > 0 ? `Water, approximate: about ${Math.round(r.water[0])}–${Math.round(r.water[1])} g (mL) for a dipping glaze, i.e. roughly 80–100 g of water per 100 g of dry material. Add the lower amount first, sieve, then adjust by specific gravity and by how it goes on a test tile; materials differ a lot in how much water they need.` : '';
+    // UMF
+    const cols = { flux: $('#c-flux'), stab: $('#c-stab'), glass: $('#c-glass') };
+    for (const c of Object.values(cols)) c.innerHTML = '';
+    const ok = r.fluxMoles > 0;
+    for (const k in OX) if (ok && r.moles[k] > 0) cols[OX[k].g].insertAdjacentHTML('beforeend', `<dt>${OX[k].label}</dt><dd data-testid="umf-${k}">${fmt3(r.umf[k])}</dd>`);
+    $('[data-testid=flux-sum]').textContent = ok ? fmt3(r.fluxSum) : '—';
+    $('[data-testid=si-al]').textContent = ok && r.siAl != null ? r.siAl.toFixed(2) + ' : 1' : '—';
+    $('#mwRows').innerHTML = Object.keys(OX).map((k) => `<tr><td>${OX[k].label}</td><td data-testid="mw-${k}">${MW[k].toFixed(3)}</td><td>${r.moles[k] > 0 ? r.moles[k].toFixed(4) : '—'}</td></tr>`).join('');
+    window.__glaze.last = r;
+  }
+
+  // materials reference table
+  const oxKeys = Object.keys(OX);
+  $('#matHead').innerHTML = `<tr><th scope="col">Material</th>${oxKeys.map((k) => `<th scope="col">${OX[k].label}</th>`).join('')}</tr>`;
+  $('#matRows').innerHTML = Object.entries(MATERIALS).map(([id, m]) => `<tr data-testid="mat-${id}"><td>${m.name}</td>${oxKeys.map((k) => `<td>${m.ox[k] ? m.ox[k].toFixed(2) : ''}</td>`).join('')}</tr>`).join('');
+
+  $('#addBase').addEventListener('click', () => { const d = row($('#base'), 'base', 'silica', 0); render(); d.querySelector('select').focus(); });
+  $('#addAdd').addEventListener('click', () => { const d = row($('#adds'), 'add', 'rio', 0); render(); d.querySelector('select').focus(); });
+  $('#preset').addEventListener('change', (e) => load(e.target.value));
+  document.querySelector('main').addEventListener('input', (e) => { if (e.target.closest('.mrow') || e.target.id === 'batch') render(); });
+  document.querySelector('main').addEventListener('change', (e) => { if (e.target.matches('.mrow select')) render(); });
+
+  window.__glaze = { AW, MW, MATERIALS, COLORANTS, compute, last: null };
+  $('#preset').value = 'leach'; load('leach');
+})();
+</script>
+</body>
+</html>

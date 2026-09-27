@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gestalt — how we group what we see</title>
+<meta name="description" content="Seven interactive toys for the Gestalt grouping principles: proximity, similarity, closure, continuity, figure and ground, common region and common fate. Each has a slider that makes the grouping appear or disappear, and asks how many groups you see, answered by a small computational model.">
+<style>
+  :root {
+    --bg: #14141a;
+    --bg2: #1d1d25;
+    --text: #ecebe6;
+    --mute: #a9a7a0;
+    --card: #f4f1ea;
+    --cardInk: #1a1a20;
+    --coral: #ff7a59;
+    --lime: #c9f36b;
+    --line: #34343f;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 16px/1.55 var(--sans); overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--lime); outline-offset: 2px; }
+  a { color: var(--lime); text-underline-offset: 3px; }
+  a.back { position: absolute; top: 14px; left: 16px; color: var(--text); text-decoration: none; font: 600 14px/1 var(--sans); padding: 8px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg2); z-index: 3; }
+  a.back:hover { border-color: var(--lime); }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 70px 16px 48px; }
+  header.hero { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 28px; align-items: end; }
+  .hero h1 { font: 400 clamp(56px, 12vw, 128px)/.9 var(--serif); margin: 0; letter-spacing: -.02em; overflow-wrap: anywhere; }
+  .hero h1 em { color: var(--coral); font-style: italic; }
+  .hero .sub { font: italic 24px/1.3 var(--serif); color: var(--mute); margin: 10px 0 0; }
+  .hero p { margin: 0 0 12px; max-width: 52ch; }
+  .hero svg { display: block; width: 100%; max-width: 360px; height: auto; }
+  .score { margin: 24px 0 0; display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg2); font-size: 15px; }
+  .score b { color: var(--lime); font-variant-numeric: tabular-nums; }
+
+  .toy { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 20px 32px; padding: 40px 0; border-top: 1px solid var(--line); }
+  .toy .num { font: italic 18px/1 var(--serif); color: var(--coral); }
+  .toy h2 { font: 400 40px/1.05 var(--serif); margin: 6px 0 10px; }
+  .toy .rule { font-weight: 600; margin: 0 0 10px; color: var(--text); }
+  .toy p { margin: 0 0 10px; color: #d6d4cd; max-width: 56ch; }
+  .toy .model { font-size: 14px; color: var(--mute); border-left: 3px solid var(--line); padding-left: 12px; }
+  .bench { background: var(--card); color: var(--cardInk); border-radius: 18px; padding: 14px; min-width: 0; }
+  .bench svg { display: block; width: 100%; height: auto; border-radius: 10px; background: #fbfaf6; }
+  .ctl { margin-top: 12px; }
+  .ctl label { display: flex; justify-content: space-between; gap: 10px; font: 600 14px/1.3 var(--sans); flex-wrap: wrap; }
+  .ctl output { font-variant-numeric: tabular-nums; color: #5b5a55; font-weight: 500; }
+  input[type=range] { width: 100%; accent-color: #d9502f; margin: 8px 0 2px; }
+  .ends { display: flex; justify-content: space-between; font-size: 12px; color: #6d6b64; gap: 8px; }
+  form.ask { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px dashed #cfcac0; }
+  form.ask label { font-weight: 600; font-size: 14px; flex: 1 1 180px; }
+  form.ask input { width: 76px; font: 600 18px var(--sans); padding: 6px 8px; border: 2px solid var(--cardInk); border-radius: 10px; background: #fff; color: var(--cardInk); }
+  button { font: 600 14px/1 var(--sans); min-height: 40px; padding: 10px 14px; border-radius: 999px; border: 2px solid var(--cardInk); background: var(--cardInk); color: var(--card); cursor: pointer; }
+  button.ghost { background: transparent; color: var(--cardInk); }
+  button[aria-pressed="true"] { background: #d9502f; border-color: #d9502f; color: #fff; }
+  .verdict { min-height: 1.5em; margin: 10px 0 0; font-size: 15px; }
+  .verdict.ok { color: #1f6b3a; }
+  .verdict.no { color: #9b2f14; }
+  .modelline { margin: 8px 0 0; font-size: 14px; color: #4d4b45; }
+  footer { border-top: 1px solid var(--line); padding-top: 18px; margin-top: 16px; font-size: 14px; color: var(--mute); }
+  footer p { margin: 0 0 8px; max-width: 80ch; }
+  @media (max-width: 820px) {
+    header.hero, .toy { grid-template-columns: minmax(0, 1fr); }
+    .toy h2 { font-size: 34px; }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="hero">
+    <div>
+      <h1>Gest<em>alt</em></h1>
+      <p class="sub">how we group what we see</p>
+    </div>
+    <div>
+      <p>Before you read a single word on a page, your eye has already sorted it into clumps: this goes with that, those belong apart. The Gestalt psychologists of the early twentieth century described the habits behind that sorting. Designers lean on them every day, mostly without naming them.</p>
+      <p>Each toy below has one slider that makes a grouping appear or dissolve. Say how many groups <em>you</em> see, then compare with a deliberately simple computer model. Where you disagree with it is the interesting part.</p>
+    </div>
+  </header>
+  <p class="score" aria-live="polite" data-testid="score"><span>Answered <b data-testid="answered">0</b> of 7</span><span>Agreed with the model <b data-testid="agreed">0</b></span></p>
+
+  <main id="toys"></main>
+
+  <footer>
+    <p>The principles come from Gestalt psychology (Max Wertheimer, Wolfgang Köhler, Kurt Koffka and later researchers; common region was described by Stephen Palmer in 1992). All explanations, toys and models here are original simplifications, not published models of perception.</p>
+    <p>Designing an interface where the grouping has to be right? See <a href="../index.html#services">Services</a>.</p>
+  </footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const NS = 'http://www.w3.org/2000/svg';
+  const $ = (s, r = document) => r.querySelector(s);
+  const el = (tag, attrs = {}, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+  const r3 = (v) => Math.round(v * 1000) / 1000;
+  const GROUP_COLOURS = ['#d9502f', '#2f6fd9', '#2f9d58', '#b3259e', '#c79a00', '#15808c', '#6b4bd6', '#7a5c3a'];
+  const INK = '#1a1a20';
+
+  /** Union-find helper: returns a group label per index given a "linked(i, j)" predicate. */
+  function components(n, linked) {
+    const p = Array.from({ length: n }, (_, i) => i);
+    const f = (i) => (p[i] === i ? i : (p[i] = f(p[i])));
+    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) if (linked(i, j)) p[f(i)] = f(j);
+    const map = new Map();
+    return Array.from({ length: n }, (_, i) => { const r = f(i); if (!map.has(r)) map.set(r, map.size); return map.get(r); });
+  }
+  const countOf = (labels) => new Set(labels).size;
+
+  // ---------- the seven toys ----------
+  const TOYS = [
+    {
+      id: 'proximity', name: 'Proximity',
+      rule: 'Near things belong together.',
+      text: ['Spacing alone, with no lines and no colour, is enough to split a field of identical dots into separate groups. It is why the gap between two sections of a page often does more work than any divider you could draw.',
+        'Slide to open the gaps between column pairs. The first gap opens twice as fast as the second, so the field splits in two stages.'],
+      model: 'Model: single-linkage clustering. Two dots are linked when they are at most 36 px apart (1.5 × the 24 px dot spacing); a group is everything you can reach by hopping along links.',
+      slider: { label: 'Extra gap between column pairs', min: 0, max: 40, value: 0, unit: ' px', lo: 'even field', hi: 'three pairs' },
+      T: 36,
+      build(v) {
+        const d = 24, width = 5 * d + v + v / 2, x0 = (360 - width) / 2, y0 = 64;
+        const pts = [];
+        for (let r = 0; r < 4; r++) for (let c = 0; c < 6; c++) pts.push({ x: x0 + c * d + (c >= 2 ? v : 0) + (c >= 4 ? v / 2 : 0), y: y0 + r * d });
+        const labels = components(pts.length, (i, j) => Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y) <= this.T + 1e-9);
+        return { pts, labels, detail: `the gaps between pairs are ${r3(24 + v)} px and ${r3(24 + v / 2)} px against a linking distance of 36 px` };
+      },
+      draw(svg, st, reveal) { st.pts.forEach((p, i) => el('circle', { cx: r3(p.x), cy: r3(p.y), r: 7, fill: reveal ? GROUP_COLOURS[st.labels[i] % 8] : INK, 'data-dot': i, 'data-group': st.labels[i] }, svg)); },
+    },
+    {
+      id: 'similarity', name: 'Similarity',
+      rule: 'Things that look alike are read as a set.',
+      text: ['When items share a colour, a shape or a size, we bundle them, even when the spacing is perfectly even. Here the dots never move; only their tone changes, column by column in a repeating three-step pattern.',
+        'At first the whole field reads as one texture. As the tones pull apart, the darkest and middle columns separate first from the lightest, then from each other.'],
+      model: 'Model: grouping by attribute. Each dot has a lightness; dots whose lightness differs by at most 10 points are linked (single linkage on that one number), and the model counts the resulting sets.',
+      slider: { label: 'Difference in tone', min: 0, max: 24, value: 0, unit: '', lo: 'all the same', hi: 'three tones' },
+      tol: 10,
+      build(v) {
+        const d = 30, x0 = (360 - 5 * d) / 2, y0 = 55;
+        const step = [0, v, 2.5 * v];
+        const pts = [];
+        for (let r = 0; r < 4; r++) for (let c = 0; c < 6; c++) pts.push({ x: x0 + c * d, y: y0 + r * d, l: 15 + step[c % 3] });
+        const labels = components(pts.length, (i, j) => Math.abs(pts[i].l - pts[j].l) <= this.tol + 1e-9);
+        return { pts, labels, detail: `the three tones are ${pts[0].l}%, ${pts[1].l}% and ${pts[2].l}% lightness; the tolerance is 10 points` };
+      },
+      draw(svg, st, reveal) {
+        st.pts.forEach((p, i) => {
+          el('circle', { cx: p.x, cy: p.y, r: 10, fill: `hsl(0 0% ${p.l}%)`, 'data-dot': i, 'data-l': p.l, 'data-group': st.labels[i] }, svg);
+          if (reveal) el('circle', { cx: p.x, cy: p.y, r: 13, fill: 'none', stroke: GROUP_COLOURS[st.labels[i] % 8], 'stroke-width': 3, 'data-halo': i }, svg);
+        });
+      },
+    },
+    {
+      id: 'closure', name: 'Closure',
+      rule: 'We finish shapes that are almost whole.',
+      text: ['Give the eye an outline with small breaks and it fills them in: you see a ring, not four curves. The same habit lets a logo or icon be drawn with fewer strokes than the shape it suggests.',
+        'Two of the breaks grow twice as fast as the other two. Watch the ring become two brackets, then four separate arcs.'],
+      model: 'Model: neighbouring arcs join across a break of at most 30°. Around a closed loop, one wide break still leaves a single figure; two or more wide breaks split it into that many pieces.',
+      slider: { label: 'Size of the breaks', min: 0, max: 50, value: 0, unit: '°', lo: 'whole ring', hi: 'four arcs' },
+      lim: 30,
+      build(v) {
+        const gaps = [v, 2 * v, v, 2 * v];              // break after arc k
+        const arcLen = (360 - gaps.reduce((a, b) => a + b, 0)) / 4;
+        const arcs = []; let a = -90 + v / 2;
+        for (let k = 0; k < 4; k++) { arcs.push({ a0: a, a1: a + arcLen }); a += arcLen + gaps[k]; }
+        const broken = gaps.map((g) => g > this.lim + 1e-9);
+        // arcs k and k+1 (mod 4) are joined unless the break between them is too wide
+        const labels = components(4, (i, j) => { const adj = (j === i + 1) ? i : (i === 0 && j === 3 ? 3 : -1); return adj >= 0 && !broken[adj]; });
+        return { arcs, gaps, labels, detail: `the breaks are ${v}° and ${2 * v}° against a limit of 30°` };
+      },
+      draw(svg, st, reveal) {
+        const cx = 180, cy = 100, R = 70, pt = (deg) => [cx + R * Math.cos(deg * Math.PI / 180), cy + R * Math.sin(deg * Math.PI / 180)];
+        st.arcs.forEach((a, i) => {
+          const [x0, y0] = pt(a.a0), [x1, y1] = pt(a.a1), big = a.a1 - a.a0 > 180 ? 1 : 0;
+          el('path', { d: `M${r3(x0)} ${r3(y0)}A${R} ${R} 0 ${big} 1 ${r3(x1)} ${r3(y1)}`, fill: 'none', stroke: reveal ? GROUP_COLOURS[st.labels[i] % 8] : INK, 'stroke-width': 12, 'stroke-linecap': 'butt', 'data-arc': i, 'data-a0': r3(a.a0), 'data-a1': r3(a.a1), 'data-group': st.labels[i] }, svg);
+        });
+      },
+    },
+    {
+      id: 'continuity', name: 'Continuity',
+      rule: 'A line that carries on is one line.',
+      text: ['Where two strokes cross, we read each as passing straight through, not as four pieces meeting at a point, as long as each keeps roughly its direction. Designers use it to lead the eye along a path, a chart line or a row of cards.',
+        'Slide to kink the strokes at the crossing. The horizontal one bends twice as fast as the vertical one.'],
+      model: 'Model: at the crossing, two pieces are paired into one line when they point within 20° of exactly opposite ways. The best-matching pairs are joined first; each piece joins at most one other.',
+      slider: { label: 'Kink at the crossing', min: 0, max: 60, value: 0, unit: '°', lo: 'two straight lines', hi: 'four pieces' },
+      tol: 20,
+      build(v) {
+        const dirs = [180, 0 + v, 270, 90 + v / 2];        // A (left), C (right, kinked), B (up), D (down, kinked half as much)
+        const dev = (a, b) => { let d = Math.abs(((a - b) % 360 + 360) % 360 - 180); return d; };  // how far from exactly opposite
+        const cand = [];
+        for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) cand.push({ i, j, d: dev(dirs[i], dirs[j]) });
+        cand.sort((a, b) => a.d - b.d);
+        const used = new Set(), pairs = [];
+        for (const c of cand) if (c.d <= this.tol + 1e-9 && !used.has(c.i) && !used.has(c.j)) { used.add(c.i); used.add(c.j); pairs.push([c.i, c.j]); }
+        const labels = components(4, (i, j) => pairs.some(([a, b]) => (a === i && b === j) || (a === j && b === i)));
+        return { dirs, pairs, labels, detail: `the kinks are ${v}° and ${v / 2}° against a tolerance of 20°` };
+      },
+      draw(svg, st, reveal) {
+        const cx = 180, cy = 100, L = 86;
+        st.dirs.forEach((a, i) => {
+          const x = cx + L * Math.cos(a * Math.PI / 180), y = cy + L * Math.sin(a * Math.PI / 180);
+          el('line', { x1: cx, y1: cy, x2: r3(x), y2: r3(y), stroke: reveal ? GROUP_COLOURS[st.labels[i] % 8] : INK, 'stroke-width': 9, 'stroke-linecap': 'round', 'data-piece': i, 'data-group': st.labels[i] }, svg);
+        });
+      },
+    },
+    {
+      id: 'figure', name: 'Figure and ground',
+      rule: 'Something stands in front; the rest runs behind.',
+      text: ['We split every picture into a figure that seems to sit on top and a ground that seems to carry on underneath it. Several cues decide which is which; one of the strongest is that narrower, smaller regions win the figure role.',
+        'Seven stripes share the frame: four dark, three light. Widen the dark ones and, past the point where they become the wider set, the light stripes jump forward.'],
+      model: 'Model: the colour whose stripes are narrower is the figure (on an exact tie the dark set wins), and the model counts the figure stripes.',
+      slider: { label: 'Width of each dark stripe', min: 16, max: 72, value: 24, unit: ' px', lo: 'thin dark bars', hi: 'thin light bars' },
+      build(v) {
+        const a = v, b = (336 - 4 * a) / 3, stripes = []; let x = 12;
+        for (let k = 0; k < 7; k++) { const dark = k % 2 === 0, w = dark ? a : b; stripes.push({ x, w, dark }); x += w; }
+        const figDark = a <= b + 1e-9;
+        const labels = stripes.map((s, i) => (s.dark === figDark ? i : -1)).filter((i) => i >= 0);
+        return { stripes, figDark, figures: labels.length, labels: labels.map((_, i) => i), detail: `dark stripes are ${r3(a)} px and light ones ${r3(b)} px wide, so the ${figDark ? 'dark' : 'light'} set is narrower` };
+      },
+      draw(svg, st, reveal) {
+        el('rect', { x: 12, y: 12, width: 336, height: 176, fill: '#fbfaf6', stroke: INK, 'stroke-width': 1 }, svg);
+        st.stripes.forEach((s, i) => {
+          const fig = s.dark === st.figDark;
+          el('rect', { x: r3(s.x), y: 12, width: r3(s.w), height: 176, fill: s.dark ? INK : '#fbfaf6', 'data-stripe': i, 'data-dark': s.dark ? 1 : 0, 'data-figure': fig ? 1 : 0 }, svg);
+          if (reveal && fig) el('rect', { x: r3(s.x + 3), y: 15, width: r3(Math.max(0, s.w - 6)), height: 170, fill: 'none', stroke: '#d9502f', 'stroke-width': 3, 'data-mark': i }, svg);
+        });
+      },
+      count: (st) => st.figures,
+    },
+    {
+      id: 'region', name: 'Common region',
+      rule: 'A shared boundary makes a group.',
+      text: ['Put things inside the same outline or on the same patch of colour and they read as a unit, even when the spacing is perfectly even. Every card, panel and table row in an interface leans on this.',
+        'Nine evenly spaced dots. The slider fades in two panels behind them; the second panel is always half as strong as the first.'],
+      model: 'Model: a panel counts once its strength reaches 20%. Neighbouring dots stay together unless a visible panel boundary falls between them, and the model counts the runs that are left.',
+      slider: { label: 'Panel strength', min: 0, max: 100, value: 0, unit: '%', lo: 'no panels', hi: 'solid panels' },
+      vis: 0.2,
+      build(v) {
+        const d = 34, x0 = 180 - 4 * d, y = 100;
+        const pts = Array.from({ length: 9 }, (_, i) => ({ x: x0 + i * d, y }));
+        const regions = [{ from: 0, to: 2, op: v / 100 }, { from: 3, to: 5, op: v / 200 }].map((r) => ({ ...r, x: pts[r.from].x - 16, w: pts[r.to].x - pts[r.from].x + 32 }));
+        const inside = (i) => regions.map((r) => (r.op >= this.vis - 1e-9 && i >= r.from && i <= r.to ? 1 : 0)).join('');
+        const labels = components(9, (i, j) => { if (j !== i + 1) return false; return inside(i) === inside(j); });
+        return { pts, regions, labels, detail: `the panels are at ${r3(v)}% and ${r3(v / 2)}% strength against a visibility threshold of 20%` };
+      },
+      draw(svg, st, reveal) {
+        st.regions.forEach((r, k) => el('rect', { x: r3(r.x), y: 70, width: r3(r.w), height: 60, rx: 14, fill: '#2f6fd9', 'fill-opacity': r3(r.op * 0.45), stroke: '#2f6fd9', 'stroke-opacity': r3(r.op), 'stroke-width': 2, 'data-region': k, 'data-opacity': r3(r.op) }, svg));
+        st.pts.forEach((p, i) => el('circle', { cx: r3(p.x), cy: p.y, r: 8, fill: reveal ? GROUP_COLOURS[st.labels[i] % 8] : INK, 'data-dot': i, 'data-group': st.labels[i] }, svg));
+      },
+    },
+    {
+      id: 'fate', name: 'Common fate',
+      rule: 'Things that move together belong together.',
+      text: ['Identical dots in an even row look like one row, until some of them start to move. Elements that share a motion are grouped at once, even when they are mixed in among others; it is why a menu that slides in as one piece feels like one thing.',
+        'Every third dot bobs up and down. Its neighbours bob half as far, in the opposite direction. The rest stay still. Slide to set how far they travel.'],
+      model: 'Model: each dot\'s path is sampled over one two-second cycle. Two dots are linked when their paths never differ by more than 4 px (single linkage on that largest difference).',
+      slider: { label: 'Distance travelled', min: 0, max: 30, value: 0, unit: ' px', lo: 'still', hi: 'strong motion' },
+      tol: 4, period: 2000,
+      build(v) {
+        const n = 12, d = 26, x0 = 180 - 5.5 * d;
+        const dots = Array.from({ length: n }, (_, i) => ({ x: x0 + i * d, amp: [v, -v / 2, 0][i % 3], kind: 'ABC'[i % 3] }));
+        // sample each path over one period and take the largest pairwise difference
+        const S = 200, path = dots.map((p) => Array.from({ length: S }, (_, k) => p.amp * Math.sin(2 * Math.PI * k / S)));
+        const maxDiff = (i, j) => { let m = 0; for (let k = 0; k < S; k++) m = Math.max(m, Math.abs(path[i][k] - path[j][k])); return m; };
+        const labels = components(n, (i, j) => maxDiff(i, j) <= this.tol + 1e-9);
+        return { dots, labels, detail: `the moving dots differ by up to ${r3(1.5 * v)} px, the still ones by ${r3(v)} and ${r3(v / 2)} px from their neighbours, against a tolerance of 4 px` };
+      },
+      draw(svg, st, reveal) { st.dots.forEach((p, i) => el('circle', { cx: r3(p.x), cy: 100, r: 8, fill: reveal ? GROUP_COLOURS[st.labels[i] % 8] : INK, 'data-dot': i, 'data-kind': p.kind, 'data-amp': r3(p.amp), 'data-group': st.labels[i] }, svg)); },
+    },
+  ];
+
+  const state = {};
+  const answers = {};
+  const main = $('#toys');
+  TOYS.forEach((t, idx) => {
+    const sec = document.createElement('section');
+    sec.className = 'toy'; sec.id = t.id; sec.dataset.testid = 'toy-' + t.id; sec.setAttribute('data-testid', 'toy-' + t.id);
+    sec.setAttribute('aria-labelledby', 'h-' + t.id);
+    sec.innerHTML = `
+      <div>
+        <div class="num">${String(idx + 1).padStart(2, '0')} / 07</div>
+        <h2 id="h-${t.id}">${t.name}</h2>
+        <p class="rule">${t.rule}</p>
+        ${t.text.map((p) => `<p>${p}</p>`).join('')}
+        <p class="model" data-testid="model-${t.id}">${t.model}</p>
+      </div>
+      <div class="bench">
+        <svg viewBox="0 0 360 200" role="img" data-testid="svg-${t.id}" aria-label=""></svg>
+        <div class="ctl">
+          <label for="s-${t.id}"><span>${t.slider.label}</span><output id="o-${t.id}" for="s-${t.id}" data-testid="out-${t.id}"></output></label>
+          <input type="range" id="s-${t.id}" data-testid="slider-${t.id}" min="${t.slider.min}" max="${t.slider.max}" step="1" value="${t.slider.value}">
+          <div class="ends" aria-hidden="true"><span>${t.slider.lo}</span><span>${t.slider.hi}</span></div>
+        </div>
+        <form class="ask" data-testid="ask-${t.id}">
+          <label for="a-${t.id}">${t.id === 'figure' ? 'How many figures (shapes in front) do you see?' : 'How many groups do you see?'}</label>
+          <input type="number" id="a-${t.id}" min="1" max="30" step="1" inputmode="numeric" data-testid="answer-${t.id}" required>
+          <button type="submit" value="check">Check</button>
+          <button type="button" class="ghost" aria-pressed="false" data-testid="reveal-${t.id}">Show model</button>
+        </form>
+        <p class="verdict" aria-live="polite" data-testid="verdict-${t.id}"></p>
+        <p class="modelline" aria-live="polite" data-testid="modelline-${t.id}" hidden></p>
+      </div>`;
+    main.appendChild(sec);
+    const slider = $('#s-' + t.id, sec), svg = $('svg', sec), reveal = $('[data-testid=reveal-' + t.id + ']', sec);
+    const render = () => {
+      const v = Number(slider.value);
+      const st = t.build(v);
+      st.value = v;
+      st.count = t.count ? t.count(st) : countOf(st.labels);
+      state[t.id] = st;
+      $('#o-' + t.id, sec).textContent = v + t.slider.unit;
+      slider.setAttribute('aria-valuetext', v + t.slider.unit);
+      svg.replaceChildren();
+      const on = reveal.getAttribute('aria-pressed') === 'true';
+      t.draw(svg, st, on);
+      svg.setAttribute('data-groups', st.count);
+      svg.setAttribute('aria-label', `${t.name} demo at ${v}${t.slider.unit}. ` + (on ? `The model sees ${st.count} ${t.id === 'figure' ? 'figures' : 'groups'}, coloured by group.` : 'Model answer hidden.'));
+      const ml = $('[data-testid=modelline-' + t.id + ']', sec);
+      ml.hidden = !on;
+      ml.textContent = `The model sees ${st.count} ${t.id === 'figure' ? (st.count === 1 ? 'figure' : 'figures') : (st.count === 1 ? 'group' : 'groups')}: ${st.detail}.`;
+      if (t.id === 'fate') placeFate();
+    };
+    slider.addEventListener('input', () => { render(); $('[data-testid=verdict-' + t.id + ']', sec).textContent = ''; $('[data-testid=verdict-' + t.id + ']', sec).className = 'verdict'; });
+    reveal.addEventListener('click', () => { reveal.setAttribute('aria-pressed', String(reveal.getAttribute('aria-pressed') !== 'true')); render(); });
+    $('form', sec).addEventListener('submit', (e) => {
+      e.preventDefault();
+      const inp = $('#a-' + t.id, sec), n = Math.round(Number(inp.value));
+      const out = $('[data-testid=verdict-' + t.id + ']', sec);
+      if (!inp.value || !Number.isFinite(n) || n < 1) { out.textContent = 'Type a whole number, 1 or more.'; out.className = 'verdict no'; inp.focus(); return; }
+      const st = state[t.id], agree = n === st.count;
+      answers[t.id] = { said: n, model: st.count, agree, value: st.value };
+      const noun = (t.id === 'figure' ? 'figure' : 'group') + (st.count === 1 ? '' : 's');
+      out.textContent = agree ? `You said ${n}. The model also sees ${st.count} ${noun}. Agreed.`
+        : `You said ${n}; the model sees ${st.count} ${noun}, because ${st.detail}. Perception has more cues than this model, so a disagreement is worth a second look, not a wrong answer.`;
+      out.className = 'verdict ' + (agree ? 'ok' : 'no');
+      $('[data-testid=answered]').textContent = Object.keys(answers).length;
+      $('[data-testid=agreed]').textContent = Object.values(answers).filter((a) => a.agree).length;
+    });
+    t.render = render;
+  });
+
+  // ---------- common fate animation (driven by the page clock, so tests can pin it) ----------
+  const fate = TOYS.find((t) => t.id === 'fate');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let playing = !reduce, t0 = performance.now(), phaseT = 0, pausedAt = 0;
+  const fateBench = $('[data-testid=toy-fate] .ctl');
+  const playBtn = document.createElement('button');
+  playBtn.type = 'button'; playBtn.className = 'ghost'; playBtn.dataset.testid = 'fate-play'; playBtn.setAttribute('data-testid', 'fate-play');
+  playBtn.style.marginTop = '10px';
+  fateBench.appendChild(playBtn);
+  const syncPlay = () => { playBtn.textContent = playing ? 'Pause motion' : 'Play motion'; playBtn.setAttribute('aria-pressed', String(!playing)); };
+  function placeFate() {
+    const st = state.fate; if (!st) return;
+    const s = Math.sin(2 * Math.PI * phaseT / fate.period);
+    document.querySelectorAll('[data-testid=svg-fate] [data-dot]').forEach((c, i) => c.setAttribute('cy', r3(100 + st.dots[i].amp * s)));
+    $('[data-testid=svg-fate]').setAttribute('data-t', r3(phaseT));
+  }
+  function frame() {
+    if (playing) { phaseT = performance.now() - t0; placeFate(); }
+    requestAnimationFrame(frame);
+  }
+  playBtn.addEventListener('click', () => {
+    if (playing) { playing = false; pausedAt = phaseT; }
+    else { playing = true; t0 = performance.now() - pausedAt; }
+    syncPlay();
+  });
+  syncPlay();
+
+  TOYS.forEach((t) => t.render());
+  requestAnimationFrame(frame);
+
+  window.__gestalt = {
+    ids: TOYS.map((t) => t.id),
+    state: (id) => JSON.parse(JSON.stringify(state[id])),
+    count: (id) => state[id].count,
+    answers: () => JSON.parse(JSON.stringify(answers)),
+    fate: () => ({ t: phaseT, playing, period: fate.period }),
+    constants: { proximityLink: 36, similarityTol: 10, closureLimit: 30, continuityTol: 20, regionVisible: 0.2, fateTol: 4 },
+  };
+})();
+</script>
+</body>
+</html>

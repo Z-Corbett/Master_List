@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soap &amp; Candle Calculator — lye, superfat and wax</title>
+<meta name="description" content="A cold-process soap lye calculator (NaOH or KOH, superfat, three water modes, fragrance) using SAP values cross-checked against four published soap-making charts, plus a container-candle wax and fragrance calculator. Safety notes are always on screen.">
+<style>
+  :root {
+    --cream: #f6f1e7;
+    --paper: #fffdf8;
+    --sage: #5d7a5f;
+    --sage-2: #3f5a42;
+    --clay: #b86b4b;
+    --ink: #2a2622;
+    --ink-2: #5b544c;
+    --line: #ddd3c1;
+    --hazard: #f2b705;
+    --hazard-ink: #1d1a14;
+    --warn: #9a2f14;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--cream); color: var(--ink); font: 15px/1.55 var(--sans); overflow-x: hidden;
+    background-image: radial-gradient(circle at 12% 0%, rgba(93,122,95,.16), transparent 40%), radial-gradient(circle at 100% 30%, rgba(184,107,75,.12), transparent 40%); }
+  :focus-visible { outline: 3px solid var(--clay); outline-offset: 2px; }
+  a { color: var(--sage-2); }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: #fff; background: var(--sage-2); text-decoration: none; font: 600 13px/1 var(--sans); padding: 8px 12px; border-radius: 999px; }
+  a.back:hover { background: var(--ink); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 60px 16px 40px; }
+  .kicker { margin: 0; font: 700 12px/1.3 var(--sans); letter-spacing: .22em; text-transform: uppercase; color: var(--clay); }
+  h1 { font: 400 clamp(36px, 6.4vw, 64px)/1.02 var(--serif); margin: 6px 0 8px; overflow-wrap: anywhere; }
+  h1 em { color: var(--sage); }
+  .lede { margin: 0; color: var(--ink-2); max-width: 70ch; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 22px 0 16px; }
+  .tab { min-height: 42px; padding: 8px 16px; border-radius: 999px; border: 1.5px solid var(--sage); background: var(--paper); color: var(--sage-2); font: 600 14px/1 var(--sans); cursor: pointer; }
+  .tab[aria-selected="true"] { background: var(--sage-2); color: #fff; border-color: var(--sage-2); }
+  .grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+  .card { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; box-shadow: 0 10px 26px -20px rgba(42,38,34,.5); }
+  h2 { font: 400 25px/1.2 var(--serif); margin: 0 0 10px; }
+  h3 { font: 700 13px/1.3 var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-2); margin: 16px 0 6px; }
+  label, .lbl { display: block; font: 600 12.5px/1.3 var(--sans); color: var(--ink-2); margin-bottom: 3px; }
+  input[type=number], select { width: 100%; min-width: 0; font: 15px var(--sans); padding: 8px 9px; border: 1px solid #c9bda6; border-radius: 7px; background: #fff; color: var(--ink); }
+  .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 12px; }
+  .field { min-width: 0; }
+  .seg { display: flex; flex-wrap: wrap; gap: 6px; border: 0; padding: 0; margin: 0; min-width: 0; }
+  .seg legend { font: 600 12.5px/1.3 var(--sans); color: var(--ink-2); margin-bottom: 4px; padding: 0; }
+  .seg label { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 7px 11px; border: 1px solid #c9bda6; border-radius: 8px; background: #fff; cursor: pointer; color: var(--ink); font-weight: 500; font-size: 14px; }
+  .seg input { margin: 0; accent-color: var(--sage-2); }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  caption { text-align: left; font-size: 13px; color: var(--ink-2); padding-bottom: 6px; }
+  th, td { padding: 6px 6px; border-bottom: 1px solid var(--line); text-align: right; vertical-align: middle; }
+  th { font: 700 11px/1.3 var(--sans); letter-spacing: .05em; text-transform: uppercase; color: var(--ink-2); }
+  th:first-child, td:first-child { text-align: left; }
+  td input[type=number] { max-width: 110px; padding: 6px 7px; text-align: right; }
+  .tablewrap { overflow-x: auto; max-width: 100%; }
+  .oils td:first-child { font-weight: 600; }
+  .oils small { display: block; font-weight: 400; color: var(--ink-2); font-size: 11.5px; }
+  .safety { border: 3px solid var(--hazard-ink); border-radius: 12px; background: var(--hazard); color: var(--hazard-ink); padding: 14px 16px 12px; margin: 0 0 16px;
+    background-image: repeating-linear-gradient(-45deg, transparent 0 14px, rgba(0,0,0,.06) 14px 28px); }
+  .safety h2 { font: 800 18px/1.2 var(--sans); letter-spacing: .04em; text-transform: uppercase; margin: 0 0 6px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .safety ul { margin: 0; padding-left: 20px; }
+  .safety li { margin: 2px 0; font-weight: 500; }
+  .safety .must { font-weight: 800; margin: 8px 0 0; background: rgba(255,255,255,.55); padding: 6px 8px; border-radius: 6px; }
+  .results { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .res { background: #fff; border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px; min-width: 0; }
+  .res small { display: block; font: 700 11px/1.3 var(--sans); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-2); }
+  .res b { display: block; font: 600 22px/1.25 var(--mono); overflow-wrap: anywhere; }
+  .res.key { grid-column: 1 / -1; background: var(--ink); color: var(--cream); border-color: var(--ink); }
+  .res.key small { color: var(--hazard); }
+  .res.key b { font-size: 30px; }
+  .warns { list-style: none; margin: 10px 0 0; padding: 0; }
+  .warns li { color: var(--warn); font-weight: 600; margin: 4px 0; padding-left: 20px; position: relative; }
+  .warns li::before { content: "!"; position: absolute; left: 0; top: 0; width: 15px; height: 15px; border-radius: 50%; background: var(--warn); color: #fff; font: 700 11px/15px var(--sans); text-align: center; }
+  .math { font: 13px/1.6 var(--mono); background: #f3eee3; border-left: 3px solid var(--sage); padding: 8px 10px; border-radius: 0 6px 6px 0; margin: 10px 0 0; overflow-wrap: anywhere; }
+  .note { font-size: 13.5px; color: var(--ink-2); margin: 8px 0 0; }
+  .disclaimer { margin: 12px 0 0; padding: 10px 12px; border: 1px dashed var(--warn); border-radius: 8px; color: var(--warn); font-weight: 600; font-size: 14px; }
+  .btn { min-height: 40px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--sage-2); background: var(--sage-2); color: #fff; font: 600 14px/1 var(--sans); cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--sage-2); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .sources { margin-top: 18px; font-size: 13.5px; }
+  .sources ol { padding-left: 20px; margin: 6px 0; }
+  .sources li { margin: 4px 0; overflow-wrap: anywhere; }
+  .cta { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; background: var(--sage-2); color: #fff; border-radius: 12px; padding: 14px 16px; }
+  .cta p { margin: 0; min-width: 0; flex: 1 1 260px; }
+  .cta a { color: #fff; font-weight: 700; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.5); padding: 8px 12px; border-radius: 8px; text-decoration: none; }
+  footer { margin-top: 20px; text-align: center; font-size: 12.5px; color: var(--ink-2); }
+  @media (max-width: 880px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 420px) { .results { grid-template-columns: minmax(0, 1fr); } .res.key b { font-size: 26px; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<main class="wrap">
+  <header>
+    <p class="kicker">Maker tools · cold-process soap &amp; container candles</p>
+    <h1>Soap &amp; Candle <em>Calculator</em></h1>
+    <p class="lede">Weigh out a cold-process soap recipe (lye, superfat, water and fragrance) from SAP values checked against four published soap-making charts, or work out the wax and fragrance for a container candle. Everything is worked out by weight, in your browser. <strong>This is a planning aid, not a guarantee that a recipe is safe.</strong></p>
+  </header>
+
+  <div class="tabs" role="tablist" aria-label="Calculator">
+    <button class="tab" role="tab" id="tab-soap" aria-controls="panel-soap" aria-selected="true" data-testid="tab-soap">Cold-process soap</button>
+    <button class="tab" role="tab" id="tab-candle" aria-controls="panel-candle" aria-selected="false" tabindex="-1" data-testid="tab-candle">Container candle</button>
+  </div>
+
+  <!-- ───────── Soap ───────── -->
+  <section id="panel-soap" role="tabpanel" aria-labelledby="tab-soap" data-testid="panel-soap">
+    <div class="safety" id="lye-safety" data-testid="lye-safety" role="note" aria-labelledby="safety-h">
+      <h2 id="safety-h"><svg width="24" height="22" viewBox="0 0 24 22" aria-hidden="true"><path d="M12 1 23 21H1Z" fill="#1d1a14"/><path d="M12 8v6M12 16.5v1.5" stroke="#f2b705" stroke-width="2.4" stroke-linecap="round"/></svg> Lye is caustic: read before you start</h2>
+      <ul>
+        <li><strong>Always add lye to water, never water to lye.</strong> Pouring water onto lye can boil and spatter violently.</li>
+        <li>Wear splash goggles and chemical-resistant gloves, with long sleeves. Mix in a well-ventilated place and don't breathe the fumes.</li>
+        <li>Keep children and pets away. Label lye and raw soap batter clearly.</li>
+        <li>Never use aluminium: lye reacts with it. Use stainless steel, heat-safe PP#5 plastic or glass rated for the heat.</li>
+        <li>Weigh everything, lye, water and oils, by weight on a digital scale. Never measure by volume.</li>
+      </ul>
+      <p class="must" data-testid="double-check">Double-check your recipe with an established lye calculator before making soap.</p>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>1 · Oils by weight</h2>
+        <div class="fields">
+          <fieldset class="seg">
+            <legend>Weight unit</legend>
+            <label><input type="radio" name="unit" value="g" checked data-testid="unit-g"> grams</label>
+            <label><input type="radio" name="unit" value="oz" data-testid="unit-oz"> ounces</label>
+          </fieldset>
+          <fieldset class="seg">
+            <legend>Lye type</legend>
+            <label><input type="radio" name="lye" value="naoh" checked data-testid="lye-naoh"> NaOH (bar soap)</label>
+            <label><input type="radio" name="lye" value="koh" data-testid="lye-koh"> KOH (liquid soap)</label>
+          </fieldset>
+        </div>
+        <div class="tablewrap" style="margin-top:12px">
+          <table class="oils" data-testid="oils">
+            <caption>SAP = grams of lye that saponify 1 g of oil. KOH SAP = NaOH SAP × 56.1 ÷ 40.</caption>
+            <thead><tr><th scope="col">Oil</th><th scope="col">NaOH SAP</th><th scope="col">KOH SAP</th><th scope="col" id="wcol">Weight (g)</th></tr></thead>
+            <tbody id="oilrows"></tbody>
+            <tfoot><tr><th scope="row">Total oils</th><td></td><td></td><td data-testid="oil-total">0</td></tr></tfoot>
+          </table>
+        </div>
+        <div class="row">
+          <button class="btn ghost" type="button" id="sample" data-testid="sample">Load sample recipe</button>
+          <button class="btn ghost" type="button" id="clear" data-testid="clear">Clear oils</button>
+        </div>
+
+        <h3>2 · Superfat, water and fragrance</h3>
+        <div class="fields">
+          <div class="field">
+            <label for="superfat">Superfat (%)</label>
+            <input type="number" id="superfat" data-testid="superfat" value="5" min="0" max="20" step="0.5" inputmode="decimal">
+          </div>
+          <div class="field" id="purityWrap" hidden>
+            <label for="purity">KOH purity (%)</label>
+            <input type="number" id="purity" data-testid="purity" value="100" min="80" max="100" step="0.5" inputmode="decimal" aria-describedby="purityNote">
+          </div>
+          <div class="field">
+            <label for="fragrance">Fragrance (% of oil weight)</label>
+            <input type="number" id="fragrance" data-testid="fragrance" value="3" min="0" max="10" step="0.1" inputmode="decimal">
+          </div>
+        </div>
+        <p class="note" id="purityNote" hidden>Many KOH flakes are sold at about 90% purity; enter your supplier's figure. At 100% this is the plain SAP result.</p>
+        <fieldset class="seg" style="margin-top:12px">
+          <legend>Water method</legend>
+          <label><input type="radio" name="wmode" value="conc" checked data-testid="wmode-conc"> Lye concentration</label>
+          <label><input type="radio" name="wmode" value="ratio" data-testid="wmode-ratio"> Water : lye ratio</label>
+          <label><input type="radio" name="wmode" value="pct" data-testid="wmode-pct"> % of oils</label>
+        </fieldset>
+        <div class="fields" style="margin-top:8px">
+          <div class="field" id="w-conc"><label for="conc">Lye concentration (%)</label><input type="number" id="conc" data-testid="conc" value="33" min="20" max="50" step="0.5" inputmode="decimal"></div>
+          <div class="field" id="w-ratio" hidden><label for="ratio">Water : lye (x : 1)</label><input type="number" id="ratio" data-testid="ratio" value="2" min="1" max="4" step="0.1" inputmode="decimal"></div>
+          <div class="field" id="w-pct" hidden><label for="wpct">Water as % of oils</label><input type="number" id="wpct" data-testid="wpct" value="38" min="15" max="45" step="0.5" inputmode="decimal"></div>
+        </div>
+      </div>
+
+      <div class="card" aria-labelledby="res-h">
+        <h2 id="res-h">3 · What to weigh</h2>
+        <div class="results" aria-live="polite" data-testid="soap-results">
+          <div class="res key"><small id="lyeLabel">Sodium hydroxide (NaOH)</small><b data-testid="lye">0</b></div>
+          <div class="res"><small>Water (distilled)</small><b data-testid="water">0</b></div>
+          <div class="res"><small>Fragrance</small><b data-testid="fo">0</b></div>
+          <div class="res"><small>Oils</small><b data-testid="oils-out">0</b></div>
+          <div class="res"><small>Total batch</small><b data-testid="batch">0</b></div>
+          <div class="res"><small>Lye concentration</small><b data-testid="conc-out">—</b></div>
+          <div class="res"><small>Water : lye</small><b data-testid="ratio-out">—</b></div>
+        </div>
+        <ul class="warns" data-testid="soap-warns" aria-live="polite"></ul>
+        <p class="math" data-testid="soap-math"></p>
+        <p class="disclaimer" data-testid="soap-disclaimer">Not a guarantee of safety. SAP values vary between batches of the same oil, which is one reason soapers superfat. Check the result with an established lye calculator, and test the finished, cured soap before using it on skin.</p>
+        <p class="note">Rounded for display to 0.1 g or 0.01 oz; the math uses unrounded values. 1 oz = 28.349523125 g. Soap quality numbers (hardness, cleansing and so on) are deliberately left out: they need fatty-acid profiles this page doesn't claim to source.</p>
+      </div>
+    </div>
+
+    <section class="card sources" aria-labelledby="src-h" data-testid="sap-sources">
+      <h2 id="src-h">Where the SAP values come from</h2>
+      <p>The NaOH figures used are SoapCalc's (coconut is its 76&nbsp;°F grade). Each one was checked against three more charts, and the range across all four is shown below; a single oil's SAP value naturally varies by a few percent. KOH figures are derived as NaOH × 56.1/40 (molar masses of KOH and NaOH), not read from a chart. A larger spread, like coconut's, is a reason to keep a superfat.</p>
+      <div class="tablewrap">
+        <table data-testid="sap-ranges">
+          <caption>NaOH SAP: value used, and the range across the four sources</caption>
+          <thead><tr><th scope="col">Oil</th><th scope="col">Used</th><th scope="col">Range, 4 sources</th></tr></thead>
+          <tbody id="rangerows"></tbody>
+        </table>
+      </div>
+      <ol>
+        <li>SoapCalc, <a href="https://soapcalc.net/oil-list" rel="noopener">oil list</a> (KOH and NaOH SAP per oil).</li>
+        <li>From Nature With Love, <a href="https://www.fromnaturewithlove.com/resources/sapon.asp" rel="noopener">saponification chart</a> (NaOH and KOH; no cocoa butter).</li>
+        <li>The Soap Kitchen (UK), <a href="https://www.thesoapkitchen.co.uk/guide-to-sap-values/" rel="noopener">guide to SAP values</a>.</li>
+        <li>Voyageur Soap &amp; Candle, <a href="https://www.voyageursoapandcandle.com/pages/common-soap-ingredients-saponification-values" rel="noopener">saponification values</a> (mg KOH/g, converted × 40/56.1).</li>
+      </ol>
+    </section>
+  </section>
+
+  <!-- ───────── Candle ───────── -->
+  <section id="panel-candle" role="tabpanel" aria-labelledby="tab-candle" data-testid="panel-candle" hidden>
+    <div class="grid">
+      <div class="card">
+        <h2>Container</h2>
+        <div class="fields">
+          <div class="field"><label for="cvol">Container volume (brim-full of water)</label><input type="number" id="cvol" data-testid="cvol" value="250" min="0" step="1" inputmode="decimal"></div>
+          <div class="field"><label for="cvunit">Volume unit</label>
+            <select id="cvunit" data-testid="cvunit"><option value="ml">mL</option><option value="floz">US fl oz</option></select></div>
+          <div class="field"><label for="cfill">Fill level (%)</label><input type="number" id="cfill" data-testid="cfill" value="90" min="10" max="100" step="1" inputmode="decimal"></div>
+          <div class="field"><label for="cdens">Wax density (g/mL)</label><input type="number" id="cdens" data-testid="cdens" value="0.86" min="0.80" max="0.95" step="0.01" inputmode="decimal"></div>
+          <div class="field"><label for="cload">Fragrance load (% of wax weight)</label><input type="number" id="cload" data-testid="cload" value="8" min="0" max="15" step="0.5" inputmode="decimal"></div>
+          <div class="field"><label for="ccount">Number of containers</label><input type="number" id="ccount" data-testid="ccount" value="1" min="1" max="500" step="1" inputmode="numeric"></div>
+        </div>
+        <p class="note">Density used: <strong data-testid="dens-used">0.86 g/mL</strong>. Solid container waxes are roughly 0.86–0.9 g/mL; 0.86 is the common rule of thumb (a jar's water weight × 0.86 ≈ its wax weight). Change it if your wax supplier gives a figure.</p>
+      </div>
+      <div class="card">
+        <h2>What to weigh</h2>
+        <div class="results" aria-live="polite" data-testid="candle-results">
+          <div class="res key"><small>Wax</small><b data-testid="wax">0</b></div>
+          <div class="res"><small>Fragrance oil</small><b data-testid="cfo">0</b></div>
+          <div class="res"><small>Total fill</small><b data-testid="cfill-out">0</b></div>
+        </div>
+        <ul class="warns" data-testid="candle-warns" aria-live="polite"></ul>
+        <p class="math" data-testid="candle-math"></p>
+        <div class="disclaimer" data-testid="wick-note"><strong>Wick size: test burns are required.</strong> The right wick depends on the container's diameter, your wax, the fragrance and dye. Start from your wick supplier's chart, then test-burn the finished candle: it should reach a full melt pool without a tall or smoking flame, and the container shouldn't overheat. Never leave a burning candle unattended. Stay within your wax's maximum fragrance load and the fragrance supplier's usage limits.</div>
+        <p class="note">Fragrance is taken as a % of wax weight: wax = total ÷ (1 + load), fragrance = wax × load. Treating fragrance as the same density as wax is an approximation.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="cta">
+    <p>Need a calculator where the numbers have to be right, with tests that prove it? That's the kind of work I do.</p>
+    <a href="../index.html#services">See services →</a>
+  </div>
+  <footer>Built by Zac Corbett · all math runs in your browser, nothing is sent anywhere · a planning aid, not safety certification</footer>
+</main>
+
+<script>
+(() => {
+  'use strict';
+  const G_PER_OZ = 28.349523125;
+  const ML_PER_FLOZ = 29.5735295625;
+  const KOH_PER_NAOH = 56.1 / 40;
+  // NaOH SAP used (SoapCalc) and the range across SoapCalc, From Nature With Love, The Soap Kitchen and Voyageur (KOH ÷ 1.4025).
+  const OILS = [
+    { id: 'olive',   name: 'Olive oil',            naoh: 0.135, lo: 0.134, hi: 0.135 },
+    { id: 'coconut', name: 'Coconut oil',  note: '76 °F', naoh: 0.183, lo: 0.183, hi: 0.191 },
+    { id: 'palm',    name: 'Palm oil',             naoh: 0.142, lo: 0.141, hi: 0.142 },
+    { id: 'shea',    name: 'Shea butter',          naoh: 0.128, lo: 0.128, hi: 0.128 },
+    { id: 'cocoa',   name: 'Cocoa butter',         naoh: 0.138, lo: 0.137, hi: 0.138 },
+    { id: 'castor',  name: 'Castor oil',           naoh: 0.128, lo: 0.128, hi: 0.129 },
+    { id: 'sunflower', name: 'Sunflower oil',      naoh: 0.135, lo: 0.134, hi: 0.136 },
+    { id: 'almond',  name: 'Sweet almond oil',     naoh: 0.139, lo: 0.135, hi: 0.139 },
+    { id: 'avocado', name: 'Avocado oil',          naoh: 0.133, lo: 0.133, hi: 0.138 },
+    { id: 'lard',    name: 'Lard',                 naoh: 0.141, lo: 0.138, hi: 0.141 },
+    { id: 'tallow',  name: 'Beef tallow',          naoh: 0.143, lo: 0.140, hi: 0.143 },
+  ];
+  const SAMPLE = { olive: 500, coconut: 300, shea: 150, castor: 50 };
+  const $ = (s) => document.querySelector(s);
+  const state = { unit: 'g', lye: 'naoh', wmode: 'conc', grams: {} };
+  OILS.forEach((o) => (state.grams[o.id] = SAMPLE[o.id] || 0));
+
+  const num = (el, d = 0) => { const v = parseFloat(el.value); return Number.isFinite(v) ? v : d; };
+  const fmtW = (g, unit = state.unit) => unit === 'oz' ? (g / G_PER_OZ).toFixed(2) + ' oz' : g.toFixed(1) + ' g';
+  const showVal = (g) => { const v = state.unit === 'oz' ? g / G_PER_OZ : g; return v === 0 ? '0' : String(+v.toFixed(state.unit === 'oz' ? 2 : 1)); };
+
+  // Pure lye model (grams in, grams out). Exposed for tests.
+  function soap({ grams, lye = 'naoh', superfat = 5, purity = 100, wmode = 'conc', conc = 33, ratio = 2, wpct = 38, fragrance = 3 }) {
+    let oils = 0, sapSum = 0; const rows = [];
+    for (const o of OILS) {
+      const g = +grams[o.id] || 0; if (g <= 0) continue;
+      const sap = lye === 'koh' ? o.naoh * KOH_PER_NAOH : o.naoh;
+      oils += g; sapSum += g * sap; rows.push({ id: o.id, g, sap, lye: g * sap });
+    }
+    const pure = sapSum * (1 - superfat / 100);
+    const lyeG = lye === 'koh' ? pure / (purity / 100) : pure;
+    let water;
+    if (wmode === 'conc') water = lyeG * (100 - conc) / conc;
+    else if (wmode === 'ratio') water = lyeG * ratio;
+    else water = oils * wpct / 100;
+    const fo = oils * fragrance / 100;
+    return { oils, sapSum, lye: lyeG, water, fo, batch: oils + lyeG + water + fo, rows,
+      concOut: lyeG + water > 0 ? 100 * lyeG / (lyeG + water) : 0, ratioOut: lyeG > 0 ? water / lyeG : 0 };
+  }
+
+  function candle({ vol, unit = 'ml', fill = 90, dens = 0.86, load = 8, count = 1 }) {
+    const ml = unit === 'floz' ? vol * ML_PER_FLOZ : vol;
+    const total = ml * fill / 100 * dens * count;
+    const wax = total / (1 + load / 100);
+    return { ml, total, wax, fo: wax * load / 100 };
+  }
+
+  // ── build oil table ──
+  const tbody = $('#oilrows');
+  for (const o of OILS) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${o.name}${o.note ? `<small>${o.note}</small>` : ''}</td><td data-testid="sap-naoh-${o.id}">${o.naoh.toFixed(3)}</td><td data-testid="sap-koh-${o.id}">${(o.naoh * KOH_PER_NAOH).toFixed(3)}</td>` +
+      `<td><input type="number" min="0" step="any" inputmode="decimal" id="oil-${o.id}" data-testid="oil-${o.id}" aria-label="${o.name} weight"></td>`;
+    tbody.appendChild(tr);
+    const rr = document.createElement('tr');
+    rr.innerHTML = `<td>${o.name}</td><td>${o.naoh.toFixed(3)}</td><td data-testid="range-${o.id}">${o.lo.toFixed(3)}–${o.hi.toFixed(3)}</td>`;
+    $('#rangerows').appendChild(rr);
+  }
+  const oilInput = (id) => document.getElementById('oil-' + id);
+  function paintOilInputs() { for (const o of OILS) oilInput(o.id).value = showVal(state.grams[o.id]); $('#wcol').textContent = `Weight (${state.unit})`; }
+  tbody.addEventListener('input', (e) => {
+    const id = e.target.id.replace('oil-', ''); const v = parseFloat(e.target.value);
+    state.grams[id] = Number.isFinite(v) && v > 0 ? v * (state.unit === 'oz' ? G_PER_OZ : 1) : 0;
+    render();
+  });
+
+  function inputs() {
+    return { grams: { ...state.grams }, lye: state.lye, superfat: num($('#superfat'), 5), purity: num($('#purity'), 100), wmode: state.wmode,
+      conc: num($('#conc'), 33), ratio: num($('#ratio'), 2), wpct: num($('#wpct'), 38), fragrance: num($('#fragrance'), 0) };
+  }
+
+  function render() {
+    const inp = inputs(); const r = soap(inp); const warns = [];
+    if (inp.superfat < 0 || inp.superfat > 20) warns.push('Superfat must be between 0 and 20%.');
+    else if (inp.superfat === 0) warns.push('A 0% superfat leaves no margin for SAP variation or weighing error; the soap could be lye-heavy.');
+    else if (inp.superfat < 3) warns.push('A superfat under 3% leaves little margin for SAP variation.');
+    if (state.wmode === 'conc' && (inp.conc < 25 || inp.conc > 40)) warns.push('Lye concentrations outside about 25–40% are unusual; very strong solutions may not dissolve and are more dangerous to handle.');
+    if (state.wmode === 'ratio' && (inp.ratio < 1.5 || inp.ratio > 3)) warns.push('Water : lye ratios outside about 1.5–3 : 1 are unusual; check your method.');
+    if (state.lye === 'koh' && (inp.purity < 80 || inp.purity > 100)) warns.push('KOH purity must be between 80 and 100%.');
+    if (inp.fragrance > 6) warns.push('Fragrance above 6% of oils is high; check the supplier\'s maximum usage rate for soap (IFRA category).');
+    if (r.oils === 0) warns.push('Enter at least one oil weight.');
+    const bad = warns.some((w) => /must be/.test(w));
+    const show = (sel, g) => ($(sel).textContent = bad || r.oils === 0 ? '—' : fmtW(g));
+    show('[data-testid=lye]', r.lye); show('[data-testid=water]', r.water); show('[data-testid=fo]', r.fo);
+    show('[data-testid=oils-out]', r.oils); show('[data-testid=batch]', r.batch);
+    $('[data-testid=oil-total]').textContent = fmtW(r.oils);
+    $('[data-testid=conc-out]').textContent = bad || r.oils === 0 ? '—' : r.concOut.toFixed(1) + '%';
+    $('[data-testid=ratio-out]').textContent = bad || r.oils === 0 ? '—' : r.ratioOut.toFixed(2) + ' : 1';
+    $('#lyeLabel').textContent = state.lye === 'koh' ? 'Potassium hydroxide (KOH)' : 'Sodium hydroxide (NaOH)';
+    $('[data-testid=soap-warns]').innerHTML = warns.map((w) => `<li>${w}</li>`).join('');
+    const sym = state.lye === 'koh' ? 'KOH' : 'NaOH';
+    $('[data-testid=soap-math]').textContent = r.oils === 0 ? '' :
+      `${sym} = Σ(oil × SAP) × (1 − ${inp.superfat}%)${state.lye === 'koh' && inp.purity !== 100 ? ` ÷ ${inp.purity}% purity` : ''} = ${r.sapSum.toFixed(2)} g × ${(1 - inp.superfat / 100).toFixed(3)} = ${r.lye.toFixed(2)} g · ` +
+      (state.wmode === 'conc' ? `water = lye × (100 − ${inp.conc}) ÷ ${inp.conc}` : state.wmode === 'ratio' ? `water = lye × ${inp.ratio}` : `water = oils × ${inp.wpct}%`);
+    window.__soapcalc.last = { ...r, inputs: inp, warns, unit: state.unit };
+  }
+
+  // ── controls ──
+  document.querySelectorAll('input[name=unit]').forEach((el) => el.addEventListener('change', () => { state.unit = el.value; paintOilInputs(); render(); }));
+  document.querySelectorAll('input[name=lye]').forEach((el) => el.addEventListener('change', () => {
+    state.lye = el.value; $('#purityWrap').hidden = $('#purityNote').hidden = state.lye !== 'koh'; render();
+  }));
+  document.querySelectorAll('input[name=wmode]').forEach((el) => el.addEventListener('change', () => {
+    state.wmode = el.value; ['conc', 'ratio', 'pct'].forEach((m) => ($('#w-' + m).hidden = m !== state.wmode)); render();
+  }));
+  ['#superfat', '#purity', '#fragrance', '#conc', '#ratio', '#wpct'].forEach((s) => $(s).addEventListener('input', render));
+  $('#sample').addEventListener('click', () => { OILS.forEach((o) => (state.grams[o.id] = SAMPLE[o.id] || 0)); paintOilInputs(); render(); });
+  $('#clear').addEventListener('click', () => { OILS.forEach((o) => (state.grams[o.id] = 0)); paintOilInputs(); render(); oilInput('olive').focus(); });
+
+  // ── candle ──
+  function renderCandle() {
+    const c = { vol: num($('#cvol')), unit: $('#cvunit').value, fill: num($('#cfill'), 90), dens: num($('#cdens'), 0.86), load: num($('#cload'), 0), count: Math.max(1, Math.round(num($('#ccount'), 1))) };
+    const r = candle(c); const warns = [];
+    if (c.dens < 0.8 || c.dens > 0.95) warns.push('Wax density should be about 0.86–0.9 g/mL; check the value.');
+    if (c.fill <= 0 || c.fill > 100) warns.push('Fill level must be between 1 and 100%.');
+    if (c.load > 12) warns.push('Over 12% fragrance is above most container waxes\' maximum; excess oil can seep out or burn unsafely. Check your wax\'s limit.');
+    if (c.vol <= 0) warns.push('Enter the container volume.');
+    const bad = c.vol <= 0 || c.fill <= 0 || c.fill > 100;
+    const both = (g) => bad ? '—' : `${g.toFixed(1)} g · ${(g / G_PER_OZ).toFixed(2)} oz`;
+    $('[data-testid=wax]').textContent = both(r.wax);
+    $('[data-testid=cfo]').textContent = both(r.fo);
+    $('[data-testid=cfill-out]').textContent = both(r.total);
+    $('[data-testid=dens-used]').textContent = c.dens + ' g/mL';
+    $('[data-testid=candle-warns]').innerHTML = warns.map((w) => `<li>${w}</li>`).join('');
+    $('[data-testid=candle-math]').textContent = bad ? '' : `total = ${r.ml.toFixed(1)} mL × ${c.fill}% × ${c.dens} g/mL${c.count > 1 ? ' × ' + c.count : ''} = ${r.total.toFixed(1)} g · wax = total ÷ ${(1 + c.load / 100).toFixed(3)}`;
+    window.__soapcalc.candleLast = { ...r, inputs: c, warns };
+  }
+  ['#cvol', '#cfill', '#cdens', '#cload', '#ccount'].forEach((s) => $(s).addEventListener('input', renderCandle));
+  $('#cvunit').addEventListener('change', renderCandle);
+
+  // ── tabs ──
+  const tabs = [$('#tab-soap'), $('#tab-candle')];
+  function select(t, focus) {
+    tabs.forEach((x) => { const on = x === t; x.setAttribute('aria-selected', on); x.tabIndex = on ? 0 : -1; document.getElementById(x.getAttribute('aria-controls')).hidden = !on; });
+    if (focus) t.focus();
+  }
+  tabs.forEach((t, i) => {
+    t.addEventListener('click', () => select(t));
+    t.addEventListener('keydown', (e) => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); select(tabs[(i + 1) % 2], true); } });
+  });
+
+  window.__soapcalc = { OILS, KOH_PER_NAOH, G_PER_OZ, soap, candle, last: null, candleLast: null };
+  paintOilInputs(); render(); renderCandle();
+})();
+</script>
+</body>
+</html>

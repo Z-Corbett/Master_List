@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Embroidery Hoop — preview a design in the hoop</title>
+<meta name="description" content="Preview a line design or your own picture inside a real-size embroidery hoop, on your fabric colour, with threads matched to a small generic palette, stitch suggestions per shape and a true-size, optionally mirrored transfer pattern with a 1 inch calibration square.">
+<style>
+  :root {
+    --linen: #efe8dc;
+    --linen-2: #e4dac9;
+    --ink: #2e2a26;
+    --ink-2: #6a6158;
+    --sage: #5d7a5f;
+    --sage-2: #dfe7da;
+    --terra: #b5563b;
+    --wood: #c89b63;
+    --card: #fbf8f2;
+    --serif: Georgia, "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+    --sans: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { color: var(--ink); font: 15px/1.55 var(--sans); background: var(--linen); overflow-x: hidden;
+    background-image: repeating-linear-gradient(0deg, rgba(90,70,40,.05) 0 1px, transparent 1px 4px), repeating-linear-gradient(90deg, rgba(90,70,40,.05) 0 1px, transparent 1px 4px); }
+  :focus-visible { outline: 3px solid var(--terra); outline-offset: 2px; }
+  button, input, select { font: inherit; color: inherit; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; background: var(--sage); color: #fff; text-decoration: none; font: 600 13px/1 var(--sans); padding: 8px 13px; border-radius: 999px; }
+  a.back:hover { background: var(--terra); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 52px 16px 40px; }
+  header.top { text-align: center; margin-bottom: 22px; }
+  .kicker { margin: 0; font: italic 16px/1.3 var(--serif); color: var(--terra); }
+  h1 { margin: 2px 0 6px; font: 400 clamp(34px, 7vw, 64px)/1.05 var(--serif); color: var(--sage); overflow-wrap: anywhere; }
+  header.top p { margin: 0 auto; max-width: 62ch; color: var(--ink-2); }
+  .stitchline { height: 0; border-top: 2px dashed var(--terra); width: min(280px, 70%); margin: 14px auto 0; }
+  .layout { display: grid; grid-template-columns: minmax(0, 330px) minmax(0, 1fr); gap: 22px; }
+  .layout > * { min-width: 0; }
+  .card { background: var(--card); border-radius: 14px; padding: 16px 18px; margin-bottom: 18px; box-shadow: 0 1px 0 #fff inset, 0 6px 18px rgba(60,40,20,.08); border: 1px solid var(--linen-2); }
+  .card h2 { margin: 0 0 10px; font: 400 21px/1.2 var(--serif); color: var(--sage); }
+  label.f, .f-legend { display: block; font-size: 13px; font-weight: 600; color: var(--ink-2); margin: 10px 0 4px; }
+  select { width: 100%; min-width: 0; padding: 7px 9px; border: 1px solid #cfc3ae; border-radius: 8px; background: #fff; }
+  fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+  .designs { display: flex; flex-wrap: wrap; gap: 8px; }
+  .designs button { border: 1px solid #cfc3ae; background: #fff; border-radius: 10px; padding: 6px 10px; cursor: pointer; font-size: 13px; min-width: 0; }
+  .designs button[aria-pressed=true] { background: var(--sage); border-color: var(--sage); color: #fff; }
+  .upload { margin-top: 12px; border: 1.5px dashed #b9ab93; border-radius: 10px; padding: 10px 12px; background: #fff; }
+  .upload input { max-width: 100%; font-size: 13px; }
+  .privacy { margin: 6px 0 0; font-size: 12.5px; color: var(--ink-2); }
+  .fabrics { display: flex; flex-wrap: wrap; gap: 8px; }
+  .fabrics label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; border: 1px solid #d9ceb9; border-radius: 999px; padding: 3px 10px 3px 4px; background: #fff; }
+  .fabrics input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .fabrics i { width: 20px; height: 20px; border-radius: 50%; border: 1px solid #0003; display: inline-block; }
+  .fabrics input:checked + i { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--terra); }
+  .fabrics input:focus-visible + i { outline: 3px solid var(--terra); outline-offset: 3px; }
+  input[type=range] { width: 100%; accent-color: var(--terra); }
+  .stage { display: grid; place-items: center; padding: 8px 0 4px; }
+  .stage svg { width: 100%; max-width: 520px; height: auto; display: block; }
+  .readout { text-align: center; font: italic 15px/1.5 var(--serif); color: var(--ink-2); margin: 4px 0 0; overflow-wrap: anywhere; }
+  .readout b { font-style: normal; color: var(--ink); }
+  .status { font-size: 13px; color: var(--sage); margin: 8px 0 0; min-height: 1.3em; }
+  .status.err { color: var(--terra); }
+  .threads { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .threads li { display: flex; align-items: center; gap: 7px; background: #fff; border: 1px solid #e0d6c4; border-radius: 999px; padding: 3px 11px 3px 3px; font-size: 13px; min-width: 0; }
+  .threads i { width: 22px; height: 22px; border-radius: 50%; border: 1px solid #0003; display: inline-block; flex: none;
+    background-image: repeating-linear-gradient(60deg, rgba(255,255,255,.28) 0 2px, transparent 2px 4px); }
+  .threads .low { color: var(--terra); font-weight: 600; }
+  .tablewrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid #e6dccb; text-align: left; vertical-align: top; }
+  th { font-size: 12px; color: var(--ink-2); font-weight: 600; }
+  td .sw { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 1px solid #0003; margin-right: 5px; vertical-align: -1px; }
+  .how { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 12px; }
+  .how div { background: var(--sage-2); border-radius: 10px; padding: 10px 12px; font-size: 13.5px; min-width: 0; }
+  .how b { display: block; font: 400 17px/1.2 var(--serif); color: var(--sage); margin-bottom: 3px; }
+  .how svg { float: right; margin: 0 0 4px 8px; }
+  .transfer-controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+  .btn { border: 0; background: var(--terra); color: #fff; padding: 8px 16px; border-radius: 999px; font-weight: 600; cursor: pointer; }
+  .btn:hover { background: #9a4630; }
+  .sheet { background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 14px; margin-top: 12px; overflow: hidden; }
+  .sheet svg.pattern { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+  .calib { display: flex; gap: 10px; align-items: center; margin-top: 12px; font-size: 12.5px; color: #333; flex-wrap: wrap; }
+  .calib .sq { width: 1in; height: 1in; border: 1px solid #000; flex: none; position: relative; }
+  .calib .sq::after { content: "1 in"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 11px; }
+  .calib p { margin: 0; min-width: 0; flex: 1 1 180px; }
+  .sheet .ttl { font: 400 15px/1.3 var(--serif); margin: 0 0 8px; }
+  .hire { background: var(--sage); color: #fff; border-radius: 14px; padding: 16px 18px; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; justify-content: space-between; }
+  .hire p { margin: 0; max-width: 64ch; min-width: 0; }
+  .hire a { background: #fff; color: var(--sage); padding: 8px 16px; border-radius: 999px; font-weight: 700; text-decoration: none; }
+  footer { margin-top: 18px; text-align: center; font-size: 12.5px; color: var(--ink-2); }
+  @media (max-width: 820px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  @media print {
+    @page { margin: 0.5in; }
+    body { background: #fff; }
+    body * { visibility: hidden; }
+    .sheet, .sheet * { visibility: visible; }
+    .sheet { position: absolute; left: 0; top: 0; border: 0; padding: 0; margin: 0; overflow: visible; }
+    .sheet svg.pattern { max-width: none; margin: 0; }
+    a.back { display: none; }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="top">
+    <p class="kicker">a hoop on the table, before the first stitch</p>
+    <h1>Embroidery Hoop</h1>
+    <p>See a design at real size inside a round or oval hoop, on your fabric, with threads from a small generic palette, a suggested stitch for each shape, and a true-size transfer to print.</p>
+    <div class="stitchline" aria-hidden="true"></div>
+  </header>
+
+  <div class="layout">
+    <div>
+      <section class="card" aria-labelledby="h-design">
+        <h2 id="h-design">Design</h2>
+        <div class="designs" role="group" aria-label="Bundled line designs" data-testid="designs"></div>
+        <div class="upload">
+          <label class="f" for="file" style="margin-top:0">Or use your own picture</label>
+          <input id="file" type="file" accept="image/*" data-testid="file" aria-describedby="privacy">
+          <p class="privacy" id="privacy" data-testid="privacy">Your picture stays on this device. It is read into a canvas in this tab and never uploaded: the page makes no network requests.</p>
+        </div>
+        <p class="status" data-testid="status" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="card" aria-labelledby="h-hoop">
+        <h2 id="h-hoop">Hoop &amp; fabric</h2>
+        <label class="f" for="hoop">Hoop (inner diameter)</label>
+        <select id="hoop" data-testid="hoop"></select>
+        <label class="f" for="fill">Design fills <output id="fill-out" data-testid="fill-out">75%</output> of the hoop</label>
+        <input id="fill" type="range" min="40" max="95" step="5" value="75" data-testid="fill">
+        <fieldset>
+          <legend class="f-legend">Fabric colour</legend>
+          <div class="fabrics" data-testid="fabrics"></div>
+        </fieldset>
+      </section>
+    </div>
+
+    <div>
+      <section class="card" aria-labelledby="h-prev">
+        <h2 id="h-prev">In the hoop</h2>
+        <div class="stage"><svg id="hoopsvg" data-testid="preview" role="img" viewBox="0 0 10 10"></svg></div>
+        <p class="readout" data-testid="readout" aria-live="polite"></p>
+      </section>
+
+      <section class="card" aria-labelledby="h-threads">
+        <h2 id="h-threads">Threads</h2>
+        <ul class="threads" data-testid="threads"></ul>
+        <p class="privacy">Each colour is matched to the nearest of 20 generic thread colours by CIEDE2000 colour difference (ΔE00). Names only, no brand numbers: hold real skeins against the fabric before you buy.</p>
+      </section>
+
+      <section class="card" aria-labelledby="h-stitch">
+        <h2 id="h-stitch">Suggested stitches</h2>
+        <div class="tablewrap">
+          <table data-testid="regions">
+            <thead><tr><th scope="col">Shape</th><th scope="col">Thread</th><th scope="col">Across</th><th scope="col">Stitch</th></tr></thead>
+            <tbody id="region-body"></tbody>
+          </table>
+        </div>
+        <p class="privacy" data-testid="region-note"></p>
+        <div class="how">
+          <div><svg width="54" height="18" viewBox="0 0 54 18" aria-hidden="true"><path d="M2 9h10M14 9h10M26 9h10M38 9h10" stroke="#5d7a5f" stroke-width="2.4" stroke-linecap="round"/></svg><b>Backstitch</b>For outlines, stems and anything thinner than about 2 mm (0.08 in). Each stitch goes back to meet the end of the last, so the line is unbroken.</div>
+          <div><svg width="40" height="24" viewBox="0 0 40 24" aria-hidden="true"><path d="M4 20L12 4M9 21L17 5M14 22L22 6M19 22L27 6M24 21L32 5" stroke="#b5563b" stroke-width="2.4" stroke-linecap="round"/></svg><b>Satin stitch</b>For small shapes up to about ⅜ in across. Straight stitches laid side by side cover the shape; longer ones snag and sag, which is why wider shapes get the next stitch.</div>
+          <div><svg width="44" height="24" viewBox="0 0 44 24" aria-hidden="true"><path d="M5 3v12M11 3v7M17 3v12M23 3v7M29 3v12M35 3v7M8 13v8M14 9v12M20 13v8M26 9v12M32 13v8" stroke="#c89b63" stroke-width="2.2" stroke-linecap="round"/></svg><b>Long-and-short</b>For shapes wider than ⅜ in. A first row of alternating long and short stitches, then rows that split into them, so no stitch is long and colours can blend.</div>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="h-transfer">
+        <h2 id="h-transfer">Transfer pattern</h2>
+        <div class="transfer-controls">
+          <label><input type="checkbox" id="mirror" data-testid="mirror"> Mirror it (for iron-on transfer pens and pencils)</label>
+          <button type="button" class="btn" id="print" data-testid="print">Print at true size</button>
+        </div>
+        <p class="privacy">Print at 100% ("Actual size"), not "Fit to page", then measure the square: it should be exactly 1 inch.</p>
+        <div class="sheet" data-testid="sheet">
+          <p class="ttl" data-testid="sheet-title"></p>
+          <svg class="pattern" id="pattern" data-testid="pattern" xmlns="http://www.w3.org/2000/svg"></svg>
+          <div class="calib"><div class="sq" data-testid="calib" aria-label="One inch calibration square"></div><p>Calibration: this square is 1 in × 1 in when printed at 100%. If it isn't, the pattern is off by the same factor.</p></div>
+        </div>
+      </section>
+
+      <div class="hire">
+        <p>Want a maker tool like this for your craft shop or pattern brand, with the maths checked by real browser tests? I build and test them.</p>
+        <a href="../index.html#services" data-testid="services-link">See services</a>
+      </div>
+    </div>
+  </div>
+  <footer>Built by Zac Corbett · SVG, canvas and CIEDE2000 colour matching in plain JavaScript · pictures never leave your device</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const el = (tag, attrs = {}) => { const e = document.createElementNS(svgNS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
+
+  // ---- colour ----
+  const hexRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  function rgbLab([R, G, B]) {
+    const [r, g, b] = [R, G, B].map((v) => { const c = v / 255; return c > 0.04045 ? ((c + 0.055) / 1.055) ** 2.4 : c / 12.92; });
+    const f = (t) => (t > 216 / 24389 ? Math.cbrt(t) : (24389 / 27 * t + 16) / 116);
+    const X = (0.4124564 * r + 0.3575761 * g + 0.1804375 * b) / 0.95047, Y = 0.2126729 * r + 0.7151522 * g + 0.072175 * b, Z = (0.0193339 * r + 0.119192 * g + 0.9503041 * b) / 1.08883;
+    return [116 * f(Y) - 16, 500 * (f(X) - f(Y)), 200 * (f(Y) - f(Z))];
+  }
+  function de00([L1, a1, b1], [L2, a2, b2]) {
+    const d = Math.PI / 180, p7 = (x) => x ** 7;
+    const Cab = (Math.hypot(a1, b1) + Math.hypot(a2, b2)) / 2, G = 0.5 * (1 - Math.sqrt(p7(Cab) / (p7(Cab) + p7(25))));
+    const A1 = a1 * (1 + G), A2 = a2 * (1 + G), C1 = Math.hypot(A1, b1), C2 = Math.hypot(A2, b2);
+    const hh = (b, a) => (b === 0 && a === 0 ? 0 : ((Math.atan2(b, a) / d) + 360) % 360);
+    const h1 = hh(b1, A1), h2 = hh(b2, A2);
+    const dh = C1 * C2 === 0 ? 0 : Math.abs(h2 - h1) <= 180 ? h2 - h1 : h2 - h1 > 180 ? h2 - h1 - 360 : h2 - h1 + 360;
+    const dL = L2 - L1, dC = C2 - C1, dH = 2 * Math.sqrt(C1 * C2) * Math.sin((dh * d) / 2);
+    const Lm = (L1 + L2) / 2, Cm = (C1 + C2) / 2;
+    const hm = C1 * C2 === 0 ? h1 + h2 : Math.abs(h1 - h2) <= 180 ? (h1 + h2) / 2 : h1 + h2 < 360 ? (h1 + h2 + 360) / 2 : (h1 + h2 - 360) / 2;
+    const T = 1 - 0.17 * Math.cos((hm - 30) * d) + 0.24 * Math.cos(2 * hm * d) + 0.32 * Math.cos((3 * hm + 6) * d) - 0.2 * Math.cos((4 * hm - 63) * d);
+    const SL = 1 + (0.015 * (Lm - 50) ** 2) / Math.sqrt(20 + (Lm - 50) ** 2), SC = 1 + 0.045 * Cm, SH = 1 + 0.015 * Cm * T;
+    const RT = -2 * Math.sqrt(p7(Cm) / (p7(Cm) + p7(25))) * Math.sin(60 * Math.exp(-(((hm - 275) / 25) ** 2)) * d);
+    return Math.sqrt((dL / SL) ** 2 + (dC / SC) ** 2 + (dH / SH) ** 2 + RT * (dC / SC) * (dH / SH));
+  }
+  const PALETTE = [
+    ['Ink black', '#1b1b1f'], ['Charcoal', '#4a4a52'], ['Dove grey', '#a7a9ac'], ['Snow white', '#f7f5f0'], ['Cream', '#efe3c2'],
+    ['Butter yellow', '#f2c94c'], ['Marigold', '#e8912d'], ['Coral', '#e8685a'], ['Poppy red', '#c62f2f'], ['Rose pink', '#e89ab4'],
+    ['Plum', '#7b3f7a'], ['Lavender', '#a99ad6'], ['Cornflower', '#5b7fd1'], ['Navy', '#243b6b'], ['Teal', '#2a8c8c'],
+    ['Sage', '#9bb08a'], ['Leaf green', '#4f8a3a'], ['Forest', '#2e5a36'], ['Caramel', '#b07a45'], ['Chocolate', '#5b3a29'],
+  ].map(([name, hex], i) => ({ i, name, hex, lab: rgbLab(hexRgb(hex)) }));
+  const nearestLab = (lab) => { let best = 0, bd = Infinity; PALETTE.forEach((p, i) => { const e = de00(lab, p.lab); if (e < bd) { bd = e; best = i; } }); return best; };
+  const nearest = (hex) => PALETTE[nearestLab(rgbLab(hexRgb(hex)))];
+
+  const HOOPS = [
+    ...[4, 5, 6, 7, 8, 10].map((d) => ({ id: 'r' + d, name: `${d} in round`, w: d, h: d })),
+    { id: 'o5x7', name: '5 × 7 in oval', w: 5, h: 7 },
+    { id: 'o6x9', name: '6 × 9 in oval', w: 6, h: 9 },
+  ];
+  const FABRICS = [['Natural linen', '#d9ccb4'], ['White cotton', '#f8f6f1'], ['Black', '#1c1c1e'], ['Navy', '#22304f'], ['Dusty pink', '#d9aeb0'], ['Sage', '#a9b79c']];
+
+  // ---- bundled designs: shapes in design units; kind 'line' = outline/stem, 'fill' = filled shape with an "across" width ----
+  const petals = [0, 1, 2, 3, 4].map((k) => ({ kind: 'fill', name: `Petal ${k + 1}`, tag: 'ellipse', a: { cx: 82, cy: 38, rx: 13, ry: 24, transform: `rotate(${k * 72} 82 62)` }, across: 26, color: '#e0708a' }));
+  const star = (cx, cy, R) => { const pts = []; for (let i = 0; i < 10; i++) { const r = i % 2 ? R * 0.45 : R, t = -Math.PI / 2 + (i * Math.PI) / 5; pts.push(`${(cx + r * Math.cos(t)).toFixed(2)},${(cy + r * Math.sin(t)).toFixed(2)}`); } return pts.join(' '); };
+  const DESIGNS = {
+    wildflower: {
+      name: 'Wildflower sprig', w: 160, h: 200,
+      shapes: [
+        { kind: 'line', name: 'Main stem', tag: 'path', a: { d: 'M80 196 C 78 150, 86 120, 82 86' }, color: '#3f7a3a' },
+        { kind: 'line', name: 'Bud stem', tag: 'path', a: { d: 'M84 104 Q 108 76 118 40' }, color: '#3f7a3a' },
+        { kind: 'fill', name: 'Left leaf', tag: 'ellipse', a: { cx: 60, cy: 152, rx: 21, ry: 8, transform: 'rotate(-30 60 152)' }, across: 16, color: '#6fa24e' },
+        { kind: 'fill', name: 'Right leaf', tag: 'ellipse', a: { cx: 102, cy: 130, rx: 22, ry: 9, transform: 'rotate(25 102 130)' }, across: 18, color: '#6fa24e' },
+        ...petals,
+        { kind: 'fill', name: 'Flower centre', tag: 'circle', a: { cx: 82, cy: 62, r: 11 }, across: 22, color: '#f0c040' },
+        { kind: 'fill', name: 'Bud', tag: 'circle', a: { cx: 120, cy: 32, r: 7 }, across: 14, color: '#e0708a', id: 'marker' },
+      ],
+    },
+    moon: {
+      name: 'Moon & stars', w: 200, h: 160,
+      shapes: [
+        { kind: 'fill', name: 'Crescent moon', tag: 'path', a: { d: 'M78 18 A 64 64 0 1 0 140 128 A 52 52 0 1 1 78 18 Z' }, across: 34, color: '#f3d98b', id: 'marker' },
+        { kind: 'line', name: 'Moon outline', tag: 'path', a: { d: 'M78 18 A 64 64 0 1 0 140 128 A 52 52 0 1 1 78 18 Z' }, color: '#c9a44a' },
+        { kind: 'fill', name: 'Big star', tag: 'polygon', a: { points: star(160, 36, 18) }, across: 20, color: '#e9c46a' },
+        { kind: 'fill', name: 'Small star', tag: 'polygon', a: { points: star(178, 100, 10) }, across: 11, color: '#e9c46a' },
+        { kind: 'fill', name: 'Tiny star', tag: 'polygon', a: { points: star(122, 144, 8) }, across: 9, color: '#e9c46a' },
+        { kind: 'line', name: 'Twinkle lines', tag: 'path', a: { d: 'M126 70 h10 M131 65 v10 M190 146 h8 M194 142 v8' }, color: '#9fb4dd' },
+      ],
+    },
+    mountain: {
+      name: 'Mountain lake', w: 200, h: 140,
+      shapes: [
+        { kind: 'fill', name: 'Sun', tag: 'circle', a: { cx: 152, cy: 34, r: 20 }, across: 40, color: '#ec9a3c' },
+        { kind: 'fill', name: 'Mountains', tag: 'polygon', a: { points: '0,104 58,30 96,78 138,44 200,104' }, across: 74, color: '#7d8fb3' },
+        { kind: 'fill', name: 'Snow cap', tag: 'polygon', a: { points: '46,45 58,30 70,45 63,42 57,47 52,43' }, across: 17, color: '#f4f2ea', id: 'marker' },
+        { kind: 'line', name: 'Mountain outline', tag: 'path', a: { d: 'M0 104 L58 30 L96 78 L138 44 L200 104' }, color: '#3d4f7a' },
+        { kind: 'line', name: 'Water lines', tag: 'path', a: { d: 'M20 116 h60 M100 116 h70 M40 126 h50 M110 126 h40 M70 136 h60' }, color: '#3c6e9e' },
+        { kind: 'line', name: 'Birds', tag: 'path', a: { d: 'M30 30 q6 -6 12 0 q6 -6 12 0 M70 16 q5 -5 10 0 q5 -5 10 0' }, color: '#3a3a40' },
+      ],
+    },
+  };
+
+  // ---- state ----
+  const state = { design: 'wildflower', hoop: 'r6', fill: 75, fabric: 0, mirror: false, image: null };
+  const SATIN_MAX = 0.375, LINE_MAX = 0.08;
+  const stitchFor = (acrossIn, isLine) => (isLine || acrossIn <= LINE_MAX ? 'Backstitch' : acrossIn <= SATIN_MAX ? 'Satin stitch' : 'Long-and-short');
+
+  function current() { return state.design === 'upload' && state.image ? { name: 'Your picture', w: state.image.w, h: state.image.h } : DESIGNS[state.design]; }
+  function fit() {
+    const d = current(), hp = HOOPS.find((h) => h.id === state.hoop), f = state.fill / 100;
+    // the design's box must sit inside the hoop's inner ellipse, corners on (fill × ellipse)
+    const scale = f / Math.hypot(d.w / hp.w, d.h / hp.h);
+    return { scale, wIn: d.w * scale, hIn: d.h * scale, hoop: hp, fill: f };
+  }
+
+  // ---- uploaded picture: quantise to the palette, find regions ----
+  const MAX_PX = 120;
+  function processImage(canvas) {
+    const w = canvas.width, h = canvas.height, data = canvas.getContext('2d').getImageData(0, 0, w, h).data;
+    const cache = new Map(), lab = new Int16Array(w * h);
+    for (let i = 0; i < w * h; i++) {
+      if (data[i * 4 + 3] < 128) { lab[i] = -1; continue; }
+      const key = (data[i * 4] << 16) | (data[i * 4 + 1] << 8) | data[i * 4 + 2];
+      let v = cache.get(key);
+      if (v === undefined) { v = nearestLab(rgbLab([data[i * 4], data[i * 4 + 1], data[i * 4 + 2]])); cache.set(key, v); }
+      lab[i] = v;
+    }
+    // background = the most common colour around the edge (or transparency): that is the fabric, not stitched
+    const edge = {};
+    for (let x = 0; x < w; x++) { [x, (h - 1) * w + x].forEach((i) => { edge[lab[i]] = (edge[lab[i]] || 0) + 1; }); }
+    for (let y = 0; y < h; y++) { [y * w, y * w + w - 1].forEach((i) => { edge[lab[i]] = (edge[lab[i]] || 0) + 1; }); }
+    const bg = +Object.keys(edge).sort((a, b) => edge[b] - edge[a])[0];
+    // keep at most 8 threads; fold the rarest into their nearest kept thread
+    const counts = {};
+    for (let i = 0; i < w * h; i++) if (lab[i] !== bg && lab[i] >= 0) counts[lab[i]] = (counts[lab[i]] || 0) + 1;
+    const kept = Object.keys(counts).map(Number).sort((a, b) => counts[b] - counts[a]).slice(0, 8);
+    const remap = {};
+    Object.keys(counts).map(Number).forEach((c) => {
+      if (kept.includes(c)) remap[c] = c;
+      else { let best = kept[0], bd = Infinity; kept.forEach((k) => { const e = de00(PALETTE[c].lab, PALETTE[k].lab); if (e < bd) { bd = e; best = k; } }); remap[c] = best; }
+    });
+    const grid = new Int16Array(w * h);
+    for (let i = 0; i < w * h; i++) grid[i] = lab[i] === bg || lab[i] < 0 ? -1 : remap[lab[i]];
+    // 4-connected components with area and perimeter (edge count)
+    const seen = new Uint8Array(w * h), regions = [];
+    for (let s = 0; s < w * h; s++) {
+      if (grid[s] < 0 || seen[s]) continue;
+      const c = grid[s], stack = [s]; seen[s] = 1; let area = 0, per = 0;
+      while (stack.length) {
+        const i = stack.pop(), x = i % w, y = (i - x) / w; area++;
+        for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
+          if (nx < 0 || ny < 0 || nx >= w || ny >= h) { per++; continue; }
+          const j = ny * w + nx;
+          if (grid[j] !== c) { per++; continue; }
+          if (!seen[j]) { seen[j] = 1; stack.push(j); }
+        }
+      }
+      regions.push({ thread: c, area, perimeter: per, acrossPx: (2 * area) / per });
+    }
+    regions.sort((a, b) => b.area - a.area);
+    // a coloured preview (fabric shows through the background) and the boundary lines for the transfer
+    const out = document.createElement('canvas'); out.width = w; out.height = h;
+    const og = out.getContext('2d'), img = og.createImageData(w, h);
+    for (let i = 0; i < w * h; i++) if (grid[i] >= 0) { const [r, g, b] = hexRgb(PALETTE[grid[i]].hex); img.data.set([r, g, b, 255], i * 4); }
+    og.putImageData(img, 0, 0);
+    let d = '';
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const c = grid[y * w + x];
+      if (x + 1 < w && grid[y * w + x + 1] !== c) d += `M${x + 1} ${y}v1`;
+      if (y + 1 < h && grid[(y + 1) * w + x] !== c) d += `M${x} ${y + 1}h1`;
+    }
+    return { w, h, bg, grid: Array.from(grid), regions, threads: kept, url: out.toDataURL('image/png'), outline: d };
+  }
+
+  async function loadFile(file) {
+    const st = $('[data-testid=status]');
+    if (!file || !/^image\//.test(file.type)) { st.textContent = 'That file is not an image.'; st.className = 'status err'; return; }
+    try {
+      const bmp = await createImageBitmap(file);
+      const k = Math.min(1, MAX_PX / Math.max(bmp.width, bmp.height));
+      const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(bmp.width * k)); c.height = Math.max(1, Math.round(bmp.height * k));
+      c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+      if (bmp.close) bmp.close();
+      state.image = processImage(c); state.design = 'upload';
+      st.className = 'status';
+      st.textContent = `Read your picture on this device: ${c.width} × ${c.height} px, ${state.image.threads.length} thread colour${state.image.threads.length === 1 ? '' : 's'}, ${state.image.regions.length} region${state.image.regions.length === 1 ? '' : 's'}.`;
+      render();
+    } catch (e) { st.textContent = 'Could not read that picture.'; st.className = 'status err'; }
+  }
+
+  // ---- rendering ----
+  function shapeEl(s, style) { const e = el(s.tag, { ...s.a, ...style }); if (s.id) e.setAttribute('data-shape', s.id); return e; }
+
+  function drawDesign(g, forTransfer) {
+    const d = current();
+    if (state.design === 'upload') {
+      if (forTransfer) g.appendChild(el('path', { d: state.image.outline, fill: 'none', stroke: '#000', 'stroke-width': 1.2, 'vector-effect': 'non-scaling-stroke', 'data-shape': 'outline' }));
+      else g.appendChild(el('image', { href: state.image.url, x: 0, y: 0, width: d.w, height: d.h, preserveAspectRatio: 'none', style: 'image-rendering:pixelated' }));
+      // a corner marker that makes mirroring visible to tests and to people
+      if (forTransfer) g.appendChild(el('path', { d: 'M0 0h4M0 0v4', stroke: '#000', 'stroke-width': 1.2, 'vector-effect': 'non-scaling-stroke', fill: 'none', 'data-shape': 'marker' }));
+      return;
+    }
+    d.shapes.forEach((s) => {
+      const t = nearest(s.color);
+      if (forTransfer) g.appendChild(shapeEl(s, { fill: 'none', stroke: '#000', 'stroke-width': 1.2, 'vector-effect': 'non-scaling-stroke' }));
+      else if (s.kind === 'fill') g.appendChild(shapeEl(s, { fill: t.hex }));
+      else g.appendChild(shapeEl(s, { fill: 'none', stroke: t.hex, 'stroke-width': 2.4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
+    });
+  }
+
+  function regionsList() {
+    const F = fit();
+    if (state.design === 'upload') {
+      return state.image.regions.map((r, i) => {
+        const across = r.acrossPx * F.scale;
+        return { name: `Region ${i + 1} (${(r.area * F.scale * F.scale).toFixed(2)} sq in)`, thread: PALETTE[r.thread], across, stitch: stitchFor(across, false) };
+      });
+    }
+    return current().shapes.map((s) => {
+      const across = s.kind === 'line' ? null : s.across * F.scale;
+      return { name: s.name, thread: nearest(s.color), across, stitch: stitchFor(across, s.kind === 'line') };
+    });
+  }
+
+  function render() {
+    const F = fit(), d = current(), hp = F.hoop, fabric = FABRICS[state.fabric][1];
+    document.querySelectorAll('.designs button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.design === state.design)));
+    // preview, in inches
+    const svg = $('#hoopsvg'), ring = 0.42, pad = 0.35;
+    svg.textContent = '';
+    const W = hp.w + 2 * (ring + pad), H = hp.h + 2 * (ring + pad) + 0.7;
+    svg.setAttribute('viewBox', `${-W / 2} ${-H / 2 - 0.35} ${W} ${H}`);
+    const defs = el('defs');
+    defs.innerHTML = `<clipPath id="inner"><ellipse cx="0" cy="0" rx="${hp.w / 2}" ry="${hp.h / 2}"/></clipPath>
+      <pattern id="weave" width="0.08" height="0.08" patternUnits="userSpaceOnUse"><rect width="0.08" height="0.08" fill="${fabric}"/><path d="M0 0.04h0.08M0.04 0v0.08" stroke="#000" stroke-opacity=".06" stroke-width="0.012"/></pattern>
+      <linearGradient id="woodg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e2bc86"/><stop offset=".5" stop-color="#c89b63"/><stop offset="1" stop-color="#a87a45"/></linearGradient>`;
+    svg.appendChild(defs);
+    // fabric spilling past the hoop
+    svg.appendChild(el('ellipse', { cx: 0, cy: 0, rx: hp.w / 2 + ring + pad * 0.8, ry: hp.h / 2 + ring + pad * 0.8, fill: fabric, opacity: 0.85 }));
+    svg.appendChild(el('ellipse', { cx: 0, cy: 0, rx: hp.w / 2, ry: hp.h / 2, fill: 'url(#weave)', 'data-testid': 'fabric' }));
+    const clip = el('g', { 'clip-path': 'url(#inner)' });
+    const g = el('g', { transform: `translate(${-F.wIn / 2} ${-F.hIn / 2}) scale(${F.scale})`, 'data-testid': 'design-g' });
+    drawDesign(g, false);
+    clip.appendChild(g); svg.appendChild(clip);
+    // wooden rings and the screw at the top
+    svg.appendChild(el('ellipse', { cx: 0, cy: 0, rx: hp.w / 2 + ring / 2, ry: hp.h / 2 + ring / 2, fill: 'none', stroke: 'url(#woodg)', 'stroke-width': ring, 'data-testid': 'ring' }));
+    svg.appendChild(el('ellipse', { cx: 0, cy: 0, rx: hp.w / 2 + ring, ry: hp.h / 2 + ring, fill: 'none', stroke: '#8a6236', 'stroke-width': 0.03 }));
+    const top = -hp.h / 2 - ring;
+    svg.appendChild(el('rect', { x: -0.32, y: top - 0.42, width: 0.64, height: 0.42, rx: 0.06, fill: '#b9b4ac', stroke: '#6f6a62', 'stroke-width': 0.03 }));
+    svg.appendChild(el('rect', { x: -0.08, y: top - 0.8, width: 0.16, height: 0.4, fill: '#9c978f' }));
+    svg.setAttribute('aria-label', `${d.name} in a ${hp.name} hoop on ${FABRICS[state.fabric][0].toLowerCase()} fabric; the design is ${F.wIn.toFixed(2)} by ${F.hIn.toFixed(2)} inches.`);
+    $('[data-testid=readout]').innerHTML = `<b data-testid="design-size">${F.wIn.toFixed(2)} × ${F.hIn.toFixed(2)} in</b> design in a <b>${hp.name}</b> hoop`;
+
+    // threads
+    const regs = regionsList(), used = [];
+    regs.forEach((r) => { if (!used.includes(r.thread)) used.push(r.thread); });
+    const fabLab = rgbLab(hexRgb(fabric));
+    $('[data-testid=threads]').innerHTML = used.map((t) => {
+      const e = de00(t.lab, fabLab), low = e < 12;
+      return `<li data-testid="thread" data-name="${t.name}" data-hex="${t.hex}"><i style="background-color:${t.hex}"></i>${t.name}${low ? ` <span class="low" data-testid="low-contrast">· close to the fabric (ΔE ${e.toFixed(0)})</span>` : ''}</li>`;
+    }).join('');
+
+    // stitch table (uploads: largest 15 regions)
+    const shown = state.design === 'upload' ? regs.slice(0, 15) : regs;
+    $('#region-body').innerHTML = shown.map((r) => `<tr data-testid="region-row" data-stitch="${r.stitch}"><td>${r.name}</td><td><span class="sw" style="background:${r.thread.hex}"></span>${r.thread.name}</td><td data-testid="across">${r.across === null ? 'line' : r.across.toFixed(2) + ' in'}</td><td data-testid="stitch">${r.stitch}</td></tr>`).join('');
+    const tally = {}; regs.forEach((r) => { tally[r.stitch] = (tally[r.stitch] || 0) + 1; });
+    $('[data-testid=region-note]').textContent = (state.design === 'upload'
+      ? `Regions are patches of one thread colour. "Across" is 2 × area ÷ perimeter, the width of a strip with the same area and edge. ${regs.length > 15 ? `Showing the 15 largest of ${regs.length}. ` : ''}`
+      : '"Across" is the narrowest width of each filled shape at this size. ')
+      + 'Totals: ' + Object.keys(tally).map((k) => `${tally[k]} × ${k.toLowerCase()}`).join(', ') + '.';
+
+    // transfer pattern at true size (CSS inches)
+    const pat = $('#pattern');
+    pat.textContent = '';
+    pat.setAttribute('width', F.wIn.toFixed(4) + 'in');
+    pat.setAttribute('height', F.hIn.toFixed(4) + 'in');
+    pat.setAttribute('viewBox', `0 0 ${d.w} ${d.h}`);
+    pat.setAttribute('role', 'img');
+    pat.setAttribute('aria-label', `Transfer outline of ${d.name}, ${F.wIn.toFixed(2)} by ${F.hIn.toFixed(2)} inches${state.mirror ? ', mirrored' : ''}.`);
+    const tg = el('g', { transform: state.mirror ? `matrix(-1 0 0 1 ${d.w} 0)` : 'matrix(1 0 0 1 0 0)', 'data-testid': 'pattern-g' });
+    drawDesign(tg, true);
+    pat.appendChild(tg);
+    $('[data-testid=sheet-title]').textContent = `${d.name} · ${F.wIn.toFixed(2)} × ${F.hIn.toFixed(2)} in · for a ${hp.name} hoop${state.mirror ? ' · MIRRORED for iron-on' : ''}`;
+    window.__hoop.fit = F; window.__hoop.regions = regs;
+  }
+
+  // ---- controls ----
+  const dz = $('.designs');
+  Object.keys(DESIGNS).forEach((id) => {
+    const b = document.createElement('button'); b.type = 'button'; b.dataset.design = id; b.textContent = DESIGNS[id].name; b.setAttribute('data-testid', 'design-' + id);
+    b.addEventListener('click', () => { state.design = id; $('[data-testid=status]').textContent = ''; render(); });
+    dz.appendChild(b);
+  });
+  $('#hoop').innerHTML = HOOPS.map((h) => `<option value="${h.id}">${h.name}</option>`).join('');
+  $('#hoop').value = state.hoop;
+  $('#hoop').addEventListener('change', (e) => { state.hoop = e.target.value; render(); });
+  $('#fill').addEventListener('input', (e) => { state.fill = +e.target.value; $('#fill-out').textContent = state.fill + '%'; render(); });
+  $('.fabrics').innerHTML = FABRICS.map(([n, h], i) => `<label><input type="radio" name="fabric" value="${i}" data-testid="fabric-${i}"${i === 0 ? ' checked' : ''}><i style="background:${h}"></i>${n}</label>`).join('');
+  document.querySelectorAll('input[name=fabric]').forEach((r) => r.addEventListener('change', () => { state.fabric = +r.value; render(); }));
+  $('#mirror').addEventListener('change', (e) => { state.mirror = e.target.checked; render(); });
+  $('#file').addEventListener('change', (e) => loadFile(e.target.files[0]));
+  $('#print').addEventListener('click', () => window.print());
+
+  window.__hoop = { state, PALETTE, HOOPS, DESIGNS, FABRICS, nearest: (hex) => nearest(hex).name, nearestLab: (lab) => PALETTE[nearestLab(lab)].name, de00, rgbLab, SATIN_MAX, LINE_MAX };
+  render();
+})();
+</script>
+</body>
+</html>

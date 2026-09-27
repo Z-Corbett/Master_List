@@ -1,0 +1,37 @@
+{
+  "id": "166",
+  "slug": "166-type-scale",
+  "file": "lab/166-type-scale.html",
+  "title": "Type Scale & Pairing — modular scales that read well",
+  "category": "Tools",
+  "tags": ["typography", "css", "clamp", "wcag-contrast", "responsive"],
+  "description": "A modular type scale from a base size and one of eight classic ratios, from the minor second (1.067) to the golden ratio (1.618), with px and rem values and line-height guidance for each step. It also generates fluid clamp() sizes that run from one scale at a small viewport to another at a large one, and counts the characters per line of a live paragraph against the 45–75 guideline. Font pairings are previewed with system font stacks only, so nothing is downloaded. Text colour contrast is checked with the WCAG 2 ratio and can be adjusted until it passes AA, and the result copies as CSS custom properties.",
+  "prompt": "Build a type scale and pairing tool. A modular scale from a base size with the classic ratios (minor second 1.067, major second 1.125, minor third 1.2, major third 1.25, perfect fourth 1.333, augmented fourth 1.414, perfect fifth 1.5, golden 1.618), with the rounding stated. Give line-height and measure guidance (about 45–75 characters, presented as a guideline), with a live characters-per-line counter. Preview font pairings using only system and generic font stacks: no web fonts, no external requests. Generate fluid clamp() values between two viewport widths, check text colours for contrast, and copy everything as CSS custom properties. Tests should check the scale values, prove the clamp() maths by resizing the viewport and reading computed font sizes, check the measure counter against an independent layout and check the exported CSS text exactly.",
+  "qa": {
+    "methodology": [
+      "Scale oracle: for all eight ratios the spec computes 16 × ratio^n itself and compares the px column (2 decimals), the rem column (px ÷ 16 to 4 decimals) and the computed font size of each sample. Published anchor values back it up: 16 × 1.25⁵ = 48.83, 16 × 1.618² = 41.89, 16 / 1.2² = 11.11. Line-height guidance is checked against 1.5 − 0.1 × step, clamped to 1.1–1.6, over 13 steps.",
+      "clamp() maths two ways: the spec rebuilds every clamp() string from the definition (a straight line through the minimum at 360 px and the maximum at 1280 px) and parses the page's numbers back to confirm that the line passes through both ends to within 0.01 px. It then resizes the real viewport to 360, 820, 1280, 300 and 1600 px and reads getComputedStyle font sizes: the minimum, the linear midpoint, the maximum, and clamping outside the range. A probe element given only the preferred calc() value must hit both ends too.",
+      "Measure counter: an independent layout in the spec clones the paragraph at the same width, wraps each word in a span, groups the words by offsetTop and counts characters per full line. The page's Range-based counter must agree at three widths, and the verdict must follow the 45/75 thresholds. The 'fit to about 66 characters' button must land in range, or on a phone too narrow for it, say so with the real count.",
+      "Contrast: a WCAG 2 luminance function in the spec reproduces the textbook 4.48:1 for #777 on white and 21:1 for black on white. Steps of 24 px, or 18.66 px when bold, must use the large-text rule. Adjust for AA must reach at least 4.5:1 but stop before 4.8:1, and must lighten rather than darken on a dark background.",
+      "Output: the exported CSS is compared character for character with text the spec builds itself in fluid and static modes. The same text must reach the clipboard (read back through the Clipboard API) and must be the stylesheet the page applies to itself. The pairing test finds 24 font-family declarations that each end in a generic family, no @font-face, no url(), an empty document.fonts and zero font requests."
+    ],
+    "risks": [
+      "The pairing previews depend on the fonts installed on the viewer's device, so the same stack can look different on Windows, macOS, Android and Linux. Every stack ends in a generic family, so text is never blank.",
+      "The 45–75 character range and the line-height rule are editorial guidelines, not standards, and the page presents them that way.",
+      "Rounding to 4 decimal places in rem can shift a clamp() end by up to about 0.001 px, which is below anything a browser renders but is why the spec uses small tolerances rather than exact equality on computed sizes.",
+      "Clipboard access can be blocked by the browser; the page falls back to execCommand, and failing that it tells the user to copy by hand."
+    ],
+    "playwright": "page.setViewportSize plus expect.poll on innerWidth made the fluid test real, reading computed font sizes at five widths on both the desktop and the Pixel 7 project rather than trusting the arithmetic. context.grantPermissions(['clipboard-read', 'clipboard-write']) let the spec read the clipboard back. On Windows the clipboard returned CRLF line endings, so the comparison normalises them and the spec explains why. Two real page problems came up while writing the spec. The live fluid preview listed its steps in the wrong order: slice(-4) took the smallest steps, not the largest. The 'fit to 66 characters' button could not reach 66 characters on the 412 px Pixel 7 screen, and it had been silently leaving the text too short, so the page now says the screen is too narrow and gives the real count. The spec branches on the measured width instead of skipping mobile. The request listener and document.fonts together prove that the pairings never fetch a font.",
+    "coverage": [
+      "Eight ratios × eight steps: px, rem, sample size; published anchors",
+      "Line-height rule over 13 steps",
+      "clamp() strings rebuilt from the definition; the line passes through both ends",
+      "Viewport resize at 360/820/1280/300/1600 px, preferred value probe",
+      "Measure counter vs a word-span layout; verdicts; fit button on desktop and phone",
+      "WCAG ratio anchors, large-text rule, AA fix on light and dark",
+      "System stacks only: generic fallbacks, no @font-face or font requests",
+      "Exact exported CSS in both modes, clipboard, self-applied stylesheet"
+    ]
+  },
+  "a11y": "All settings are labelled native inputs and selects, and the output mode uses toggle buttons with aria-pressed. The scale is a real table with column headers. The contrast result, the measure readout and the copy status are aria-live. Each pairing preview is a button with aria-pressed, and the generated CSS block is focusable with an accessible name. The fluid fields are disabled, not hidden, in static mode."
+}

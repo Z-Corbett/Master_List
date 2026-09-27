@@ -1,0 +1,1767 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Playwright Migrator — convert Selenium and Cypress tests</title>
+<meta name="description" content="Paste Cypress or Selenium WebDriver tests (JavaScript or Python) and get idiomatic Playwright Test TypeScript: recommended locators, web-first assertions instead of fixed sleeps, a side-by-side diff with a note on every line, and a migration report of what converted, what needs a human, and which sleeps were removed.">
+<style>
+  :root {
+    --bg: #0e1116;
+    --panel: #151a22;
+    --panel-2: #1b212b;
+    --line: #2a323f;
+    --ink: #e6e9ef;
+    --muted: #9aa4b5;
+    --teal: #3ad6b4;
+    --teal-ink: #0b2a24;
+    --amber: #f2b33d;
+    --amber-ink: #2d1f00;
+    --rose: #ff7a85;
+    --violet: #b59cff;
+    --sky: #7cc4ff;
+    --mono: "Cascadia Mono", Consolas, "SF Mono", Menlo, "DejaVu Sans Mono", monospace;
+    --sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--sans); overflow-x: hidden; }
+  body::before { content: ""; position: fixed; inset: 0; pointer-events: none; background: radial-gradient(900px 400px at 85% -10%, rgba(58, 214, 180, .12), transparent 60%), radial-gradient(700px 360px at -10% 20%, rgba(181, 156, 255, .08), transparent 60%); }
+  :focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+  a { color: var(--sky); }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; background: var(--teal); color: var(--teal-ink); text-decoration: none; font: 700 13px/1 var(--sans); padding: 8px 12px; border-radius: 6px; }
+  .wrap { position: relative; max-width: 1200px; margin: 0 auto; padding: 62px 16px 56px; }
+  header .kicker { margin: 0; font: 600 12px/1.4 var(--mono); color: var(--teal); letter-spacing: .12em; text-transform: uppercase; overflow-wrap: anywhere; }
+  h1 { margin: 8px 0 0; font: 800 clamp(30px, 6vw, 54px)/1.03 var(--sans); letter-spacing: -.02em; overflow-wrap: anywhere; }
+  h1 .arrow { color: var(--teal); }
+  .lede { max-width: 74ch; color: var(--muted); margin: 12px 0 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; padding: 0; list-style: none; }
+  .chips li { font: 600 12px var(--mono); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; color: var(--muted); }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; margin-top: 18px; }
+  .panel h2 { margin: 0 0 12px; font: 700 18px/1.25 var(--sans); display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+  .panel h2 small { font: 500 12px var(--mono); color: var(--muted); }
+  .grid-in { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 10px; align-items: end; }
+  @media (max-width: 720px) { .grid-in { grid-template-columns: minmax(0, 1fr); } }
+  .field { display: grid; gap: 4px; min-width: 0; }
+  label, .lbl { font: 600 12px/1.3 var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  select, textarea { width: 100%; max-width: 100%; min-width: 0; background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font: 14px var(--sans); }
+  textarea { font: 13px/1.5 var(--mono); min-height: 300px; resize: vertical; white-space: pre; overflow-wrap: normal; overflow-x: auto; tab-size: 2; margin-top: 10px; }
+  .btn { min-height: 40px; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--teal); background: var(--teal); color: var(--teal-ink); font: 700 14px var(--sans); cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+  .btn:hover { filter: brightness(1.1); }
+  .row-btns { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .stats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+  @media (max-width: 900px) { .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .stat { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px; min-width: 0; }
+  .stat b { display: block; font: 800 28px/1 var(--sans); }
+  .stat span { display: block; margin-top: 4px; font: 600 11px/1.3 var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: .04em; overflow-wrap: anywhere; }
+  .stat.conv b { color: var(--teal); } .stat.flag b { color: var(--amber); } .stat.sleep b { color: var(--rose); } .stat.rm b { color: var(--violet); }
+  .summary { margin: 12px 0 0; color: var(--ink); }
+  .cfg { margin: 10px 0 0; font: 13px var(--mono); color: var(--amber); overflow-wrap: anywhere; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; font: 12px var(--mono); color: var(--muted); margin: 0 0 10px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+  .diff { display: grid; gap: 8px; }
+  .drow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel-2); }
+  .drow[data-status=converted] { border-left-color: var(--teal); }
+  .drow[data-status=flagged] { border-left-color: var(--amber); }
+  .drow[data-status=sleep] { border-left-color: var(--rose); }
+  .drow[data-status=removed] { border-left-color: var(--violet); }
+  .drow[data-status=structure] { background: transparent; }
+  @media (max-width: 760px) { .drow { grid-template-columns: minmax(0, 1fr); } .drow .out { border-left: 0 !important; border-top: 1px dashed var(--line); } }
+  .drow pre { margin: 0; padding: 8px 10px; font: 12.5px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
+  .drow .in { color: #c9cfda; }
+  .drow .out { border-left: 1px dashed var(--line); color: var(--ink); }
+  .drow[data-status=sleep] .in, .drow[data-status=removed] .in { text-decoration: line-through; text-decoration-color: rgba(255, 122, 133, .6); }
+  .drow .ln { color: #5f6b7e; user-select: none; }
+  .drow .notes { grid-column: 1 / -1; margin: 0; padding: 6px 10px 8px 12px; list-style: none; border-top: 1px solid var(--line); font: 13px/1.45 var(--sans); color: var(--muted); }
+  .drow .notes li::before { content: "↳ "; color: var(--teal); }
+  .drow[data-status=flagged] .notes li::before { content: "⚑ "; color: var(--amber); }
+  .badge { display: inline-block; font: 700 10.5px/1 var(--mono); padding: 3px 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: .05em; margin-right: 6px; vertical-align: 1px; }
+  .b-converted { background: var(--teal); color: var(--teal-ink); } .b-flagged { background: var(--amber); color: var(--amber-ink); } .b-sleep { background: var(--rose); color: #2b0508; } .b-removed { background: var(--violet); color: #1b1040; } .b-kept { background: #3a4353; color: var(--ink); }
+  .empty-out { color: #6d788b; font-style: italic; }
+  .tbl-wrap { overflow-x: auto; max-width: 100%; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
+  th { font: 600 11.5px var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  td code { font: 12.5px var(--mono); color: var(--sky); }
+  td code.to { color: var(--teal); }
+  td.weak { color: var(--amber); }
+  pre.code { margin: 0; background: #0a0d12; border: 1px solid var(--line); border-radius: 10px; padding: 12px; font: 12.5px/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 560px; overflow: auto; }
+  .k { color: var(--violet); } .s { color: #ffd38a; } .c { color: #6f7c90; font-style: italic; } .m { color: var(--amber); font-weight: 700; } .f { color: var(--sky); }
+  .toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+  .toolbar label { text-transform: none; letter-spacing: 0; font: 14px var(--sans); color: var(--ink); display: inline-flex; align-items: center; gap: 6px; }
+  .status { font: 13px var(--mono); color: var(--teal); min-height: 1.2em; }
+  .cta { margin-top: 26px; border: 1px solid var(--teal); background: linear-gradient(135deg, rgba(58, 214, 180, .12), rgba(181, 156, 255, .08)); border-radius: 14px; padding: 20px; }
+  .cta h2 { margin: 0 0 6px; font: 800 22px/1.2 var(--sans); }
+  .cta p { margin: 6px 0 0; color: var(--muted); max-width: 72ch; }
+  .cta .btn { display: inline-block; text-decoration: none; margin-top: 14px; }
+  .cta ul { margin: 10px 0 0; padding-left: 18px; color: var(--ink); }
+  .fine { font-size: 13px; color: var(--muted); margin-top: 18px; max-width: 80ch; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<main class="wrap">
+  <header>
+    <p class="kicker">QA &amp; Testing · Lab 158</p>
+    <h1>Playwright Migrator</h1>
+    <p class="lede" style="color:var(--ink);font-weight:600;margin-top:6px">Cypress &amp; Selenium <span class="arrow" style="color:var(--teal)" aria-label="to">→</span> Playwright Test</p>
+    <p class="lede">Paste Cypress or Selenium WebDriver tests (JavaScript, or Python with pytest) and get idiomatic Playwright Test TypeScript. It tokenizes and reads each command chain, not find-and-replace. Selectors map to <code>getByRole</code>, <code>getByTestId</code> and friends where there's a match. Fixed sleeps become web-first assertions. Anything it can't convert is commented out and flagged, never dropped silently.</p>
+    <ul class="chips" aria-label="What it handles">
+      <li>cy.get / contains / within / each</li><li>intercept + wait('@alias')</li><li>fixture</li><li>By.* locators</li><li>until.* waits</li><li>assert / chai / pytest assert</li><li>custom commands flagged</li>
+    </ul>
+  </header>
+
+  <section class="panel" aria-labelledby="in-h">
+    <h2 id="in-h">1 · Your tests</h2>
+    <div class="grid-in">
+      <div class="field">
+        <label for="example">Example</label>
+        <select id="example" data-testid="example">
+          <option value="">Choose a bundled example…</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="lang">Source framework</label>
+        <select id="lang" data-testid="lang">
+          <option value="auto">Detect automatically</option>
+          <option value="cy">Cypress (JS/TS)</option>
+          <option value="wd">Selenium WebDriver (JavaScript)</option>
+          <option value="py">Selenium WebDriver (Python + pytest)</option>
+        </select>
+      </div>
+      <button class="btn" id="convert" data-testid="convert" type="button">Convert to Playwright</button>
+    </div>
+    <label for="src" class="sr">Test source to convert</label>
+    <textarea id="src" data-testid="source" spellcheck="false" aria-describedby="src-hint"></textarea>
+    <p id="src-hint" class="fine" style="margin-top:6px">Runs entirely in your browser. Nothing you paste leaves the page.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="rep-h" data-testid="report">
+    <h2 id="rep-h">2 · Migration report <small id="detected" data-testid="detected"></small></h2>
+    <div class="stats">
+      <div class="stat"><b id="n-tests" data-testid="n-tests">0</b><span>Tests</span></div>
+      <div class="stat conv"><b id="n-converted" data-testid="n-converted">0</b><span>Statements converted</span></div>
+      <div class="stat flag"><b id="n-flagged" data-testid="n-flagged">0</b><span>Flagged for review</span></div>
+      <div class="stat sleep"><b id="n-sleeps" data-testid="n-sleeps">0</b><span>Fixed sleeps removed</span></div>
+      <div class="stat rm"><b id="n-removed" data-testid="n-removed">0</b><span>Setup lines dropped</span></div>
+      <div class="stat"><b id="n-locators" data-testid="n-locators">0</b><span>Selectors mapped</span></div>
+    </div>
+    <p class="summary" id="summary" data-testid="summary" role="status" aria-live="polite"></p>
+    <p class="cfg" id="cfg" data-testid="config-note" hidden></p>
+  </section>
+
+  <section class="panel" aria-labelledby="diff-h">
+    <div class="toolbar">
+      <h2 id="diff-h" style="margin:0">3 · Side by side</h2>
+      <label><input type="checkbox" id="only-review" data-testid="only-review"> Only rows that need attention</label>
+    </div>
+    <p class="legend" aria-hidden="true"><span><i style="background:var(--teal)"></i>converted</span><span><i style="background:var(--amber)"></i>flagged</span><span><i style="background:var(--rose)"></i>sleep removed</span><span><i style="background:var(--violet)"></i>dropped</span><span><i style="background:#3a4353"></i>carried over</span></p>
+    <div class="diff" id="diff" data-testid="diff"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="map-h">
+    <h2 id="map-h">4 · Selector mappings <small>why each locator was chosen</small></h2>
+    <div class="tbl-wrap">
+      <table data-testid="mappings">
+        <thead><tr><th scope="col">Original</th><th scope="col">Playwright</th><th scope="col">Why</th></tr></thead>
+        <tbody id="maps"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="out-h">
+    <div class="toolbar">
+      <h2 id="out-h" style="margin:0" tabindex="-1">5 · migrated.spec.ts</h2>
+      <div class="row-btns">
+        <button class="btn ghost" type="button" id="copy" data-testid="copy">Copy code</button>
+        <button class="btn ghost" type="button" id="dl" data-testid="download">Download .spec.ts</button>
+        <button class="btn ghost" type="button" id="dl-rep" data-testid="download-report">Download report (.md)</button>
+      </div>
+    </div>
+    <p class="status" id="copy-status" data-testid="copy-status" role="status" aria-live="polite"></p>
+    <pre class="code" id="out" data-testid="output" tabindex="0" aria-label="Converted Playwright test file"></pre>
+  </section>
+
+  <section class="cta" aria-labelledby="cta-h" data-testid="cta">
+    <h2 id="cta-h">Want the whole suite moved, not just one file?</h2>
+    <p>This page handles the common API surface. A real migration also means porting custom commands into fixtures, replacing brittle selectors with roles, setting up projects and CI, and proving the new suite is stable. I do that work.</p>
+    <ul>
+      <li><b>Playwright Starter Suite ($1,500)</b>: a fresh, CI-ready suite for your critical paths, a good fit when the old tests are worth rewriting rather than translating.</li>
+      <li><b>Hourly ($65/hr)</b>: a migration sprint on your existing Cypress or Selenium tests, scoped to what you need.</li>
+    </ul>
+    <a class="btn" href="../index.html#services" data-testid="cta-link">See services and pricing</a>
+  </section>
+
+  <p class="fine">Limits, honestly: this converts the common API surface, not every plugin, custom command or dynamic chain. Code that runs inside <code>.then()</code> callbacks, jQuery work on yielded elements, iframes, and Python control flow are flagged for a person to rewrite. Read the flagged rows before you trust the file, and run it.</p>
+</main>
+
+<script>
+/* Playwright Migrator engine: a small tokenizer, a statement splitter, a call-chain reader and a converter
+   for the common Cypress and Selenium WebDriver (JavaScript and Python) API surface. */
+const Migrator = (() => {
+  // ---------- tokenizer ----------
+  const PUNC3 = ['===', '!==', '...', '**=', '>>>'];
+  const PUNC2 = ['=>', '==', '!=', '&&', '||', '?.', '<=', '>=', '++', '--', '+=', '-=', '*=', '/=', '**', '??'];
+  function tokenize(src) {
+    const toks = [];
+    let i = 0, line = 1;
+    const lastSig = () => { for (let k = toks.length - 1; k >= 0; k--) if (toks[k].t !== 'nl' && toks[k].t !== 'comment') return toks[k]; return null; };
+    while (i < src.length) {
+      const c = src[i];
+      if (c === '\n') { toks.push({ t: 'nl', v: '\n', s: i, e: i + 1, line }); line++; i++; continue; }
+      if (c === ' ' || c === '\t' || c === '\r') { i++; continue; }
+      const s = i, l = line;
+      if (c === '/' && src[i + 1] === '/') { while (i < src.length && src[i] !== '\n') i++; toks.push({ t: 'comment', v: src.slice(s, i), s, e: i, line: l }); continue; }
+      if (c === '/' && src[i + 1] === '*') {
+        const j = src.indexOf('*/', i + 2); i = j < 0 ? src.length : j + 2;
+        const v = src.slice(s, i); line += (v.match(/\n/g) || []).length;
+        toks.push({ t: 'comment', v, s, e: i, line: l }); continue;
+      }
+      if (c === '"' || c === "'") {
+        i++;
+        while (i < src.length && src[i] !== c && src[i] !== '\n') { if (src[i] === '\\') i++; i++; }
+        i++; toks.push({ t: 'str', v: src.slice(s, i), s, e: i, line: l }); continue;
+      }
+      if (c === '`') {
+        i++; let depth = 0;
+        while (i < src.length) {
+          if (src[i] === '\\') { i += 2; continue; }
+          if (depth === 0 && src[i] === '`') { i++; break; }
+          if (src[i] === '$' && src[i + 1] === '{') { depth++; i += 2; continue; }
+          if (depth > 0 && src[i] === '}') depth--;
+          if (src[i] === '\n') line++;
+          i++;
+        }
+        toks.push({ t: 'tpl', v: src.slice(s, i), s, e: i, line: l }); continue;
+      }
+      if (/[0-9]/.test(c) || (c === '.' && /[0-9]/.test(src[i + 1] || ''))) {
+        while (i < src.length && /[0-9a-fA-FxX._n]/.test(src[i])) i++;
+        toks.push({ t: 'num', v: src.slice(s, i), s, e: i, line: l }); continue;
+      }
+      if (/[A-Za-z_$]/.test(c)) {
+        while (i < src.length && /[A-Za-z0-9_$]/.test(src[i])) i++;
+        toks.push({ t: 'id', v: src.slice(s, i), s, e: i, line: l }); continue;
+      }
+      if (c === '/') {
+        const p = lastSig();
+        const regexOk = !p || (p.t === 'punc' && !/^[)\]}]$/.test(p.v)) || (p.t === 'id' && /^(return|typeof|in|of|case|do|else)$/.test(p.v));
+        if (regexOk) {
+          i++; let cls = false;
+          while (i < src.length && src[i] !== '\n') {
+            if (src[i] === '\\') { i += 2; continue; }
+            if (src[i] === '[') cls = true; else if (src[i] === ']') cls = false;
+            else if (src[i] === '/' && !cls) break;
+            i++;
+          }
+          i++; while (i < src.length && /[a-z]/.test(src[i])) i++;
+          toks.push({ t: 'regex', v: src.slice(s, i), s, e: i, line: l }); continue;
+        }
+      }
+      const three = src.substr(i, 3), two = src.substr(i, 2);
+      const v = PUNC3.includes(three) ? three : PUNC2.includes(two) ? two : c;
+      i += v.length;
+      toks.push({ t: 'punc', v, s, e: i, line: l });
+    }
+    return toks;
+  }
+
+  // ---------- statements ----------
+  const OPEN = { '(': ')', '[': ']', '{': '}' };
+  const CONT_END = new Set(['=', ',', '(', '[', '{', '=>', '+', '-', '*', '/', '&&', '||', '??', '?', ':', '.', '?.', '==', '===', '!=', '!==', '<', '>', '<=', '>=', '!']);
+  function endLine(t) { return t.line + (t.v.match(/\n/g) || []).length; }
+  // Splits a token list into statements. A statement ends at a ';' at depth 0, or at a newline at depth 0 unless the
+  // next line continues a chain (starts with '.') or the line ends on an operator.
+  function splitStatements(toks) {
+    const out = []; let cur = []; let depth = 0;
+    const flush = () => { if (cur.length) out.push(cur); cur = []; };
+    for (let k = 0; k < toks.length; k++) {
+      const t = toks[k];
+      if (t.t === 'comment') {
+        if (depth === 0 && !cur.length) out.push([t]);
+        continue; // comments inside a statement are dropped from its tokens (they stay in the source text)
+      }
+      if (t.t === 'nl') {
+        if (depth === 0 && cur.length) {
+          let n = k + 1; while (n < toks.length && (toks[n].t === 'nl' || toks[n].t === 'comment')) n++;
+          const next = toks[n], last = cur[cur.length - 1];
+          const continues = (next && next.t === 'punc' && (next.v === '.' || next.v === '?.')) || (last.t === 'punc' && CONT_END.has(last.v));
+          if (!continues) flush();
+        }
+        continue;
+      }
+      if (t.t === 'punc' && OPEN[t.v]) depth++;
+      else if (t.t === 'punc' && /^[)\]}]$/.test(t.v)) depth = Math.max(0, depth - 1);
+      if (t.t === 'punc' && t.v === ';' && depth === 0) { flush(); continue; }
+      cur.push(t);
+    }
+    flush();
+    return out;
+  }
+
+  // Matching bracket index.
+  function match(toks, i) {
+    let d = 0;
+    for (let k = i; k < toks.length; k++) {
+      const v = toks[k].t === 'punc' ? toks[k].v : '';
+      if (OPEN[v]) d++;
+      else if (v === ')' || v === ']' || v === '}') { d--; if (d === 0) return k; }
+    }
+    return toks.length - 1;
+  }
+  function splitArgs(toks) {
+    const args = []; let cur = []; let d = 0;
+    for (const t of toks) {
+      const v = t.t === 'punc' ? t.v : '';
+      if (OPEN[v]) d++; else if (v === ')' || v === ']' || v === '}') d--;
+      if (v === ',' && d === 0) { args.push(cur); cur = []; continue; }
+      cur.push(t);
+    }
+    if (cur.length) args.push(cur);
+    return args;
+  }
+
+  // Reads `a.b(c).d[e]...` from position i. Returns segments [{name, args|null, index}], and the end position.
+  function readChain(toks, i) {
+    const segs = [];
+    if (!toks[i]) return { segs, end: i };
+    if (toks[i].t === 'id') { segs.push({ name: toks[i].v, args: null }); i++; }
+    else if (toks[i].t === 'punc' && toks[i].v === '(') { const j = match(toks, i); segs.push({ name: '()', group: toks.slice(i + 1, j), args: null }); i = j + 1; }
+    else return { segs, end: i };
+    for (;;) {
+      const t = toks[i];
+      if (!t || t.t !== 'punc') break;
+      if ((t.v === '.' || t.v === '?.') && toks[i + 1] && toks[i + 1].t === 'id') { segs.push({ name: toks[i + 1].v, args: null }); i += 2; continue; }
+      if (t.v === '(') { const j = match(toks, i); const last = segs[segs.length - 1]; const a = splitArgs(toks.slice(i + 1, j)).map(argInfo); if (last.args === null) last.args = a; else segs.push({ name: '()', args: a }); i = j + 1; continue; }
+      if (t.v === '[') { const j = match(toks, i); segs.push({ name: '[]', index: toks.slice(i + 1, j), args: null }); i = j + 1; continue; }
+      break;
+    }
+    return { segs, end: i };
+  }
+
+  let SRC = '';
+  const text = (toks) => (toks.length ? SRC.slice(toks[0].s, toks[toks.length - 1].e) : '');
+
+  function unquote(v) {
+    const q = v[0], body = v.slice(1, -1);
+    if (q === '`') return body.includes('${') ? null : body;
+    return body.replace(/\\(u\{[0-9a-fA-F]+\}|u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|.)/g, (m, e) => {
+      if (e[0] === 'u') return String.fromCodePoint(parseInt(e.replace(/[u{}]/g, ''), 16));
+      if (e[0] === 'x') return String.fromCharCode(parseInt(e.slice(1), 16));
+      return ({ n: '\n', t: '\t', r: '\r' })[e] || e;
+    });
+  }
+  const q = (s) => "'" + String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n') + "'";
+
+  function argInfo(toks) {
+    const a = { toks, src: text(toks), fn: null, lit: undefined, isStr: false };
+    if (toks.length === 1 && (toks[0].t === 'str' || (toks[0].t === 'tpl' && !toks[0].v.includes('${')))) { a.lit = unquote(toks[0].v); a.isStr = true; }
+    else if (toks.length === 1 && toks[0].t === 'num') a.lit = Number(toks[0].v);
+    else if (toks.length === 2 && toks[0].v === '-' && toks[1].t === 'num') a.lit = -Number(toks[1].v);
+    else if (toks.length === 1 && toks[0].t === 'id' && /^(true|false)$/.test(toks[0].v)) a.lit = toks[0].v === 'true';
+    // functions: [async] (params) => {..} | x => .. | function [name](params) {..}
+    let k = 0;
+    if (toks[k] && toks[k].v === 'async') k++;
+    let params = null;
+    if (toks[k] && toks[k].v === 'function') {
+      k++; if (toks[k] && toks[k].t === 'id') k++;
+      if (toks[k] && toks[k].v === '(') { const j = match(toks, k); params = toks.slice(k + 1, j); k = j + 1; }
+      if (params && toks[k] && toks[k].v === '{') a.fn = { params: paramNames(params), body: toks.slice(k + 1, match(toks, k)), expr: false, classic: true };
+    } else if (toks[k] && toks[k].v === '(' ) {
+      const j = match(toks, k);
+      if (toks[j + 1] && toks[j + 1].v === '=>') { params = toks.slice(k + 1, j); k = j + 2; }
+    } else if (toks[k] && toks[k].t === 'id' && toks[k + 1] && toks[k + 1].v === '=>') { params = [toks[k]]; k += 2; }
+    if (params && !a.fn && toks[k]) {
+      if (toks[k].v === '{') a.fn = { params: paramNames(params), body: toks.slice(k + 1, match(toks, k)), expr: false };
+      else a.fn = { params: paramNames(params), body: toks.slice(k), expr: true };
+    }
+    return a;
+  }
+  const paramNames = (toks) => splitArgs(toks).map((p) => (p[0] ? p[0].v : '')).filter(Boolean);
+
+  // ---------- selector mapping ----------
+  const TESTID_ATTRS = ['data-testid', 'data-test-id', 'data-test', 'data-cy', 'data-qa'];
+  const ROLE_TAG = { button: 'button', a: 'link', h1: 'heading', h2: 'heading', h3: 'heading', h4: 'heading', h5: 'heading', h6: 'heading', li: 'listitem', nav: 'navigation', table: 'table' };
+
+  function mapSelector(ctx, base, sel) {
+    const s = sel.trim();
+    let m;
+    if ((m = s.match(/^\[\s*(data-testid|data-test-id|data-test|data-cy|data-qa)\s*=\s*["']?([^"'\]]+?)["']?\s*\](.*)$/))) {
+      const [, attr, val, rest] = m;
+      let expr, why;
+      if (attr === ctx.testIdAttr) {
+        expr = `${base}.getByTestId(${q(val)})`;
+        why = attr === 'data-testid' ? 'test id → getByTestId' : `${attr} → getByTestId (set testIdAttribute: '${attr}')`;
+      } else { expr = `${base}.locator(${q(`[${attr}="${val}"]`)})`; why = `${attr} kept as CSS: only one testIdAttribute can be configured, and ${ctx.testIdAttr} is the most common here`; }
+      if (rest.trim()) {
+        if (!/^\s/.test(rest)) { expr = `${base}.locator(${q(s)})`; why = 'compound selector kept as CSS'; }
+        else { const inner = mapSelector(ctx, expr, rest.trim()); return record(ctx, sel, inner.expr, why + '; then ' + inner.why); }
+      }
+      return record(ctx, sel, expr, why);
+    }
+    if ((m = s.match(/^(?:[a-z]+)?\[\s*aria-label\s*=\s*["']([^"']+)["']\s*\]$/))) return record(ctx, sel, `${base}.getByLabel(${q(m[1])})`, 'aria-label → getByLabel (matches the accessible name)');
+    if ((m = s.match(/^(?:input|textarea)?\[\s*placeholder\s*=\s*["']([^"']+)["']\s*\]$/))) return record(ctx, sel, `${base}.getByPlaceholder(${q(m[1])})`, 'placeholder → getByPlaceholder (better still: getByLabel if the field has a label)');
+    if ((m = s.match(/^\[\s*role\s*=\s*["']?([a-z]+)["']?\s*\]$/))) return record(ctx, sel, `${base}.getByRole(${q(m[1])})`, 'role attribute → getByRole');
+    if ((m = s.match(/^img\[\s*alt\s*=\s*["']([^"']+)["']\s*\]$/))) return record(ctx, sel, `${base}.getByAltText(${q(m[1])})`, 'img alt → getByAltText');
+    if (/^#[\w-]+$/.test(s)) return record(ctx, sel, `${base}.locator(${q(s)})`, 'id kept as CSS: ids are stable, but a role or label reads better if one fits');
+    if (/^(?:input|select|textarea)?\[\s*name\s*=\s*["']?[\w-]+["']?\s*\]$/.test(s)) return record(ctx, sel, `${base}.locator(${q(s)})`, 'name attribute kept as CSS; getByLabel is better if the field has a visible label');
+    if (/^(xpath=|\/\/|\(\/\/)/.test(s)) return record(ctx, sel, `${base}.locator(${q(s.startsWith('xpath=') ? s : 'xpath=' + s)})`, 'XPath kept; brittle, replace with a role, label or test id', true);
+    return record(ctx, sel, `${base}.locator(${q(s)})`, 'CSS kept: no role or test id to map to');
+  }
+  function record(ctx, from, expr, why, weak) {
+    const to = expr.replace(/^[\w$]+\./, '');
+    if (!ctx.maps.some((x) => x.from === from && x.to === to)) ctx.maps.push({ from, to, why, weak: !!weak });
+    return { expr, why };
+  }
+
+  // ---------- emitting ----------
+  function Out() { this.lines = []; }
+  Out.prototype.push = function (depth, s) { this.lines.push(s === '' ? '' : '  '.repeat(depth) + s); };
+
+  const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+  const reLit = (s) => '/' + reEsc(s) + '/';
+
+  function assertion(subject, chainer, args, kind) {
+    // kind: 'locator' | 'url' | 'title'
+    let c = chainer, neg = false;
+    if (c.startsWith('not.')) { neg = true; c = c.slice(4); }
+    const a0 = args[0], a1 = args[1];
+    const N = neg ? 'not.' : '';
+    const val = (a) => (a ? (a.isStr ? q(a.lit) : a.src) : '');
+    if (kind === 'url') {
+      if (c === 'include' || c === 'contain') return { expr: `await expect(page).${N}toHaveURL(${a0.isStr ? reLit(a0.lit) : `new RegExp(${a0.src})`});` };
+      if (c === 'eq' || c === 'equal') return { expr: `await expect(page).${N}toHaveURL(${val(a0)});` };
+      if (c === 'match') return { expr: `await expect(page).${N}toHaveURL(${a0.src});` };
+      return null;
+    }
+    if (kind === 'title') {
+      if (c === 'eq' || c === 'equal') return { expr: `await expect(page).${N}toHaveTitle(${val(a0)});` };
+      if (c === 'include' || c === 'contain') return { expr: `await expect(page).${N}toHaveTitle(${a0.isStr ? reLit(a0.lit) : `new RegExp(${a0.src})`});` };
+      return null;
+    }
+    const E = `await expect(${subject}).${N}`;
+    switch (c) {
+      case 'be.visible': return { expr: `${E}toBeVisible();` };
+      case 'be.hidden': return { expr: `${E}toBeHidden();` };
+      case 'exist': return { expr: neg ? `await expect(${subject}).toHaveCount(0);` : `${E}toBeAttached();` };
+      case 'have.text': return { expr: `${E}toHaveText(${val(a0)});` };
+      case 'contain': case 'contain.text': case 'include.text': case 'contains': return { expr: `${E}toContainText(${val(a0)});` };
+      case 'have.value': return { expr: `${E}toHaveValue(${val(a0)});` };
+      case 'have.length': return { expr: `${E}toHaveCount(${val(a0)});` };
+      case 'have.attr': return { expr: `${E}toHaveAttribute(${val(a0)}${a1 ? ', ' + val(a1) : ''});` };
+      case 'have.class': return { expr: `${E}toContainClass(${val(a0)});` };
+      case 'have.id': return { expr: `${E}toHaveId(${val(a0)});` };
+      case 'have.css': return { expr: `${E}toHaveCSS(${val(a0)}, ${val(a1)});` };
+      case 'be.checked': return { expr: `${E}toBeChecked();` };
+      case 'be.disabled': return { expr: `${E}toBeDisabled();` };
+      case 'be.enabled': return { expr: `${E}toBeEnabled();` };
+      case 'be.empty': return { expr: `${E}toBeEmpty();` };
+      case 'be.focused': case 'have.focus': return { expr: `${E}toBeFocused();` };
+      default: return null;
+    }
+  }
+
+  const KEYMAP = { enter: 'Enter', esc: 'Escape', escape: 'Escape', tab: 'Tab', backspace: 'Backspace', del: 'Delete', uparrow: 'ArrowUp', downarrow: 'ArrowDown', leftarrow: 'ArrowLeft', rightarrow: 'ArrowRight', selectall: 'ControlOrMeta+a', home: 'Home', end: 'End', pageup: 'PageUp', pagedown: 'PageDown', space: ' ' };
+  const WD_KEYS = { ENTER: 'Enter', RETURN: 'Enter', TAB: 'Tab', ESCAPE: 'Escape', BACK_SPACE: 'Backspace', BACKSPACE: 'Backspace', DELETE: 'Delete', ARROW_DOWN: 'ArrowDown', ARROW_UP: 'ArrowUp', ARROW_LEFT: 'ArrowLeft', ARROW_RIGHT: 'ArrowRight', DOWN: 'ArrowDown', UP: 'ArrowUp', LEFT: 'ArrowLeft', RIGHT: 'ArrowRight', SPACE: ' ', HOME: 'Home', END: 'End' };
+
+  // ---------- conversion context ----------
+  function newCtx(lang, src) {
+    const counts = {};
+    for (const a of TESTID_ATTRS) counts[a] = (src.match(new RegExp(a + '\\s*=', 'g')) || []).length;
+    let testIdAttr = 'data-testid', best = 0;
+    for (const a of TESTID_ATTRS) if (counts[a] > best) { best = counts[a]; testIdAttr = a; }
+    return { lang, testIdAttr, usedTestId: false, maps: [], rows: [], out: new Out(), tests: 0, inputTests: 0, fixtureHelper: false, relativeUrl: false, notesGlobal: [] };
+  }
+  function scopeOf(parent, extra) { return Object.assign({ vars: new Map(parent ? parent.vars : []), aliases: new Map(parent ? parent.aliases : []), names: parent ? parent.names : new Set(), base: 'page', kind: 'test', depth: 0 }, parent ? { base: parent.base, kind: parent.kind, depth: parent.depth } : {}, extra || {}); }
+  function freshName(scope, want) {
+    let n = want.replace(/[^\w$]/g, '_').replace(/^(\d)/, '_$1').replace(/_+(\w)/g, (m, c) => c.toUpperCase()) || 'scope';
+    if (/^(page|test|expect|await|const|let|var|new|this|class|function|return)$/.test(n)) n += 'El';
+    let k = n, i = 2; while (scope.names.has(k)) k = n + i++;
+    scope.names.add(k); return k;
+  }
+
+  function lineRange(toks) { return [toks[0].line, endLine(toks[toks.length - 1])]; }
+  function addRow(ctx, toks, start, status, notes, extra) {
+    const out = ctx.out.lines.slice(start);
+    const [a, b] = toks && toks.length ? lineRange(toks) : [0, 0];
+    ctx.rows.push(Object.assign({ from: a, to: b, input: toks && toks.length ? SRC.split('\n').slice(a - 1, b).join('\n') : '', out, status, notes: notes || [] }, extra || {}));
+  }
+  function flagLines(ctx, depth, reason, original) {
+    ctx.out.push(depth, `// MIGRATE: ${reason}`);
+    for (const l of original.split('\n')) ctx.out.push(depth, '// ' + l.trim());
+  }
+
+  // ---------- JS program ----------
+  const STRUCT = /^(describe|context|it|specify|before|beforeEach|after|afterEach)$/;
+
+  function convertBlock(ctx, stmts, scope) {
+    for (const st of stmts) convertStatement(ctx, st, scope);
+  }
+
+  function convertStatement(ctx, st, scope) {
+    const d = scope.depth, start = ctx.out.lines.length;
+    if (st.length === 1 && st[0].t === 'comment') {
+      for (const l of st[0].v.split('\n')) ctx.out.push(d, l.trim());
+      addRow(ctx, st, start, 'kept', []); return;
+    }
+    const s0 = st[0];
+    // imports / requires
+    if ((s0.v === 'import' && s0.t === 'id') || /\brequire\s*\(/.test(text(st))) {
+      const t = text(st);
+      if (/selenium-webdriver|chromedriver|assert|chai|cypress/.test(t)) { addRow(ctx, st, start, 'removed', ['Playwright Test provides page, expect and the browser; this import is not needed.']); return; }
+      ctx.out.push(d, t + ';'); addRow(ctx, st, start, 'kept', ['Import kept; check it still applies.']); return;
+    }
+    // structural calls
+    if (s0.t === 'id' && STRUCT.test(s0.v)) {
+      const { segs, end } = readChain(st, 0);
+      if (end === st.length && segs.length <= 2 && segs[segs.length - 1].args) return convertStruct(ctx, st, segs, scope);
+    }
+    // Cypress.Commands.add
+    if (s0.v === 'Cypress') {
+      flagLines(ctx, d, 'custom command definition. Port it to a helper function or a Playwright fixture (test.extend).', text(st));
+      addRow(ctx, st, start, 'flagged', ['Custom command definitions have no direct equivalent: a fixture or a plain async helper that takes page is the idiomatic replacement.']); return;
+    }
+    // this.timeout(n)
+    if (s0.v === 'this' && st[2] && st[2].v === 'timeout') {
+      const { segs } = readChain(st, 0); const n = segs[1].args && segs[1].args[0] ? segs[1].args[0].src : '30000';
+      if (scope.kind === 'describe' || scope.kind === 'top') ctx.out.push(d, `test.describe.configure({ timeout: ${n} });`);
+      else ctx.out.push(d, `test.setTimeout(${n});`);
+      addRow(ctx, st, start, 'converted', ['Mocha this.timeout → Playwright timeout.']); return;
+    }
+    // declarations
+    let k = 0, decl = null;
+    if (st[0].t === 'id' && /^(const|let|var)$/.test(st[0].v)) {
+      decl = { kw: st[0].v, name: st[1] && st[1].v };
+      if (!st[2]) { // let driver;
+        if (/^driver$/i.test(decl.name)) { addRow(ctx, st, start, 'removed', ['Playwright manages the browser; the page fixture replaces the driver variable.']); return; }
+        ctx.out.push(d, text(st) + ';'); addRow(ctx, st, start, 'kept', []); return;
+      }
+      if (st[2].v !== '=') return keepOrFlag(ctx, st, scope, start);
+      k = 3;
+    } else if (st[0].t === 'id' && st[1] && st[1].v === '=' ) { decl = { kw: '', name: st[0].v }; k = 2; }
+    let awaited = false;
+    if (st[k] && st[k].v === 'await') { awaited = true; k++; }
+    if (st[k] && st[k].v === 'return') { k++; if (st[k] && st[k].v === 'await') k++; }
+    // driver = await new Builder()...build()
+    if (st[k] && st[k].v === 'new' && st[k + 1] && st[k + 1].v === 'Builder') { addRow(ctx, st, start, 'removed', ['Browser start-up is handled by Playwright (projects in playwright.config.ts).']); return; }
+    const { segs, end } = readChain(st, k);
+    if (!segs.length || end !== st.length) return keepOrFlag(ctx, st, scope, start);
+    const base = segs[0].name;
+    if (base === 'cy') return convertCy(ctx, st, segs, scope, start, decl);
+    if (base === 'driver') return convertWd(ctx, st, segs, scope, start, decl);
+    if (base === 'assert' || base === 'expect') return convertAssert(ctx, st, segs, scope, start);
+    if (scope.vars.has(base) && scope.vars.get(base).kind === 'loc' && !decl) return convertElementCall(ctx, st, scope.vars.get(base).expr, segs.slice(1), scope, start);
+    return keepOrFlag(ctx, st, scope, start);
+  }
+
+  function keepOrFlag(ctx, st, scope, start) {
+    const t = text(st);
+    if (/\b(cy|driver|Cypress|until|By)\b/.test(t)) {
+      flagLines(ctx, scope.depth, 'not converted automatically; review by hand.', t);
+      addRow(ctx, st, start, 'flagged', ['This construct is outside the converter\'s supported surface, so it is commented out rather than dropped.']);
+      return;
+    }
+    const lines = t.split('\n');
+    lines.forEach((l, i) => ctx.out.push(scope.depth, (i ? l.trim() : l) + (i === lines.length - 1 && !/[;{}]$/.test(l.trim()) ? ';' : '')));
+    addRow(ctx, st, start, 'kept', ['Plain JavaScript carried over unchanged.']);
+  }
+
+  function convertStruct(ctx, st, segs, scope) {
+    const d = scope.depth, start = ctx.out.lines.length;
+    const kw = segs[0].name, mod = segs.length === 2 ? segs[1].name : '';
+    const args = segs[segs.length - 1].args;
+    const fnArg = args[args.length - 1] && args[args.length - 1].fn;
+    const title = args[0] && args[0].isStr ? q(args[0].lit) : args[0] ? args[0].src : "''";
+    const notes = [];
+    const body = fnArg ? splitStatementsFromTokens(fnArg.body) : [];
+    if (kw === 'describe' || kw === 'context') {
+      const m = mod === 'only' ? '.only' : mod === 'skip' ? '.skip' : '';
+      if (m === '.only') notes.push('.only kept: remove it before committing (forbidOnly fails CI).');
+      ctx.out.push(d, `test.describe${m}(${title}, () => {`);
+      addRow(ctx, st.slice(0, headLen(st, fnArg)), start, 'structure', [kw === 'context' ? 'context() → test.describe()' : 'describe() → test.describe()', ...notes], { head: true });
+      convertBlock(ctx, body, scopeOf(scope, { kind: 'describe', depth: d + 1 }));
+      const s2 = ctx.out.lines.length; ctx.out.push(d, '});'); addRow(ctx, [st[st.length - 1]], s2, 'structure', [], { tail: true });
+      return;
+    }
+    if (kw === 'it' || kw === 'specify') {
+      ctx.inputTests++;
+      const m = mod === 'only' ? '.only' : mod === 'skip' ? '.skip' : '';
+      ctx.tests++;
+      ctx.out.push(d, `test${m}(${title}, async ({ page }) => {`);
+      addRow(ctx, st.slice(0, headLen(st, fnArg)), start, 'structure', ['it() → test() with the page fixture', ...notes], { head: true });
+      convertBlock(ctx, body, scopeOf(scope, { kind: 'test', depth: d + 1, names: new Set(scope.names) }));
+      const s2 = ctx.out.lines.length; ctx.out.push(d, '});'); addRow(ctx, [st[st.length - 1]], s2, 'structure', [], { tail: true });
+      return;
+    }
+    // hooks
+    const hook = { before: 'beforeAll', after: 'afterAll', beforeEach: 'beforeEach', afterEach: 'afterEach' }[kw];
+    const tmp = ctx.out.lines.length, rowsBefore = ctx.rows.length;
+    const inner = scopeOf(scope, { kind: 'hook', depth: d + 1, names: new Set(scope.names) });
+    ctx.out.push(d, '');
+    convertBlock(ctx, body, inner);
+    const produced = ctx.out.lines.slice(tmp + 1).filter((l) => l.trim());
+    if (!produced.length) {
+      ctx.out.lines.length = tmp;
+      addRow(ctx, st, tmp, 'removed', [`${kw}() only managed the browser; Playwright does this for you, so the hook is dropped.`]);
+      // keep inner rows for the record but mark them as part of the removed hook
+      ctx.rows.splice(rowsBefore, ctx.rows.length - rowsBefore - 1);
+      return;
+    }
+    const usesPage = produced.some((l) => /\bpage\b/.test(l));
+    const fixture = hook === 'beforeAll' || hook === 'afterAll' ? (usesPage ? '{ browser }' : '') : '{ page }';
+    ctx.out.lines[tmp] = '  '.repeat(d) + `test.${hook}(async (${fixture}) => {`;
+    const headNotes = [`${kw}() → test.${hook}()`];
+    let status = 'structure';
+    if (usesPage && (hook === 'beforeAll' || hook === 'afterAll')) { headNotes.push('page is created per test, so it is not available in beforeAll/afterAll. Move this into beforeEach, or open a page from browser.newPage().'); status = 'flagged'; }
+    ctx.rows.splice(rowsBefore, 0, { from: st[0].line, to: st[0].line, input: SRC.split('\n')[st[0].line - 1], out: [ctx.out.lines[tmp]], status, notes: headNotes, head: true });
+    const s2 = ctx.out.lines.length; ctx.out.push(d, '});'); addRow(ctx, [st[st.length - 1]], s2, 'structure', [], { tail: true });
+  }
+  function headLen(st, fn) { // tokens of the head line(s), up to the opening brace of the body
+    for (let i = 0; i < st.length; i++) if (st[i].v === '{' && (st[i - 1] && (st[i - 1].v === '=>' || st[i - 1].v === ')'))) return i + 1;
+    return 1;
+  }
+  const splitStatementsFromTokens = (toks) => splitStatements(withNewlines(toks));
+  // readChain dropped newline tokens; restore them for statement splitting from the original token stream.
+  let ALL = [];
+  function withNewlines(toks) {
+    if (!toks.length) return [];
+    const a = ALL.findIndex((t) => t.s === toks[0].s), b = ALL.findIndex((t) => t.s === toks[toks.length - 1].s);
+    return a < 0 || b < 0 ? toks : ALL.slice(a, b + 1);
+  }
+
+  // ---------- Cypress ----------
+  const CY_KNOWN = new Set(['visit', 'get', 'contains', 'intercept', 'wait', 'fixture', 'url', 'title', 'reload', 'go', 'viewport', 'clearCookies', 'clearLocalStorage', 'focused', 'log', 'screenshot', 'request', 'location', 'wrap']);
+  function convertCy(ctx, st, segs, scope, start, decl) {
+    const d = scope.depth, O = ctx.out, notes = [];
+    let status = 'converted';
+    const base = scope.base;
+    let subj = null, kind = 'locator';
+    let flagged = null;
+    const first = segs[1];
+    if (!first) return keepOrFlag(ctx, st, scope, start);
+    if (!CY_KNOWN.has(first.name)) {
+      flagLines(ctx, d, `custom command cy.${first.name}(). Port it to a helper or fixture, then call it here.`, text(st));
+      addRow(ctx, st, start, 'flagged', [`cy.${first.name}() is not a built-in Cypress command, so it is a custom command. It is commented out, not dropped.`]); return;
+    }
+    for (let i = 1; i < segs.length; i++) {
+      const s = segs[i], a = s.args || [], name = s.name;
+      const a0 = a[0], a1 = a[1];
+      const lit = (x) => (x && x.isStr ? q(x.lit) : x ? x.src : "''");
+      if (i === 1) {
+        switch (name) {
+          case 'visit':
+            O.push(d, `await page.goto(${lit(a0)});`);
+            if (a0 && a0.isStr && a0.lit.startsWith('/')) { ctx.relativeUrl = true; notes.push('cy.visit → page.goto. Relative URL: set use.baseURL in playwright.config.ts.'); } else notes.push('cy.visit → page.goto.');
+            continue;
+          case 'get':
+            if (a0 && a0.isStr && a0.lit.startsWith('@')) {
+              const al = scope.aliases.get(a0.lit.slice(1));
+              if (al && al.kind === 'loc') { subj = al.expr; notes.push(`cy.get('${a0.lit}') → the ${al.expr} constant.`); continue; }
+              flagged = `alias ${a0.lit} is not defined in this test's scope.`; break;
+            }
+            if (a0 && a0.isStr) { const m = mapSelector(ctx, base, a0.lit); subj = m.expr; notes.push(`cy.get('${a0.lit}') → ${m.expr.replace(/^[\w$]+\./, '')}: ${m.why}.`); }
+            else { subj = `${base}.locator(${a0 ? a0.src : "''"})`; notes.push('Selector is an expression; kept as locator().'); }
+            continue;
+          case 'contains': {
+            if (a.length >= 2 && a0.isStr && ROLE_TAG[a0.lit]) {
+              subj = `${base}.getByRole(${q(ROLE_TAG[a0.lit])}, { name: ${lit(a1)} })`;
+              notes.push(`cy.contains('${a0.lit}', …) → getByRole('${ROLE_TAG[a0.lit]}', { name }): role plus accessible name, the most resilient locator.`);
+              record(ctx, `contains('${a0.lit}', ${a1.src})`, subj.replace(/^[\w$]+\./, ''), 'element + text → role + accessible name');
+            } else if (a.length >= 2) {
+              const m = mapSelector(ctx, base, a0.lit || '');
+              subj = `${m.expr}.filter({ hasText: ${lit(a1)} })`;
+              notes.push('cy.contains(selector, text) → locator.filter({ hasText }).');
+            } else {
+              subj = `${base}.getByText(${lit(a0)})`;
+              notes.push('cy.contains(text) → getByText(text). Both match a substring, but getByText ignores case and whitespace differences.');
+              record(ctx, `contains(${a0 ? a0.src : ''})`, subj.replace(/^[\w$]+\./, ''), 'text → getByText');
+            }
+            continue;
+          }
+          case 'url': kind = 'url'; continue;
+          case 'title': kind = 'title'; continue;
+          case 'location':
+            if (a0 && a0.lit === 'pathname') { kind = 'url'; notes.push("cy.location('pathname') → a URL assertion (it matches the whole URL, so include the path in the pattern)."); continue; }
+            flagged = 'cy.location() with this argument.'; break;
+          case 'focused': subj = `page.locator(':focus')`; notes.push("cy.focused() → page.locator(':focus'); often expect(x).toBeFocused() reads better."); continue;
+          case 'reload': O.push(d, 'await page.reload();'); continue;
+          case 'go': O.push(d, a0 && (a0.lit === 'back' || a0.lit === -1) ? 'await page.goBack();' : 'await page.goForward();'); continue;
+          case 'viewport': O.push(d, `await page.setViewportSize({ width: ${a0 ? a0.src : 1280}, height: ${a1 ? a1.src : 720} });`); notes.push('Prefer a project with a device profile in playwright.config.ts for whole-suite viewports.'); continue;
+          case 'clearCookies': O.push(d, 'await page.context().clearCookies();'); notes.push('Each Playwright test already starts in a fresh context, so this is usually redundant.'); continue;
+          case 'clearLocalStorage': O.push(d, 'await page.evaluate(() => localStorage.clear());'); notes.push('Each Playwright test starts with empty storage, so this is usually redundant.'); continue;
+          case 'log': O.push(d, `console.log(${a.map((x) => x.src).join(', ')});`); continue;
+          case 'screenshot': O.push(d, `await page.screenshot({ path: ${a0 && a0.isStr ? q(a0.lit + '.png') : "'screenshot.png'"} });`); continue;
+          case 'wait':
+            if (a0 && typeof a0.lit === 'number') {
+              ctx.sleeps = (ctx.sleeps || 0) + 1;
+              O.push(d, `// removed cy.wait(${a0.lit}): the next web-first assertion waits for the real condition`);
+              addRow(ctx, st, start, 'sleep', [`Fixed wait of ${a0.lit} ms removed. Playwright's expect() retries until the condition holds, so the sleep only slowed the test (or hid a race).`]);
+              return;
+            }
+            if (a0 && a0.isStr && a0.lit.startsWith('@')) {
+              const al = scope.aliases.get(a0.lit.slice(1));
+              if (al && al.kind === 'resp') { O.push(d, `await ${al.expr};`); notes.push(`cy.wait('${a0.lit}') → awaits the response promise created where the intercept was registered.`); continue; }
+              flagged = `cy.wait('${a0.lit}'): the alias was not registered in this test (a beforeEach alias can't be shared as a variable). Create the waitForResponse promise in the test, before the action that triggers it.`; break;
+            }
+            flagged = 'cy.wait() with this argument.'; break;
+          case 'intercept': {
+            const r = convertIntercept(ctx, a, segs[i + 1], scope, d);
+            if (!r) { flagged = 'cy.intercept() form not recognised.'; break; }
+            notes.push(...r.notes);
+            if (segs[i + 1] && segs[i + 1].name === 'as') i++;
+            continue;
+          }
+          case 'fixture': {
+            const nx = segs[i + 1];
+            if (nx && nx.name === 'then' && nx.args && nx.args[0] && nx.args[0].fn) {
+              const p = nx.args[0].fn.params[0] || 'data';
+              ctx.fixtureHelper = true;
+              O.push(d, `const ${p} = readFixture(${lit(a0)});`);
+              addRow(ctx, st.slice(0, 1), start, 'converted', ['cy.fixture().then(data => …) → a synchronous readFixture() and the callback body inlined.']);
+              const body = splitStatementsFromTokens(nx.args[0].fn.body);
+              const inner = scopeOf(scope, { depth: d });
+              inner.names.add(p);
+              convertBlock(ctx, body, inner);
+              return;
+            }
+            if (decl) { ctx.fixtureHelper = true; O.push(d, `const ${decl.name} = readFixture(${lit(a0)});`); continue; }
+            flagged = 'cy.fixture() without .then(): load it with readFixture() and use the value directly.'; break;
+          }
+          case 'request': {
+            const method = a.length >= 2 && a0.isStr && /^(GET|POST|PUT|PATCH|DELETE)$/i.test(a0.lit) ? a0.lit.toLowerCase() : 'get';
+            const url = a.length >= 2 && method !== 'get' || (a.length >= 2 && a0.isStr && /^(GET)$/i.test(a0.lit)) ? a1 : a0;
+            const nm = decl ? decl.name : freshName(scope, 'response');
+            O.push(d, `const ${nm} = await page.request.${method}(${lit(url)});`);
+            notes.push('cy.request → page.request (shares cookies with the page). Check how the response is used below.');
+            if (segs.length > i + 1) { flagged = 'cy.request() followed by a chain: assert on the response object instead.'; break; }
+            continue;
+          }
+          case 'wrap': flagged = 'cy.wrap() has no equivalent: use the value (or locator) directly.'; break;
+        }
+        if (flagged) break;
+        continue;
+      }
+      // chained commands
+      if (name === 'should' || name === 'and') {
+        if (a0 && a0.fn) { flagged = '.should(callback) needs a hand-written expect (or expect.poll for computed values).'; break; }
+        if (!a0 || !a0.isStr) { flagged = '.should() with a non-literal chainer.'; break; }
+        const sub = kind === 'locator' ? subj : null;
+        const r = assertion(sub, a0.lit, a.slice(1), kind);
+        if (!r) { flagged = `.should('${a0.lit}') is not mapped yet; write the matching expect() by hand.`; break; }
+        O.push(d, r.expr);
+        notes.push(`should('${a0.lit}') → ${r.expr.replace(/^await expect\([^]*?\)\./, '').replace(/\(.*$/, '()')}, a web-first assertion that retries.`);
+        continue;
+      }
+      if (kind !== 'locator' || !subj) { flagged = `.${name}() after cy.${first.name}() is not supported.`; break; }
+      switch (name) {
+        case 'find': { if (a0 && a0.isStr) { const m = mapSelector(ctx, subj, a0.lit); subj = m.expr; notes.push(`.find('${a0.lit}') → ${m.expr.slice(subj.length - m.expr.length + m.expr.lastIndexOf('.'))}: ${m.why}.`.replace(/→ \.?[^:]*:/, `→ chained locator:`)); } else subj += `.locator(${a0 ? a0.src : "''"})`; continue; }
+        case 'first': subj += '.first()'; continue;
+        case 'last': subj += '.last()'; continue;
+        case 'eq': subj += `.nth(${a0 ? a0.src : 0})`; continue;
+        case 'filter': subj += `.filter({ has: page.locator(${a0 ? a0.src : "''"}) })`; notes.push('.filter(selector) → filter({ has }): check the semantics, Cypress filters the elements themselves.'); continue;
+        case 'contains':
+          subj += `.getByText(${lit(a0)})`; continue;
+        case 'click': O.push(d, `await ${subj}.click(${clickOpts(a)});`); if (/force/.test(a0 ? a0.src : '')) notes.push('force: true kept. It skips actionability checks; usually a sign of a covering element worth fixing.'); continue;
+        case 'dblclick': O.push(d, `await ${subj}.dblclick();`); continue;
+        case 'rightclick': O.push(d, `await ${subj}.click({ button: 'right' });`); continue;
+        case 'check': O.push(d, `await ${subj}.check();`); continue;
+        case 'uncheck': O.push(d, `await ${subj}.uncheck();`); continue;
+        case 'select': O.push(d, `await ${subj}.selectOption(${lit(a0)});`); continue;
+        case 'focus': O.push(d, `await ${subj}.focus();`); continue;
+        case 'blur': O.push(d, `await ${subj}.blur();`); continue;
+        case 'scrollIntoView': O.push(d, `await ${subj}.scrollIntoViewIfNeeded();`); continue;
+        case 'trigger':
+          if (a0 && /^(mouseover|mouseenter)$/.test(a0.lit)) O.push(d, `await ${subj}.hover();`);
+          else O.push(d, `await ${subj}.dispatchEvent(${lit(a0)});`);
+          continue;
+        case 'clear':
+          if (segs[i + 1] && segs[i + 1].name === 'type') { notes.push('.clear().type() → fill(), which replaces the value in one step.'); continue; }
+          O.push(d, `await ${subj}.fill('');`); continue;
+        case 'type': {
+          if (!a0) { flagged = '.type() without text.'; break; }
+          if (!a0.isStr) { O.push(d, `await ${subj}.fill(${a0.src});`); notes.push('.type(value) → fill(value).'); continue; }
+          const parts = a0.lit.split(/(\{[a-z]+\})/i).filter(Boolean);
+          let typed = '';
+          for (const p of parts) {
+            const km = p.match(/^\{([a-z]+)\}$/i);
+            if (km) {
+              if (typed) { O.push(d, `await ${subj}.fill(${q(typed)});`); typed = ''; }
+              const key = KEYMAP[km[1].toLowerCase()];
+              if (!key) { flagged = `special key ${p} is not mapped.`; break; }
+              O.push(d, `await ${subj}.press(${q(key)});`);
+            } else typed += p;
+          }
+          if (flagged) break;
+          if (typed) O.push(d, `await ${subj}.fill(${q(typed)});`);
+          notes.push('.type() → fill() (sets the value in one step; it replaces rather than appends, the same on an empty field)' + (/\{/.test(a0.lit) ? ' and {key} sequences → press().' : '.'));
+          continue;
+        }
+        case 'as': {
+          const nm = freshName(scope, a0 && a0.isStr ? a0.lit : 'el');
+          O.push(d, `const ${nm} = ${subj};`);
+          scope.aliases.set(a0.lit, { kind: 'loc', expr: nm });
+          notes.push(`.as('${a0.lit}') → a const locator. Locators are lazy, so it re-queries every time it is used, like an alias.`);
+          continue;
+        }
+        case 'within': {
+          if (!a0 || !a0.fn) { flagged = '.within() without a callback.'; break; }
+          const nm = freshName(scope, guessName(subj));
+          O.push(d, `const ${nm} = ${subj};`);
+          addRow(ctx, st.slice(0, 1), start, 'converted', [...notes, `.within() → a scoped locator (${nm}); the commands inside are chained from it.`]);
+          const inner = scopeOf(scope, { base: nm, depth: d });
+          convertBlock(ctx, splitStatementsFromTokens(a0.fn.body), inner);
+          return;
+        }
+        case 'each': {
+          if (!a0 || !a0.fn) { flagged = '.each() without a callback.'; break; }
+          const p = a0.fn.params[0] || '$el', el = freshName(scope, p.replace(/^\$/, '') || 'el');
+          const idx = a0.fn.params[1];
+          O.push(d, '// MIGRATE: review this loop. locator.all() does not wait, so assert the list first (e.g. toHaveCount), and check the body.');
+          O.push(d,idx ? `for (const [${idx}, ${el}] of (await ${subj}.all()).entries()) {` : `for (const ${el} of await ${subj}.all()) {`);
+          addRow(ctx, st.slice(0, 1), start, 'flagged', [...notes, '.each() → a for…of over locator.all(). all() does not wait, so assert the list first (for example toHaveCount). The body used jQuery; check each line.']);
+          const inner = scopeOf(scope, { depth: d + 1 });
+          inner.vars.set(p, { kind: 'loc', expr: el });
+          inner.jq = { from: p, to: el };
+          convertEachBody(ctx, splitStatementsFromTokens(a0.fn.body), inner);
+          const s2 = ctx.out.lines.length; O.push(d, '}'); addRow(ctx, [st[st.length - 1]], s2, 'structure', [], { tail: true });
+          return;
+        }
+        case 'then': case 'invoke': case 'its': case 'spread':
+          flagged = `.${name}() works on the yielded jQuery value; rewrite with a locator method (textContent(), getAttribute()) or an expect.poll.`; break;
+        default:
+          flagged = `.${name}() is not mapped.`; break;
+      }
+      if (flagged) break;
+    }
+    if (flagged) {
+      O.lines.length = start;
+      flagLines(ctx, d, flagged, text(st));
+      addRow(ctx, st, start, 'flagged', ['Commented out, not dropped: ' + flagged]);
+      return;
+    }
+    if (subj && ctx.out.lines.length === start) {
+      // a bare cy.get(x) with no action: Cypress asserts existence implicitly
+      O.push(d, `await expect(${subj}).toBeAttached();`);
+      notes.push('A bare cy.get() implicitly asserts the element exists → toBeAttached().');
+    }
+    addRow(ctx, st, start, status, notes);
+  }
+  function clickOpts(a) { if (!a.length) return ''; const s = a[0].src; return /force\s*:\s*true/.test(s) ? '{ force: true }' : ''; }
+  function guessName(expr) {
+    expr = expr.replace(/\.(first|last)\(\)$|\.nth\(\d+\)$/, '');
+    const m =expr.match(/getByTestId\('([^']+)'\)$/) || expr.match(/getByRole\('[^']+', \{ name: '([^']+)' \}\)$/) || expr.match(/locator\('[#.]?([\w-]+)[^']*'\)$/);
+    return m ? m[1] : 'scope';
+  }
+  function convertEachBody(ctx, stmts, scope) {
+    for (const st of stmts) {
+      const start = ctx.out.lines.length;
+      // cy.wrap($el)... → el...
+      const t = text(st);
+      if (st[0].v === 'cy' && st[2] && st[2].v === 'wrap') {
+        const { segs } = readChain(st, 0);
+        if (segs[1].args && segs[1].args[0] && segs[1].args[0].src === scope.jq.from) {
+          const fake = [{ name: 'cy' }, { name: 'get', args: [] }].concat(segs.slice(2));
+          // reuse the chained-command logic by treating the element as the subject
+          const sub = scopeOf(scope, { depth: scope.depth });
+          convertChainOnSubject(ctx, st, scope.jq.to, segs.slice(2), sub, start);
+          continue;
+        }
+      }
+      if (st[0].v === 'expect') {
+        const replaced = t.replace(new RegExp(reEsc(scope.jq.from) + '\\.text\\(\\)', 'g'), `(await ${scope.jq.to}.innerText())`);
+        const chai = chaiToJest(replaced.replace(/^expect\(\((await [^()]*\(\))\)\)/, 'expect($1)'));
+        if (chai && !replaced.includes(scope.jq.from)) { ctx.out.push(scope.depth, chai + ';'); addRow(ctx, st, start, 'converted', ['$el.text() → await el.innerText(); chai → expect matcher. This is a one-shot read, not a retrying assertion.']); continue; }
+      }
+      convertStatement(ctx, st, scope);
+    }
+  }
+  function convertChainOnSubject(ctx, st, subj, segs, scope, start) {
+    // builds a pseudo statement: treat subject as cy.get result
+    const O = ctx.out, d = scope.depth, notes = ['cy.wrap($el) → the loop\'s locator.'];
+    for (const s of segs) {
+      const a = s.args || [];
+      if (s.name === 'should' || s.name === 'and') {
+        const r = a[0] && a[0].isStr ? assertion(subj, a[0].lit, a.slice(1), 'locator') : null;
+        if (!r) { O.lines.length = start; flagLines(ctx, d, 'assertion not mapped.', text(st)); addRow(ctx, st, start, 'flagged', ['Commented out, not dropped.']); return; }
+        O.push(d, r.expr); continue;
+      }
+      if (s.name === 'click') { O.push(d, `await ${subj}.click();`); continue; }
+      if (s.name === 'find' && a[0] && a[0].isStr) { subj = mapSelector(ctx, subj, a[0].lit).expr; continue; }
+      O.lines.length = start; flagLines(ctx, d, `.${s.name}() on a wrapped element is not mapped.`, text(st)); addRow(ctx, st, start, 'flagged', ['Commented out, not dropped.']); return;
+    }
+    addRow(ctx, st, start, 'converted', notes);
+  }
+
+  function parseObject(a) {
+    // top-level keys of an object literal argument → { key: src }
+    const t = a.toks; if (!t.length || t[0].v !== '{') return null;
+    const inner = t.slice(1, match(t, 0));
+    const o = {};
+    for (const p of splitArgs(inner)) { if (p.length >= 3 && p[1].v === ':') o[p[0].t === 'str' ? unquote(p[0].v) : p[0].v] = { src: text(p.slice(2)), toks: p.slice(2) }; else if (p.length === 1) o[p[0].v] = { src: p[0].v, toks: p }; }
+    return o;
+  }
+
+  function convertIntercept(ctx, a, asSeg, scope, d) {
+    const O = ctx.out, notes = [];
+    let method = null, url, stub;
+    if (a.length >= 2 && a[0].isStr && /^(GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)$/.test(a[0].lit)) { method = a[0].lit; url = a[1]; stub = a[2]; }
+    else { url = a[0]; stub = a[1]; }
+    if (!url || !url.isStr) return null;
+    const u = url.lit;
+    let matcher;
+    if (/[*]/.test(u)) { matcher = q(u.startsWith('/') ? '**' + u : u); notes.push(`URL glob '${u}' → Playwright glob ${matcher}.`); }
+    else if (u.startsWith('/')) { matcher = `(url) => url.pathname === ${q(u.split('?')[0])}`; notes.push(`'${u}' → a URL predicate on the pathname, so query strings still match (Cypress matched this URL loosely).`); }
+    else { matcher = `(url) => url.href.startsWith(${q(u)})`; }
+    const methodCheck = method ? `route.request().method() === ${q(method)}` : '';
+    if (stub) {
+      let fulfill;
+      if (stub.isStr) fulfill = `{ body: ${q(stub.lit)} }`;
+      else {
+        const o = parseObject(stub);
+        if (!o) return null;
+        const parts = [];
+        if (o.statusCode) parts.push(`status: ${o.statusCode.src}`);
+        if (o.fixture) { const f = o.fixture.toks.length === 1 && o.fixture.toks[0].t === 'str' ? unquote(o.fixture.toks[0].v) : null; if (!f) return null; parts.push(`path: ${q('cypress/fixtures/' + f)}`); notes.push(`fixture '${f}' → fulfill({ path }), relative to the working directory; move the file next to the tests if you like.`); }
+        if (o.body) parts.push((/^[{[]/.test(o.body.src) ? 'json: ' : 'body: ') + o.body.src);
+        if (o.headers) parts.push(`headers: ${o.headers.src}`);
+        if (o.delay || o.forceNetworkError) return null;
+        if (!o.statusCode && !o.fixture && !o.body && !o.headers) { parts.push(`json: ${stub.src}`); }
+        fulfill = `{ ${parts.join(', ')} }`;
+      }
+      const handler = methodCheck ? `(route) => (${methodCheck} ? route.fulfill(${fulfill}) : route.fallback())` : `(route) => route.fulfill(${fulfill})`;
+      O.push(d, `await page.route(${matcher}, ${handler});`);
+      notes.push('cy.intercept(…, stub) → page.route() + route.fulfill().' + (method ? ' Other methods fall through with route.fallback().' : ''));
+    }
+    if (asSeg && asSeg.name === 'as' && asSeg.args && asSeg.args[0] && asSeg.args[0].isStr) {
+      const alias = asSeg.args[0].lit, nm = freshName(scope, alias.replace(/^@/, '') + 'Response');
+      const pathPred = /[*]/.test(u) ? null : u.startsWith('/') ? `new URL(r.url()).pathname === ${q(u.split('?')[0])}` : `r.url().startsWith(${q(u)})`;
+      const pred = pathPred ? `(r) => ${pathPred}${method ? ` && r.request().method() === ${q(method)}` : ''}` : matcher;
+      O.push(d, `const ${nm} = page.waitForResponse(${pred});`);
+      scope.aliases.set(alias, { kind: 'resp', expr: nm });
+      notes.push(`.as('${alias}') → a waitForResponse promise, started now so it can't miss a fast response; cy.wait('@${alias}') becomes await ${nm}.`);
+    } else if (!stub) return null;
+    return { notes };
+  }
+
+  // ---------- Selenium (JS) ----------
+  function byToLocator(ctx, byArg, base) {
+    // By.css('x') | By.id('x') | ... ; Python: (By.ID, "x") pairs handled by byPair
+    const { segs } = readChain(byArg.toks, 0);
+    if (segs.length === 2 && segs[0].name === 'By' && segs[1].args && segs[1].args[0]) {
+      const v = segs[1].args[0];
+      return byKind(ctx, segs[1].name, v, base);
+    }
+    return null;
+  }
+  function byKind(ctx, how, v, base) {
+    const lit = v.isStr ? v.lit : null;
+    if (lit === null) return { expr: `${base}.locator(${v.src})`, why: 'dynamic selector kept' };
+    const H = how.toLowerCase().replace(/_/g, '');
+    const label = { css: 'By.css', cssselector: 'By.CSS_SELECTOR', id: 'By.id', name: 'By.name', classname: 'By.className', tagname: 'By.tagName', linktext: 'By.linkText', partiallinktext: 'By.partialLinkText', xpath: 'By.xpath' }[H] || how;
+    const src = `${label}(${q(lit)})`;
+    if (H === 'css' || H === 'cssselector') return mapSelector(ctx, base, lit);
+    if (H === 'id') return record(ctx, src, `${base}.locator(${q('#' + lit)})`, 'id → #id CSS');
+    if (H === 'name') return record(ctx, src, `${base}.locator(${q(`[name="${lit}"]`)})`, 'name → [name] CSS; getByLabel is better if the field has a label');
+    if (H === 'classname') return record(ctx, src, `${base}.locator(${q('.' + lit)})`, 'class → .class CSS');
+    if (H === 'tagname') return record(ctx, src, `${base}.locator(${q(lit)})`, 'tag name → CSS');
+    if (H === 'linktext') return record(ctx, src, `${base}.getByRole('link', { name: ${q(lit)}, exact: true })`, 'link text → getByRole(link) with exact name');
+    if (H === 'partiallinktext') return record(ctx, src, `${base}.getByRole('link', { name: ${q(lit)} })`, 'partial link text → getByRole(link), substring name');
+    if (H === 'xpath') return record(ctx, src, `${base}.locator(${q('xpath=' + lit)})`, 'XPath kept; brittle, replace with a role, label or test id', true);
+    return null;
+  }
+
+  function sendKeysOut(ctx, d, loc, args, notes) {
+    let typed = '', out = [];
+    for (const a of args) {
+      const km = a.src.match(/^Keys?\.([A-Z_]+)$/);
+      if (km) { if (typed) { out.push(`await ${loc}.fill(${q(typed)});`); typed = ''; } const k = WD_KEYS[km[1]]; if (!k) return false; out.push(`await ${loc}.press(${q(k)});`); }
+      else if (a.isStr) typed += a.lit;
+      else { if (typed) { out.push(`await ${loc}.fill(${q(typed)});`); typed = ''; } out.push(`await ${loc}.fill(${a.src});`); }
+    }
+    if (typed) out.push(`await ${loc}.fill(${q(typed)});`);
+    out.forEach((l) => ctx.out.push(d, l));
+    notes.push('sendKeys → fill() for text (one step, replaces the value)' + (args.some((a) => /^Keys?\./.test(a.src)) ? ' and press() for Key constants.' : '.'));
+    return true;
+  }
+
+  // Resolves a Selenium element expression to a locator. segs start at driver.findElement(...) or a known var.
+  function wdLocator(ctx, segs, scope) {
+    let i, loc;
+    if (segs[0].name === 'driver' && segs[1] && /^(findElement|find_element)$/.test(segs[1].name)) {
+      const m = findArgs(ctx, segs[1].args, 'page'); if (!m) return null; loc = m.expr; i = 2;
+    } else if (segs[0].name === 'driver' && segs[1] && /^(findElements|find_elements)$/.test(segs[1].name)) {
+      const m = findArgs(ctx, segs[1].args, 'page'); if (!m) return null; return { loc: m.expr, rest: segs.slice(2), many: true };
+    } else if (scope.vars.has(segs[0].name) && scope.vars.get(segs[0].name).kind === 'loc') { loc = scope.vars.get(segs[0].name).expr; i = 1; }
+    else return null;
+    while (segs[i] && /^(findElement|find_element)$/.test(segs[i].name)) { const m = findArgs(ctx, segs[i].args, loc); if (!m) return null; loc = m.expr; i++; }
+    return { loc, rest: segs.slice(i) };
+  }
+  function findArgs(ctx, args, base) {
+    if (!args || !args.length) return null;
+    if (args.length === 2) { // Python: find_element(By.ID, "x")
+      const { segs } = readChain(args[0].toks, 0);
+      if (segs.length === 2 && segs[0].name === 'By') return byKind(ctx, segs[1].name, args[1], base);
+      return null;
+    }
+    return byToLocator(ctx, args[0], base);
+  }
+
+  function convertWd(ctx, st, segs, scope, start, decl) {
+    const d = scope.depth, O = ctx.out, notes = [];
+    const m1 = segs[1] && segs[1].name;
+    const a = (segs[1] && segs[1].args) || [];
+    const done = (status) => addRow(ctx, st, start, status || 'converted', notes);
+    const flag = (why) => { O.lines.length = start; flagLines(ctx, d, why, text(st)); addRow(ctx, st, start, 'flagged', ['Commented out, not dropped: ' + why]); };
+    if (m1 === 'get' && segs.length === 2) { O.push(d, `await page.goto(${a[0].isStr ? q(a[0].lit) : a[0].src});`); notes.push('driver.get → page.goto.'); if (a[0].isStr && /^https?:\/\/localhost/.test(a[0].lit)) notes.push('Tip: set use.baseURL and pass a relative path.'); return done(); }
+    if (m1 === 'sleep' && segs.length === 2) {
+      ctx.sleeps = (ctx.sleeps || 0) + 1;
+      O.push(d, `// removed driver.sleep(${a[0] ? a[0].src : ''}): the next web-first assertion waits for the real condition`);
+      addRow(ctx, st, start, 'sleep', [`Fixed sleep of ${a[0] ? a[0].src : '?'} ms removed. Replace it with an assertion on whatever the test was waiting for, if the next line does not already do that.`]); return;
+    }
+    if ((m1 === 'quit' || m1 === 'close') && segs.length === 2) { addRow(ctx, st, start, 'removed', ['Playwright closes the page and browser itself.']); return; }
+    if (m1 === 'navigate' && segs[2]) {
+      const n = segs[2].name, x = segs[2].args || [];
+      if (n === 'refresh') O.push(d, 'await page.reload();'); else if (n === 'back') O.push(d, 'await page.goBack();'); else if (n === 'forward') O.push(d, 'await page.goForward();'); else if (n === 'to') O.push(d, `await page.goto(${x[0].src});`); else return flag('navigate() form not mapped.');
+      return done();
+    }
+    if (m1 === 'wait' && a[0]) {
+      const r = untilToExpect(ctx, a[0], 'page');
+      if (!r) return flag('driver.wait() condition not mapped; write the equivalent expect() by hand.');
+      O.push(d, r.expr);
+      notes.push(`driver.wait(${r.what}) → ${r.to}: a web-first assertion with the same meaning.` + (a[1] ? ` The ${a[1].src} ms timeout can go in { timeout } if the default 5 s is too short.` : ''));
+      if (decl) { O.push(d, `const ${decl.name} = ${r.loc};`); scope.vars.set(decl.name, { kind: 'loc', expr: decl.name }); }
+      return done();
+    }
+    if (m1 === 'getTitle' || m1 === 'getCurrentUrl') {
+      if (decl) { O.push(d, `const ${decl.name} = ${m1 === 'getTitle' ? 'await page.title()' : 'page.url()'};`); notes.push('One-shot read. For assertions prefer toHaveTitle / toHaveURL, which retry.'); return done(); }
+    }
+    if (m1 === 'executeScript' || m1 === 'execute_script') {
+      O.push(d, `${decl ? `const ${decl.name} = ` : ''}await page.evaluate(${a.length ? (a[0].isStr ? `() => { ${a[0].lit} }` : a[0].src) : ''});`);
+      notes.push('executeScript → page.evaluate. Arguments and return values follow different rules; check it.');
+      return done('flagged');
+    }
+    const el = wdLocator(ctx, segs, scope);
+    if (!el) return flag(`driver.${m1}() is not mapped.`);
+    if (decl) {
+      if (!el.rest.length) {
+        O.push(d, `const ${decl.name} = ${el.loc};`); scope.vars.set(decl.name, { kind: 'loc', expr: decl.name, many: !!el.many });
+        notes.push(el.many ? 'findElements → one locator for all matches (lazy; count it with toHaveCount).' : 'findElement → a locator. Locators are lazy and re-query, so there are no stale element references.');
+        return done();
+      }
+      const last = el.rest[el.rest.length - 1].name;
+      const read = { getText: 'innerText()', text: 'innerText()', getAttribute: `getAttribute(${(el.rest[0].args || [])[0] ? el.rest[0].args[0].src : ''})`, get_attribute: `getAttribute(${(el.rest[0].args || [])[0] ? el.rest[0].args[0].src : ''})`, isDisplayed: 'isVisible()', is_displayed: 'isVisible()', isEnabled: 'isEnabled()' }[last];
+      if (read && el.rest.length === 1) { O.push(d, `const ${decl.name} = await ${el.loc}.${read};`); notes.push('One-shot read. Assert with toHaveText/toHaveAttribute instead where you can: they retry.'); return done(); }
+      return flag('assignment from this element chain is not mapped.');
+    }
+    return convertElementCall(ctx, st, el.loc, el.rest, scope, start);
+  }
+
+  function convertElementCall(ctx, st, loc, rest, scope, start) {
+    const d = scope.depth, O = ctx.out, notes = [];
+    const flag = (why) => { O.lines.length = start; flagLines(ctx, d, why, text(st)); addRow(ctx, st, start, 'flagged', ['Commented out, not dropped: ' + why]); };
+    if (!rest.length) return flag('bare element expression.');
+    let i = 0;
+    while (i < rest.length) {
+      const s = rest[i], a = s.args || [];
+      if (s.name === 'click') { O.push(d, `await ${loc}.click();`); i++; continue; }
+      if (s.name === 'clear') { if (rest[i + 1] && /^(sendKeys|send_keys)$/.test(rest[i + 1].name)) { notes.push('clear() + sendKeys → fill(), which replaces the value.'); i++; continue; } O.push(d, `await ${loc}.fill('');`); i++; continue; }
+      if (s.name === 'sendKeys' || s.name === 'send_keys') { if (!sendKeysOut(ctx, d, loc, a, notes)) return flag('sendKeys with an unmapped key.'); i++; continue; }
+      if (s.name === 'submit') { O.push(d, `await ${loc}.press('Enter');`); notes.push("submit() → press('Enter'); clicking the form's submit button is closer to what a user does."); i++; continue; }
+      if (s.name === 'click' || s.name === 'hover') { O.push(d, `await ${loc}.hover();`); i++; continue; }
+      if (s.name === 'findElement' || s.name === 'find_element') { const m = findArgs(ctx, a, loc); if (!m) return flag('nested find not mapped.'); loc = m.expr; i++; continue; }
+      return flag(`.${s.name}() is not mapped.`);
+    }
+    if (!notes.length) notes.push('Element action → locator action (auto-waits for the element to be visible, stable and enabled).');
+    addRow(ctx, st, start, 'converted', notes);
+  }
+
+  // until.X(...) → expect
+  function untilToExpect(ctx, arg, base) {
+    const { segs } = readChain(arg.toks, 0);
+    if (segs.length !== 2 || segs[0].name !== 'until' || !segs[1].args) return null;
+    const n = segs[1].name, a = segs[1].args, a0 = a[0];
+    const locOf = (x) => { if (!x) return null; const r = readChain(x.toks, 0).segs; if (r[0] && r[0].name === 'By') { const m = byToLocator(ctx, x, base); return m && m.expr; } const e = wdLocator(ctx, r, { vars: new Map() }); return e && !e.rest.length ? e.loc : null; };
+    const val = (x) => (x.isStr ? q(x.lit) : x.src);
+    switch (n) {
+      case 'elementLocated': { const l = locOf(a0); return l && { expr: `await expect(${l}).toBeAttached();`, what: 'until.elementLocated', to: 'toBeAttached()', loc: l }; }
+      case 'elementIsVisible': { const l = locOf(a0); return l && { expr: `await expect(${l}).toBeVisible();`, what: 'until.elementIsVisible', to: 'toBeVisible()', loc: l }; }
+      case 'elementIsNotVisible': { const l = locOf(a0); return l && { expr: `await expect(${l}).toBeHidden();`, what: 'until.elementIsNotVisible', to: 'toBeHidden()', loc: l }; }
+      case 'elementIsEnabled': { const l = locOf(a0); return l && { expr: `await expect(${l}).toBeEnabled();`, what: 'until.elementIsEnabled', to: 'toBeEnabled()', loc: l }; }
+      case 'elementTextIs': { const l = locOf(a0); return l && { expr: `await expect(${l}).toHaveText(${val(a[1])});`, what: 'until.elementTextIs', to: 'toHaveText()', loc: l }; }
+      case 'elementTextContains': { const l = locOf(a0); return l && { expr: `await expect(${l}).toContainText(${val(a[1])});`, what: 'until.elementTextContains', to: 'toContainText()', loc: l }; }
+      case 'stalenessOf': return null;
+      case 'titleIs': return { expr: `await expect(page).toHaveTitle(${val(a0)});`, what: 'until.titleIs', to: 'toHaveTitle()' };
+      case 'titleContains': return { expr: `await expect(page).toHaveTitle(${a0.isStr ? reLit(a0.lit) : `new RegExp(${a0.src})`});`, what: 'until.titleContains', to: 'toHaveTitle(/…/)' };
+      case 'urlIs': return { expr: `await expect(page).toHaveURL(${val(a0)});`, what: 'until.urlIs', to: 'toHaveURL()' };
+      case 'urlContains': return { expr: `await expect(page).toHaveURL(${a0.isStr ? reLit(a0.lit) : `new RegExp(${a0.src})`});`, what: 'until.urlContains', to: 'toHaveURL(/…/)' };
+      default: return null;
+    }
+  }
+
+  // ---------- assertions (assert / chai / pytest) ----------
+  // Classifies what an assertion's subject reads: text of a locator, the title, the URL, a count, visibility...
+  function subjectOf(ctx, toks, scope) {
+    let t = toks.slice();
+    while (t.length && t[0].v === 'await') t = t.slice(1);
+    while (t.length >= 2 && t[0].v === '(' && match(t, 0) === t.length - 1) { t = t.slice(1, -1); while (t.length && t[0].v === 'await') t = t.slice(1); }
+    // ( await driver.findElements(...) ).length
+    if (t.length > 2 && t[0].v === '(' && t[t.length - 1].v === 'length' && t[t.length - 2].v === '.') {
+      const inner = subjectOf(ctx, t.slice(1, match(t, 0)), scope);
+      if (inner && inner.kind === 'many') return { kind: 'count', loc: inner.loc };
+    }
+    // len(driver.find_elements(...))
+    if (t[0] && t[0].v === 'len' && t[1] && t[1].v === '(' && match(t, 1) === t.length - 1) {
+      const inner = subjectOf(ctx, t.slice(2, -1), scope); if (inner && inner.kind === 'many') return { kind: 'count', loc: inner.loc };
+    }
+    const { segs, end } = readChain(t, 0);
+    if (!segs.length || end !== t.length) return null;
+    const last = segs[segs.length - 1].name;
+    if (segs[0].name === 'driver' && segs.length === 2) {
+      if (/^(getTitle|title)$/.test(last)) return { kind: 'title' };
+      if (/^(getCurrentUrl|current_url)$/.test(last)) return { kind: 'url' };
+    }
+    if (segs.length >= 2 && last === 'length') { const v = segs.length === 2 && scope.vars.get(segs[0].name); if (v && v.many) return { kind: 'count', loc: v.expr }; }
+    const el = wdLocator(ctx, segs, scope);
+    if (!el) return null;
+    if (el.many && !el.rest.length) return { kind: 'many', loc: el.loc };
+    if (el.many) return null;
+    if (!el.rest.length) return null;
+    if (el.rest.length === 1) {
+      const n = el.rest[0].name, x = el.rest[0].args || [];
+      if (n === 'getText' || n === 'text') return { kind: 'text', loc: el.loc };
+      if (n === 'isDisplayed' || n === 'is_displayed') return { kind: 'visible', loc: el.loc };
+      if (n === 'isEnabled' || n === 'is_enabled') return { kind: 'enabled', loc: el.loc };
+      if (n === 'isSelected' || n === 'is_selected') return { kind: 'checked', loc: el.loc };
+      if ((n === 'getAttribute' || n === 'get_attribute') && x[0] && x[0].isStr) return x[0].lit === 'value' ? { kind: 'value', loc: el.loc } : { kind: 'attr', loc: el.loc, name: x[0].lit };
+    }
+    return null;
+  }
+  function eqAssert(sub, v, neg) {
+    const N = neg ? 'not.' : '';
+    switch (sub.kind) {
+      case 'text': return `await expect(${sub.loc}).${N}toHaveText(${v});`;
+      case 'title': return `await expect(page).${N}toHaveTitle(${v});`;
+      case 'url': return `await expect(page).${N}toHaveURL(${v});`;
+      case 'count': return `await expect(${sub.loc}).${N}toHaveCount(${v});`;
+      case 'value': return `await expect(${sub.loc}).${N}toHaveValue(${v});`;
+      case 'attr': return `await expect(${sub.loc}).${N}toHaveAttribute(${q(sub.name)}, ${v});`;
+      case 'visible': return v === 'true' ? `await expect(${sub.loc}).${neg ? 'toBeHidden' : 'toBeVisible'}();` : v === 'false' ? `await expect(${sub.loc}).${neg ? 'toBeVisible' : 'toBeHidden'}();` : null;
+      case 'enabled': return v === 'true' ? `await expect(${sub.loc}).${N}toBeEnabled();` : v === 'false' ? `await expect(${sub.loc}).${N}toBeDisabled();` : null;
+      case 'checked': return v === 'true' ? `await expect(${sub.loc}).${N}toBeChecked();` : null;
+      default: return null;
+    }
+  }
+  function containsAssert(sub, a, neg) {
+    const N = neg ? 'not.' : '';
+    const re = a.isStr ? reLit(a.lit) : `new RegExp(${a.src})`;
+    if (sub.kind === 'text') return `await expect(${sub.loc}).${N}toContainText(${a.isStr ? q(a.lit) : a.src});`;
+    if (sub.kind === 'title') return `await expect(page).${N}toHaveTitle(${re});`;
+    if (sub.kind === 'url') return `await expect(page).${N}toHaveURL(${re});`;
+    if (sub.kind === 'value') return `await expect(${sub.loc}).${N}toHaveValue(${re});`;
+    return null;
+  }
+  function truthyAssert(sub, neg) {
+    if (sub.kind === 'visible') return `await expect(${sub.loc}).${neg ? 'toBeHidden' : 'toBeVisible'}();`;
+    if (sub.kind === 'enabled') return `await expect(${sub.loc}).${neg ? 'toBeDisabled' : 'toBeEnabled'}();`;
+    if (sub.kind === 'checked') return `await expect(${sub.loc}).${neg ? 'not.' : ''}toBeChecked();`;
+    return null;
+  }
+  const val = (a) => (a.isStr ? q(a.lit) : a.src);
+
+  function convertAssert(ctx, st, segs, scope, start) {
+    const d = scope.depth, O = ctx.out;
+    const flag = (why) => { flagLines(ctx, d, why, text(st)); addRow(ctx, st, start, 'flagged', ['Commented out, not dropped: ' + why]); };
+    const ok = (line, note) => { O.push(d, line); addRow(ctx, st, start, 'converted', [note]); };
+    if (segs[0].name === 'assert') {
+      const fn = segs.length === 1 ? 'ok' : segs[1].name;
+      const a = (segs.length === 1 ? segs[0].args : segs[1].args) || [];
+      if (!a.length) return flag('assert without arguments.');
+      if (/^(equal|strictEqual|deepEqual|deepStrictEqual|notEqual|notStrictEqual)$/.test(fn)) {
+        const neg = /^not/.test(fn);
+        const sub = subjectOf(ctx, a[0].toks, scope);
+        if (sub) { const l = eqAssert(sub, val(a[1]), neg); if (l) return ok(l, `assert.${fn}(${sub.kind === 'count' ? 'count' : sub.kind}) → a web-first assertion that retries until it holds.`); }
+        return ok(`expect(${a[0].src}).${neg ? 'not.' : ''}${/deep/.test(fn) ? 'toEqual' : 'toBe'}(${a[1].src});`, 'assert → expect on a plain value (not retrying; fine for values already read).');
+      }
+      if (fn === 'ok' || fn === 'true') {
+        let t = a[0].toks, neg = false;
+        if (t[0].v === '!') { neg = true; t = t.slice(1); }
+        const sub = subjectOf(ctx, t, scope);
+        if (sub) { const l = truthyAssert(sub, neg); if (l) return ok(l, 'assert.ok(isDisplayed) → toBeVisible, which retries.'); }
+        // x.includes(y)
+        const c = readChain(stripAwait(t), 0);
+        const lastSeg = c.segs[c.segs.length - 1];
+        if (lastSeg && lastSeg.name === 'includes' && lastSeg.args && c.end === stripAwait(t).length) {
+          const recv = stripAwait(t).slice(0, findCallStart(stripAwait(t), 'includes'));
+          const sub2 = subjectOf(ctx, recv, scope);
+          if (sub2) { const l = containsAssert(sub2, lastSeg.args[0], neg); if (l) return ok(l, 'includes() check → a retrying contains assertion.'); }
+        }
+        return ok(`expect(${a[0].src}).${neg ? 'toBeFalsy' : 'toBeTruthy'}();`.replace(/expect\(!/, 'expect('), 'assert.ok → expect().toBeTruthy() (not retrying).');
+      }
+      if (fn === 'match') { const sub = subjectOf(ctx, a[0].toks, scope); if (sub && (sub.kind === 'text' || sub.kind === 'url' || sub.kind === 'title')) return ok(sub.kind === 'text' ? `await expect(${sub.loc}).toHaveText(${a[1].src});` : `await expect(page).${sub.kind === 'url' ? 'toHaveURL' : 'toHaveTitle'}(${a[1].src});`, 'assert.match → a retrying regex assertion.'); return ok(`expect(${a[0].src}).toMatch(${a[1].src});`, 'assert.match → toMatch.'); }
+      return flag(`assert.${fn} is not mapped.`);
+    }
+    // chai: expect(x).to....
+    const inner = segs[0].args && segs[0].args[0];
+    if (!inner) return flag('expect() without a subject.');
+    const chain = segs.slice(1).map((s) => s.name);
+    const last = segs[segs.length - 1];
+    const neg = chain.includes('not');
+    const words = chain.filter((w) => !/^(to|be|been|is|that|which|and|has|have|with|at|of|same|not|deep)$/.test(w));
+    const verb = words[words.length - 1] || chain[chain.length - 1];
+    const sub = subjectOf(ctx, inner.toks, scope);
+    if (sub) {
+      let l = null;
+      if (/^(equal|eq|equals|eql)$/.test(verb) && last.args) l = eqAssert(sub, val(last.args[0]), neg);
+      else if (/^(contain|include|contains|includes)$/.test(verb) && last.args) l = containsAssert(sub, last.args[0], neg);
+      else if (verb === 'true') l = truthyAssert(sub, neg);
+      else if (verb === 'lengthOf' && sub.kind === 'many') l = `await expect(${sub.loc}).toHaveCount(${val(last.args[0])});`;
+      if (l) return ok(l, 'chai expect on a WebDriver read → a retrying web-first assertion.');
+    }
+    const j = chaiToJest(text(st));
+    if (j) return ok(j + ';', 'chai → Playwright expect matcher (not retrying; fine for values already read).');
+    return flag('chai assertion not mapped.');
+  }
+  const stripAwait = (t) => { let x = t; while (x.length && x[0].v === 'await') x = x.slice(1); return x; };
+  function findCallStart(t, name) { for (let i = t.length - 1; i > 0; i--) if (t[i].v === name && t[i - 1].v === '.') return i - 1; return t.length; }
+  function chaiToJest(s) {
+    const m = s.match(/^expect\(([^]*)\)\.((?:to|not|be|been|deep|have|a|an|\.)+?)\.?(equal|eql|include|contain|greaterThan|above|lessThan|below|true|false|null|undefined|lengthOf|match|exist|ok|empty)(\(([^]*)\))?;?$/);
+    if (!m) return null;
+    const subj = m[1], mods = m[2], verb = m[3], arg = m[5] || '';
+    const neg = /not/.test(mods) ? '.not' : '';
+    const deep = /deep/.test(mods);
+    const map = { equal: deep ? 'toEqual' : 'toBe', eql: 'toEqual', include: 'toContain', contain: 'toContain', greaterThan: 'toBeGreaterThan', above: 'toBeGreaterThan', lessThan: 'toBeLessThan', below: 'toBeLessThan', lengthOf: 'toHaveLength', match: 'toMatch' };
+    if (verb === 'true' || verb === 'false') return `expect(${subj})${neg}.toBe(${verb})`;
+    if (verb === 'null') return `expect(${subj})${neg}.toBeNull()`;
+    if (verb === 'undefined') return `expect(${subj})${neg}.toBeUndefined()`;
+    if (verb === 'ok' || verb === 'exist') return `expect(${subj})${neg}.toBeTruthy()`;
+    if (verb === 'empty') return `expect(${subj})${neg}.toHaveLength(0)`;
+    return map[verb] ? `expect(${subj})${neg}.${map[verb]}(${arg})` : null;
+  }
+
+  // ---------- Python (pytest + selenium) ----------
+  function stripPyComment(line) {
+    let inS = null;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (inS) { if (c === '\\') i++; else if (c === inS) inS = null; }
+      else if (c === '"' || c === "'") inS = c;
+      else if (c === '#') return { code: line.slice(0, i).replace(/\s+$/, ''), comment: line.slice(i + 1).trim() };
+    }
+    return { code: line.replace(/\s+$/, ''), comment: null };
+  }
+  function convertPy(src) {
+    const ctx = newCtx('py', src);
+    const raw = src.split('\n');
+    // logical lines: join while brackets are open
+    const lines = [];
+    for (let i = 0; i < raw.length; i++) {
+      const { code, comment } = stripPyComment(raw[i]);
+      if (!code.trim()) { if (comment !== null) lines.push({ indent: raw[i].search(/\S/), code: '', comment, from: i + 1, to: i + 1 }); continue; }
+      let text = code, j = i;
+      const depth = (s) => { let dd = 0, inS = null; for (let k = 0; k < s.length; k++) { const c = s[k]; if (inS) { if (c === '\\') k++; else if (c === inS) inS = null; } else if (c === '"' || c === "'") inS = c; else if ('([{'.includes(c)) dd++; else if (')]}'.includes(c)) dd--; } return dd; };
+      while (depth(text) > 0 && j + 1 < raw.length) { j++; text += ' ' + stripPyComment(raw[j]).code.trim(); }
+      lines.push({ indent: code.search(/\S/), code: text.trim(), comment, from: i + 1, to: j + 1 });
+      i = j;
+    }
+    // tree by indentation
+    const root = { children: [], indent: -1 };
+    const stack = [root];
+    for (const l of lines) {
+      if (!l.code) { stack[stack.length - 1].children.push(l); continue; }
+      while (stack.length > 1 && l.indent <= stack[stack.length - 1].indent) stack.pop();
+      const node = Object.assign({ children: [] }, l);
+      stack[stack.length - 1].children.push(node);
+      if (/:$/.test(l.code)) stack.push(node);
+    }
+    const rows = ctx.rows, O = ctx.out;
+    const rawOf = (n) => raw.slice(n.from - 1, lastLine(n)).join('\n');
+    const lastLine = (n) => (n.children && n.children.length ? Math.max(n.to, ...n.children.map(lastLine)) : n.to);
+    const row = (n, start, status, notes, whole) => rows.push({ from: n.from, to: whole ? lastLine(n) : n.to, input: whole ? rawOf(n) : raw.slice(n.from - 1, n.to).join('\n'), out: O.lines.slice(start), status, notes });
+    function block(nodes, scope) {
+      let decorator = null;
+      for (const n of nodes) {
+        const d = scope.depth, start = O.lines.length;
+        if (!n.code) { O.push(d, '// ' + n.comment); row(n, start, 'kept', []); continue; }
+        const c = n.code;
+        if (/^(import|from)\s/.test(c)) { row(n, start, 'removed', ['Playwright Test provides page, expect and the browser; this import is not needed.']); continue; }
+        if (/^@pytest\.fixture/.test(c)) { decorator = n; continue; }
+        let m;
+        if ((m = c.match(/^def\s+(\w+)\s*\(([^)]*)\)\s*(->\s*[\w\[\], ]+)?:$/))) {
+          if (decorator) {
+            const all = [decorator, n];
+            rows.push({ from: decorator.from, to: lastLine(n), input: raw.slice(decorator.from - 1, lastLine(n)).join('\n'), out: [], status: 'removed', notes: [`The ${m[1]} fixture only started and quit a browser. Playwright's built-in page fixture replaces it.`] });
+            if (!/webdriver|quit\(\)/.test(rawOf(n))) { rows[rows.length - 1].status = 'flagged'; flagLines(ctx, d, `pytest fixture ${m[1]}() did more than manage the browser; port it to test.extend().`, rawOf(n)); rows[rows.length - 1].out = O.lines.slice(start); }
+            decorator = null; continue;
+          }
+          if (/^test_?/.test(m[1])) {
+            ctx.inputTests++; ctx.tests++;
+            const title = m[1].replace(/^test_?/, '').replace(/_/g, ' ').trim() || m[1];
+            O.push(d, `test(${q(title)}, async ({ page }) => {`);
+            row(n, start, 'structure', [`def ${m[1]}(…) → test('${title}') with the page fixture` + (/driver/.test(m[2]) ? ' (the driver fixture becomes page)' : '')]);
+            block(n.children, Object.assign({}, scope, { depth: d + 1, vars: new Map(scope.vars) }));
+            const s2 = O.lines.length; O.push(d, '});'); rows.push({ from: lastLine(n), to: lastLine(n), input: '', out: O.lines.slice(s2), status: 'structure', notes: [], tail: true });
+            continue;
+          }
+          if (/^(setup_method|teardown_method|setup|teardown)$/.test(m[1]) && /driver/.test(rawOf(n))) { row(n, start, 'removed', ['Browser set-up and tear-down is handled by Playwright.'], true); continue; }
+          flagLines(ctx, d, `helper def ${m[1]}() is not converted; rewrite it as an async function that takes page.`, rawOf(n));
+          row(n, start, 'flagged', ['Commented out, not dropped.'], true); continue;
+        }
+        if ((m = c.match(/^class\s+(\w+)\s*(\([^)]*\))?:$/))) {
+          const title = m[1].replace(/^Test/, '').replace(/([a-z])([A-Z])/g, '$1 $2') || m[1];
+          O.push(d, `test.describe(${q(title)}, () => {`);
+          row(n, start, 'structure', ['class Test… → test.describe()']);
+          block(n.children, Object.assign({}, scope, { depth: d + 1 }));
+          const s2 = O.lines.length; O.push(d, '});'); rows.push({ from: lastLine(n), to: lastLine(n), input: '', out: O.lines.slice(s2), status: 'structure', notes: [], tail: true });
+          continue;
+        }
+        if (n.children.length || /:$/.test(c)) { flagLines(ctx, d, 'Python control flow is not converted; rewrite this block by hand.', rawOf(n)); row(n, start, 'flagged', ['Commented out, not dropped.'], true); continue; }
+        pyStatement(n, c, scope, start);
+      }
+    }
+    function pyStatement(n, c, scope, start) {
+      const d = scope.depth;
+      const cc = c.replace(/\bself\.driver\b/g, 'driver');
+      SRC = cc; ALL = tokenize(cc);
+      const toks = ALL.filter((t) => t.t !== 'nl');
+      const notes = [];
+      const flag = (why) => { O.lines.length = start; flagLines(ctx, d, why, raw.slice(n.from - 1, n.to).join('\n')); row(n, start, 'flagged', ['Commented out, not dropped: ' + why]); };
+      const ok = (lines, note, status) => { lines.forEach((l) => O.push(d, l)); row(n, start, status || 'converted', [note]); };
+      if (/^time\.sleep\(/.test(cc)) { ctx.sleeps = (ctx.sleeps || 0) + 1; return ok([`// removed ${cc}: the next web-first assertion waits for the real condition`], `Fixed sleep removed (${cc.match(/\((.*)\)/)[1]} s). Playwright's expect() retries until its condition holds.`, 'sleep'); }
+      if (/^driver\.(quit|close)\(\)$/.test(cc)) return ok([], 'Playwright closes the browser itself.', 'removed');
+      if (/^driver\.implicitly_wait\(/.test(cc)) return ok([], 'Implicit waits are unnecessary: every Playwright action and assertion auto-waits.', 'removed');
+      if (/^assert\s/.test(cc)) {
+        let body = toks.slice(1), neg = false;
+        if (body[0] && body[0].v === 'not') { neg = true; body = body.slice(1); }
+        // split on == / != / in / not in, at depth 0
+        let op = null, at = -1, dd = 0;
+        for (let i = 0; i < body.length; i++) {
+          const v = body[i].v;
+          if ('([{'.includes(v) && body[i].t === 'punc') dd++; else if (')]}'.includes(v) && body[i].t === 'punc') dd--;
+          if (dd === 0 && body[i].t === 'punc' && (v === '==' || v === '!=')) { op = v; at = i; break; }
+          if (dd === 0 && v === 'in' && body[i].t === 'id') { op = body[i - 1] && body[i - 1].v === 'not' ? 'not in' : 'in'; at = i; break; }
+          if (dd === 0 && body[i].t === 'punc' && v === ',') { body = body.slice(0, i); break; }
+        }
+        const pyVal = (t) => { const a = argInfo(t); if (t.length === 1 && t[0].t === 'id' && /^(True|False)$/.test(t[0].v)) return { isStr: false, src: t[0].v === 'True' ? 'true' : 'false', lit: t[0].v === 'True' }; return a; };
+        if (!op) {
+          const sub = subjectOf(ctx, body, scope);
+          const l = sub && truthyAssert(sub, neg);
+          return l ? ok([l], 'assert el.is_displayed() → toBeVisible, which retries.') : flag('assert expression not mapped.');
+        }
+        if (op === '==' || op === '!=') {
+          const L = body.slice(0, at), R = body.slice(at + 1);
+          let sub = subjectOf(ctx, L, scope), v = pyVal(R);
+          if (!sub) { sub = subjectOf(ctx, R, scope); v = pyVal(L); }
+          const l = sub && eqAssert(sub, v.isStr ? q(v.lit) : v.src, (op === '!=') !== neg);
+          return l ? ok([l], `assert ${sub.kind} == … → a web-first assertion that retries.`) : flag('assert comparison not mapped.');
+        }
+        const needle = pyVal(body.slice(op === 'not in' ? 0 : 0, op === 'not in' ? at - 1 : at)), hay = body.slice(at + 1);
+        const sub = subjectOf(ctx, hay, scope);
+        const l = sub && containsAssert(sub, needle, (op === 'not in') !== neg);
+        return l ? ok([l], `assert … in ${sub.kind} → a retrying contains assertion.`) : flag('assert … in … not mapped.');
+      }
+      // WebDriverWait(driver, n).until(EC.x((By.ID, "v")[, "text"]))
+      let m;
+      let decl = null, k = 0;
+      if (toks[0] && toks[0].t === 'id' && toks[1] && toks[1].v === '=') { decl = toks[0].v; k = 2; }
+      const { segs, end } = readChain(toks, k);
+      if (!segs.length || end !== toks.length) return flag('statement not mapped.');
+      if (segs[0].name === 'WebDriverWait' && segs[1] && segs[1].name === 'until' && segs[1].args) {
+        const r = pyEC(segs[1].args[0]);
+        if (!r) return flag('expected condition not mapped.');
+        const out = [r.expr];
+        if (decl && r.loc) { out.push(`const ${decl} = ${r.loc};`); scope.vars.set(decl, { kind: 'loc', expr: decl }); }
+        const t = segs[0].args && segs[0].args[1] ? segs[0].args[1].src : null;
+        return ok(out, `WebDriverWait(${r.what}) → ${r.to}.` + (t ? ` The ${t} s timeout can go in { timeout: ${Number(t) * 1000} } if the default 5 s is too short.` : ''));
+      }
+      if (segs[0].name === 'driver' || (scope.vars.has(segs[0].name))) {
+        if (segs[0].name === 'driver' && segs[1] && segs[1].name === 'get' && segs.length === 2) return ok([`await page.goto(${val(segs[1].args[0])});`], 'driver.get → page.goto.');
+        if (segs[0].name === 'driver' && segs[1] && segs[1].name === 'refresh') return ok(['await page.reload();'], 'driver.refresh → page.reload.');
+        if (segs[0].name === 'driver' && segs[1] && segs[1].name === 'back') return ok(['await page.goBack();'], 'driver.back → page.goBack.');
+        const el = wdLocator(ctx, segs, scope);
+        if (!el) return flag('driver call not mapped.');
+        if (decl) {
+          if (!el.rest.length) { scope.vars.set(decl, { kind: 'loc', expr: decl, many: !!el.many }); return ok([`const ${decl} = ${el.loc};`], el.many ? 'find_elements → one locator for all matches.' : 'find_element → a lazy locator (no stale element references).'); }
+          if (el.rest.length === 1 && el.rest[0].name === 'text') return ok([`const ${decl} = await ${el.loc}.innerText();`], 'One-shot read; prefer toHaveText, which retries.');
+          return flag('assignment not mapped.');
+        }
+        const start2 = O.lines.length;
+        const tmpRows = rows.length;
+        convertElementCall(ctx, toks, el.loc, el.rest, scope, start2);
+        // convertElementCall adds a JS-style row: re-point it at the Python line
+        const r = rows.pop(); rows.length = tmpRows;
+        row(n, start, r.status, r.notes);
+        return;
+      }
+      return flag('statement not mapped.');
+    }
+    function pyEC(arg) {
+      const { segs } = readChain(arg.toks, 0);
+      if (segs.length !== 2 || !/^(EC|expected_conditions)$/.test(segs[0].name) || !segs[1].args) return null;
+      const n = segs[1].name, a = segs[1].args;
+      const locOf = (x) => { if (!x || x.toks[0].v !== '(') return null; const inner = splitArgs(x.toks.slice(1, match(x.toks, 0))).map(argInfo); if (inner.length !== 2) return null; const b = readChain(inner[0].toks, 0).segs; if (b.length !== 2 || b[0].name !== 'By') return null; const r = byKind(ctx, b[1].name, inner[1], 'page'); return r && r.expr; };
+      const map = { visibility_of_element_located: ['toBeVisible()', 'visibility_of_element_located'], presence_of_element_located: ['toBeAttached()', 'presence_of_element_located'], element_to_be_clickable: ['toBeEnabled()', 'element_to_be_clickable'], invisibility_of_element_located: ['toBeHidden()', 'invisibility_of_element_located'] };
+      if (map[n]) { const l = locOf(a[0]); return l && { expr: `await expect(${l}).${map[n][0]};`, what: 'EC.' + n, to: map[n][0] + (n === 'element_to_be_clickable' ? ' (clicks auto-wait for visible and enabled anyway)' : ''), loc: l }; }
+      if (n === 'text_to_be_present_in_element') { const l = locOf(a[0]); return l && { expr: `await expect(${l}).toContainText(${val(a[1])});`, what: 'EC.' + n, to: 'toContainText()', loc: l }; }
+      if (n === 'title_is') return { expr: `await expect(page).toHaveTitle(${val(a[0])});`, what: 'EC.title_is', to: 'toHaveTitle()' };
+      if (n === 'title_contains') return { expr: `await expect(page).toHaveTitle(${a[0].isStr ? reLit(a[0].lit) : a[0].src});`, what: 'EC.title_contains', to: 'toHaveTitle(/…/)' };
+      if (n === 'url_contains') return { expr: `await expect(page).toHaveURL(${a[0].isStr ? reLit(a[0].lit) : a[0].src});`, what: 'EC.url_contains', to: 'toHaveURL(/…/)' };
+      if (n === 'url_to_be') return { expr: `await expect(page).toHaveURL(${val(a[0])});`, what: 'EC.url_to_be', to: 'toHaveURL()' };
+      return null;
+    }
+    // Python files commonly have test functions at the top level; wrap nothing, just emit.
+    block(root.children, { depth: 0, vars: new Map(), aliases: new Map(), names: new Set(), base: 'page' });
+    return finish(ctx);
+  }
+
+  // ---------- assemble ----------
+  function finish(ctx) {
+    const head = ["import { test, expect } from '@playwright/test';"];
+    if (ctx.fixtureHelper) head.push("import { readFileSync } from 'node:fs';");
+    head.push('');
+    const cfg = [];
+    if (ctx.relativeUrl) cfg.push("baseURL: 'http://localhost:3000'");
+    if (ctx.testIdAttr !== 'data-testid' && ctx.maps.some((m) => /getByTestId/.test(m.to))) cfg.push(`testIdAttribute: '${ctx.testIdAttr}'`);
+    if (cfg.length) { head.push(`// playwright.config.ts needs: use: { ${cfg.join(', ')} }`); head.push(''); }
+    if (ctx.fixtureHelper) { head.push('const readFixture = (name: string) => JSON.parse(readFileSync(`cypress/fixtures/${name}`, \'utf8\'));'); head.push(''); }
+    // collapse runs of blank lines
+    // a blank line between sibling tests, hooks and describes; none before a closing brace
+    const spaced = [];
+    ctx.out.lines.forEach((l, i, a) => {
+      spaced.push(l);
+      const next = a[i + 1];
+      if (next !== undefined && /^\s*\}\)?;?$/.test(l) && /^\s*(test|\/\/|const|await)/.test(next) && l.search(/\S/) >= next.search(/\S/) && /^\s*\}\);$/.test(l)) spaced.push('');
+    });
+    const body = spaced.filter((l, i, a) => !(l === '' && (i === 0 || a[i - 1] === '' || (a[i + 1] !== undefined && /^\s*\}/.test(a[i + 1])))));
+    const code = head.concat(body).join('\n').replace(/\n+$/, '') + '\n';
+    const count = (s) => ctx.rows.filter((r) => r.status === s).length;
+    const report = {
+      tests: ctx.tests,
+      inputTests: ctx.inputTests,
+      converted: count('converted'),
+      flagged: count('flagged'),
+      sleeps: count('sleep'),
+      removed: count('removed'),
+      kept: count('kept'),
+      locators: ctx.maps.length,
+      config: cfg,
+      testIdAttr: ctx.testIdAttr,
+    };
+    return { code, rows: ctx.rows, report, maps: ctx.maps };
+  }
+
+  function detect(src) {
+    if (/^\s*(def |import |from \w+ import|class \w+.*:\s*$)/m.test(src) && !/\bcy\./.test(src) && !/=>/.test(src)) return 'py';
+    if (/\bcy\./.test(src)) return 'cy';
+    if (/\bdriver\.|selenium-webdriver/.test(src)) return 'wd';
+    return 'cy';
+  }
+
+  function convert(src, lang) {
+    lang = lang && lang !== 'auto' ? lang : detect(src);
+    if (lang === 'py') return Object.assign(convertPy(src), { lang });
+    SRC = src; ALL = tokenize(src);
+    const ctx = newCtx(lang, src);
+    const stmts = splitStatements(ALL);
+    convertBlock(ctx, stmts, scopeOf(null, { kind: 'top', depth: 0 }));
+    return Object.assign(finish(ctx), { lang });
+  }
+
+  return { convert, detect, tokenize };
+})();
+
+const EXAMPLES = {
+  'cy-login': {
+    label: 'Cypress · login form',
+    lang: 'cy',
+    code: `describe('Sign in', () => {
+  beforeEach(() => {
+    cy.visit('/login');
+  });
+
+  it('signs in with valid details', () => {
+    cy.get('[data-cy=email]').type('ada@example.test');
+    cy.get('[data-cy=password]').type('correct horse{enter}');
+    cy.wait(1000);
+    cy.url().should('include', '/dashboard');
+    cy.contains('h1', 'Welcome back').should('be.visible');
+  });
+
+  it('shows an error for a wrong password', () => {
+    cy.get('[data-cy=email]').type('ada@example.test');
+    cy.get('[data-cy=password]').type('wrong');
+    cy.contains('button', 'Sign in').click();
+    cy.get('[role=alert]').should('have.text', 'Email or password is incorrect.');
+    cy.get('[data-cy=password]').should('have.value', '');
+  });
+
+  it('keeps the button disabled until both fields are filled', () => {
+    cy.get('button[type=submit]').should('be.disabled');
+    cy.get('[data-cy=email]').type('ada@example.test');
+    cy.get('button[type=submit]').should('be.disabled');
+    cy.get('[data-cy=password]').type('x');
+    cy.get('button[type=submit]').should('be.enabled');
+  });
+});
+`,
+  },
+  'cy-shop': {
+    label: 'Cypress · cart with intercepts',
+    lang: 'cy',
+    code: `describe('Cart', () => {
+  it('lists products from the API and adds one to the cart', () => {
+    cy.intercept('GET', '/api/products', { fixture: 'products.json' }).as('getProducts');
+    cy.visit('/shop');
+    cy.wait('@getProducts');
+    cy.get('[data-test=product-card]').should('have.length', 3);
+    cy.get('[data-test=product-card]').first().within(() => {
+      cy.get('h3').should('contain', 'Pecan Brittle');
+      cy.contains('button', 'Add to cart').click();
+    });
+    cy.get('[data-test=cart-count]').should('have.text', '1');
+  });
+
+  it('shows every price with a currency sign', () => {
+    cy.intercept('GET', '/api/products', { fixture: 'products.json' }).as('getProducts');
+    cy.visit('/shop');
+    cy.wait('@getProducts');
+    cy.get('[data-test=price]').each(($el) => {
+      expect($el.text()).to.match(/^\\$\\d+\\.\\d{2}$/);
+    });
+  });
+
+  it('checks out as a signed-in customer', () => {
+    cy.login('ada@example.test', 'correct horse');
+    cy.intercept('POST', '/api/orders', { statusCode: 201, body: { id: 'A-1042' } }).as('placeOrder');
+    cy.visit('/cart');
+    cy.get('[data-test=checkout]').click();
+    cy.wait('@placeOrder');
+    cy.get('[data-test=order-id]').invoke('text').then((id) => {
+      expect(id).to.equal('A-1042');
+    });
+    cy.contains('Thanks for your order').should('be.visible');
+  });
+});
+`,
+  },
+  'wd-js': {
+    label: 'Selenium JS · search (mocha)',
+    lang: 'wd',
+    code: `const { Builder, By, Key, until } = require('selenium-webdriver');
+const assert = require('assert');
+
+describe('Site search', function () {
+  this.timeout(30000);
+  let driver;
+
+  before(async function () {
+    driver = await new Builder().forBrowser('chrome').build();
+  });
+
+  after(async function () {
+    await driver.quit();
+  });
+
+  it('finds recipes by keyword', async function () {
+    await driver.get('http://localhost:3000/');
+    await driver.findElement(By.name('q')).sendKeys('brisket', Key.RETURN);
+    await driver.wait(until.elementLocated(By.css('.results')), 5000);
+    await driver.sleep(2000);
+    const results = await driver.findElements(By.css('.results li'));
+    assert.strictEqual(results.length, 4);
+    assert.strictEqual(await driver.findElement(By.css('.results li:first-child h2')).getText(), 'Smoked Brisket');
+  });
+
+  it('opens a recipe from the results', async function () {
+    await driver.get('http://localhost:3000/search?q=brisket');
+    await driver.findElement(By.linkText('Smoked Brisket')).click();
+    await driver.wait(until.titleContains('Smoked Brisket'), 5000);
+    const heading = await driver.findElement(By.xpath('//article/h1'));
+    assert.ok(await heading.isDisplayed());
+    assert.ok((await driver.getCurrentUrl()).includes('/recipes/'));
+  });
+});
+`,
+  },
+  'wd-py': {
+    label: 'Selenium Python · checkout (pytest)',
+    lang: 'py',
+    code: `import time
+import pytest
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+
+@pytest.fixture
+def driver():
+    d = webdriver.Chrome()
+    yield d
+    d.quit()
+
+
+def test_guest_checkout(driver):
+    driver.get("http://localhost:3000/checkout")
+    driver.find_element(By.ID, "name").send_keys("Ada Lovelace")
+    driver.find_element(By.CSS_SELECTOR, "[data-testid='postcode']").send_keys("78701")
+    driver.find_element(By.CSS_SELECTOR, "[data-testid='place-order']").click()
+    time.sleep(3)
+    WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.CSS_SELECTOR, "[data-testid='confirmation']")))
+    assert "Order placed" in driver.find_element(By.CSS_SELECTOR, "[data-testid='confirmation']").text
+    assert "/thanks" in driver.current_url
+
+
+def test_postcode_is_required(driver):
+    driver.get("http://localhost:3000/checkout")
+    driver.find_element(By.ID, "name").send_keys("Ada Lovelace", Keys.TAB)
+    driver.find_element(By.CSS_SELECTOR, "[data-testid='place-order']").click()
+    error = driver.find_element(By.CSS_SELECTOR, "[data-testid='postcode-error']")
+    assert error.is_displayed()
+    assert error.text == "Enter a postcode"
+    for field in driver.find_elements(By.CSS_SELECTOR, "input[required]"):
+        assert field.get_attribute("aria-invalid") == "true"
+`,
+  },
+};
+
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const LANG_NAME = { cy: 'Cypress', wd: 'Selenium WebDriver (JavaScript)', py: 'Selenium WebDriver (Python)' };
+  const state = { result: null, lang: null };
+  const ex = $('example');
+  for (const [k, v] of Object.entries(EXAMPLES)) { const o = document.createElement('option'); o.value = k; o.textContent = v.label; ex.appendChild(o); }
+
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  function highlight(code) {
+    return code.split('\n').map((line) => {
+      if (/^\s*\/\/ MIGRATE:/.test(line)) return `<span class="m">${esc(line)}</span>`;
+      if (/^\s*\/\//.test(line)) return `<span class="c">${esc(line)}</span>`;
+      let out = '', i = 0;
+      const re = /('(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`|\/\/.*$)|\b(await|async|const|let|for|of|import|from|return|new)\b|\b(test|expect|page)\b/g;
+      let m;
+      while ((m = re.exec(line))) {
+        out += esc(line.slice(i, m.index));
+        if (m[1]) out += `<span class="${m[1].startsWith('//') ? 'c' : 's'}">${esc(m[1])}</span>`;
+        else if (m[2]) out += `<span class="k">${m[2]}</span>`;
+        else out += `<span class="f">${m[3]}</span>`;
+        i = re.lastIndex;
+      }
+      return out + esc(line.slice(i));
+    }).join('\n');
+  }
+
+  function numbered(text, from) {
+    if (!text) return '';
+    return text.split('\n').map((l, i) => `<span class="ln">${String(from + i).padStart(3, ' ')}  </span>${esc(l)}`).join('\n');
+  }
+
+  function render() {
+    const r = state.result;
+    const rep = r.report;
+    $('detected').textContent = 'from ' + LANG_NAME[r.lang];
+    $('n-tests').textContent = rep.tests; $('n-converted').textContent = rep.converted; $('n-flagged').textContent = rep.flagged;
+    $('n-sleeps').textContent = rep.sleeps; $('n-removed').textContent = rep.removed; $('n-locators').textContent = rep.locators;
+    const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+    $('summary').textContent = `${plural(rep.tests, 'test')} converted from ${LANG_NAME[r.lang]}: ${plural(rep.converted, 'statement')} converted, ${rep.flagged} flagged for manual review, ${plural(rep.sleeps, 'fixed sleep')} removed, ${plural(rep.removed, 'setup line')} dropped.`;
+    if (rep.config.length) { $('cfg').hidden = false; $('cfg').textContent = `playwright.config.ts needs: use: { ${rep.config.join(', ')} }`; } else $('cfg').hidden = true;
+
+    const diff = $('diff'); diff.textContent = '';
+    for (const row of r.rows) {
+      if (row.tail && !row.out.length) continue;
+      const d = document.createElement('div');
+      d.className = 'drow'; d.dataset.status = row.status; d.setAttribute('data-testid', 'row');
+      const inp = document.createElement('pre'); inp.className = 'in';
+      inp.innerHTML = row.tail ? esc((row.input || '').trim() ? row.input : '') : numbered(row.input, row.from);
+      const out = document.createElement('pre'); out.className = 'out';
+      out.innerHTML = row.out.length ? highlight(row.out.join('\n')) : `<span class="empty-out">${row.status === 'removed' ? '(dropped: Playwright handles this)' : '(nothing)'}</span>`;
+      d.append(inp, out);
+      if (row.status !== 'structure' || row.notes.length) {
+        const ul = document.createElement('ul'); ul.className = 'notes';
+        const li0 = document.createElement('li');
+        li0.innerHTML = `<span class="badge b-${row.status === 'structure' ? 'kept' : row.status}">${{ converted: 'converted', flagged: 'review', sleep: 'sleep removed', removed: 'dropped', kept: 'carried over', structure: 'structure' }[row.status]}</span>` + esc(row.notes[0] || '');
+        ul.appendChild(li0);
+        for (const n of row.notes.slice(1)) { const li = document.createElement('li'); li.textContent = n; ul.appendChild(li); }
+        d.appendChild(ul);
+      }
+      diff.appendChild(d);
+    }
+    applyFilter();
+
+    const tb = $('maps'); tb.textContent = '';
+    for (const m of r.maps) {
+      const tr = document.createElement('tr'); tr.setAttribute('data-testid', 'mapping');
+      tr.innerHTML = `<td><code>${esc(m.from)}</code></td><td><code class="to">${esc(m.to)}</code></td><td class="${m.weak ? 'weak' : ''}">${esc(m.why)}</td>`;
+      tb.appendChild(tr);
+    }
+    if (!r.maps.length) tb.innerHTML = '<tr><td colspan="3">No selectors in this input.</td></tr>';
+    $('out').innerHTML = highlight(r.code);
+  }
+  function applyFilter() {
+    const only = $('only-review').checked;
+    for (const d of document.querySelectorAll('.drow')) d.hidden = only && !['flagged', 'sleep'].includes(d.dataset.status);
+  }
+
+  function run() {
+    const src = $('src').value;
+    const lang = $('lang').value;
+    try { state.result = Migrator.convert(src, lang); }
+    catch (e) { state.result = { code: `// The converter could not read this input: ${e.message}\n`, rows: [], maps: [], lang: lang === 'auto' ? Migrator.detect(src) : lang, report: { tests: 0, inputTests: 0, converted: 0, flagged: 0, sleeps: 0, removed: 0, kept: 0, locators: 0, config: [] } }; }
+    render();
+  }
+
+  function reportMarkdown() {
+    const r = state.result, p = r.report;
+    const lines = ['# Migration report', '', `Source: ${LANG_NAME[r.lang]}`, '', '| Measure | Count |', '| --- | --- |',
+      `| Tests | ${p.tests} |`, `| Statements converted | ${p.converted} |`, `| Flagged for manual review | ${p.flagged} |`, `| Fixed sleeps removed | ${p.sleeps} |`, `| Setup lines dropped | ${p.removed} |`, `| Selectors mapped | ${p.locators} |`, ''];
+    if (p.config.length) lines.push(`Config: \`use: { ${p.config.join(', ')} }\``, '');
+    const flagged = r.rows.filter((x) => x.status === 'flagged');
+    lines.push('## Needs a human', '');
+    if (!flagged.length) lines.push('Nothing flagged.');
+    for (const f of flagged) lines.push(`- Line ${f.from}${f.to > f.from ? '–' + f.to : ''}: ${f.notes.join(' ')}`);
+    const sl = r.rows.filter((x) => x.status === 'sleep');
+    lines.push('', '## Fixed sleeps removed', '');
+    if (!sl.length) lines.push('None.');
+    for (const s of sl) lines.push(`- Line ${s.from}: \`${s.input.trim()}\``);
+    lines.push('', '## Selector mappings', '', '| Original | Playwright | Why |', '| --- | --- | --- |');
+    for (const m of r.maps) lines.push(`| \`${m.from.replace(/\|/g, '\\|')}\` | \`${m.to.replace(/\|/g, '\\|')}\` | ${m.why.replace(/\|/g, '\\|')} |`);
+    return lines.join('\n') + '\n';
+  }
+
+  function download(name, text, type) {
+    const url = URL.createObjectURL(new Blob([text], { type }));
+    const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  const say = (m) => { $('copy-status').textContent = m; };
+
+  $('convert').addEventListener('click', () => { run(); });
+  $('example').addEventListener('change', () => {
+    const k = ex.value; if (!k) return;
+    $('src').value = EXAMPLES[k].code; $('lang').value = EXAMPLES[k].lang; run();
+  });
+  $('only-review').addEventListener('change', applyFilter);
+  $('copy').addEventListener('click', async () => {
+    const code = state.result.code;
+    try { await navigator.clipboard.writeText(code); say('Copied migrated.spec.ts to the clipboard.'); }
+    catch (e) {
+      const t = document.createElement('textarea'); t.value = code; t.setAttribute('readonly', ''); t.style.position = 'fixed'; t.style.opacity = '0'; document.body.appendChild(t); t.select();
+      let ok = false; try { ok = document.execCommand('copy'); } catch (_) {}
+      t.remove(); say(ok ? 'Copied migrated.spec.ts to the clipboard.' : 'Copy was blocked by the browser; select the code below instead.');
+    }
+  });
+  $('dl').addEventListener('click', () => { download('migrated.spec.ts', state.result.code, 'text/plain'); say('Downloaded migrated.spec.ts.'); });
+  $('dl-rep').addEventListener('click', () => { download('migration-report.md', reportMarkdown(), 'text/markdown'); say('Downloaded migration-report.md.'); });
+
+  const params = new URLSearchParams(location.search);
+  const start = EXAMPLES[params.get('example')] ? params.get('example') : 'cy-login';
+  ex.value = start; $('src').value = EXAMPLES[start].code; $('lang').value = EXAMPLES[start].lang;
+  run();
+
+  window.__migrator = { convert: (src, lang) => Migrator.convert(src, lang || 'auto'), reportMarkdown, get state() { return state.result; }, examples: EXAMPLES };
+})();
+</script>
+</body>
+</html>

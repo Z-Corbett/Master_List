@@ -1,0 +1,36 @@
+{
+  "id": "165",
+  "slug": "165-gestalt",
+  "file": "lab/165-gestalt.html",
+  "title": "Gestalt — how we group what we see",
+  "category": "Data Viz",
+  "tags": ["perception", "design-principles", "clustering", "svg", "page-clock"],
+  "description": "Seven interactive toys for the Gestalt grouping principles: proximity, similarity, closure, continuity, figure and ground, common region and common fate. Each has one slider that makes the grouping appear or dissolve and asks how many groups you see. Your answer is compared with a small, stated computational model: single-linkage clustering by distance for proximity, grouping by attribute for similarity, gap limits for closure, direction pairing for continuity, narrowness for figure and ground, panel visibility for common region, and path differences over a motion cycle for common fate.",
+  "prompt": "Build a Gestalt page: interactive toys for proximity, similarity, closure, continuity, figure/ground, common region and common fate (animated, and driven by the page clock so tests can pin it). Each toy has a slider that makes the grouping appear or disappear, and a 'how many groups do you see?' prompt answered against a simple computational model: single-linkage clustering with a distance threshold for proximity, grouping by attribute for similarity, and similarly plain rules for the others. Explain each principle in plain, original words and state each model's rule on the page. Give it a dark, gallery-like look of its own. Tests should check the models against independent computations, the exact slider values where the group count changes, and common fate under page.clock.",
+  "qa": {
+    "methodology": [
+      "Independent oracles from the drawing: for each static toy the spec sweeps the slider through every integer value and, at each one, recomputes the group count from the SVG the page actually drew (circle centres, grey levels read back through getComputedStyle, arc angles and their start points, line endpoints, stripe widths and fills, panel opacity and bounds) with its own union-find. The page's count must match at every value.",
+      "Change points worked out by hand: proximity gaps of 24 + v and 24 + v/2 against a 36 px link split at v = 13 and 25; tones 15, 15 + v and 15 + 2.5v against a tolerance of 10 split at 7 and 11; closure breaks of v and 2v against 30° give 1 → 2 → 4 pieces at 16 and 31; continuity kinks of v and v/2 against 20° go 2 → 3 → 4 at 21 and 41; the stripes flip figure at 49 px (a tie at 48 stays dark); panels at v and v/2 per cent cross 20% at 20 and 40.",
+      "Common fate under page.clock: with the clock paused, each dot's y must equal 100 + amplitude × sin(2πt / 2000) for the frame time the page reports, and the frame time must track the fake clock to within one frame. The spec then samples a full cycle in 40 steps of 50 ms, clusters the sampled paths itself (linked when they never differ by more than 4 px) and gets 3, 2 and 1 groups for amplitudes 10, 6 and 2. Pause must freeze the dots however far the clock runs.",
+      "Prompt and reveal: answers are checked against the model with agree and disagree wording, a running score, and a polite refusal of an empty answer. Show model must colour each column pair in its own colour, state the count and reasons, and be reachable from the keyboard."
+    ],
+    "risks": [
+      "The models are deliberately simple rules with fixed thresholds (36 px, 10 lightness points, 30°, 20°, 20% and 4 px). Real perception weighs many cues at once, so a reader can reasonably disagree; the page says so rather than marking them wrong.",
+      "Grey levels are HSL lightness, not a perceptual lightness scale, so equal steps do not look exactly equal.",
+      "Common fate depends on requestAnimationFrame. With reduced motion requested the motion starts paused, so a reader who never presses Play sees still dots.",
+      "Threshold values sit exactly on integer slider positions, so rounding in drawn coordinates can decide a tie; the spec allows for the 0.001 px precision of the SVG."
+    ],
+    "playwright": "The sweep helper uses locator.fill() on range inputs to visit every slider value, and each oracle runs in the spec on data read back from the DOM, so a bug in the page's model and a bug in its drawing would both show up. page.clock.install before goto, then pauseAt and runFor, made the animation exact: the dots are checked against the formula at the page's own frame time, and the grouping is re-derived from sampled positions rather than trusted. The continuity sweep failed on its first run at exactly 20°: the spec measured the angle from endpoints drawn to three decimal places and got 20.0003°, so it split one value early. It was a problem in the oracle, not in the page, and the spec now allows 0.01° for coordinate rounding and says why. Keyboard checks use real ArrowRight and Home presses on the slider, which work the same on the touch profile.",
+    "coverage": [
+      "Proximity: every slider value vs union-find on drawn dots; changes at 13 and 25",
+      "Similarity: drawn grey matches the attribute; changes at 7 and 11",
+      "Closure: arc geometry, cyclic breaks; changes at 16 and 31",
+      "Continuity: ray directions, greedy pairing; changes at 21 and 41",
+      "Figure and ground: stripes fill the frame; flip at 49",
+      "Common region: visible panels; changes at 20 and 40",
+      "Common fate: formula positions, sampled clustering, model change points at 5 and 9, pause",
+      "Answer prompt, score, reveal colours, keyboard slider, structure and footer"
+    ]
+  },
+  "a11y": "Each toy has a labelled range slider with aria-valuetext and a visible value, a labelled number field, and a native form, so Enter checks the answer. Verdicts and model statements are aria-live. Each SVG has an aria-label with the current setting and, once revealed, the model's count. Show model is a toggle button with aria-pressed. Motion is paused by default when reduced motion is requested, and a Play/Pause button controls it."
+}

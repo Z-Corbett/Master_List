@@ -1,0 +1,38 @@
+{
+  "id": "164",
+  "slug": "164-grid-systems",
+  "file": "lab/164-grid-systems.html",
+  "title": "Grid Systems — modular grids and a poster generator",
+  "category": "Generative",
+  "tags": ["typography", "swiss-style", "svg", "layout", "seeded-rng", "svg-export"],
+  "description": "A modular grid designer in points: set the page size, margins, columns, rows, gutter and baseline, and the page works out the measure, column width, row height and lines per module, with the sum shown in full. Lock the rows to the baseline and every module becomes a whole number of lines deep. Headline, image and text blocks snap to module edges by drag, keyboard or numeric fields, with the text set on the baseline grid. A seeded poster generator then places type and shapes in the Swiss manner on the same grid, and both the layout and the poster export as SVG.",
+  "prompt": "Build Grid Systems, a companion to the Basel Foundation page. First, a modular grid designer: page size (with A4, A3, Letter and square presets), four margins, columns, rows, gutter and a baseline grid, all in points. Show the resulting module sizes and prove the arithmetic (columns × width + gutters = measure). Add a 'lock rows to the baseline' option so each module is a whole number of lines deep with one line as the row gap. Let me place a headline, an image and two text columns that snap to module edges when dragged, and also move them from the keyboard. Second, a Swiss-style poster generator that places type and shapes on that grid from a seed (?seed=N), and export both as SVG. Credit the tradition, for example Josef Müller-Brockmann's Grid Systems in Graphic Design (1981), without copying anything from it. Give it its own drafting-table look. Tests should check the module maths, that snapped blocks land on module edges, baseline alignment, determinism per seed and the exported SVG.",
+  "qa": {
+    "methodology": [
+      "Formula oracle: the spec writes the grid out on its own from the inputs (column starts and ends, row starts and ends) and compares the readouts and every drawn module rect. For A4 it also checks hand values: measure 511 pt, column 118.75 pt, and 4 × 118.75 + 3 × 12 = 511 in each row of modules.",
+      "Baseline arithmetic by hand: A4 with a 12 pt baseline gives 9 lines per module (72k + 60 ≤ 736) and 28 pt spare; A3 gives 13. For all four presets every module top and every line of text must sit on the baseline grid, and with the lock off the page must name the rows that start between baselines, counted independently.",
+      "Snapping: hand-computed cases through the place() hook (a rectangle at x 180, width 250 snaps to columns 2–3 because 172.75 and 422.25 are the nearest edges), clamping at the sheet edge, then random rectangles on three different grids. After each, all four block rects are checked against the oracle's module edges.",
+      "Real input: a pointer drag across the SVG, converted from screen pixels to points by the test, must move the headline one column and two rows; arrow keys and Shift + arrows move and resize the selected block; the 1-based number fields drive the same model.",
+      "Posters: for 12 seeds on four grids (including 1 × 1), every generated element's box must land on module edges, rects must fill their box, circles must be centred in it, and headline and info baselines must be on the grid. The same seed gives the same SVG across reloads; the downloaded SVG must parse, carry the sheet size and viewBox, include the grid overlay when asked, contain no network links and decode as an image."
+    ],
+    "risks": [
+      "Headline widths use SVG textLength to fit their columns exactly, which can squeeze or stretch letterforms when a word is very short or very long for its span.",
+      "Text blocks use approximate characters-per-line wrapping rather than measured text, so a line can run slightly past its column in a wide font.",
+      "Rows can only be locked by shrinking them to whole lines, so a locked grid always leaves some unused depth at the foot of the page; the page reports it rather than hiding it.",
+      "Fonts differ by device, so the exported SVG names system font stacks and will render with whatever Helvetica-like face the viewer has."
+    ],
+    "playwright": "Most tests read SVG attributes and recompute the geometry in the spec, so the oracle is separate from the page's metrics() function. page.mouse drove a real drag on both projects, including the touch-enabled Pixel 7 profile. That test failed at first on desktop: the SVG was sized with width: 100% plus a max-height, so Chromium letterboxed the sheet inside a wider box. The page's own pointer maths (getScreenCTM) was fine, but the test's pixels-per-point scale was wrong, and the layout wasted space. The fix was width: auto with max-width and max-height, and the test now checks that both axes give the same scale. waitForEvent('download') captured both SVG files for checks on disk. Reading the download back through DOMParser and an Image in the page proved it parses and renders without depending on the page's DOM.",
+    "coverage": [
+      "Module maths vs an independent formula; hand values for A4",
+      "Unlocked custom grid, off-baseline row warning, impossible grid",
+      "Baseline lock on four presets: module tops, text baselines, rules",
+      "Snapping hand cases, clamping and random rectangles on three grids",
+      "Pointer drag, keyboard move and resize, numeric fields",
+      "Posters on module edges and baselines for 12 seeds × 4 grids",
+      "Determinism per seed, reloads, Next seed",
+      "SVG export: parse, size, viewBox, overlay, no network links, renders",
+      "Credit and Services link, aria-labels"
+    ]
+  },
+  "a11y": "Every setting is a labelled native input, and the block picker uses toggle buttons with aria-pressed. The grid preview is focusable: arrow keys move the selected block one module and Shift + arrows change its span, with each move announced in an aria-live status. The readouts are a table in an aria-live panel, and both SVGs have aria-labels that describe the grid, the blocks and the poster in words."
+}

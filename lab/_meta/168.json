@@ -1,0 +1,37 @@
+{
+  "id": "168",
+  "slug": "168-quilt-planner",
+  "file": "lab/168-quilt-planner.html",
+  "title": "Quilt Planner — colour value and yardage",
+  "category": "Tools",
+  "tags": ["svg", "cutting-maths", "luminance", "print-css", "quilting"],
+  "description": "A planning worksheet for a pieced quilt. Pick a nine-patch, rail fence, log cabin, half-square-triangle or flying-geese block, a block size and a crib-to-king target size, add a border and binding, and give each fabric a colour and an intended value. A greyscale view built on relative luminance shows whether the lights, mediums and darks really read that way, and flags pairs that are too close. The page works out every cut piece with ¼ in seams (HST squares at finished + ⅞ in), the strips needed across 42 in of fabric, yardage rounded up to ⅛ yd, the binding and a pieced backing, and prints it as a cutting list. Every assumption is written out on the page.",
+  "prompt": "Build a quilt planner, not another generator: we already have Quilt Studio for that. I pick a block (nine-patch, log cabin, half-square triangles, flying geese and the like), a quilt size from crib to king (state the dimensions you assume), a border and a binding, then assign fabrics by value, light, medium or dark. Give me a greyscale value check, because value matters more than hue. Calculate the cut pieces with a ¼ in seam allowance and the yardage per fabric on 42 in of usable width, plus 2½ in binding strips (say it's common practice) and backing, and list every assumption. It needs a printable cutting list. The spec must check the cutting maths, including the half-square-triangle rule of finished + ⅞ in for the two-at-a-time method (verify it, don't just copy it), yardage rounding up to ⅛ yd, binding length as perimeter plus a stated allowance, and the greyscale luminance formula.",
+  "qa": {
+    "methodology": [
+      "Geometry, not folklore: the spec derives the two-at-a-time HST allowance from the seam line (finished = square − ½ − ¼√2, so the exact addition is 0.854 in) and checks that ⅞ is that figure rounded up to the ruler's ⅛, never too small and at most 1/32 in over.",
+      "Independent construction oracles for all five blocks at 6, 9 and 12 in: role, cut width, cut height and count per block for each piece (log cabin logs 2u to 8u, geese rectangles and sky squares, HST squares), and the finished areas of straight-cut pieces must tile the block exactly.",
+      "Strip and yardage arithmetic recomputed in the test for five block types and five quilt sizes: pieces per 42 in strip, strips needed, inches, then yardage rounded up to ⅛ yd, with exact eighths (36 in = 1 yd) not rounded up.",
+      "Binding and backing: perimeter + 12 in over 40 in usable per strip, at two strip widths; a 4 in overhang pieced from 42 in widths with ½ in seams in the cheaper direction; butted border strips with join losses.",
+      "Luminance: the spec's own Y = 0.2126 R + 0.7152 G + 0.0722 B on linearised sRGB reproduces published L* for the sRGB primaries (53.24, 87.73, 32.30), and every greyscale fill in the preview must equal the grey of that luminance."
+    ],
+    "risks": [
+      "Yardage assumes each piece size is cut from its own strips and adds no shrinkage allowance, so it is a floor; the page says so and suggests buying ¼ yd extra.",
+      "Quilt sizes are common targets, not a standard, and the block count is the nearest fit, so a finished quilt can be a few inches over or under the target.",
+      "Screen colour is not fabric colour; the value check can only judge the colour you picked, and prints read differently under shop lights.",
+      "Block sizes whose units fall between ⅛ in marks (8 or 10 in nine-patch) are disabled rather than rounded, which a user might find limiting."
+    ],
+    "playwright": "Most of the value came from recomputing the page's numbers with oracles that live in the spec, then asserting on both window.__quilt.plan and the rendered text, so a correct model with a wrong fraction formatter would still fail. locator.fill on native colour inputs made the value checks easy to drive, and reading the fill attributes of the SVG polygons checked the greyscale view without pixel comparisons. page.emulateMedia('print') verified the printed cutting list. Being honest: no bug was caught by the spec on this page; the tests passed on the first full run, so their value here is as a guard against later edits rather than a story of a catch. The block-type loop is slow-ish because it drives the real controls fifteen times.",
+    "coverage": [
+      "HST ⅞ rule derived from the seam geometry; HST cut sizes and counts in the UI",
+      "Nine-patch cut sizes, strips per 42 in and yardage",
+      "Yardage rounding up to ⅛ at three settings",
+      "Piece lists for all five blocks at three sizes; area tiling",
+      "Invalid block sizes disabled; automatic move to a valid size",
+      "Binding length, strips and widths; backing direction and panels; border strips",
+      "Greyscale fills and L* against published values; value warnings",
+      "Block counts for all five quilt sizes; print stylesheet"
+    ]
+  },
+  "a11y": "Blocks are toggle buttons with aria-pressed, and every select, number and colour input has a label naming the fabric it controls. The quilt preview is an SVG with an aria-label giving the block, grid, finished size and view. Value readings and warnings are text in an aria-live list, the view switch is a pair of toggle buttons, and the cutting list and yardage are real tables with header cells."
+}

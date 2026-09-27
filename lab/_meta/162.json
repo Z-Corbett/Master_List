@@ -1,0 +1,43 @@
+{
+  "id": "162",
+  "slug": "162-flaky-rescue-case-study",
+  "file": "lab/162-flaky-rescue-case-study.html",
+  "title": "Flaky Test Rescue — three real bugs, root-caused",
+  "category": "QA & Testing",
+  "tags": [
+    "flaky-tests",
+    "case-study",
+    "race-conditions",
+    "page-clock",
+    "ci"
+  ],
+  "description": "A case study of the three flaky tests fixed in this repo once CI stopped letting retries hide them. 079 Prairie Pinball: focus stayed on the hidden Start button, so an immediate Space was ignored. 061 Chapel Candles: the candle was lit in the dialog's close event, a later task, so its lit time could land after the test moved the clock. 032 Pixel Press: a debounced autosave left a stale 'Saved locally' on screen, so a quick reload lost the last edit. Each case has the real CI error output, a timing model you can slow down to watch it fail and then flip to the fix, a seeded 20-run batch, the real before/after diffs, the root cause, and the regression test that guards it. It ends with how I run a Flaky Test Rescue.",
+  "prompt": "Make an interactive case study of the three real flaky-test bugs fixed in this repo; you may run read-only git show and git log. Commit 12b4f6b fixed 079 Prairie Pinball (focus stayed on the hidden Start button, so Space was ignored) and 061 Chapel Candles (state changed in the dialog close event, which fires as a later task). Commit 3ebfb98 fixed 032 Pixel Press (a debounced autosave showed a stale 'Saved locally', so a quick reload lost the last edit). The CI change that set failOnFlakyTests is also in 12b4f6b and in playwright.config.ts; retries had hidden the flakes for 5 CI runs. For each bug: the symptom as CI reported it; a live reproduction, a small in-page simulation with a 'slow the browser' toggle where you can watch it fail and then flip to the fix; a short excerpt of the real before/after code; the root cause in plain words; and the regression test that now guards it. End with a 'How I run a Flaky Test Rescue' process section and a CTA to the Services section (Flaky Test Rescue, $750). Everything must be accurate to the real commits. The spec should check that each reproduction fails in 'before' mode and passes in 'after' mode deterministically under page.clock, that the code excerpts match the repo's current fixed code (read the real files with fs and compare key lines), and the CTA link.",
+  "qa": {
+    "methodology": [
+      "Deterministic reproductions: with page.clock installed, each case is run slow-and-before three times in a row (must FAIL, with the lost-race event in the log) and slow-and-after (must PASS, with no failing events). On a fast browser both versions pass, which is what makes it a flake rather than a plain bug.",
+      "Model sweep: each timing model is run at 21 load levels from fast to slow. The fix must pass at every level; the old code must pass when fast, fail when slow, and once it fails, fail at every slower level.",
+      "Seeded batches: '20× with random load' at ?seed=7 must give the old code some failures but not 20, give the fix 0, and repeat the exact same count after a reload.",
+      "Excerpts against the real files: every diff line on the page is tagged with its file. The spec reads those seven files with fs, so added and context lines must be present verbatim and removed lines must be gone. It also checks the key line of each fix and that the cited regression tests exist under those names.",
+      "Facts from git and CI: the commit hashes, the 400/400 at --repeat-each=20 and the 180/180 at --repeat-each=10 come from the messages of 12b4f6b and 3ebfb98, read with git show. The error output, the flake counts per test and the \"3 flaky / 521 passed\" summaries are quoted from the GitHub Actions logs, and the spec checks that every quoted test name exists in the repo."
+    ],
+    "risks": [
+      "The reproductions are timing models of each race, not recordings of Chrome. The page says so under each one, and the delays are illustrative.",
+      "The \"What CI showed\" error output and flake counts are quoted verbatim (trimmed) from the GitHub Actions logs of the runs before each fix; the spec checks the quotes and that every test they name exists, but it cannot re-read those logs itself.",
+      "The excerpt check proves the page matches the current code, not the history. Removed lines are checked as absent today, and the pre-fix versions were read with git show when the page was written, not in the spec (CI checkouts are shallow).",
+      "If a later commit edits one of the fixed lines, the excerpt test fails on purpose, and the case study needs updating."
+    ],
+    "playwright": "page.clock does the heavy lifting: each reproduction reveals one event every 420 ms, and clock.runFor plays the whole animation instantly and identically every time, so a 'fails every time before the fix' claim is actually tested three rounds running. setChecked and check make the toggle state explicit, and the Node side of the spec reads the repo's own files with fs to hold the page to the real diffs. The spec passed on its first run, so it caught nothing. I then unrolled its per-case loop into three named tests, because the repo's test counter counts test( lines, not generated tests. The honest limit is that the models can't prove anything about Chrome's own scheduling. That proof is in the repo's original specs passing 400/400 and 180/180.",
+    "coverage": [
+      "Pinball focus race: fails before, passes after, under page.clock",
+      "Candles close-event race: fails before, passes after",
+      "Pixel Press stale status race: fails before, passes after",
+      "Model sweep across 21 load levels, monotonic failure",
+      "Seeded 20-run batches, repeatable per seed",
+      "Every excerpt line checked against the current repo files",
+      "Commits, links, sections, cited regression tests",
+      "Process section, $750 CTA and link, keyboard operation"
+    ]
+  },
+  "a11y": "Each reproduction is driven by a labelled checkbox, a radio group and buttons, all usable from the keyboard. The verdict is a polite status region, and the event log is an ordered list in text, so the timeline dots are decorative and hidden from assistive tech. Pass and fail are written in words as well as colour."
+}

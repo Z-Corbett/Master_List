@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ten Principles — good design, demonstrated</title>
+<meta name="description" content="A tour of Dieter Rams's ten principles of good design, each turned into a small interactive demo on an invented kitchen timer: count the actions, time the task, measure the alignment, the honesty of a gauge, the energy used and the least design that still works.">
+<style>
+  :root {
+    --bg: #e9e7e2;
+    --panel: #f6f5f1;
+    --ink: #262626;
+    --mute: #6b6861;
+    --line: #cfccc4;
+    --orange: #e8590c;
+    --orangeDark: #b8430a;
+    --ok: #2e6b3c;
+    --ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    --num: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 16px/1.55 var(--ui); overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
+  a { color: inherit; }
+  a.back { position: absolute; top: 14px; left: 16px; font: 500 14px/1 var(--ui); color: var(--ink); text-decoration: none; background: var(--panel); border-radius: 999px; padding: 9px 14px; box-shadow: 0 1px 2px #0002; z-index: 4; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 68px 16px 40px; }
+  header.intro { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px 40px; align-items: end; margin-bottom: 26px; }
+  header.intro h1 { margin: 0; font-weight: 300; font-size: clamp(44px, 8vw, 88px); line-height: .95; letter-spacing: -.03em; overflow-wrap: anywhere; }
+  header.intro h1 b { font-weight: 600; }
+  header.intro .dot { display: inline-block; width: .32em; height: .32em; border-radius: 50%; background: var(--orange); margin-left: .08em; }
+  header.intro p { margin: 0 0 8px; color: #45423c; max-width: 54ch; }
+  .tour { display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr); gap: 26px; align-items: start; }
+  nav.rail ol { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+  nav.rail li { border-bottom: 1px solid var(--line); }
+  nav.rail a { display: grid; grid-template-columns: 2.2em minmax(0, 1fr); gap: 4px; padding: 9px 4px; text-decoration: none; font-size: 14px; line-height: 1.3; }
+  nav.rail a span:first-child { font: 600 13px/1.3 var(--num); color: var(--mute); }
+  nav.rail a[aria-current="step"] { color: var(--orangeDark); font-weight: 600; }
+  nav.rail a[aria-current="step"] span:first-child { color: var(--orange); }
+  nav.rail a:hover { background: #0000000a; }
+  .stage { background: var(--panel); border-radius: 22px; padding: 24px; box-shadow: 0 1px 0 #fff inset, 0 10px 30px #0000001a; min-width: 0; }
+  .kicker { font: 600 12px/1.2 var(--ui); letter-spacing: .14em; text-transform: uppercase; color: var(--mute); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
+  .principle h2 { margin: 8px 0 12px; font-weight: 400; font-size: clamp(28px, 4.4vw, 44px); line-height: 1.05; letter-spacing: -.02em; }
+  .principle h2:focus { outline: none; }
+  .principle h2:focus-visible { outline: 3px solid var(--orange); outline-offset: 4px; }
+  .principle .why { margin: 0 0 16px; max-width: 64ch; color: #3b3934; }
+  .demo { border-top: 1px solid var(--line); padding-top: 16px; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 18px; }
+  .device { background: #fbfaf7; border-radius: 18px; padding: 16px; box-shadow: 0 1px 0 #fff inset, 0 1px 3px #0003; min-width: 0; position: relative; }
+  .display { background: #1e1f1c; color: #f2efe6; border-radius: 10px; font: 600 38px/1 var(--num); padding: 14px 16px; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .display small { display: block; font: 500 11px/1.3 var(--ui); letter-spacing: .1em; text-transform: uppercase; color: #a8a498; text-align: left; margin-bottom: 4px; }
+  .keys { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  button { font: 500 14px/1 var(--ui); min-height: 40px; padding: 10px 14px; border-radius: 999px; border: 1px solid #b9b5ab; background: #fff; color: var(--ink); cursor: pointer; }
+  button:hover { background: #f1efe9; }
+  button.go { background: var(--orange); border-color: var(--orange); color: #fff; }
+  button.go:hover { background: var(--orangeDark); }
+  button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .meter { min-width: 0; }
+  .meter h3 { margin: 0 0 8px; font: 600 12px/1.2 var(--ui); letter-spacing: .12em; text-transform: uppercase; color: var(--mute); }
+  .meter dl { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; font-size: 14px; }
+  .meter dt { color: var(--mute); }
+  .meter dd { margin: 0; font: 600 15px/1.3 var(--num); text-align: right; font-variant-numeric: tabular-nums; }
+  .meter .say { margin: 12px 0 0; padding: 10px 12px; border-left: 4px solid var(--orange); background: #fff; border-radius: 0 10px 10px 0; font-size: 14px; }
+  .opts { display: grid; gap: 6px; margin-top: 10px; }
+  .opts label { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+  .opts input { width: 18px; height: 18px; accent-color: var(--orange); flex: none; }
+  .rng label { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; flex-wrap: wrap; }
+  .rng input { width: 100%; accent-color: var(--orange); }
+  .pager { display: flex; justify-content: space-between; gap: 10px; margin-top: 20px; border-top: 1px solid var(--line); padding-top: 14px; flex-wrap: wrap; }
+  .pager .hint { font-size: 13px; color: var(--mute); align-self: center; }
+  kbd { font: 12px var(--num); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 1px 5px; background: #fff; }
+
+  /* demo-specific */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .gauge { height: 26px; border-radius: 6px; background: #ddd9cf; overflow: hidden; position: relative; }
+  .gauge i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--ok); }
+  .gauge.lie i { background: var(--orange); }
+  .scale5 { display: flex; justify-content: space-between; font: 11px var(--num); color: var(--mute); margin-top: 3px; }
+  .aes { position: relative; height: 200px; background: #fff; border-radius: 12px; overflow: hidden; }
+  .aes > div { position: absolute; border-radius: 6px; background: #d8d4ca; }
+  .aes > div.k { background: var(--ink); }
+  .aes > div.o { background: var(--orange); }
+  .clutter { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .clutter .deco { font-size: 11px; padding: 6px 9px; border-radius: 999px; background: repeating-linear-gradient(45deg, #ffe0cc, #ffe0cc 4px, #fff 4px, #fff 8px); border: 1px dashed #e0a27c; color: #8a4a1f; }
+  .trend { transition: none; }
+  .trend.glossy { background: linear-gradient(160deg, #fff 0%, #cfd8ff 45%, #8ea2ff 100%); }
+  .trend.glass { background: rgba(255, 255, 255, .45); backdrop-filter: blur(6px); border: 1px solid #fff; }
+  .trend.neon .display { box-shadow: 0 0 12px #ff2bd6, 0 0 28px #00e5ff; color: #ffe8ff; }
+  .trend.shadow { box-shadow: 18px 22px 0 #0005; }
+  .d8 button { min-height: 28px; padding: 4px 8px; font-size: 12px; }
+  .d8.fix-targets button { min-height: 44px; min-width: 44px; padding: 10px 14px; font-size: 14px; }
+  .d8.fix-focus button:focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
+  .d8:not(.fix-focus) button:focus-visible { outline: none; }
+  .d8 .num { font-family: var(--ui); font-variant-numeric: proportional-nums; }
+  .d8.fix-tabular .num { font-variant-numeric: tabular-nums; }
+  .d8 .err { font-size: 13px; color: #9b2f14; margin-top: 8px; }
+  .parts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 12px; margin-top: 10px; }
+  .deviceparts { display: grid; gap: 8px; }
+  .deviceparts [data-part] { border-radius: 8px; padding: 8px 10px; font-size: 13px; background: #ecebe6; }
+  .deviceparts [data-part].ess { background: #fff; border: 1px solid var(--line); }
+  footer { margin-top: 30px; border-top: 1px solid var(--line); padding-top: 14px; font-size: 14px; color: var(--mute); }
+  footer p { margin: 0 0 8px; max-width: 86ch; }
+  @media (max-width: 880px) {
+    header.intro, .tour, .demo { grid-template-columns: minmax(0, 1fr); }
+    nav.rail ol { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 10px; }
+    .stage { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="intro">
+    <h1>Ten <b>Principles</b><span class="dot"></span></h1>
+    <div>
+      <p>In the late 1970s the industrial designer Dieter Rams set down ten principles of good design. They are usually quoted as ten short sentences, and they are easy to nod along to. This tour tries them instead: each one is a small experiment on an invented product, the <b>Pell&nbsp;3 kitchen timer</b> (fictional), with a number you can watch change.</p>
+      <p>Move with the list, the buttons, or <kbd>←</kbd> <kbd>→</kbd> <kbd>Home</kbd> <kbd>End</kbd>. Every principle has its own link.</p>
+    </div>
+  </header>
+
+  <div class="tour">
+    <nav class="rail" aria-label="The ten principles"><ol data-testid="rail"></ol></nav>
+    <main class="stage" id="stage" data-testid="stage"></main>
+  </div>
+
+  <footer>
+    <p>The ten principle headings are Dieter Rams's, as widely cited. Every explanation, demo and number on this page is original, and the Pell 3 timer is invented; no real product or brand is shown. The small models behind the numbers (search time, gauge scaling, style half-lives, energy use) are illustrative simplifications, stated where they are used.</p>
+    <p>Want interface decisions like these built and tested in your product? See <a href="../index.html#services">Services</a>.</p>
+  </footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const h = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };
+  const mmss = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  function mulberry32(a) { return function () { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  const qsSeed = new URLSearchParams(location.search).get('seed');
+  const SEED = qsSeed !== null && /^\d+$/.test(qsSeed) ? Number(qsSeed) : 1;
+
+  const P = [
+    { slug: 'innovative', name: 'Good design is innovative',
+      why: 'New technology keeps opening doors that were shut, and design is how people get through them. Innovation here is not novelty for its own sake: it is using what has just become possible to make a task shorter, clearer or safer than it could be before.' },
+    { slug: 'useful', name: 'Good design makes a product useful',
+      why: 'People buy a product to get something done. Everything that helps that job belongs; everything that distracts from it, however clever, gets in the way. Usefulness is measured against real needs, not against a feature list.' },
+    { slug: 'aesthetic', name: 'Good design is aesthetic',
+      why: 'We live with the things we use every day, so how they look and feel matters to how well they work. Much of that quality is order: shared edges, even spacing and consistent sizes let the eye rest instead of hunting.' },
+    { slug: 'understandable', name: 'Good design makes a product understandable',
+      why: 'A good product explains itself. Its form says what it does and how to use it, so the manual becomes a backup rather than a requirement. When the controls speak for themselves, mistakes fall away.' },
+    { slug: 'unobtrusive', name: 'Good design is unobtrusive',
+      why: 'Tools are not artworks. They should stay neutral and quiet so that the person using them, and the task in hand, stay in the foreground. Decoration competes for attention, and attention is what a task needs most.' },
+    { slug: 'honest', name: 'Good design is honest',
+      why: 'A product should not claim to be more powerful, more capable or more valuable than it is. Every display, chart and claim it makes is a promise, and a design that bends the truth to impress eventually costs the trust it was meant to win.' },
+    { slug: 'long-lasting', name: 'Good design is long-lasting',
+      why: 'Design that chases a trend looks right for a season and dated soon after. Design that avoids fashion keeps looking like itself for years, which means people keep using it rather than replacing it.' },
+    { slug: 'thorough', name: 'Good design is thorough down to the last detail',
+      why: 'Nothing should be left to chance or to accident. Care in the small things, such as target sizes, focus states, units and the wording of an error, is a form of respect for the person on the other side.' },
+    { slug: 'environmentally-friendly', name: 'Good design is environmentally-friendly',
+      why: 'A product uses energy and materials across its whole life, not just on the day it is made. Designing for low power, for repair and for a long working life reduces that cost without asking the user to give anything up.' },
+    { slug: 'as-little-design', name: 'Good design is as little design as possible',
+      why: 'Less, but done better: concentrate on the essential and leave out what is not. Keep removing until the product would stop doing its job, then stop one step before that.' },
+  ];
+
+  // ---------- demos ----------
+  const D = {};
+
+  // 1 · innovative: count the actions needed to start a 12-minute timer
+  D[1] = (root) => {
+    const st = { mode: 'buttons', set: 0, running: false, actions: 0, results: {} };
+    root.innerHTML = `
+      <div class="device" data-testid="d1-device">
+        <div class="display"><small>Pell 3 · set time</small><span data-testid="d1-display">00:00</span></div>
+        <div class="keys" data-when="buttons"><button type="button" data-testid="d1-minus">− 1 min</button><button type="button" data-testid="d1-plus">+ 1 min</button><button type="button" class="go" data-testid="d1-start">Start</button></div>
+        <div data-when="memory" hidden><p style="margin:10px 0 4px;font-size:13px;color:var(--mute)">Your usual times (learned on the device):</p><div class="chips">${[3, 5, 12, 20].map((m) => `<button type="button" data-chip="${m}" data-testid="d1-chip-${m}">${m} min</button>`).join('')}</div></div>
+      </div>
+      <div class="meter"><h3>Task: start a 12-minute timer</h3>
+        <div class="keys" role="group" aria-label="Timer design"><button type="button" data-mode="buttons" aria-pressed="true" data-testid="d1-mode-buttons">Plus/minus buttons</button><button type="button" data-mode="memory" aria-pressed="false" data-testid="d1-mode-memory">Remembered times</button></div>
+        <dl><dt>Actions this try</dt><dd data-testid="d1-actions">0</dd><dt>Plus/minus design</dt><dd data-testid="d1-r-buttons">—</dd><dt>Remembered times</dt><dd data-testid="d1-r-memory">—</dd></dl>
+        <p class="say" aria-live="polite" data-testid="d1-say">Set 12:00 and start it.</p></div>`;
+    const show = () => {
+      $('[data-testid=d1-display]', root).textContent = mmss(st.set * 60) + (st.running ? ' ▶' : '');
+      $('[data-testid=d1-actions]', root).textContent = st.actions;
+      $$('[data-when]', root).forEach((e) => (e.hidden = e.dataset.when !== st.mode));
+      $$('[data-mode]', root).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === st.mode)));
+      for (const k of ['buttons', 'memory']) $(`[data-testid=d1-r-${k}]`, root).textContent = st.results[k] ? `${st.results[k]} action${st.results[k] === 1 ? '' : 's'}` : '—';
+    };
+    const finish = () => {
+      st.running = true;
+      const ok = st.set === 12;
+      if (ok) st.results[st.mode] = st.actions;
+      $('[data-testid=d1-say]', root).textContent = ok ? `Running 12:00 after ${st.actions} action${st.actions === 1 ? '' : 's'}.` + (st.results.buttons && st.results.memory ? ` The remembered-times design needed ${st.results.buttons - st.results.memory} fewer.` : '') : `That started ${mmss(st.set * 60)}, not 12:00. Reset by switching design.`;
+      show();
+    };
+    const act = () => { if (st.running) { st.running = false; st.actions = 0; st.set = 0; } st.actions++; };
+    $('[data-testid=d1-plus]', root).addEventListener('click', () => { act(); st.set = Math.min(99, st.set + 1); show(); });
+    $('[data-testid=d1-minus]', root).addEventListener('click', () => { act(); st.set = Math.max(0, st.set - 1); show(); });
+    $('[data-testid=d1-start]', root).addEventListener('click', () => { act(); finish(); });
+    $$('[data-chip]', root).forEach((b) => b.addEventListener('click', () => { act(); st.set = Number(b.dataset.chip); finish(); }));
+    $$('[data-mode]', root).forEach((b) => b.addEventListener('click', () => { st.mode = b.dataset.mode; st.set = 0; st.actions = 0; st.running = false; $('[data-testid=d1-say]', root).textContent = 'Set 12:00 and start it.'; show(); }));
+    show();
+    return () => ({ ...st, results: { ...st.results } });
+  };
+
+  // 2 · useful: needs met against features added
+  D[2] = (root) => {
+    const F = [
+      { id: 'digits', name: 'Large digits', need: 'read' }, { id: 'alarm', name: 'Loud alarm', need: 'hear' }, { id: 'stop', name: 'One-press stop', need: 'stop' },
+      { id: 'radio', name: 'FM radio', need: null }, { id: 'app', name: 'Phone app pairing', need: null }, { id: 'anim', name: 'Animated clock face', need: null },
+    ];
+    const NEEDS = { read: 'Read it from across the kitchen', hear: 'Hear it from the next room', stop: 'Silence it with floury hands' };
+    const on = new Set(['radio', 'app', 'anim']);
+    root.innerHTML = `
+      <div class="device"><div class="display"><small>Pell 3 · features</small><span data-testid="d2-display"></span></div>
+        <div class="opts" data-testid="d2-opts">${F.map((f) => `<label><input type="checkbox" data-f="${f.id}" data-testid="d2-${f.id}"> ${f.name}</label>`).join('')}</div></div>
+      <div class="meter"><h3>Does it do the job?</h3><dl>
+        ${Object.entries(NEEDS).map(([k, v]) => `<dt>${v}</dt><dd data-need="${k}">—</dd>`).join('')}
+        <dt>Needs met</dt><dd data-testid="d2-met">0 / 3</dd><dt>Features that serve no need</dt><dd data-testid="d2-extra">0</dd></dl>
+        <p class="say" aria-live="polite" data-testid="d2-say"></p></div>`;
+    const st = {};
+    const show = () => {
+      $$('[data-f]', root).forEach((i) => (i.checked = on.has(i.dataset.f)));
+      const met = Object.keys(NEEDS).filter((n) => F.some((f) => f.need === n && on.has(f.id)));
+      const extra = F.filter((f) => !f.need && on.has(f.id)).length;
+      Object.keys(NEEDS).forEach((n) => ($(`[data-need=${n}]`, root).textContent = met.includes(n) ? 'yes' : 'no'));
+      $('[data-testid=d2-met]', root).textContent = `${met.length} / 3`;
+      $('[data-testid=d2-extra]', root).textContent = extra;
+      $('[data-testid=d2-display]', root).textContent = on.has('digits') ? '12:00' : '12:00 · FM 98.1';
+      $('[data-testid=d2-display]', root).style.fontSize = on.has('digits') ? '44px' : '18px';
+      $('[data-testid=d2-say]', root).textContent = met.length === 3 && extra === 0 ? 'Useful: every part serves the job, and nothing else is asking to be learned.'
+        : met.length === 3 ? `Every need is met, but ${extra} feature${extra === 1 ? '' : 's'} still add${extra === 1 ? 's' : ''} things to learn and break.`
+        : `${3 - met.length} real need${3 - met.length === 1 ? ' is' : 's are'} not met, whatever else it can do.`;
+      Object.assign(st, { met: met.length, extra, on: [...on] });
+    };
+    $$('[data-f]', root).forEach((i) => i.addEventListener('change', () => { i.checked ? on.add(i.dataset.f) : on.delete(i.dataset.f); show(); }));
+    show();
+    return () => ({ ...st });
+  };
+
+  // 3 · aesthetic: order as shared edges
+  D[3] = (root) => {
+    const R = mulberry32(SEED * 7919 + 3);
+    // six blocks in two columns; each gets a seeded disorder offset
+    const base = [
+      { x: 20, y: 18, w: 150, h: 34, c: 'k' }, { x: 20, y: 66, w: 150, h: 16, c: '' }, { x: 20, y: 94, w: 110, h: 16, c: '' },
+      { x: 200, y: 18, w: 120, h: 92, c: '' }, { x: 20, y: 140, w: 150, h: 40, c: 'o' }, { x: 200, y: 140, w: 120, h: 40, c: '' },
+    ].map((b) => ({ ...b, dx: Math.round((R() * 2 - 1) * 26), dy: Math.round((R() * 2 - 1) * 10) }));
+    root.innerHTML = `
+      <div class="device"><div class="aes" data-testid="d3-canvas" role="img" aria-label="">${base.map((b, i) => `<div class="${b.c}" data-block="${i}"></div>`).join('')}</div>
+        <div class="rng" style="margin-top:12px"><label for="d3o"><span>Order</span><output data-testid="d3-out">0%</output></label><input id="d3o" type="range" min="0" max="100" step="1" value="0" data-testid="d3-order"></div></div>
+      <div class="meter"><h3>Measured on the layout</h3><dl><dt>Distinct left edges</dt><dd data-testid="d3-edges">—</dd><dt>Mean offset from the grid</dt><dd data-testid="d3-off">—</dd></dl>
+        <p class="say" aria-live="polite" data-testid="d3-say"></p></div>`;
+    const st = {};
+    const canvas = $('[data-testid=d3-canvas]', root);
+    const show = () => {
+      const k = 1 - Number($('[data-testid=d3-order]', root).value) / 100;
+      base.forEach((b, i) => Object.assign($(`[data-block="${i}"]`, root).style, { left: (b.x + b.dx * k) + 'px', top: (b.y + b.dy * k) + 'px', width: b.w + 'px', height: b.h + 'px' }));
+      const box = canvas.getBoundingClientRect();
+      const lefts = $$('[data-block]', canvas).map((e) => Math.round((e.getBoundingClientRect().left - box.left) * 10) / 10);
+      const edges = new Set(lefts).size;
+      const off = base.reduce((a, b, i) => a + Math.abs(lefts[i] - b.x), 0) / base.length;
+      $('[data-testid=d3-out]', root).textContent = Math.round((1 - k) * 100) + '%';
+      $('[data-testid=d3-edges]', root).textContent = edges;
+      $('[data-testid=d3-off]', root).textContent = off.toFixed(1) + ' px';
+      $('[data-testid=d3-say]', root).textContent = edges <= 2 ? 'Two columns, two left edges: the eye reads it in one pass.' : `${edges} different left edges for 6 blocks: the eye keeps re-measuring.`;
+      canvas.setAttribute('aria-label', `Six layout blocks with ${edges} distinct left edges, mean offset ${off.toFixed(1)} pixels.`);
+      Object.assign(st, { edges, off, lefts, grid: base.map((b) => b.x), seed: SEED, offsets: base.map((b) => [b.dx, b.dy]) });
+    };
+    $('[data-testid=d3-order]', root).addEventListener('input', show);
+    return { state: () => ({ ...st }), show };
+  };
+
+  // 4 · understandable: symbols versus labels
+  D[4] = (root) => {
+    const C = [{ id: 'pause', label: 'Pause', glyph: '◐' }, { id: 'add', label: 'Add a minute', glyph: '◇' }, { id: 'reset', label: 'Reset', glyph: '◓' }, { id: 'light', label: 'Light', glyph: '✧' }];
+    const st = { labels: false, wrong: 0, done: false };
+    root.innerHTML = `
+      <div class="device"><div class="display"><small>Pell 3 · running</small><span data-testid="d4-display">07:42 ▶</span></div>
+        <div class="keys" data-testid="d4-keys"></div></div>
+      <div class="meter"><h3>Task: pause the timer</h3>
+        <div class="keys"><button type="button" aria-pressed="false" data-testid="d4-labels">Show labels</button></div>
+        <dl><dt>Controls that explain themselves</dt><dd data-testid="d4-self">0 / 4</dd><dt>Wrong presses</dt><dd data-testid="d4-wrong">0</dd></dl>
+        <p class="say" aria-live="polite" data-testid="d4-say">Find the control that pauses the timer.</p></div>`;
+    const keys = $('[data-testid=d4-keys]', root);
+    const draw = () => {
+      keys.replaceChildren();
+      C.forEach((c, i) => {
+        const b = h(`<button type="button" data-ctl="${c.id}"></button>`);
+        b.textContent = st.labels ? `${c.glyph} ${c.label}` : c.glyph;
+        // with labels hidden, the accessible name is as uninformative as the symbol: that is the flaw being shown
+        if (!st.labels) b.setAttribute('aria-label', `Symbol ${i + 1}`);
+        b.addEventListener('click', () => press(c.id));
+        keys.appendChild(b);
+      });
+      $('[data-testid=d4-self]', root).textContent = `${st.labels ? 4 : 0} / 4`;
+      $('[data-testid=d4-wrong]', root).textContent = st.wrong;
+      $('[data-testid=d4-labels]', root).setAttribute('aria-pressed', String(st.labels));
+    };
+    const press = (id) => {
+      if (st.done) return;
+      const say = $('[data-testid=d4-say]', root);
+      if (id === 'pause') { st.done = true; $('[data-testid=d4-display]', root).textContent = '07:42 ❚❚'; say.textContent = `Paused after ${st.wrong} wrong press${st.wrong === 1 ? '' : 'es'}${st.labels ? ', with labels' : ', from symbols alone'}.`; }
+      else { st.wrong++; say.textContent = `That was “${C.find((c) => c.id === id).label}”. Try again.`; }
+      $('[data-testid=d4-wrong]', root).textContent = st.wrong;
+    };
+    $('[data-testid=d4-labels]', root).addEventListener('click', () => {
+      st.labels = !st.labels; st.wrong = 0; st.done = false;
+      $('[data-testid=d4-display]', root).textContent = '07:42 ▶';
+      $('[data-testid=d4-say]', root).textContent = 'Find the control that pauses the timer.'; draw();
+    });
+    draw();
+    return () => ({ ...st });
+  };
+
+  // 5 · unobtrusive: decoration against task time (timed with the page clock)
+  D[5] = (root) => {
+    const DECO = ['NEW!', 'Pro+', '★★★★★', 'Eco', 'Turbo', 'Smart', 'v2.0', 'Chef mode', 'Premium', 'Limited'];
+    const st = { deco: true, running: false, t0: 0, last: null, times: {} };
+    root.innerHTML = `
+      <div class="device"><div class="display"><small>Pell 3 · ringing</small><span>00:00 ♪</span></div>
+        <div class="clutter" data-testid="d5-panel"></div></div>
+      <div class="meter"><h3>Task: stop the alarm</h3>
+        <div class="keys"><button type="button" aria-pressed="true" data-testid="d5-deco">Decoration on</button><button type="button" class="go" data-testid="d5-start">Start the task</button></div>
+        <dl><dt>Things competing for attention</dt><dd data-testid="d5-items">—</dd><dt>Rough search estimate</dt><dd data-testid="d5-est">—</dd><dt>Your time</dt><dd data-testid="d5-time">—</dd></dl>
+        <p class="say" aria-live="polite" data-testid="d5-say">Press “Start the task”, then find and press Stop.</p>
+        <p style="font-size:12px;color:var(--mute);margin:8px 0 0">Estimate: a serial search looks at about half of the items before finding the target, at roughly 100 ms per item.</p></div>`;
+    const panel = $('[data-testid=d5-panel]', root);
+    const items = () => (st.deco ? DECO.length : 0) + 3;
+    const draw = () => {
+      panel.replaceChildren();
+      const list = [{ t: 'Snooze', real: true }, { t: 'Stop', real: true, stop: true }, { t: 'Light', real: true }, ...(st.deco ? DECO.map((t) => ({ t })) : [])];
+      const R = mulberry32(SEED + 55); for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; }
+      for (const it of list) {
+        const e = it.real ? h(`<button type="button"></button>`) : h('<span class="deco" aria-hidden="true"></span>');
+        e.textContent = it.t;
+        if (it.stop) e.setAttribute('data-testid', 'd5-stop');
+        if (it.real) e.addEventListener('click', () => hit(it));
+        panel.appendChild(e);
+      }
+      $('[data-testid=d5-items]', root).textContent = items();
+      $('[data-testid=d5-est]', root).textContent = `${(items() / 2) * 100} ms`;
+      const b = $('[data-testid=d5-deco]', root); b.setAttribute('aria-pressed', String(st.deco)); b.textContent = st.deco ? 'Decoration on' : 'Decoration off';
+    };
+    const hit = (it) => {
+      const say = $('[data-testid=d5-say]', root);
+      if (!st.running) { say.textContent = 'Press “Start the task” first.'; return; }
+      if (!it.stop) { say.textContent = `That was ${it.t}. Keep looking for Stop.`; return; }
+      const ms = performance.now() - st.t0; st.running = false; st.last = ms; st.times[st.deco ? 'decorated' : 'plain'] = ms;
+      $('[data-testid=d5-time]', root).textContent = (ms / 1000).toFixed(2) + ' s';
+      say.textContent = `Stopped in ${(ms / 1000).toFixed(2)} s with ${items()} things on the panel.` + (st.times.decorated != null && st.times.plain != null ? ` Plain: ${(st.times.plain / 1000).toFixed(2)} s; decorated: ${(st.times.decorated / 1000).toFixed(2)} s.` : '');
+    };
+    $('[data-testid=d5-deco]', root).addEventListener('click', () => { st.deco = !st.deco; st.running = false; draw(); });
+    $('[data-testid=d5-start]', root).addEventListener('click', () => { st.running = true; st.t0 = performance.now(); $('[data-testid=d5-time]', root).textContent = '…'; $('[data-testid=d5-say]', root).textContent = 'Go: find Stop.'; });
+    draw();
+    return () => ({ deco: st.deco, running: st.running, last: st.last, times: { ...st.times }, items: items() });
+  };
+
+  // 6 · honest: a battery gauge and its lie factor
+  D[6] = (root) => {
+    const st = { honest: false, level: 25 };
+    root.innerHTML = `
+      <div class="device"><div class="display"><small>Pell 3 · battery</small><span data-testid="d6-claim"></span></div>
+        <div style="margin-top:12px"><div class="gauge" data-testid="d6-gauge"><i data-testid="d6-bar"></i></div><div class="scale5"><span>empty</span><span>full</span></div></div>
+        <div class="rng" style="margin-top:12px"><label for="d6l"><span>Actual charge</span><output data-testid="d6-out"></output></label><input id="d6l" type="range" min="1" max="100" step="1" value="25" data-testid="d6-level"></div></div>
+      <div class="meter"><h3>How big the gauge says it is</h3>
+        <div class="keys"><button type="button" aria-pressed="false" data-testid="d6-honest">Honest gauge</button></div>
+        <dl><dt>Actual charge</dt><dd data-testid="d6-actual"></dd><dt>Bar length shown</dt><dd data-testid="d6-shown"></dd><dt>Lie factor</dt><dd data-testid="d6-lie"></dd></dl>
+        <p class="say" aria-live="polite" data-testid="d6-say"></p>
+        <p style="font-size:12px;color:var(--mute);margin:8px 0 0">Lie factor, a term from Edward Tufte: the size of an effect as shown, divided by its size in the data. 1.00 is honest.</p></div>`;
+    const show = () => {
+      const v = st.level / 100, shown = st.honest ? v : Math.sqrt(v);   // the flattering gauge uses a square-root curve
+      const bar = $('[data-testid=d6-bar]', root); bar.style.width = (shown * 100) + '%';
+      $('[data-testid=d6-gauge]', root).classList.toggle('lie', !st.honest);
+      $('[data-testid=d6-out]', root).textContent = st.level + '%';
+      $('[data-testid=d6-actual]', root).textContent = st.level + '%';
+      $('[data-testid=d6-shown]', root).textContent = (shown * 100).toFixed(1) + '%';
+      $('[data-testid=d6-lie]', root).textContent = (shown / v).toFixed(2);
+      $('[data-testid=d6-claim]', root).textContent = st.honest ? `${st.level}% · about ${Math.round(st.level * 0.3)} h` : `Plenty left!`;
+      $('[data-testid=d6-honest]', root).setAttribute('aria-pressed', String(st.honest));
+      $('[data-testid=d6-say]', root).textContent = st.honest ? 'The bar is exactly as long as the charge. No surprises when it runs out.' : `The bar shows ${(shown * 100).toFixed(0)}% for a ${st.level}% charge: ${(shown / v).toFixed(2)} times the truth.`;
+      $('[data-testid=d6-gauge]', root).setAttribute('aria-label', `Battery gauge showing ${(shown * 100).toFixed(0)} percent`);
+      $('[data-testid=d6-gauge]', root).setAttribute('role', 'img');
+    };
+    $('[data-testid=d6-level]', root).addEventListener('input', (e) => { st.level = Number(e.target.value); show(); });
+    $('[data-testid=d6-honest]', root).addEventListener('click', () => { st.honest = !st.honest; show(); });
+    show();
+    return () => ({ ...st });
+  };
+
+  // 7 · long-lasting: style trends with a half-life
+  D[7] = (root) => {
+    const T = [{ id: 'glossy', name: 'Glossy gradient', hl: 3 }, { id: 'glass', name: 'Frosted glass', hl: 4 }, { id: 'neon', name: 'Neon glow', hl: 2 }, { id: 'shadow', name: 'Heavy drop shadow', hl: 3 }];
+    const on = new Set(['glossy', 'neon']); const st = { years: 0 };
+    root.innerHTML = `
+      <div class="device trend" data-testid="d7-device"><div class="display"><small>Pell 3 · 20XX edition</small><span>12:00</span></div>
+        <div class="opts">${T.map((t) => `<label><input type="checkbox" data-t="${t.id}" data-testid="d7-${t.id}"> ${t.name} <span style="color:var(--mute)">(half-life ${t.hl} years)</span></label>`).join('')}</div>
+        <div class="rng" style="margin-top:10px"><label for="d7y"><span>Years from now</span><output data-testid="d7-out"></output></label><input id="d7y" type="range" min="0" max="15" step="1" value="0" data-testid="d7-years"></div></div>
+      <div class="meter"><h3>Chance it looks dated</h3><dl><dt>Trends on</dt><dd data-testid="d7-count"></dd><dt>Still looks current</dt><dd data-testid="d7-fresh"></dd><dt>Looks dated</dt><dd data-testid="d7-dated"></dd></dl>
+        <p class="say" aria-live="polite" data-testid="d7-say"></p>
+        <p style="font-size:12px;color:var(--mute);margin:8px 0 0">Toy model: each trend has a half-life; the chance it still looks current after t years is 0.5<sup>t / half-life</sup>, and the product looks current only if every trend on it does.</p></div>`;
+    const dev = $('[data-testid=d7-device]', root);
+    const show = () => {
+      $$('[data-t]', root).forEach((i) => (i.checked = on.has(i.dataset.t)));
+      T.forEach((t) => dev.classList.toggle(t.id, on.has(t.id)));
+      const fresh = T.filter((t) => on.has(t.id)).reduce((p, t) => p * 0.5 ** (st.years / t.hl), 1);
+      $('[data-testid=d7-out]', root).textContent = st.years + (st.years === 1 ? ' year' : ' years');
+      $('[data-testid=d7-count]', root).textContent = on.size;
+      $('[data-testid=d7-fresh]', root).textContent = (fresh * 100).toFixed(1) + '%';
+      $('[data-testid=d7-dated]', root).textContent = ((1 - fresh) * 100).toFixed(1) + '%';
+      $('[data-testid=d7-say]', root).textContent = on.size === 0 ? 'No trends to date it: it can look the same in fifteen years as it does today.' : `After ${st.years} year${st.years === 1 ? '' : 's'}, ${((1 - fresh) * 100).toFixed(0)}% likely to look dated.`;
+      st.fresh = fresh; st.on = [...on];
+    };
+    $$('[data-t]', root).forEach((i) => i.addEventListener('change', () => { i.checked ? on.add(i.dataset.t) : on.delete(i.dataset.t); show(); }));
+    $('[data-testid=d7-years]', root).addEventListener('input', (e) => { st.years = Number(e.target.value); show(); });
+    show();
+    return () => ({ ...st });
+  };
+
+  // 8 · thorough: five small details, each measurable
+  D[8] = (root) => {
+    const DET = [{ id: 'targets', name: 'Touch targets at least 44 × 44 px' }, { id: 'focus', name: 'Visible keyboard focus' }, { id: 'units', name: 'Units on every number' }, { id: 'tabular', name: 'Digits that don\'t jiggle (tabular)' }, { id: 'error', name: 'Errors that say how to fix them' }];
+    const on = new Set();
+    root.innerHTML = `
+      <div class="device d8" data-testid="d8-device"><div class="display"><small>Pell 3 · settings</small><span class="num" data-testid="d8-num"></span></div>
+        <div class="keys"><button type="button" data-testid="d8-b1">−</button><button type="button" data-testid="d8-b2">+</button><button type="button" data-testid="d8-b3">OK</button></div>
+        <p class="err" data-testid="d8-err"></p></div>
+      <div class="meter"><h3>Details</h3><div class="opts">${DET.map((d) => `<label><input type="checkbox" data-d="${d.id}" data-testid="d8-${d.id}"> ${d.name}</label>`).join('')}</div>
+        <dl style="margin-top:10px"><dt>Details done</dt><dd data-testid="d8-done">0 / 5</dd><dt>Smallest button</dt><dd data-testid="d8-min">—</dd></dl>
+        <p class="say" aria-live="polite" data-testid="d8-say"></p></div>`;
+    const dev = $('[data-testid=d8-device]', root); const st = {};
+    const show = () => {
+      DET.forEach((d) => dev.classList.toggle('fix-' + d.id, on.has(d.id)));
+      $('[data-testid=d8-num]', root).textContent = on.has('units') ? '1:11 min · 60 dB' : '1:11 · 60';
+      $('[data-testid=d8-err]', root).textContent = on.has('error') ? 'Volume must be between 40 and 90 dB: press − to lower it.' : 'Error 3';
+      const sizes = $$('.keys button', dev).map((b) => { const r = b.getBoundingClientRect(); return Math.min(r.width, r.height); });
+      const min = Math.min(...sizes);
+      $('[data-testid=d8-min]', root).textContent = min.toFixed(0) + ' px';
+      $('[data-testid=d8-done]', root).textContent = `${on.size} / 5`;
+      $('[data-testid=d8-say]', root).textContent = on.size === 5 ? 'Every detail is handled. Nobody will notice, which is the point.' : `${5 - on.size} detail${5 - on.size === 1 ? '' : 's'} left to chance.`;
+      Object.assign(st, { done: on.size, minTarget: min, on: [...on] });
+    };
+    $$('[data-d]', root).forEach((i) => i.addEventListener('change', () => { i.checked ? on.add(i.dataset.d) : on.delete(i.dataset.d); show(); }));
+    return { state: () => ({ ...st }), show };
+  };
+
+  // 9 · environmentally friendly: energy per year and units per decade
+  D[9] = (root) => {
+    const A = { useH: 1, useW: 0.6, litH: 8, standbyW: 0.5, offW: 0.05, sealedLife: 2.5, repairLife: 10 };
+    const on = new Set();
+    root.innerHTML = `
+      <div class="device"><div class="display"><small>Pell 3 · power</small><span data-testid="d9-kwh"></span></div>
+        <div class="opts">
+          <label><input type="checkbox" data-e="autooff" data-testid="d9-autooff"> Display sleeps after one idle minute</label>
+          <label><input type="checkbox" data-e="trueoff" data-testid="d9-trueoff"> Real off switch (no standby glow)</label>
+          <label><input type="checkbox" data-e="repair" data-testid="d9-repair"> Battery you can replace with a coin</label></div></div>
+      <div class="meter"><h3>Over its life</h3><dl><dt>Energy per year</dt><dd data-testid="d9-energy"></dd><dt>Timers bought per decade</dt><dd data-testid="d9-units"></dd></dl>
+        <p class="say" aria-live="polite" data-testid="d9-say"></p>
+        <p style="font-size:12px;color:var(--mute);margin:8px 0 0">Illustrative assumptions: 1 h of use a day at 0.6 W; without sleep the display stays lit 8 more hours a day; standby draws 0.5 W, a real off 0.05 W, for the rest of the day. A sealed battery ends the product's life after 2.5 years; a replaceable one lets it run 10.</p></div>`;
+    const st = {};
+    const show = () => {
+      const lit = on.has('autooff') ? 0 : A.litH;
+      const rest = 24 - A.useH - lit;
+      const wh = A.useH * A.useW + lit * A.useW + rest * (on.has('trueoff') ? A.offW : A.standbyW);
+      const kwh = wh * 365 / 1000;
+      const units = Math.ceil(10 / (on.has('repair') ? A.repairLife : A.sealedLife));
+      $('[data-testid=d9-energy]', root).textContent = kwh.toFixed(2) + ' kWh';
+      $('[data-testid=d9-kwh]', root).textContent = kwh.toFixed(2) + ' kWh/yr';
+      $('[data-testid=d9-units]', root).textContent = units;
+      $('[data-testid=d9-say]', root).textContent = on.size === 3 ? 'Same timer, same job: a fraction of the energy and one product in a decade.' : 'Each switch changes nothing about how the timer is used, only what it costs the world.';
+      Object.assign(st, { kwh, units, on: [...on] });
+    };
+    $$('[data-e]', root).forEach((i) => i.addEventListener('change', () => { i.checked ? on.add(i.dataset.e) : on.delete(i.dataset.e); show(); }));
+    show();
+    return () => ({ ...st });
+  };
+
+  // 10 · as little design as possible: remove until it breaks
+  D[10] = (root) => {
+    const PARTS = [
+      { id: 'display', name: 'Time display', ess: 'you could not see the time left' }, { id: 'dial', name: 'Setting dial', ess: 'you could not set a time' },
+      { id: 'button', name: 'Start/stop button', ess: 'you could not start or stop it' }, { id: 'speaker', name: 'Alarm speaker', ess: 'it could not tell you the time is up' },
+      { id: 'badge', name: 'Brand badge' }, { id: 'trim', name: 'Chrome trim ring' }, { id: 'clock', name: 'Second clock display' }, { id: 'stripe', name: 'Racing stripe' }, { id: 'led', name: 'Mood light' }, { id: 'modes', name: 'Mode switch' },
+    ];
+    const keep = new Set(PARTS.map((p) => p.id));
+    root.innerHTML = `
+      <div class="device"><div class="deviceparts" data-testid="d10-device"></div></div>
+      <div class="meter"><h3>Remove parts</h3><div class="parts">${PARTS.map((p) => `<label class="opts" style="margin:0"><span style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" checked data-p="${p.id}" data-testid="d10-${p.id}"> ${p.name}</span></label>`).join('')}</div>
+        <dl style="margin-top:10px"><dt>Parts</dt><dd data-testid="d10-count"></dd><dt>Does it still work?</dt><dd data-testid="d10-works"></dd></dl>
+        <p class="say" aria-live="polite" data-testid="d10-say"></p></div>`;
+    const st = {};
+    const show = () => {
+      const dev = $('[data-testid=d10-device]', root); dev.replaceChildren();
+      PARTS.filter((p) => keep.has(p.id)).forEach((p) => { const e = h(`<div data-part="${p.id}"></div>`); e.textContent = p.name; if (p.ess) e.classList.add('ess'); dev.appendChild(e); });
+      const missing = PARTS.filter((p) => p.ess && !keep.has(p.id));
+      const works = missing.length === 0, extras = PARTS.filter((p) => !p.ess && keep.has(p.id)).length;
+      $('[data-testid=d10-count]', root).textContent = keep.size;
+      $('[data-testid=d10-works]', root).textContent = works ? 'yes' : 'no';
+      $('[data-testid=d10-say]', root).textContent = !works ? `Broken: without the ${missing[0].name.toLowerCase()}, ${missing[0].ess}. Put it back; that was one step too far.`
+        : extras === 0 ? `As little as possible: ${keep.size} parts, and every one of them is needed.` : `Still works. ${extras} part${extras === 1 ? '' : 's'} could go.`;
+      Object.assign(st, { count: keep.size, works, extras, minimal: works && extras === 0 });
+    };
+    $$('[data-p]', root).forEach((i) => i.addEventListener('change', () => { i.checked ? keep.add(i.dataset.p) : keep.delete(i.dataset.p); show(); }));
+    show();
+    return () => ({ ...st });
+  };
+
+  // ---------- tour ----------
+  const rail = $('[data-testid=rail]'), stage = $('#stage');
+  const states = {}, shows = {};
+  P.forEach((p, i) => {
+    const n = i + 1;
+    rail.appendChild(h(`<li><a href="#principle-${n}" data-testid="rail-${n}"><span>${String(n).padStart(2, '0')}</span><span>${p.name}</span></a></li>`));
+    const sec = h(`<section class="principle" id="p${n}" data-principle="${n}" data-slug="${p.slug}" data-testid="principle-${n}" aria-labelledby="h${n}" hidden>
+      <div class="kicker"><span>Principle ${n} of 10</span><span>Dieter Rams</span></div>
+      <h2 id="h${n}" tabindex="-1">${p.name}</h2>
+      <p class="why" data-testid="why-${n}">${p.why}</p>
+      <div class="demo" data-testid="demo-${n}"></div>
+    </section>`);
+    stage.appendChild(sec);
+    const r = D[n]($('.demo', sec));
+    if (typeof r === 'function') states[n] = r; else { states[n] = r.state; shows[n] = r.show; }
+  });
+  stage.appendChild(h(`<div class="pager"><button type="button" data-testid="prev">← Previous</button><span class="hint" data-testid="pos" aria-live="polite"></span><button type="button" class="go" data-testid="next">Next →</button></div>`));
+
+  let current = 1;
+  function show(n, { focus = false } = {}) {
+    current = n;
+    $$('section.principle', stage).forEach((s) => (s.hidden = Number(s.dataset.principle) !== n));
+    $$('a', rail).forEach((a, i) => (i + 1 === n ? a.setAttribute('aria-current', 'step') : a.removeAttribute('aria-current')));
+    $('[data-testid=pos]').textContent = `${n} / 10 · ${P[n - 1].name}`;
+    $('[data-testid=prev]').disabled = n === 1; $('[data-testid=next]').disabled = n === 10;
+    if (shows[n]) shows[n]();                 // layout-measuring demos measure once visible
+    if (focus) $('#h' + n).focus({ preventScroll: true });
+  }
+  const fromHash = () => { const m = /^#principle-(\d{1,2})$/.exec(location.hash); const n = m ? Number(m[1]) : 1; return n >= 1 && n <= 10 ? n : 1; };
+  function go(n, focus = true) {
+    n = Math.max(1, Math.min(10, n));
+    if (location.hash !== '#principle-' + n) history.pushState(null, '', '#principle-' + n);
+    show(n, { focus });
+  }
+  addEventListener('hashchange', () => show(fromHash(), { focus: true }));
+  addEventListener('popstate', () => show(fromHash(), { focus: true }));
+  $('[data-testid=prev]').addEventListener('click', () => go(current - 1));
+  $('[data-testid=next]').addEventListener('click', () => go(current + 1));
+  $$('a', rail).forEach((a, i) => a.addEventListener('click', (e) => { e.preventDefault(); go(i + 1); }));
+  document.addEventListener('keydown', (e) => {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    const t = e.target;
+    if (t.closest && t.closest('input, select, textarea, [contenteditable]')) return;
+    const k = { ArrowRight: current + 1, ArrowLeft: current - 1, Home: 1, End: 10 }[e.key];
+    if (k === undefined) return;
+    e.preventDefault(); go(k);
+  });
+  show(fromHash());
+
+  window.__rams = {
+    principles: P.map((p) => p.name),
+    current: () => current,
+    go: (n) => go(n, false),
+    demo: (n) => states[n](),
+    seed: SEED,
+  };
+})();
+</script>
+</body>
+</html>

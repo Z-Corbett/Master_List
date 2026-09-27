@@ -1,0 +1,39 @@
+{
+  "id": "172",
+  "slug": "172-knitting-calculator",
+  "file": "lab/172-knitting-calculator.html",
+  "title": "Knitting Calculator — gauge, stitches and yardage",
+  "category": "Tools",
+  "tags": ["calculator", "knitting", "unit-conversion", "craft-yarn-council", "simulation"],
+  "description": "Five knitting sums in one page, in inches and yards or centimetres and metres. Work out gauge per 4 in or 10 cm, straight or from a measured swatch. Get a cast-on for a target width, rounded to the nearest count that fits a 'multiple of m plus e' stitch pattern. Get an exact written instruction for increasing or decreasing N stitches evenly, flat or in the round, with a picture of the row. There are rough yardage ranges for nine project types across the Craft Yarn Council weights 0 (Lace) to 7 (Jumbo), with the model stated, and a pattern's stitch and row counts converted to your gauge.",
+  "prompt": "Build a knitting calculator. Gauge from a swatch (stitches and rows per 4 in or 10 cm), a cast-on for a target width with rounding to the pattern repeat, and evenly distributed increases and decreases across a row: the classic 'increase N evenly' line, written out exactly, and it has to add up. Add yardage estimates by project type and yarn weight using the Craft Yarn Council standard categories 0–7, Lace to Jumbo, labelled clearly as rough ranges. Also converting a pattern to a different gauge, and metric and imperial throughout. The spec should check the gauge maths, simulate knitting the evenly-distributed instruction to prove it lands on exactly the target stitch count, and check the repeat rounding and the unit conversions.",
+  "qa": {
+    "methodology": [
+      "A tiny knitter in the spec: it parses the written instruction (kN, M1, k2tog and [ ] n times) and works it stitch by stitch. It must use exactly the stitches on the needle and end on K ± N, with exactly N shaping stitches. This runs for 416 combinations of stitch count, amount, increase or decrease, and flat or round; the impossible ones must return an explanation instead.",
+      "Evenness and edges: the plain runs between shaping may differ by at most one stitch (joined across the start of the round when worked in the round), and flat increases never land on an edge stitch.",
+      "Repeat rounding against a brute-force oracle that tries every m·k + e and prefers the larger count on a tie, for five widths and repeats, including a deliberate tie (94 → 96 on a multiple of 4).",
+      "Unit conversions from exact constants (2.54 cm/in, 0.9144 m/yd): 20 sts per 4 in shows as 19.7 per 10 cm, 18 in as 45.7 cm, a 9 cm swatch of 18 stitches as 20 per 10 cm, a cm width entered in the field converts exactly, and switching back to inches restores the original figures.",
+      "Reference values: the CYC table must show the published gauge and needle ranges for categories 0–7, and the yardage must follow its stated model at three weights × three projects, the user's own gauge and metres. A worsted hat must land in a plausible 100–250 yd."
+    ],
+    "risks": [
+      "Yardage is a simple area model (5.5 in of yarn per inch of row), not measured data; cables, lace, ease and size move it a lot, which is why it is shown as a range and labelled rough.",
+      "Project areas are typical adult sizes that the page states; a child's hat or an oversized sweater needs a different area.",
+      "M1 and k2tog are the only shaping stitches offered; knitters who prefer kfb or ssk get the right spacing but must swap the stitch.",
+      "The CYC ranges are guidance for stockinette; a yarn's own label takes priority, and the page says so."
+    ],
+    "playwright": "The key trick was running the page's own distribute function 416 times in one page.evaluate call and then checking every result in Node with an independent parser and simulator: fast, and much stronger than a handful of UI examples. The UI examples still exist, for the exact classic lines and the row picture's span count. locator.fill on number inputs fires input events, so the recalculations are immediate and web-first assertions wait for them. One real failure while building: the spec expected the yardage note to say 'rough', and the page's model note didn't. The page text was fixed, because the brief requires the ranges to be labelled as rough.",
+    "coverage": [
+      "Gauge per inch, stitch width, per 10 cm",
+      "Swatch gauge in inches and cm",
+      "Cast-on repeat rounding with ties",
+      "Classic increase and decrease lines, row picture",
+      "416 simulated rows: counts, evenness, edges, impossible cases",
+      "Impossible shaping messages, k2tog-only and no-change rows",
+      "CYC categories 0–7 vs published ranges",
+      "Yardage model, weights, own gauge, metres",
+      "Pattern conversion and repeat",
+      "Metric/imperial round trip"
+    ]
+  },
+  "a11y": "Every number and select is a labelled native control, and the unit switch is a pair of toggle buttons with aria-pressed whose labels update the field labels (4 in or 10 cm, in or cm). Each result box is an aria-live region, the swatch button moves focus to the updated gauge field, and the instruction is plain text with the abbreviations explained underneath. The row picture is decorative (aria-hidden) and repeats what the text says. The CYC reference is a real table, and the chosen weight is highlighted."
+}

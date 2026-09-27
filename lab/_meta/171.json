@@ -1,0 +1,35 @@
+{
+  "id": "171",
+  "slug": "171-glaze-mixer",
+  "file": "lab/171-glaze-mixer.html",
+  "title": "Glaze Mixer — recipes, batches and the unity formula",
+  "category": "Tools",
+  "tags": ["calculator", "ceramics", "chemistry", "unity-formula", "safety"],
+  "description": "Enter a ceramic glaze recipe as percentages of ten common raw materials (silica, EPK kaolin, whiting, Custer feldspar, nepheline syenite, Gerstley borate, Ferro frit 3134, talc, wollastonite and zinc oxide) and add colorants on top. Scale it to any batch size, with approximate water guidance. The page computes the Unity Molecular Formula (Seger formula) with the fluxes normalised to 1.0 and shows the SiO₂:Al₂O₃ ratio. It uses published oxide analyses, which are cited, and molecular weights built from IUPAC atomic weights. Recipes that don't add to 100% are normalised, with a warning.",
+  "prompt": "Build a glaze mixer. I enter a recipe in percentages of common raw materials (silica, EPK, whiting, a feldspar, nepheline syenite, Gerstley borate, frit 3134, talc, wollastonite, zinc oxide) plus colorant additions as % on top. Scale it to a batch size, with water guidance stated as approximate. Compute the Unity Molecular Formula from material oxide analyses from well-known published sources, with molecular weights computed from atomic weights and the fluxes normalised to 1.0. Show Si:Al, and only show an expansion estimate if you can source the coefficients reliably. Put the safety facts up front: respirators for dry materials, barium, lead and some colorants are hazardous (no lead materials at all), food safety needs leach testing, test tiles first. Tests should check batch scaling, recompute the UMF by hand from the stated analyses, check that fluxes sum to 1, that colorants go on top, and that recipes not summing to 100 are normalised with a warning.",
+  "qa": {
+    "methodology": [
+      "Independent chemistry oracle: the spec types in IUPAC 2021 atomic weights, builds every oxide's molecular weight, and computes whiting's CaO share from CaCO₃. It then recomputes the UMF of the whiting + EPK + silica test recipe and of Leach 4-3-2-1 from the published analyses. The page's hook values must match to 1e-9, and its displayed values to 3 decimals.",
+      "Molecular weights are also checked against the values printed in glaze textbooks (SiO₂ 60.08, Al₂O₃ 101.96, CaO 56.08 and so on) to within 0.015.",
+      "Source checks: the EPK, Custer, nepheline syenite and frit 3134 analyses must equal the cited Digitalfire figures exactly. Gerstley borate must agree with New Mexico Clay's typical analysis within 0.1%, and the computed theoretical talc and wollastonite must agree with Digitalfire's printed values within 0.02%.",
+      "Invariants: fluxes sum to exactly 1 for every sample and for a seven-material boron recipe. Colorants add grams on top and leave the UMF unchanged, and batch size never changes the UMF.",
+      "Normalisation: an 80% recipe warns, batches as 250 / 312.5 / 437.5 g per kg, and has the same UMF as the rescaled recipe. The warning clears when the recipe is back at 100%."
+    ],
+    "risks": [
+      "Natural materials vary from lot to lot, so a UMF is only as good as the analysis. Custer feldspar in particular changed over the years and is reported discontinued in 2024; the page uses the historical analysis and says so.",
+      "Ferro frit 3134 has two published analyses (with and without 2% Al₂O₃). The page uses Digitalfire's current one and cites the older one.",
+      "Colorants are left out of the UMF by design, and the water guidance (80–100 g per 100 g dry) is a starting point, not a specific-gravity target.",
+      "No thermal-expansion estimate: the coefficient sets in circulation disagree, and I couldn't source one reliably enough to show."
+    ],
+    "playwright": "selectOption and fill drive the dynamic material rows, and a small helper removes and re-adds rows so each test builds its own recipe through the real UI. The page exposes __glaze.last (moles, UMF, flux sum), which let the spec compare the full-precision UMF with its oracle, while web-first assertions check the 3-decimal text the user sees. toBeFocused checks where focus goes after a row is removed, including the last one. Candidly, every test passed on its first run, so the suite hasn't caught a bug yet. Its protection is that the atomic weights and analyses are typed into the spec independently, so an edited analysis in the page would fail. Playwright can't say anything about how a glaze actually fires; the page says test tiles and leach tests are the only answer to that.",
+    "coverage": [
+      "Molecular weights from atomic weights, and against textbook values",
+      "Hand-computed UMF for whiting + EPK + silica and for Leach 4-3-2-1; Si:Al",
+      "Flux sum = 1 for samples and a frit, Gerstley borate, nepheline syenite, talc and zinc recipe",
+      "Batch scaling at 1000, 3500 and 250 g; colorants on top; water guidance",
+      "Normalisation warning and math; duplicates; flux-free and empty recipes",
+      "Safety notice content, no lead or barium materials, colorant hazard warnings"
+    ]
+  },
+  "a11y": "Each material row has a labelled select, a labelled percentage field and a remove button named for its row. Removing a row moves focus to the neighbouring row, or to the Add button if it was the last. Warnings, the base total and the UMF are polite live regions. The UMF columns are headed description lists, and the molecular weights and material analyses are real tables with captions and column headers."
+}

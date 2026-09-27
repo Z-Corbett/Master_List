@@ -1,0 +1,37 @@
+{
+  "id": "158",
+  "slug": "158-playwright-migrator",
+  "file": "lab/158-playwright-migrator.html",
+  "title": "Playwright Migrator — convert Selenium and Cypress tests",
+  "category": "QA & Testing",
+  "tags": ["playwright", "cypress", "selenium", "migration", "tokenizer", "code-generation"],
+  "description": "Paste Cypress tests, or Selenium WebDriver tests in JavaScript (mocha) or Python (pytest), and get idiomatic Playwright Test TypeScript. A small tokenizer splits the source into statements and reads each command chain. cy.get/contains/within/each/intercept/wait('@alias')/fixture, By.* locators, until.* waits and assert/chai/pytest asserts are rewritten. data-cy, data-test and data-testid become getByTestId, with the testIdAttribute config to match; element-plus-text becomes getByRole. Fixed sleeps become web-first assertions and are counted, and custom commands, .then() callbacks and other unsupported code are commented out and flagged, never dropped. A side-by-side diff puts a note on every statement, next to a selector-mapping table, a migration report, copy, and downloads of the .spec.ts and a Markdown report. Four realistic examples are bundled.",
+  "prompt": "Build a Playwright Migrator. I paste Cypress (JS/TS) or Selenium WebDriver (JS, and Python if feasible) test code and get idiomatic Playwright Test TypeScript. Write a real tokenizer and transform for the common API surface, not naive string replace. Cypress: cy.visit/get/contains/click/type/should(...)/intercept/wait(alias)/fixture/within/each, with custom commands flagged. Selenium: driver.get/findElement(By.*)/sendKeys/click/wait(until...)/getText/assert. Map selectors to Playwright's recommended locators where possible (getByRole/getByText/getByTestId from data-cy/data-test/data-testid) and explain each mapping. Replace fixed waits (cy.wait(1000), sleep) with web-first assertions and flag them. Show a side-by-side diff with inline notes, a migration report (counts converted, flagged for manual review, fixed sleeps removed) and copy/download. Include 4 realistic bundled examples, and close with a CTA to the Services section: a migration sprint isn't a listed package, so point to hourly or the Starter Suite. The spec should check exact conversions for a table of input→output cases, that unsupported constructs are flagged and not silently dropped, that the output is syntactically plausible (balanced braces, one test( per input test), and the report counts.",
+  "qa": {
+    "methodology": [
+      "Exact-output tables: 21 Cypress, 10 Selenium JavaScript and 6 Selenium Python snippets, each wrapped in a test, converted, and compared line for line with the Playwright code written out in the spec from the Playwright docs' command mappings.",
+      "Nothing silently dropped: eight unsupported constructs (a custom command, .then(), .invoke(), .should(callback), an unregistered alias, switchTo(), actions(), a Python for loop) must each produce exactly one '// MIGRATE:' marker, and every original line must survive as a comment. The report's flagged count must equal the number of markers.",
+      "Plausibility of every bundled example: one test( per input it() or def test_, brackets balanced once strings and regex literals are removed, the file parses as JavaScript (compiled with the AsyncFunction constructor), and no cy., driver., By. or until. call is left outside a comment.",
+      "The output runs: the converted login example is executed for real against a small stub app served through page.route, with getByTestId pointed at data-cy. All three tests pass, and on a stub whose submit button is never disabled exactly the matching test fails.",
+      "Independent tallies: tests and fixed sleeps are counted from each example's source by regex, and flagged and dropped counts come from what each example was written to contain. The tiles, summary, downloaded report and clipboard copy must all agree."
+    ],
+    "risks": [
+      "It covers the common API surface, not every plugin or dynamic chain. Code inside .then() callbacks, jQuery work on yielded elements, iframes and Python control flow are left for a person, and the page says so.",
+      "Statement splitting follows JavaScript's semicolon rules only approximately (newline plus 'does the next line continue a chain?'), so unusual formatting can split a statement in the wrong place.",
+      "Only one testIdAttribute can be configured, so a suite that mixes data-cy and data-test keeps the less common attribute as a CSS locator.",
+      "Cypress's cy.type() appends while fill() replaces. That's the same on an empty field, and the note on each row says so, but a test that types into a pre-filled field changes meaning."
+    ],
+    "playwright": "The most useful feature was page.route plus a fresh browser.newContext({ baseURL }): the converted spec runs against a stub app at http://localhost:3000 with no server at all. selectors.setTestIdAttribute('data-cy') let the generated getByTestId calls resolve, and it is reset in a finally block because the setting is global to the worker. waitForEvent('download') with download.path() checks both downloads byte for byte, and context.grantPermissions(['clipboard-read', 'clipboard-write']) lets the test read the clipboard back. The first run failed across the board because of a real page bug: the stat tiles had data-testid but no id, so render() threw on load. The flagged-count check then caught a real converter bug: an .each() loop was counted as flagged in the report but had no MIGRATE marker in the file, and it now writes one. Three failures were the spec's own. A const named URL shadowed the global in the route handler. The bracket checker stripped '//' inside the string 'xpath=//article/h1' as if it were a comment. And the Windows clipboard hands text back with CRLF line endings.",
+    "coverage": [
+      "37 exact input→output conversions across Cypress, Selenium JS and Selenium Python",
+      "Fixed sleeps: removed, counted and never turned into waitForTimeout",
+      "Unsupported constructs flagged with the original kept as comments",
+      "All four examples: test( count, balanced brackets, parses, no leftover framework calls",
+      "Report counts in the tiles, summary and Markdown download",
+      "Selector mapping explanations and the config note",
+      "Converted spec executed against a stub app, and catches a planted regression",
+      "Review filter, auto-detect, copy, downloads, keyboard access and CTA"
+    ]
+  },
+  "a11y": "Every control is a labelled native element, and the Convert button works from the keyboard. The report summary and the copy status are polite live regions. Each diff row states its status in text (converted, review, sleep removed, dropped), not just with a coloured border, and the output file sits in a focusable, labelled region."
+}

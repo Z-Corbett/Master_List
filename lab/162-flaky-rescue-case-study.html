@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flaky Test Rescue — three real bugs, root-caused</title>
+<meta name="description" content="A case study of three real flaky Playwright tests fixed in this portfolio's own repo: a focus race in a pinball game, a dialog close-event race in a candle page, and a debounced autosave that showed a stale 'Saved locally'. Each has a live reproduction you can slow down, the real before/after code, the root cause and the regression test that guards it.">
+<style>
+  :root {
+    --paper: #f4efe4;
+    --card: #fffdf8;
+    --manila: #e9d9b4;
+    --ink: #221d17;
+    --muted: #675e52;
+    --rule: #d8ccb4;
+    --red: #b3261e;
+    --red-soft: #f8e1dd;
+    --green: #1d6b40;
+    --green-soft: #ddf0e3;
+    --blue: #1f4e8c;
+    --amber: #8a5a00;
+    --code-bg: #1f1b16;
+    --code-ink: #efe7d6;
+    --add: #1e3b27;
+    --del: #43201c;
+    --mono: "Courier New", Consolas, "DejaVu Sans Mono", monospace;
+    --code: Consolas, "Cascadia Mono", Menlo, "DejaVu Sans Mono", monospace;
+    --serif: Rockwell, "Roboto Slab", Georgia, "Times New Roman", serif;
+    --sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--paper); color: var(--ink); font: 16px/1.6 var(--sans); overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+  a { color: var(--blue); }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; background: var(--ink); color: var(--paper); text-decoration: none; font: 700 13px/1 var(--sans); padding: 8px 12px; border-radius: 3px; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 64px 16px 60px; }
+  .kicker { margin: 0; font: 700 13px/1.4 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--red); overflow-wrap: anywhere; }
+  h1 { margin: 8px 0 0; font: 700 clamp(32px, 7vw, 60px)/1.02 var(--serif); letter-spacing: -.01em; overflow-wrap: anywhere; }
+  h1 small { display: block; font-size: .46em; color: var(--muted); margin-top: 8px; letter-spacing: 0; }
+  .lede { max-width: 70ch; margin: 16px 0 0; font-size: 17px; }
+  h2 { font: 700 26px/1.2 var(--serif); margin: 0 0 10px; overflow-wrap: anywhere; }
+  h3 { font: 700 15px/1.3 var(--mono); text-transform: uppercase; letter-spacing: .08em; margin: 22px 0 8px; color: var(--muted); }
+  code { font: .92em var(--code); background: rgba(0, 0, 0, .06); padding: 1px 4px; border-radius: 3px; overflow-wrap: anywhere; }
+  .facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 22px; }
+  @media (max-width: 720px) { .facts { grid-template-columns: minmax(0, 1fr); } }
+  .fact { background: var(--card); border: 1px solid var(--rule); padding: 12px 14px; min-width: 0; }
+  .fact b { display: block; font: 700 28px/1.1 var(--serif); }
+  .fact span { color: var(--muted); font-size: 14px; }
+  section.file { position: relative; margin-top: 40px; background: var(--card); border: 1px solid var(--rule); padding: 22px 20px 20px; box-shadow: 0 2px 0 var(--rule), 0 18px 30px -24px rgba(0, 0, 0, .45); min-width: 0; }
+  section.file::before { content: attr(data-tab); position: absolute; top: -28px; left: 14px; background: var(--manila); border: 1px solid var(--rule); border-bottom: 0; padding: 4px 12px; font: 700 12px/20px var(--mono); letter-spacing: .08em; text-transform: uppercase; max-width: calc(100% - 28px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px 14px; font: 13px var(--mono); color: var(--muted); margin: 0 0 12px; }
+  .stamp { display: inline-block; transform: rotate(-3deg); border: 3px solid currentColor; padding: 2px 10px; font: 700 14px/1.2 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+  .stamp.red { color: var(--red); } .stamp.green { color: var(--green); }
+  .symptom { border-left: 4px solid var(--red); background: var(--red-soft); padding: 10px 14px; margin: 0; }
+  .symptom p { margin: 0; }
+  pre.ci { margin: 8px 0 0; background: var(--code-bg); color: #ffb4a8; padding: 8px 10px; font: 12.5px/1.5 var(--code); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .symptom .src { display: block; margin-top: 6px; font: 12.5px var(--mono); color: var(--muted); }
+  /* reproduction */
+  .repro { border: 2px dashed var(--rule); padding: 14px; margin-top: 8px; min-width: 0; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+  .switch { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer; }
+  .switch input { width: 20px; height: 20px; accent-color: var(--red); }
+  fieldset.mode { border: 0; margin: 0; padding: 0; display: inline-flex; flex-wrap: wrap; gap: 4px; }
+  fieldset.mode legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  fieldset.mode label { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--rule); padding: 6px 10px; cursor: pointer; background: #fff; font-size: 14px; }
+  fieldset.mode label:has(input:checked) { border-color: var(--ink); background: var(--ink); color: var(--paper); }
+  fieldset.mode input { accent-color: var(--ink); }
+  .btn { min-height: 40px; padding: 8px 16px; border: 2px solid var(--ink); background: var(--ink); color: var(--paper); font: 700 14px var(--sans); cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--ink); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .lanes { margin-top: 14px; display: grid; gap: 6px; }
+  .lane { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px; align-items: center; }
+  .lane > span { font: 700 11.5px/1.2 var(--mono); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .track { position: relative; height: 26px; background: repeating-linear-gradient(90deg, transparent 0 calc(10% - 1px), var(--rule) calc(10% - 1px) 10%); border-bottom: 1px solid var(--rule); min-width: 0; }
+  .dot { position: absolute; top: 4px; width: 18px; height: 18px; margin-left: -9px; border-radius: 50%; background: var(--ink); color: #fff; font: 700 10.5px/18px var(--mono); text-align: center; }
+  .dot.bad { background: var(--red); } .dot.good { background: var(--green); } .dot.warn { background: var(--amber); }
+  .axis { display: flex; justify-content: space-between; font: 11px var(--mono); color: var(--muted); margin-left: 104px; }
+  ol.log { margin: 12px 0 0; padding-left: 26px; font: 14px/1.5 var(--mono); }
+  ol.log li { padding: 2px 0; }
+  ol.log li.bad { color: var(--red); font-weight: 700; } ol.log li.good { color: var(--green); font-weight: 700; } ol.log li.warn { color: var(--amber); }
+  ol.log .t { color: var(--muted); display: inline-block; min-width: 5.5em; }
+  .verdict { margin: 12px 0 0; font: 700 16px/1.4 var(--mono); min-height: 1.4em; }
+  .verdict.pass { color: var(--green); } .verdict.fail { color: var(--red); }
+  .batch { margin: 10px 0 0; font: 14px var(--mono); color: var(--muted); }
+  /* diffs */
+  .diffs { display: grid; gap: 12px; }
+  .diff { background: var(--code-bg); color: var(--code-ink); padding: 10px 0; overflow-x: auto; max-width: 100%; }
+  .diff .file { display: block; padding: 0 12px 6px; font: 12px var(--code); color: #b9ab93; overflow-wrap: anywhere; }
+  .diff pre { margin: 0; font: 12.5px/1.55 var(--code); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .diff .ln { display: block; padding: 0 12px 0 28px; text-indent: -16px; }
+  .diff .ln::before { display: inline-block; width: 16px; text-indent: 0; color: #b9ab93; }
+  .diff .ln.add { background: var(--add); } .diff .ln.add::before { content: "+"; color: #7fd49c; }
+  .diff .ln.del { background: var(--del); text-decoration: line-through; text-decoration-color: rgba(255, 150, 140, .5); } .diff .ln.del::before { content: "-"; color: #ff9a8c; }
+  .diff .ln.ctx::before { content: " "; }
+  .diff .gap { display: block; padding: 0 12px; color: #8d8170; }
+  .cause { font-size: 17px; max-width: 72ch; }
+  .guard { border-left: 4px solid var(--green); background: var(--green-soft); padding: 10px 14px; }
+  .guard p { margin: 0 0 8px; }
+  ol.steps { counter-reset: s; list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+  ol.steps li { counter-increment: s; position: relative; padding: 12px 14px 12px 58px; background: var(--card); border: 1px solid var(--rule); }
+  ol.steps li::before { content: counter(s); position: absolute; left: 14px; top: 10px; width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--ink); font: 700 16px/28px var(--serif); text-align: center; }
+  ol.steps b { display: block; }
+  .cta { margin-top: 40px; background: var(--ink); color: var(--paper); padding: 24px 20px; }
+  .cta h2 { color: var(--paper); }
+  .cta p { max-width: 68ch; margin: 8px 0 0; color: #ddd3c1; }
+  .cta ul { margin: 12px 0 0; padding-left: 20px; }
+  .cta a.btn { display: inline-block; margin-top: 16px; background: var(--paper); color: var(--ink); border-color: var(--paper); text-decoration: none; }
+  .fine { font-size: 14px; color: var(--muted); max-width: 76ch; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<main class="wrap">
+  <header>
+    <p class="kicker">QA &amp; Testing · Lab 162 · Case study</p>
+    <h1>Flaky Test Rescue <small>Three real bugs, root-caused.</small></h1>
+    <p class="lede">This portfolio's Lab runs hundreds of Playwright tests in CI. For five runs in a row, retries quietly turned the same failures green. When I made CI fail on any test that only passes on retry, three flaky tests surfaced. None of them was a bad test: each was a real race in the page. Below is each one as it happened in this repo, with the real diffs, a model you can slow down to watch it break, and the test that now guards it.</p>
+    <div class="facts">
+      <div class="fact"><b>5</b><span>CI runs where retries hid the flakes</span></div>
+      <div class="fact"><b>3</b><span>real page bugs, not test bugs</span></div>
+      <div class="fact"><b>400/400</b><span>passes at <code>--repeat-each=20</code> for the first two fixes; 180/180 at <code>--repeat-each=10</code> for the third</span></div>
+    </div>
+  </header>
+
+  <section class="file" data-tab="Exhibit A · the gate" aria-labelledby="gate-h" data-testid="gate">
+    <h2 id="gate-h">First, stop retries from hiding it</h2>
+    <p class="meta"><span>commit <b>12b4f6b</b></span><span>playwright.config.ts</span></p>
+    <p>CI retried each failing test once. That's worth keeping, since the retry records a trace. But a test that failed and then passed was reported as <em>flaky</em> and the run stayed green. For 5 consecutive runs, the summaries read like this:</p>
+<pre class="ci" data-testid="ci-summary">3 flaky / 521 passed
+2 flaky / 4 skipped / 518 passed</pre>
+    <p>One setting changes that: <code>failOnFlakyTests</code>. A pass on retry now fails the run.</p>
+    <div class="diff" data-testid="diff">
+      <span class="file">playwright.config.ts</span>
+      <pre><span class="ln add" data-file="playwright.config.ts">  // CI retries once so the trace of a failure gets recorded, but a test that only passes on retry</span><span class="ln add" data-file="playwright.config.ts">  // still fails the run: retries had been quietly hiding the same flaky tests for five runs.</span><span class="ln ctx" data-file="playwright.config.ts">  retries: process.env.CI ? 1 : 0,</span><span class="ln add" data-file="playwright.config.ts">  failOnFlakyTests: !!process.env.CI,</span></pre>
+    </div>
+  </section>
+
+  <!-- CASE 1 -->
+  <section class="file" data-tab="Case 1 · 079 Prairie Pinball" aria-labelledby="c1-h" data-testid="case-pinball">
+    <h2 id="c1-h">The Space bar that went to a hidden button</h2>
+    <p class="meta"><span>commit <b>12b4f6b</b></span><span><a href="079-prairie-pinball.html">lab/079-prairie-pinball.html</a></span><span class="stamp red">flaky</span><span class="stamp green">fixed</span></p>
+    <h3>What CI showed</h3>
+    <div class="symptom" data-testid="ci-pinball"><p><b>"physics is deterministic per seed"</b> flaked in all 4 of the runs checked, on desktop and mobile, and <b>"the plunger: a longer pull launches harder…"</b> flaked 3 times. Each passed on retry. The ball never left the plunger lane:</p>
+<pre class="ci">Error: expect(received).toBeLessThan(expected)
+Expected: &lt; -800
+Received:   0</pre>
+<pre class="ci">Error: expect(received).not.toEqual(expected) // deep equality
+Expected: not [[373, 680.0199652777778], [373, 681], [373, 681], ...]</pre>
+<span class="src">Source: the GitHub Actions logs, quoted verbatim (trimmed).</span></div>
+
+    <h3>Reproduce it</h3>
+    <div class="repro" data-sim="pinball">
+      <div class="controls">
+        <label class="switch"><input type="checkbox" data-testid="slow-pinball" data-role="slow"> Slow the browser</label>
+        <fieldset class="mode"><legend>Code version</legend>
+          <label><input type="radio" name="mode-pinball" value="before" data-testid="before-pinball" checked> Before the fix</label>
+          <label><input type="radio" name="mode-pinball" value="after" data-testid="after-pinball"> After the fix</label>
+        </fieldset>
+        <button class="btn" type="button" data-role="run" data-testid="run-pinball">Run the test</button>
+        <button class="btn ghost" type="button" data-role="batch" data-testid="batch-pinball">Run 20× with random load</button>
+      </div>
+      <div class="lanes" aria-hidden="true"></div>
+      <ol class="log" data-testid="log-pinball" aria-label="Event log"></ol>
+      <p class="verdict" data-testid="verdict-pinball" role="status" aria-live="polite"></p>
+      <p class="batch" data-testid="batchout-pinball" aria-live="polite"></p>
+    </div>
+    <p class="fine">This is a timing model of the race, not a recording of Chrome. "Slow the browser" delays Chrome's deferred focus fix-up past the moment the test's key press arrives, which is what a loaded CI machine does.</p>
+
+    <h3>The root cause</h3>
+    <p class="cause">Clicking <b>Start</b> focuses the Start button, and the start code hides the overlay that contains it. A hidden element can't keep focus, but Chrome doesn't move focus away at once: it fixes it up a little later. If Playwright's <code>keyboard.down('Space')</code> lands in that gap, the key event targets the hidden button. The game deliberately ignores Space aimed at a button (so Space can still press buttons), so the plunger never moves.</p>
+
+    <h3>Before and after</h3>
+    <div class="diffs">
+      <div class="diff" data-testid="diff">
+        <span class="file">lab/079-prairie-pinball.html · the key handler (unchanged): why Space on a button is ignored</span>
+        <pre><span class="ln ctx" data-file="lab/079-prairie-pinball.html">    else if (k === ' ' || k === 'ArrowDown') { if (e.target.tagName === 'BUTTON' &amp;&amp; e.target.id !== 'plungerBtn') return; if (S.mode === 'play') { plunge(true); e.preventDefault(); } }</span></pre>
+      </div>
+      <div class="diff" data-testid="diff">
+        <span class="file">lab/079-prairie-pinball.html · the fix</span>
+        <pre><span class="ln del" data-file="lab/079-prairie-pinball.html">        &lt;canvas id="pf" width="400" height="720" data-testid="table" role="img" aria-label="Pinball table"&gt;&lt;/canvas&gt;</span><span class="ln add" data-file="lab/079-prairie-pinball.html">        &lt;canvas id="pf" width="400" height="720" data-testid="table" tabindex="-1" role="img" aria-label="Pinball table"&gt;&lt;/canvas&gt;</span><span class="gap">…</span><span class="ln ctx" data-file="lab/079-prairie-pinball.html">    $('startOv').hidden = true; $('overOv').hidden = true;</span><span class="ln add" data-file="lab/079-prairie-pinball.html">    // Focus would otherwise linger on the now-hidden Start button (the browser only fixes it up later),</span><span class="ln add" data-file="lab/079-prairie-pinball.html">    // and Space aimed at a button is ignored, so an immediate plunge could be lost.</span><span class="ln add" data-file="lab/079-prairie-pinball.html">    if (document.activeElement &amp;&amp; document.activeElement.closest('.overlay')) cv.focus({ preventScroll: true });</span></pre>
+      </div>
+    </div>
+
+    <h3>The regression test that guards it</h3>
+    <div class="guard">
+      <p>No new test was needed: the existing spec already presses Space right after clicking Start, which is exactly the race. With the fix, this spec and the Chapel Candles spec passed 400/400 together at <code>--repeat-each=20</code>, and CI now fails if either ever needs a retry. The helpers every plunger test uses:</p>
+      <div class="diff" data-testid="diff">
+        <span class="file">tests/lab/079-prairie-pinball.spec.ts</span>
+        <pre><span class="ln ctx" data-file="tests/lab/079-prairie-pinball.spec.ts">  await page.getByTestId('start').click();</span><span class="ln ctx" data-file="tests/lab/079-prairie-pinball.spec.ts">  await expect(page.getByTestId('start-overlay')).toBeHidden();</span><span class="gap">…</span><span class="ln ctx" data-file="tests/lab/079-prairie-pinball.spec.ts">  await page.keyboard.down('Space');</span><span class="ln ctx" data-file="tests/lab/079-prairie-pinball.spec.ts">  test('the plunger: a longer pull launches harder, and ball save starts', async ({ page }) => {</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- CASE 2 -->
+  <section class="file" data-tab="Case 2 · 061 Chapel Candles" aria-labelledby="c2-h" data-testid="case-candles">
+    <h2 id="c2-h">The candle lit by a late event</h2>
+    <p class="meta"><span>commit <b>12b4f6b</b></span><span><a href="061-chapel-candles.html">lab/061-chapel-candles.html</a></span><span class="stamp red">flaky</span><span class="stamp green">fixed</span></p>
+    <h3>What CI showed</h3>
+    <div class="symptom" data-testid="ci-candles"><p><b>"extinguishing freezes the wax; relighting carries on from where it stopped"</b> flaked in 3 to 4 of the 5 CI runs before the fix, on desktop and mobile. The test lights a candle, fast-forwards the fake clock two hours and expects 75% of the wax to remain. The candle said it had been lit just now:</p>
+<pre class="ci">Error: expect(locator).toContainText(expected) failed
+Locator: getByTestId('d-meta')
+Expected substring: "75% of the wax remains"
+Received string:    "Lit just now · about 8 h 00 min left · 100% of the wax remains"</pre>
+<span class="src">Source: the GitHub Actions logs, quoted verbatim (trimmed).</span></div>
+
+    <h3>Reproduce it</h3>
+    <div class="repro" data-sim="candles">
+      <div class="controls">
+        <label class="switch"><input type="checkbox" data-testid="slow-candles" data-role="slow"> Slow the browser</label>
+        <fieldset class="mode"><legend>Code version</legend>
+          <label><input type="radio" name="mode-candles" value="before" data-testid="before-candles" checked> Before the fix</label>
+          <label><input type="radio" name="mode-candles" value="after" data-testid="after-candles"> After the fix</label>
+        </fieldset>
+        <button class="btn" type="button" data-role="run" data-testid="run-candles">Run the test</button>
+        <button class="btn ghost" type="button" data-role="batch" data-testid="batch-candles">Run 20× with random load</button>
+      </div>
+      <div class="lanes" aria-hidden="true"></div>
+      <ol class="log" data-testid="log-candles" aria-label="Event log"></ol>
+      <p class="verdict" data-testid="verdict-candles" role="status" aria-live="polite"></p>
+      <p class="batch" data-testid="batchout-candles" aria-live="polite"></p>
+    </div>
+    <p class="fine">A timing model of the race. "Slow the browser" delays the dialog's queued <code>close</code> task until after the test has already fast-forwarded the clock.</p>
+
+    <h3>The root cause</h3>
+    <p class="cause">The candle was lit in the dialog's <code>close</code> event handler. Submitting a <code>&lt;form method="dialog"&gt;</code> hides the dialog straight away, but the <code>close</code> event is queued to fire as a later task. Playwright saw the dialog hidden, moved the fake clock forward two hours, and only then did the page run <code>light()</code>, stamping the candle with a time two hours late. The fix lights the candle in the form's <code>submit</code> handler, which runs before the dialog closes.</p>
+
+    <h3>Before and after</h3>
+    <div class="diffs">
+      <div class="diff" data-testid="diff">
+        <span class="file">lab/061-chapel-candles.html · the fix</span>
+        <pre><span class="ln add" data-file="lab/061-chapel-candles.html">  // Light on submit, not on 'close': the close event is queued as a later task, so the candle's</span><span class="ln add" data-file="lab/061-chapel-candles.html">  // litAt could be read from a clock that has already moved on.</span><span class="ln add" data-file="lab/061-chapel-candles.html">  $('dlg-form').addEventListener('submit', (e) =&gt; {</span><span class="ln add" data-file="lab/061-chapel-candles.html">    if (e.submitter &amp;&amp; e.submitter.value === 'light' &amp;&amp; pending != null) light(pending, $('intent').value.trim());</span><span class="ln add" data-file="lab/061-chapel-candles.html">  });</span><span class="ln ctx" data-file="lab/061-chapel-candles.html">  dlg.addEventListener('close', () =&gt; {</span><span class="ln del" data-file="lab/061-chapel-candles.html">    if (dlg.returnValue === 'light' &amp;&amp; pending != null) light(pending, $('intent').value.trim());</span><span class="ln ctx" data-file="lab/061-chapel-candles.html">    const back = document.querySelector(`.slot[data-i="${pending}"]`); pending = null; dlg.returnValue = '';</span></pre>
+      </div>
+      <div class="diff" data-testid="diff">
+        <span class="file">lab/061-chapel-candles.html · light() (unchanged): litAt is whatever the clock says when it runs</span>
+        <pre><span class="ln ctx" data-file="lab/061-chapel-candles.html">    const now = Date.now();</span><span class="ln ctx" data-file="lab/061-chapel-candles.html">    data.candles[i] = { lit: true, litAt: now, rem: 1, burnMs: data.burnHours * 3600e3, intention: intention || '', firstLit: now };</span></pre>
+      </div>
+    </div>
+
+    <h3>The regression test that guards it</h3>
+    <div class="guard">
+      <p>Again the existing test was right: it acts the moment the dialog is hidden, just as a fast user would. With the fix, the two specs passed 400/400 together at <code>--repeat-each=20</code>, and CI fails on any retry.</p>
+      <div class="diff" data-testid="diff">
+        <span class="file">tests/lab/061-chapel-candles.spec.ts</span>
+        <pre><span class="ln ctx" data-file="tests/lab/061-chapel-candles.spec.ts">    await lightSlot(page, 20, 'Thanksgiving');</span><span class="ln ctx" data-file="tests/lab/061-chapel-candles.spec.ts">    await page.clock.fastForward('02:00:00');</span><span class="ln ctx" data-file="tests/lab/061-chapel-candles.spec.ts">    await expect(page.getByTestId('d-meta')).toContainText('75% of the wax remains');</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- CASE 3 -->
+  <section class="file" data-tab="Case 3 · 032 Pixel Press" aria-labelledby="c3-h" data-testid="case-pixel">
+    <h2 id="c3-h">"Saved locally" that wasn't</h2>
+    <p class="meta"><span>commit <b>3ebfb98</b></span><span><a href="032-pixel-press.html">lab/032-pixel-press.html</a></span><span class="stamp red">caught by the gate</span><span class="stamp green">fixed</span></p>
+    <h3>What CI showed</h3>
+    <div class="symptom" data-testid="ci-pixel"><p>The new <code>failOnFlakyTests</code> gate caught this one on its very first run, and it blocked that deploy. <b>"exports a scaled PNG, imports it back, and autosaves across reloads"</b> [mobile] imports an image, waits for "Saved locally", reloads, and reads a pixel back. The pixel was gone:</p>
+<pre class="ci">Error: expect(received).toBe(expected) // Object.is equality
+Expected: "#c2185b"
+Received: null</pre>
+<span class="src">Source: the GitHub Actions logs, quoted verbatim (trimmed). Before the gate, a retry would have hidden this one too.</span></div>
+
+    <h3>Reproduce it</h3>
+    <div class="repro" data-sim="pixel">
+      <div class="controls">
+        <label class="switch"><input type="checkbox" data-testid="slow-pixel" data-role="slow"> Slow the browser</label>
+        <fieldset class="mode"><legend>Code version</legend>
+          <label><input type="radio" name="mode-pixel" value="before" data-testid="before-pixel" checked> Before the fix</label>
+          <label><input type="radio" name="mode-pixel" value="after" data-testid="after-pixel"> After the fix</label>
+        </fieldset>
+        <button class="btn" type="button" data-role="run" data-testid="run-pixel">Run the test</button>
+        <button class="btn ghost" type="button" data-role="batch" data-testid="batch-pixel">Run 20× with random load</button>
+      </div>
+      <div class="lanes" aria-hidden="true"></div>
+      <ol class="log" data-testid="log-pixel" aria-label="Event log"></ol>
+      <p class="verdict" data-testid="verdict-pixel" role="status" aria-live="polite"></p>
+      <p class="batch" data-testid="batchout-pixel" aria-live="polite"></p>
+    </div>
+    <p class="fine">A timing model of the race. "Slow the browser" makes the 250 ms debounce timer fire late, as timers do on a busy main thread, while the test reloads on its own schedule.</p>
+
+    <h3>The root cause</h3>
+    <p class="cause">Autosave was debounced by 250 ms, but the status line kept showing the <em>previous</em> "Saved locally" while the new write was still pending. So the test's wait for "Saved locally" passed at once, on stale text, and the reload could beat the timer. A user who closed the tab quickly would have lost the edit the same way. The fix shows "Saving…" until the write lands and flushes any pending save on <code>pagehide</code> and <code>visibilitychange</code>.</p>
+
+    <h3>Before and after</h3>
+    <div class="diffs">
+      <div class="diff" data-testid="diff">
+        <span class="file">lab/032-pixel-press.html · the fix</span>
+        <pre><span class="ln add" data-file="lab/032-pixel-press.html">  // Debounced autosave. The status says "Saving…" while a write is pending (it used to keep showing the</span><span class="ln add" data-file="lab/032-pixel-press.html">  // previous "Saved locally", so a quick reload could lose the last edit), and leaving the page flushes it.</span><span class="ln ctx" data-file="lab/032-pixel-press.html">  let saveT = 0;</span><span class="ln add" data-file="lab/032-pixel-press.html">  function writeNow() {</span><span class="ln add" data-file="lab/032-pixel-press.html">    clearTimeout(saveT); saveT = 0;</span><span class="gap">…</span><span class="ln ctx" data-file="lab/032-pixel-press.html">  function save() {</span><span class="ln ctx" data-file="lab/032-pixel-press.html">    clearTimeout(saveT);</span><span class="ln del" data-file="lab/032-pixel-press.html">    saveT = setTimeout(() =&gt; {</span><span class="ln add" data-file="lab/032-pixel-press.html">    $('saved').textContent = 'Saving…';</span><span class="ln add" data-file="lab/032-pixel-press.html">    saveT = setTimeout(writeNow, 250);</span><span class="ln ctx" data-file="lab/032-pixel-press.html">  }</span><span class="ln add" data-file="lab/032-pixel-press.html">  addEventListener('pagehide', () =&gt; { if (saveT) writeNow(); });</span><span class="ln add" data-file="lab/032-pixel-press.html">  document.addEventListener('visibilitychange', () =&gt; { if (document.hidden &amp;&amp; saveT) writeNow(); });</span></pre>
+      </div>
+    </div>
+
+    <h3>The regression test that guards it</h3>
+    <div class="guard">
+      <p>This one got a new check: draw, confirm the status honestly says "Saving…", reload immediately, and expect the pixel to survive. With it, the Pixel Press spec passed 180/180 at <code>--repeat-each=10</code>.</p>
+      <div class="diff" data-testid="diff">
+        <span class="file">tests/lab/032-pixel-press.spec.ts</span>
+        <pre><span class="ln add" data-file="tests/lab/032-pixel-press.spec.ts">    // regression: an edit made just before leaving is flushed on pagehide, not lost in the 250 ms debounce</span><span class="ln add" data-file="tests/lab/032-pixel-press.spec.ts">    await clickCell(page, 0, 15);</span><span class="ln add" data-file="tests/lab/032-pixel-press.spec.ts">    await expect(page.getByTestId('save-status')).toHaveText('Saving…');</span><span class="ln add" data-file="tests/lab/032-pixel-press.spec.ts">    await page.reload();</span><span class="ln add" data-file="tests/lab/032-pixel-press.spec.ts">    expect(await px(page, 0, 15)).toBe(color);</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="file" data-tab="Method" aria-labelledby="how-h" data-testid="process">
+    <h2 id="how-h">How I run a Flaky Test Rescue</h2>
+    <ol class="steps">
+      <li><b>Make the flake visible.</b> Turn on <code>failOnFlakyTests</code> in CI, keeping one retry for its trace, and list every test that has needed a retry.</li>
+      <li><b>Reproduce it on demand.</b> Run the suspects with <code>--repeat-each</code> and retries off, under load if need be, until the failure rate is a number rather than a feeling.</li>
+      <li><b>Ask what the test assumes has already happened.</b> Read the trace and the event order: focus moves, queued events, debounced timers, repaints. Each case above was an assumption that held on a fast machine.</li>
+      <li><b>Fix the cause, wherever it lives.</b> All three here were page bugs, and real users could hit them too. When the test is at fault, fix the test: in the same commit, a spec that slept 200 ms waiting for a repaint now polls with <code>expect.poll</code>.</li>
+      <li><b>Prove it and guard it.</b> Hundreds of repeats with zero failures, a regression check that acts as fast as a user can, and a short written report of every cause.</li>
+    </ol>
+  </section>
+
+  <section class="cta" aria-labelledby="cta-h" data-testid="cta">
+    <h2 id="cta-h">Is your CI green only on the second try?</h2>
+    <p>A <b>Flaky Test Rescue ($750)</b> is this process applied to your suite:</p>
+    <ul>
+      <li>Up to 10 flaky tests root-caused and fixed</li>
+      <li>CI set to fail on flakes, not hide them</li>
+      <li>A written report of every cause found</li>
+    </ul>
+    <a class="btn" href="../index.html#services" data-testid="cta-link">See the Flaky Test Rescue package</a>
+  </section>
+</main>
+
+<script>
+(() => {
+  // Seeded PRNG (mulberry32) for the "random load" batches, so ?seed=N reproduces a batch exactly.
+  const params = new URLSearchParams(location.search);
+  const SEED = Number.parseInt(params.get('seed') || '1', 10) >>> 0;
+  function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+  // A tiny virtual event loop: events run in time order (ties in the order they were queued).
+  function Loop() { this.q = []; this.seq = 0; this.log = []; }
+  Loop.prototype.at = function (t, lane, fn) { this.q.push({ t, lane, fn, seq: this.seq++ }); };
+  Loop.prototype.run = function () {
+    while (this.q.length) {
+      this.q.sort((a, b) => a.t - b.t || a.seq - b.seq);
+      const e = this.q.shift(); this.now = e.t;
+      const r = e.fn(this); if (r) this.log.push({ t: e.t, lane: e.lane, text: r.text || r, tone: r.tone || '' });
+    }
+    return this.log;
+  };
+
+  // load: 0 = fast browser, 1 = slow. Delays scale with it.
+  const SIMS = {
+    pinball: {
+      unit: 'ms', lanes: ['Test', 'Page', 'Browser'],
+      run(load, fixed) {
+        const L = new Loop(); const fixup = 2 + Math.round(load * 10), keyAt = 6;
+        let focus = 'Start button (hidden)', launched = false;
+        L.at(0, 'Test', () => 'click Start game');
+        L.at(0, 'Page', () => {
+          if (fixed) { focus = 'table'; return 'overlay hidden; focus moved to the table (cv.focus)'; }
+          return { text: 'overlay hidden; focus stays on the hidden Start button', tone: 'warn' };
+        });
+        L.at(fixup, 'Browser', () => { if (focus.startsWith('Start')) { focus = 'body'; return 'deferred focus fix-up: focus → body'; } return null; });
+        L.at(keyAt, 'Test', () => `keyboard.down('Space') → target: ${focus}`);
+        L.at(keyAt, 'Page', () => {
+          if (focus.startsWith('Start')) return { text: "keydown: e.target is a BUTTON → ignored (by design)", tone: 'bad' };
+          launched = true; return { text: 'keydown: plunger pulled', tone: 'good' };
+        });
+        L.at(30, 'Test', () => launched ? { text: 'expect: ball launched ✓', tone: 'good' } : { text: 'expect: ball launched ✗ (still in the shooter lane)', tone: 'bad' });
+        return { log: L.run(), pass: launched, end: 30, detail: launched ? 'The plunge registered.' : 'The key press went to the hidden Start button and was ignored.' };
+      },
+    },
+    candles: {
+      unit: 'ms', lanes: ['Test', 'Page', 'Clock'],
+      run(load, fixed) {
+        const L = new Loop(); const closeAt = 1 + Math.round(load * 4), ffAt = 4;
+        const H = 3600e3, burn = 8 * H; let clock = 0, litAt = null, remaining = null;
+        const light = (why) => { litAt = clock; return { text: `${why}: light() → litAt = ${clock / H} h`, tone: clock ? 'bad' : 'good' }; };
+        L.at(0, 'Test', () => "click 'Light the candle'");
+        L.at(0, 'Page', () => (fixed ? light('submit handler') : 'submit: dialog hidden, close event queued'));
+        if (fixed) L.at(0, 'Page', () => 'dialog hidden, close event queued');
+        L.at(closeAt, 'Page', () => (fixed ? "'close' event: restores focus" : light("'close' event")));
+        L.at(ffAt, 'Test', () => 'sees the dialog hidden → clock.fastForward 2 h');
+        L.at(ffAt, 'Clock', () => { clock += 2 * H; return 'clock: 0 h → 2 h'; });
+        L.at(ffAt + 3, 'Test', () => {
+          remaining = litAt == null ? 1 : Math.max(0, 1 - (clock - litAt) / burn);
+          const pct = Math.round(remaining * 100);
+          return pct === 75 ? { text: `expect '75% of the wax remains' ✓ (${pct}%)`, tone: 'good' } : { text: `expect '75% of the wax remains' ✗ (${pct}%)`, tone: 'bad' };
+        });
+        const log = L.run();
+        const pass = Math.round(remaining * 100) === 75;
+        return { log, pass, end: closeAt > ffAt + 3 ? closeAt : ffAt + 3, detail: pass ? 'litAt was stamped before the clock moved.' : 'The close event ran after the fast-forward, so litAt was two hours late.' };
+      },
+    },
+    pixel: {
+      unit: 'ms', lanes: ['Test', 'Page', 'Storage'],
+      run(load, fixed) {
+        const L = new Loop(); const writeAt = 250 + Math.round(load * 400);
+        let status = 'Saved locally', stored = false, pending = true, reloadAt = null;
+        L.at(0, 'Test', () => 'import image');
+        L.at(0, 'Page', () => {
+          if (fixed) { status = 'Saving…'; return "save(): status → 'Saving…', write in 250 ms"; }
+          return { text: "save(): write in 250 ms; status still says 'Saved locally'", tone: 'warn' };
+        });
+        L.at(writeAt, 'Page', () => {
+          if (!pending) return null;
+          pending = false; stored = true; status = 'Saved locally';
+          return { text: `debounce fires${writeAt > 250 ? ' late' : ''}: localStorage write; status → 'Saved locally'`, tone: 'good' };
+        });
+        L.at(writeAt, 'Storage', () => (stored && reloadAt === null ? 'edit stored' : null));
+        // The test polls the status every 5 ms and reloads 400 ms after the edit at the earliest (its own steps take that long).
+        const poll = (t) => L.at(t, 'Test', (loop) => {
+          if (status !== 'Saved locally') { poll(t + 5); return null; }
+          const at = Math.max(t, 400); reloadAt = at;
+          loop.at(at, 'Test', () => 'page.reload()');
+          loop.at(at, 'Page', () => {
+            if (pending && fixed) { pending = false; stored = true; return { text: 'pagehide: flush the pending save', tone: 'good' }; }
+            if (pending) { pending = false; return { text: 'reload: the pending write is thrown away', tone: 'bad' }; }
+            return 'reload';
+          });
+          loop.at(at + 20, 'Test', () => (stored ? { text: 'expect the imported image after reload ✓', tone: 'good' } : { text: 'expect the imported image after reload ✗ (lost)', tone: 'bad' }));
+          return `sees 'Saved locally'${fixed || t >= writeAt ? '' : ' (stale!)'}`;
+        });
+        poll(5);
+        const log = L.run();
+        return { log, pass: stored, end: Math.max(reloadAt + 20, writeAt), detail: stored ? 'The edit was on disk before the page went away.' : "The test trusted a stale 'Saved locally' and reloaded before the write." };
+      },
+    },
+  };
+
+  const STEP_MS = 420;
+  const els = {};
+  const state = { last: {}, running: {} };
+  for (const box of document.querySelectorAll('.repro')) {
+    const id = box.dataset.sim, sim = SIMS[id];
+    els[id] = { box, slow: box.querySelector('[data-role=slow]'), run: box.querySelector('[data-role=run]'), batch: box.querySelector('[data-role=batch]'), lanes: box.querySelector('.lanes'), log: box.querySelector('.log'), verdict: box.querySelector('.verdict'), batchOut: box.querySelector('.batch') };
+    const e = els[id];
+    e.lanes.innerHTML = sim.lanes.map((l) => `<div class="lane"><span>${l}</span><div class="track" data-lane="${l}"></div></div>`).join('') + '<div class="axis"><span>0</span><span class="axis-end"></span></div>';
+    e.run.addEventListener('click', () => play(id));
+    e.batch.addEventListener('click', () => batch(id));
+    for (const i of box.querySelectorAll('input')) i.addEventListener('change', () => { e.verdict.textContent = ''; e.verdict.className = 'verdict'; e.batchOut.textContent = ''; });
+  }
+  const isFixed = (id) => els[id].box.querySelector('input[type=radio]:checked').value === 'after';
+
+  function play(id) {
+    const e = els[id], sim = SIMS[id];
+    const load = e.slow.checked ? 1 : 0, fixed = isFixed(id);
+    const res = sim.run(load, fixed);
+    state.last[id] = { load, fixed, pass: res.pass, log: res.log, done: false };
+    clearTimeout(state.running[id]);
+    e.log.textContent = ''; e.verdict.textContent = 'Running…'; e.verdict.className = 'verdict';
+    for (const t of e.lanes.querySelectorAll('.track')) t.textContent = '';
+    e.lanes.querySelector('.axis-end').textContent = res.end + ' ms';
+    let i = 0;
+    const step = () => {
+      if (i < res.log.length) {
+        const ev = res.log[i++];
+        const li = document.createElement('li'); li.className = ev.tone;
+        li.innerHTML = `<span class="t">${ev.t} ms</span> <b>${ev.lane}:</b> `; li.appendChild(document.createTextNode(ev.text));
+        e.log.appendChild(li);
+        const track = e.lanes.querySelector(`[data-lane="${ev.lane}"]`);
+        const dot = document.createElement('span'); dot.className = 'dot ' + ev.tone; dot.textContent = i;
+        dot.style.left = Math.min(98, Math.max(2, (ev.t / res.end) * 96 + 2)) + '%';
+        track.appendChild(dot);
+        state.running[id] = setTimeout(step, STEP_MS);
+        return;
+      }
+      state.last[id].done = true;
+      e.verdict.className = 'verdict ' + (res.pass ? 'pass' : 'fail');
+      e.verdict.textContent = `${res.pass ? 'PASS' : 'FAIL'} · ${fixed ? 'after' : 'before'} the fix, ${load ? 'slow' : 'fast'} browser. ${res.detail}`;
+    };
+    step();
+  }
+
+  function batch(id, n = 20) {
+    const e = els[id], sim = SIMS[id], fixed = isFixed(id);
+    const r = rng(SEED * 31 + id.length);
+    let fails = 0;
+    for (let k = 0; k < n; k++) if (!sim.run(r() ** 3, fixed).pass) fails++; // mostly fast, now and then slow
+    state.last[id + ':batch'] = { fixed, fails, n };
+    e.batchOut.textContent = `${n} runs with random load, ${fixed ? 'after' : 'before'} the fix: ${fails} failed, ${n - fails} passed.`;
+  }
+
+  window.__rescue = { sims: Object.keys(SIMS), run: (id, load, fixed) => { const r = SIMS[id].run(load, fixed); return { pass: r.pass, log: r.log }; }, state, seed: SEED, stepMs: STEP_MS };
+})();
+</script>
+</body>
+</html>

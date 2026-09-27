@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Type Scale & Pairing — modular scales that read well</title>
+<meta name="description" content="Build a modular type scale from a base size and a ratio, get line-height and measure guidance, preview font pairings using only system font stacks, generate fluid clamp() sizes between two viewport widths, check text colour contrast, and copy it all as CSS custom properties.">
+<style>
+  :root {
+    --paper: #fbf7ef;
+    --ink: #1d1b16;
+    --mute: #6a6457;
+    --rule: #d8cfbd;
+    --green: #1f5c4a;
+    --greenSoft: #e3eee8;
+    --warn: #8a3b12;
+    --serif: Charter, "Bitstream Charter", "Sitka Text", Cambria, "Iowan Old Style", Georgia, serif;
+    --ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+    --headFont: var(--serif);
+    --bodyFont: var(--serif);
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--paper); color: var(--ink); font: 16px/1.55 var(--ui); overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
+  a { color: var(--green); text-underline-offset: 3px; }
+  a.back { position: absolute; top: 14px; left: 16px; color: var(--ink); font: 600 14px/1 var(--ui); text-decoration: none; border-bottom: 2px solid var(--green); padding-bottom: 3px; z-index: 3; }
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 64px 16px 48px; }
+  header.top { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px 28px; align-items: end; border-bottom: 3px double var(--ink); padding-bottom: 18px; }
+  header.top h1 { font: 400 clamp(40px, 8vw, 84px)/1 var(--serif); margin: 0; letter-spacing: -.01em; overflow-wrap: anywhere; }
+  header.top h1 i { color: var(--green); }
+  header.top p { margin: 10px 0 0; font: 19px/1.45 var(--serif); max-width: 60ch; color: #3b372e; }
+  .ladder { display: flex; align-items: baseline; gap: 4px; font-family: var(--serif); color: var(--green); overflow: hidden; max-width: 100%; }
+  .ladder span { line-height: 1; }
+
+  .cols { display: grid; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); gap: 28px; margin-top: 26px; align-items: start; }
+  .panel { border-top: 2px solid var(--ink); padding-top: 10px; margin-bottom: 22px; min-width: 0; }
+  .panel h2 { font: 700 12px/1.2 var(--ui); letter-spacing: .14em; text-transform: uppercase; margin: 0 0 10px; }
+  .panel h2 b { color: var(--green); }
+  .f { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
+  .fld { min-width: 0; }
+  .fld.wide { grid-column: 1 / -1; }
+  .fld label { display: block; font: 600 12px/1.3 var(--ui); color: var(--mute); margin-bottom: 3px; }
+  input[type=number], select { width: 100%; min-width: 0; font: 15px var(--ui); padding: 7px 8px; border: 1px solid #9c9380; border-radius: 6px; background: #fff; color: var(--ink); }
+  input[type=color] { width: 100%; height: 38px; border: 1px solid #9c9380; border-radius: 6px; padding: 2px; background: #fff; }
+  input[type=range] { width: 100%; accent-color: var(--green); }
+  .seg { display: flex; flex-wrap: wrap; gap: 0; border: 1px solid var(--ink); border-radius: 999px; overflow: hidden; width: max-content; max-width: 100%; }
+  .seg button { border: 0; border-radius: 0; background: transparent; color: var(--ink); padding: 8px 14px; font: 600 13px/1 var(--ui); min-height: 36px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  button.btn { font: 600 14px/1 var(--ui); min-height: 40px; padding: 10px 16px; border: 2px solid var(--green); border-radius: 999px; background: var(--green); color: #fff; cursor: pointer; }
+  button.btn.ghost { background: transparent; color: var(--green); }
+  .note { font-size: 13px; color: var(--mute); margin: 8px 0 0; }
+  .status { font-size: 14px; min-height: 1.4em; margin: 8px 0 0; }
+
+  table.scale { width: 100%; border-collapse: collapse; }
+  table.scale th { text-align: left; font: 600 11px/1.2 var(--ui); letter-spacing: .08em; text-transform: uppercase; color: var(--mute); border-bottom: 1px solid var(--ink); padding: 6px 8px 6px 0; }
+  table.scale td { border-bottom: 1px solid var(--rule); padding: 8px 8px 8px 0; vertical-align: baseline; font: 13px/1.3 var(--mono); white-space: nowrap; }
+  table.scale td.sample { white-space: normal; font-family: var(--headFont); overflow-wrap: anywhere; max-width: 0; width: 45%; }
+  table.scale tr.base td { background: var(--greenSoft); }
+  .pass { font: 700 11px/1 var(--ui); padding: 3px 6px; border-radius: 4px; background: var(--greenSoft); color: var(--green); }
+  .fail { font: 700 11px/1 var(--ui); padding: 3px 6px; border-radius: 4px; background: #f7e1d5; color: var(--warn); }
+  .tablewrap { overflow-x: auto; max-width: 100%; }
+
+  .measure-box { border: 1px dashed #9c9380; padding: 12px; background: #fff; max-width: 100%; }
+  .measure-box p { margin: 0; font-family: var(--bodyFont); font-size: var(--step-0, 16px); line-height: var(--lh-0, 1.5); }
+  .gauge { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 8px; font-size: 14px; }
+  .gauge b { font-variant-numeric: tabular-nums; }
+
+  .pairs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 14px; }
+  .pair { border: 1px solid var(--rule); background: var(--bg-c, #fff); color: var(--text-c, var(--ink)); border-radius: 10px; padding: 14px 16px; min-width: 0; text-align: left; cursor: pointer; font: inherit; }
+  .pair[aria-pressed="true"] { outline: 3px solid var(--green); outline-offset: 2px; }
+  .pair .lbl { display: block; font: 600 11px/1.3 var(--ui); letter-spacing: .08em; text-transform: uppercase; color: var(--mute); margin-bottom: 8px; }
+  .pair .h { display: block; font-size: var(--step-3, 31px); line-height: var(--lh-3, 1.2); font-weight: 700; margin: 0 0 6px; overflow-wrap: anywhere; }
+  .pair .s { display: block; font-size: var(--step-1, 20px); line-height: var(--lh-1, 1.4); font-weight: 600; margin: 0 0 6px; }
+  .pair .b { display: block; font-size: var(--step-0, 16px); line-height: var(--lh-0, 1.5); }
+  .pair .c { display: block; font-size: var(--step--1, 13px); line-height: var(--lh--1, 1.6); opacity: .8; margin-top: 6px; }
+
+  .fluid-demo { border-left: 4px solid var(--green); padding: 4px 0 4px 14px; }
+  .fluid-demo [data-fluid] { display: block; margin: 0; font-family: var(--headFont); line-height: 1.15; overflow-wrap: anywhere; }
+  pre.css { background: #16150f; color: #efe9da; padding: 14px; border-radius: 8px; overflow: auto; font: 12.5px/1.5 var(--mono); max-height: 420px; margin: 0; white-space: pre; }
+  footer { border-top: 3px double var(--ink); margin-top: 30px; padding-top: 14px; font-size: 14px; color: var(--mute); }
+  footer p { margin: 0 0 8px; max-width: 86ch; }
+  @media (max-width: 860px) { .cols { grid-template-columns: minmax(0, 1fr); } header.top { grid-template-columns: minmax(0, 1fr); } }
+</style>
+<style id="scaleStyle"></style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Type Scale <i>&amp;</i> Pairing</h1>
+      <p>Pick a base size and a ratio, and every other size follows by multiplying: base × ratio<sup>n</sup>. Then make it fluid, check that it reads, and take the CSS with you.</p>
+    </div>
+    <div class="ladder" aria-hidden="true" data-testid="ladder"></div>
+  </header>
+
+  <div class="cols">
+    <div>
+      <section class="panel" aria-labelledby="h-scale">
+        <h2 id="h-scale"><b>1</b> Scale</h2>
+        <div class="f">
+          <div class="fld"><label for="base">Base size (px)</label><input id="base" type="number" min="8" max="40" step="0.5" value="16" data-testid="base"></div>
+          <div class="fld"><label for="ratio">Ratio</label><select id="ratio" data-testid="ratio"></select></div>
+          <div class="fld"><label for="down">Steps below base</label><input id="down" type="number" min="0" max="4" step="1" value="2" data-testid="down"></div>
+          <div class="fld"><label for="up">Steps above base</label><input id="up" type="number" min="1" max="8" step="1" value="5" data-testid="up"></div>
+        </div>
+        <p class="note">Sizes are exact products; the table shows px to 2 decimals, and CSS is written in rem (px ÷ 16) to 4 decimals.</p>
+      </section>
+
+      <section class="panel" aria-labelledby="h-fluid">
+        <h2 id="h-fluid"><b>2</b> Fluid sizes</h2>
+        <div class="seg" role="group" aria-label="Output mode" style="margin-bottom:10px">
+          <button type="button" data-mode="fluid" aria-pressed="true" data-testid="mode-fluid">Fluid clamp()</button>
+          <button type="button" data-mode="static" aria-pressed="false" data-testid="mode-static">Static</button>
+        </div>
+        <div class="f" data-fluid-fields>
+          <div class="fld"><label for="vwMin">Min viewport (px)</label><input id="vwMin" type="number" min="200" max="2000" step="1" value="360" data-testid="vw-min"></div>
+          <div class="fld"><label for="vwMax">Max viewport (px)</label><input id="vwMax" type="number" min="300" max="3000" step="1" value="1280" data-testid="vw-max"></div>
+          <div class="fld"><label for="baseMax">Base at max (px)</label><input id="baseMax" type="number" min="8" max="48" step="0.5" value="20" data-testid="base-max"></div>
+          <div class="fld"><label for="ratioMax">Ratio at max</label><select id="ratioMax" data-testid="ratio-max"></select></div>
+        </div>
+        <p class="note">At the min viewport each step is base × ratio<sup>n</sup>; at the max viewport it is base-at-max × ratio-at-max<sup>n</sup>; in between it grows in a straight line, and it stops growing outside that range.</p>
+      </section>
+
+      <section class="panel" aria-labelledby="h-colour">
+        <h2 id="h-colour"><b>3</b> Colour and contrast</h2>
+        <div class="f">
+          <div class="fld"><label for="fg">Text</label><input id="fg" type="color" value="#1d1b16" data-testid="fg"></div>
+          <div class="fld"><label for="bg">Background</label><input id="bg" type="color" value="#fbf7ef" data-testid="bg"></div>
+        </div>
+        <p class="status" aria-live="polite" data-testid="contrast">—</p>
+        <button type="button" class="btn ghost" id="fixContrast" data-testid="fix-contrast">Adjust text for AA</button>
+        <p class="note">Contrast is the WCAG 2 ratio (L1 + 0.05) / (L2 + 0.05) of relative luminance. AA asks 4.5:1 for body text and 3:1 for large text (24 px, or 18.66 px bold); AAA asks 7:1 and 4.5:1.</p>
+      </section>
+    </div>
+
+    <div>
+      <section class="panel" aria-labelledby="h-table">
+        <h2 id="h-table"><b>4</b> The scale</h2>
+        <div class="tablewrap">
+          <table class="scale" data-testid="scale-table">
+            <thead><tr><th scope="col">Step</th><th scope="col">px</th><th scope="col">rem</th><th scope="col">Line height</th><th scope="col">Contrast</th><th scope="col">Sample</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="note">Line-height guidance: 1.5 for body text, 0.1 less per step up, never below 1.1 or above 1.6 (1.5 − 0.1 × step, clamped). Big type needs less leading; small type needs a little more.</p>
+      </section>
+
+      <section class="panel" aria-labelledby="h-measure">
+        <h2 id="h-measure"><b>5</b> Measure</h2>
+        <div class="fld" style="margin-bottom:8px"><label for="mw">Column width: <output id="mwOut" data-testid="mw-out">560 px</output></label><input id="mw" type="range" min="200" max="1000" step="10" value="560" data-testid="mw"></div>
+        <div class="measure-box" id="mbox" style="width:560px">
+          <p id="mtext" data-testid="measure-text">Reading is a rhythm of short hops. The eye jumps along a line, takes in a few words at a time, then has to find the start of the next line. When lines run too long, that return trip gets lost and readers skip or repeat a line; when they are too short, the eye is forever turning back and sentences break into fragments. Somewhere in between, usually around forty-five to seventy-five characters for a single column of body text, the page settles into an easy pace. Treat that range as a guideline rather than a law: a narrow sidebar or a wide display line will sit happily outside it, and larger type or looser leading can carry a slightly longer line.</p>
+        </div>
+        <div class="gauge" aria-live="polite"><span>Characters per line: <b data-testid="cpl">—</b></span><span>Lines: <b data-testid="lines">—</b></span><span data-testid="measure-verdict">—</span></div>
+        <div style="margin-top:8px"><button type="button" class="btn ghost" id="fitMeasure" data-testid="fit-measure">Fit to about 66 characters</button></div>
+        <p class="status" aria-live="polite" data-testid="fit-status"></p>
+        <p class="note">Counts every letter, space and punctuation mark on each full line (the space at a line break is not counted); the last, short line is left out of the average.</p>
+      </section>
+
+      <section class="panel" aria-labelledby="h-pairs">
+        <h2 id="h-pairs"><b>6</b> Pairings <span style="font-weight:400;letter-spacing:0;text-transform:none;color:var(--mute)">system fonts only, no downloads</span></h2>
+        <div class="pairs" data-testid="pairs"></div>
+      </section>
+
+      <section class="panel" aria-labelledby="h-fluiddemo">
+        <h2 id="h-fluiddemo"><b>7</b> Live fluid preview</h2>
+        <div class="fluid-demo" data-testid="fluid-demo"></div>
+        <p class="note">Resize the window: these lines use the generated custom properties directly.</p>
+      </section>
+
+      <section class="panel" aria-labelledby="h-css">
+        <h2 id="h-css"><b>8</b> CSS</h2>
+        <pre class="css" data-testid="css" tabindex="0" aria-label="Generated CSS custom properties"></pre>
+        <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center"><button type="button" class="btn" id="copy" data-testid="copy">Copy CSS</button><span class="status" aria-live="polite" data-testid="copy-status"></span></div>
+      </section>
+    </div>
+  </div>
+
+  <footer>
+    <p>The ratios are the usual musical-interval names used for type scales (the golden ratio is 1.618…). The fluid sizes use the same slope-and-intercept idea as popular fluid type calculators; the maths is written out on the page. All text and code here are original, and every preview uses fonts already on your device.</p>
+    <p>Want a type system like this wired into a real site, with tests that catch regressions? See <a href="../index.html#services">Services</a>.</p>
+  </footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const RATIOS = [
+    ['Minor second', 1.067], ['Major second', 1.125], ['Minor third', 1.2], ['Major third', 1.25],
+    ['Perfect fourth', 1.333], ['Augmented fourth', 1.414], ['Perfect fifth', 1.5], ['Golden ratio', 1.618],
+  ];
+  const PAIRS = [
+    { id: 'humanist', name: 'Humanist sans + transitional serif', head: 'Seravek, "Gill Sans Nova", Ubuntu, Calibri, "DejaVu Sans", sans-serif', body: 'Charter, "Bitstream Charter", "Sitka Text", Cambria, serif' },
+    { id: 'oldstyle', name: 'Old-style serif + grotesque', head: '"Iowan Old Style", "Palatino Linotype", "URW Palladio L", P052, serif', body: '"Helvetica Neue", "Arial Nova", "Nimbus Sans", Arial, sans-serif' },
+    { id: 'geometric', name: 'Geometric sans + humanist sans', head: 'Avenir, "Avenir Next", Montserrat, Corbel, "URW Gothic", sans-serif', body: 'Seravek, "Gill Sans Nova", Ubuntu, Calibri, "DejaVu Sans", sans-serif' },
+    { id: 'slab', name: 'Slab serif + system sans', head: 'Rockwell, "Rockwell Nova", "Roboto Slab", "DejaVu Serif", serif', body: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif' },
+    { id: 'didone', name: 'High-contrast display + old-style body', head: 'Didot, "Bodoni MT", "Noto Serif Display", "Book Antiqua", serif', body: '"Iowan Old Style", "Palatino Linotype", "URW Palladio L", P052, serif' },
+    { id: 'mono', name: 'Monospace accent + system sans', head: 'ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, "DejaVu Sans Mono", monospace', body: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif' },
+  ];
+  const S = { base: 16, ratio: 1.25, down: 2, up: 5, mode: 'fluid', vwMin: 360, vwMax: 1280, baseMax: 20, ratioMax: 1.333, fg: '#1d1b16', bg: '#fbf7ef', pair: 'humanist' };
+  // defaults: a major third on small screens, opening up to a perfect fourth on large ones
+  const r4 = (x) => +x.toFixed(4);
+  const r2 = (x) => +x.toFixed(2);
+  const stepName = (n) => `--step-${n}`;            // --step-0, --step-3, --step--1
+  const lh = (n) => r2(Math.min(1.6, Math.max(1.1, 1.5 - 0.1 * n)));
+
+  // ---------- colour ----------
+  const hexToRgb = (h) => { const m = /^#?([0-9a-f]{6})$/i.exec(h.trim()); if (!m) return null; const v = parseInt(m[1], 16); return [(v >> 16) & 255, (v >> 8) & 255, v & 255]; };
+  const lin = (c) => { c /= 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+  const lum = (rgb) => 0.2126 * lin(rgb[0]) + 0.7152 * lin(rgb[1]) + 0.0722 * lin(rgb[2]);
+  const contrast = (a, b) => { const la = lum(hexToRgb(a)), lb = lum(hexToRgb(b)); const [hi, lo] = la > lb ? [la, lb] : [lb, la]; return (hi + 0.05) / (lo + 0.05); };
+  const toHex = (rgb) => '#' + rgb.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+
+  // ---------- scale ----------
+  function steps() { const out = []; for (let n = S.up; n >= -S.down; n--) out.push(n); return out; }
+  function scale() {
+    return steps().map((n) => {
+      const px = S.base * S.ratio ** n;
+      const minPx = px, maxPx = S.baseMax * S.ratioMax ** n;
+      const slope = (maxPx - minPx) / (S.vwMax - S.vwMin);
+      const icpt = minPx - slope * S.vwMin;
+      const bold = n >= 1;
+      const large = px >= 24 || (bold && px >= 18.66);
+      return { n, name: stepName(n), px, rem: r4(px / 16), lh: lh(n), bold, large,
+        fluid: { minPx, maxPx, slope, interceptPx: icpt, lo: r4(Math.min(minPx, maxPx) / 16), hi: r4(Math.max(minPx, maxPx) / 16), icptRem: r4(icpt / 16), vw: r4(slope * 100) } };
+    });
+  }
+  const valueFor = (s) => S.mode === 'fluid' && S.vwMax > S.vwMin
+    ? `clamp(${s.fluid.lo}rem, ${s.fluid.icptRem}rem + ${s.fluid.vw}vw, ${s.fluid.hi}rem)`
+    : `${s.rem}rem`;
+  function css() {
+    const rs = RATIOS.find((r) => r[1] === S.ratio), rm = RATIOS.find((r) => r[1] === S.ratioMax);
+    const pair = PAIRS.find((p) => p.id === S.pair);
+    const head = S.mode === 'fluid' && S.vwMax > S.vwMin
+      ? `/* Fluid type scale: ${S.base}px × ${rs[0]} (${S.ratio}) at ${S.vwMin}px → ${S.baseMax}px × ${rm[0]} (${S.ratioMax}) at ${S.vwMax}px */`
+      : `/* Type scale: ${S.base}px × ${rs[0]} (${S.ratio}) */`;
+    const lines = [head, ':root {'];
+    const sc = scale();
+    for (const s of sc) lines.push(`  ${s.name}: ${valueFor(s)};`);
+    for (const s of sc) lines.push(`  --lh-${s.n}: ${s.lh};`);
+    lines.push(`  --measure: 66ch;`);
+    lines.push(`  --font-head: ${pair.head};`);
+    lines.push(`  --font-body: ${pair.body};`);
+    lines.push(`  --text: ${S.fg};`);
+    lines.push(`  --bg: ${S.bg};`);
+    lines.push('}');
+    return lines.join('\n');
+  }
+
+  // ---------- rendering ----------
+  const tbody = $('[data-testid=scale-table] tbody');
+  function render() {
+    const sc = scale(), text = css();
+    $('#scaleStyle').textContent = text;
+    document.documentElement.style.setProperty('--headFont', PAIRS.find((p) => p.id === S.pair).head);
+    document.documentElement.style.setProperty('--bodyFont', PAIRS.find((p) => p.id === S.pair).body);
+    tbody.replaceChildren();
+    const ratioC = contrast(S.fg, S.bg);
+    for (const s of sc) {
+      const tr = document.createElement('tr');
+      tr.dataset.step = s.n; if (s.n === 0) tr.className = 'base';
+      const need = s.large ? 3 : 4.5, ok = ratioC >= need;
+      tr.innerHTML = `<td>${s.name}</td><td data-px>${s.px.toFixed(2)}</td><td data-rem>${s.rem}</td><td data-lh>${s.lh}</td>` +
+        `<td data-aa><span class="${ok ? 'pass' : 'fail'}">${ok ? 'AA' : 'Fails AA'}${s.large ? ' large' : ''}</span></td>` +
+        `<td class="sample"><span data-sample style="font-size:${s.px}px;line-height:${s.lh};font-weight:${s.bold ? 700 : 400};color:${S.fg};background:${S.bg}">Quiet type</span></td>`;
+      tbody.appendChild(tr);
+    }
+    // ladder in the header
+    const lad = $('[data-testid=ladder]'); lad.replaceChildren();
+    for (const s of sc.slice().reverse()) { const sp = document.createElement('span'); sp.textContent = 'a'; sp.style.fontSize = Math.min(s.px, 96) + 'px'; lad.appendChild(sp); }
+    // fluid demo
+    const fd = $('[data-testid=fluid-demo]'); fd.replaceChildren();
+    for (const s of sc.filter((x) => x.n <= 4 && x.n >= -1)) {
+      const p = document.createElement('p'); p.dataset.fluid = s.n; p.setAttribute('data-fluid', s.n);
+      p.style.fontSize = `var(${s.name})`; p.style.fontWeight = s.bold ? 700 : 400;
+      p.textContent = s.n > 0 ? `Step ${s.n}: a heading` : (s.n === 0 ? 'Step 0: body text' : `Step ${s.n}: a caption`);
+      fd.appendChild(p);
+    }
+    // pairings
+    const pw = $('[data-testid=pairs]');
+    if (!pw.children.length) {
+      for (const p of PAIRS) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'pair'; b.dataset.pair = p.id; b.setAttribute('data-testid', 'pair-' + p.id);
+        b.innerHTML = `<span class="lbl">${p.name}</span><span class="h" style="font-family:${p.head.replace(/"/g, '&quot;')}">Quiet margins</span><span class="s" style="font-family:${p.head.replace(/"/g, '&quot;')}">A subhead that sets the tone</span><span class="b" style="font-family:${p.body.replace(/"/g, '&quot;')}">Body copy should disappear into the reading. Choose the pair for how it feels at length, not only in the headline.</span><span class="c" style="font-family:${p.body.replace(/"/g, '&quot;')}">Caption, one step down</span>`;
+        b.addEventListener('click', () => { S.pair = p.id; render(); $('[data-testid=copy-status]').textContent = ''; });
+        pw.appendChild(b);
+      }
+    }
+    $$('.pair', pw).forEach((b) => { b.setAttribute('aria-pressed', String(b.dataset.pair === S.pair)); b.style.setProperty('--bg-c', S.bg); b.style.setProperty('--text-c', S.fg); });
+    // contrast readout
+    const aaBody = ratioC >= 4.5, aaaBody = ratioC >= 7, aaLarge = ratioC >= 3;
+    $('[data-testid=contrast]').textContent = `${ratioC.toFixed(2)}:1. Body text: ${aaaBody ? 'passes AAA' : aaBody ? 'passes AA' : 'fails AA'}. Large text: ${ratioC >= 4.5 ? 'passes AAA' : aaLarge ? 'passes AA' : 'fails AA'}.`;
+    $('[data-testid=css]').textContent = text;
+    $$('[data-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === S.mode)));
+    $$('[data-fluid-fields] input, [data-fluid-fields] select').forEach((i) => (i.disabled = S.mode !== 'fluid'));
+    measure();
+  }
+
+  // ---------- measure ----------
+  let lastMeasure = null;
+  function measure() {
+    const p = $('#mtext'), node = p.firstChild;
+    const txt = node.textContent, range = document.createRange();
+    const lines = []; let cur = null, lastTop = null;
+    for (let i = 0; i < txt.length; i++) {
+      range.setStart(node, i); range.setEnd(node, i + 1);
+      const rects = range.getClientRects(); if (!rects.length) continue;
+      const top = Math.round(rects[rects.length - 1].top);
+      if (lastTop === null || Math.abs(top - lastTop) > 2) { cur = []; lines.push(cur); lastTop = top; }
+      cur.push(txt[i]);
+    }
+    const strs = lines.map((l) => l.join('').replace(/\s+$/, '').replace(/^\s+/, ''));
+    const full = strs.length > 1 ? strs.slice(0, -1) : strs;
+    const avg = full.reduce((a, s) => a + s.length, 0) / Math.max(1, full.length);
+    const verdict = avg < 45 ? 'Short: the eye turns back too often' : avg > 75 ? 'Long: hard to find the next line' : 'Comfortable (45–75)';
+    lastMeasure = { avg, lines: strs.length, perLine: strs.map((s) => s.length), text: strs, verdict };
+    $('[data-testid=cpl]').textContent = avg.toFixed(1);
+    $('[data-testid=lines]').textContent = strs.length;
+    $('[data-testid=measure-verdict]').textContent = verdict;
+    return lastMeasure;
+  }
+  function setMeasureWidth(px) {
+    const mw = $('#mw'); px = Math.max(Number(mw.min), Math.min(Number(mw.max), Math.round(px / 10) * 10));
+    mw.value = px; $('#mwOut').textContent = px + ' px'; $('#mbox').style.width = px + 'px'; measure();
+  }
+  $('#mw').addEventListener('input', (e) => { setMeasureWidth(Number(e.target.value)); $('[data-testid=fit-status]').textContent = ''; });
+  $('#fitMeasure').addEventListener('click', () => {
+    // average advance of this paragraph's characters, measured on a canvas in its own font
+    const p = $('#mtext'), cs = getComputedStyle(p);
+    const cx = document.createElement('canvas').getContext('2d');
+    cx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    const w = cx.measureText(p.textContent).width / p.textContent.length;
+    const box = $('#mbox'), pad = box.offsetWidth - box.clientWidth + parseFloat(getComputedStyle(box).paddingLeft) * 2;
+    const want = 66 * w + pad; setMeasureWidth(want);
+    const got = box.getBoundingClientRect().width, fs = $("[data-testid=fit-status]");
+    fs.textContent = got + 1 < Number($("#mw").value) ? `This screen is too narrow for 66 characters at this size: the widest column here holds about ${Math.round(measure().avg)}.` : `Column set to ${$("#mw").value} px for about 66 characters.`;
+  });
+
+  // ---------- controls ----------
+  const rsel = $('#ratio'), rmax = $('#ratioMax');
+  for (const [name, v] of RATIOS) { for (const sel of [rsel, rmax]) { const o = document.createElement('option'); o.value = v; o.textContent = `${name} · ${v}`; sel.appendChild(o); } }
+  rsel.value = String(S.ratio); rmax.value = String(S.ratioMax);
+  const num = (id, key, lo, hi, int) => $('#' + id).addEventListener('input', (e) => {
+    const v = Number(e.target.value); if (e.target.value === '' || !Number.isFinite(v)) return;
+    S[key] = Math.max(lo, Math.min(hi, int ? Math.round(v) : v)); render();
+  });
+  num('base', 'base', 8, 40); num('down', 'down', 0, 4, true); num('up', 'up', 1, 8, true);
+  num('vwMin', 'vwMin', 200, 2000, true); num('vwMax', 'vwMax', 300, 3000, true); num('baseMax', 'baseMax', 8, 48);
+  rsel.addEventListener('change', () => { S.ratio = Number(rsel.value); render(); });
+  rmax.addEventListener('change', () => { S.ratioMax = Number(rmax.value); render(); });
+  $$('[data-mode]').forEach((b) => b.addEventListener('click', () => { S.mode = b.dataset.mode; render(); }));
+  $('#fg').addEventListener('input', (e) => { S.fg = e.target.value; render(); });
+  $('#bg').addEventListener('input', (e) => { S.bg = e.target.value; render(); });
+  $('#fixContrast').addEventListener('click', () => {
+    // walk the text colour toward black (or white, on a dark background) until body text passes AA
+    const bgL = lum(hexToRgb(S.bg)), target = bgL > 0.18 ? [0, 0, 0] : [255, 255, 255];
+    const from = hexToRgb(S.fg); let hex = S.fg;
+    for (let k = 0; k <= 100 && contrast(hex, S.bg) < 4.5; k++) hex = toHex(from.map((c, i) => c + (target[i] - c) * k / 100));
+    S.fg = hex; $('#fg').value = hex; render();
+    $('[data-testid=contrast]').textContent += ` Text adjusted to ${hex}.`;
+  });
+  $('#copy').addEventListener('click', async () => {
+    const text = css(), st = $('[data-testid=copy-status]');
+    window.__type.lastCopied = text;
+    try { await navigator.clipboard.writeText(text); st.textContent = `Copied ${text.split('\n').length} lines of CSS.`; }
+    catch (e) {
+      const ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select();
+      let ok = false; try { ok = document.execCommand('copy'); } catch (_) { ok = false; }
+      ta.remove();
+      st.textContent = ok ? `Copied ${text.split('\n').length} lines of CSS.` : 'Copy was blocked by the browser: select the CSS above and copy it by hand.';
+    }
+  });
+  addEventListener('resize', () => measure());
+
+  window.__type = { state: () => ({ ...S }), scale, css, measure: () => measure(), contrast, lastCopied: null };
+  render();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => measure());
+})();
+</script>
+</body>
+</html>

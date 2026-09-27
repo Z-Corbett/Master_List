@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grid Systems — modular grids and a poster generator</title>
+<meta name="description" content="Design a modular typographic grid: page size, margins, columns, rows, gutters and a baseline grid, with live module sizes and content blocks that snap to module edges. Then generate seeded Swiss-style posters on the same grid and export them as SVG.">
+<style>
+  :root {
+    --paper: #f2f0e9;
+    --sheet: #ffffff;
+    --ink: #1b1d22;
+    --mute: #5d6068;
+    --line: #c9c6bb;
+    --magenta: #c8105a;
+    --cyan: #0a7f99;
+    --wash: #e7e4da;
+    --ui: "Avenir Next", "Segoe UI", Roboto, "Helvetica Neue", system-ui, sans-serif;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background-color: var(--paper);
+    background-image: linear-gradient(rgba(10,127,153,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(10,127,153,.07) 1px, transparent 1px);
+    background-size: 24px 24px;
+    color: var(--ink); font: 15px/1.5 var(--ui); overflow-x: hidden;
+  }
+  :focus-visible { outline: 3px solid var(--magenta); outline-offset: 2px; }
+  a { color: inherit; text-underline-offset: 3px; }
+  a.back { position: absolute; top: 12px; left: 16px; font: 600 13px/1 var(--ui); text-decoration: none; background: var(--ink); color: #fff; padding: 9px 12px; border-radius: 2px; z-index: 5; }
+  a.back:hover { background: var(--magenta); }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 60px 16px 40px; }
+
+  /* title block, like a drawing sheet */
+  .titleblock { border: 2px solid var(--ink); background: var(--sheet); display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+  .titleblock .main { padding: 20px 22px 22px; border-right: 2px solid var(--ink); min-width: 0; }
+  .titleblock h1 { margin: 0; font-size: clamp(38px, 7vw, 76px); line-height: .95; letter-spacing: -.02em; font-weight: 700; overflow-wrap: anywhere; }
+  .titleblock h1 span { color: var(--magenta); }
+  .titleblock .lede { margin: 14px 0 0; font-size: 18px; max-width: 58ch; }
+  .titleblock dl { margin: 0; display: grid; grid-template-rows: repeat(4, auto); }
+  .titleblock dl div { border-bottom: 1px solid var(--ink); padding: 8px 12px; min-width: 0; }
+  .titleblock dl div:last-child { border-bottom: 0; }
+  .titleblock dt { font: 700 10px/1.2 var(--ui); letter-spacing: .12em; text-transform: uppercase; color: var(--mute); }
+  .titleblock dd { margin: 3px 0 0; font: 600 14px/1.3 var(--mono); overflow-wrap: anywhere; }
+  .intro { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 28px; margin: 26px 0 8px; }
+  .intro p { margin: 0; }
+  .intro b { display: block; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--magenta); }
+
+  section.sheet { margin-top: 34px; }
+  .sechead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; border-bottom: 2px solid var(--ink); padding-bottom: 6px; }
+  .sechead .no { font: 700 13px/1 var(--mono); color: var(--magenta); }
+  .sechead h2 { margin: 0; font-size: 26px; letter-spacing: -.01em; }
+  .sechead p { margin: 0; color: var(--mute); font-size: 14px; }
+
+  .bench { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 22px; margin-top: 18px; align-items: start; }
+  .panel { background: var(--sheet); border: 1px solid var(--ink); padding: 14px; min-width: 0; }
+  .panel h3 { margin: 0 0 8px; font: 700 11px/1.2 var(--ui); letter-spacing: .12em; text-transform: uppercase; }
+  .panel + .panel { margin-top: 14px; }
+  .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
+  .fields.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .fld { min-width: 0; }
+  .fld label, .fld > span { display: block; font: 600 11px/1.3 var(--ui); letter-spacing: .04em; color: var(--mute); margin-bottom: 2px; }
+  input[type=number], select { width: 100%; min-width: 0; font: 14px var(--mono); padding: 6px 7px; border: 1px solid var(--ink); border-radius: 2px; background: #fff; color: var(--ink); }
+  .check { display: flex; gap: 8px; align-items: center; font-size: 14px; margin-top: 8px; }
+  .check input { width: 18px; height: 18px; accent-color: var(--magenta); }
+  button { font: 600 13px/1 var(--ui); min-height: 36px; padding: 9px 12px; border: 1px solid var(--ink); background: #fff; color: var(--ink); border-radius: 2px; cursor: pointer; }
+  button:hover { background: var(--wash); }
+  button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+  button.primary { background: var(--magenta); border-color: var(--magenta); color: #fff; }
+  button.primary:hover { background: #9e0c47; }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; }
+
+  table.spec { width: 100%; border-collapse: collapse; font: 13px/1.35 var(--mono); }
+  table.spec th { text-align: left; font: 600 11px/1.3 var(--ui); color: var(--mute); padding: 5px 6px 5px 0; vertical-align: top; }
+  table.spec td { text-align: right; padding: 5px 0; border-bottom: 1px dashed var(--line); overflow-wrap: anywhere; }
+  .sum { margin: 10px 0 0; padding: 8px 10px; background: #fbeef3; border-left: 4px solid var(--magenta); font: 13px/1.4 var(--mono); overflow-wrap: anywhere; }
+  .sum.bad { background: #fff3e0; border-color: #b45309; }
+  .status { margin: 8px 0 0; font-size: 14px; min-height: 1.4em; }
+
+  .stage { background: #d9d6cc; border: 1px solid var(--ink); padding: 14px; display: flex; justify-content: center; min-width: 0; }
+  .stage svg { display: block; width: auto; height: auto; max-width: 100%; max-height: 78vh; background: #fff; box-shadow: 0 1px 0 #0002, 0 8px 22px #0002; touch-action: none; }
+  .stage svg:focus-visible { outline: 3px solid var(--magenta); outline-offset: 4px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 10px 0 0; font-size: 13px; color: var(--mute); }
+  .legend i { display: inline-block; width: 14px; height: 10px; vertical-align: -1px; margin-right: 5px; }
+  .hint { font-size: 13px; color: var(--mute); margin: 8px 0 0; }
+  .blk [data-block] { cursor: grab; }
+  .poster-bench { grid-template-columns: minmax(0, 1fr) minmax(0, 300px); }
+  .poster-bench .stage { background: #2a2c31; }
+
+  footer.credit { margin-top: 44px; border-top: 2px solid var(--ink); padding-top: 14px; font-size: 14px; }
+  footer.credit p { margin: 0 0 8px; max-width: 86ch; }
+  footer.credit .small { color: var(--mute); font-size: 13px; }
+
+  @media (max-width: 900px) {
+    .bench, .poster-bench { grid-template-columns: minmax(0, 1fr); }
+    .titleblock { grid-template-columns: minmax(0, 1fr); }
+    .titleblock .main { border-right: 0; border-bottom: 2px solid var(--ink); }
+    .titleblock dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .intro { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 480px) { .fields.four { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="titleblock">
+    <div class="main">
+      <h1>Grid <span>Systems</span></h1>
+      <p class="lede">Modular grids you can measure, and posters that obey them. Set the sheet, the margins, the columns and rows and the baseline; every module size is worked out in front of you.</p>
+    </div>
+    <dl>
+      <div><dt>Sheet</dt><dd data-testid="tb-sheet">595 × 842 pt</dd></div>
+      <div><dt>Module</dt><dd data-testid="tb-module">—</dd></div>
+      <div><dt>Baseline</dt><dd data-testid="tb-base">12 pt</dd></div>
+      <div><dt>Poster seed</dt><dd data-testid="seed">7</dd></div>
+    </dl>
+  </header>
+
+  <div class="intro">
+    <p><b>Columns set the measure</b> The text area is divided into equal columns separated by gutters. The column width is whatever is left once the gutters are taken out, shared equally.</p>
+    <p><b>Rows set the pace</b> Cutting the depth into rows as well gives modules: small fields that images, headings and text can occupy one or several at a time.</p>
+    <p><b>The baseline keeps step</b> If each module is a whole number of text lines deep, with one line as the row gap, every block of text starts on a shared baseline and lines up across columns.</p>
+  </div>
+
+  <section class="sheet" id="designer" aria-labelledby="h-designer">
+    <div class="sechead"><span class="no">01</span><h2 id="h-designer">Grid designer</h2><p>All units are points (pt). 72 pt = 1 inch.</p></div>
+    <div class="bench">
+      <div>
+        <div class="panel">
+          <h3>Sheet and margins</h3>
+          <div class="fields">
+            <div class="fld" style="grid-column: 1 / -1"><label for="preset">Preset</label>
+              <select id="preset" data-testid="preset">
+                <option value="a4">A4 portrait, 595 × 842</option>
+                <option value="a3">A3 portrait, 842 × 1191</option>
+                <option value="letter">US Letter, 612 × 792</option>
+                <option value="square">Square, 720 × 720</option>
+                <option value="custom">Custom</option>
+              </select></div>
+            <div class="fld"><label for="w">Page width</label><input id="w" type="number" min="100" max="3000" step="1" value="595" data-k="w"></div>
+            <div class="fld"><label for="h">Page height</label><input id="h" type="number" min="100" max="3000" step="1" value="842" data-k="h"></div>
+          </div>
+          <div class="fields four" style="margin-top:8px">
+            <div class="fld"><label for="mt">Top</label><input id="mt" type="number" min="0" max="600" step="1" value="48" data-k="mt"></div>
+            <div class="fld"><label for="ml">Left</label><input id="ml" type="number" min="0" max="600" step="1" value="42" data-k="ml"></div>
+            <div class="fld"><label for="mr">Right</label><input id="mr" type="number" min="0" max="600" step="1" value="42" data-k="mr"></div>
+            <div class="fld"><label for="mb">Bottom</label><input id="mb" type="number" min="0" max="600" step="1" value="58" data-k="mb"></div>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>Modules</h3>
+          <div class="fields">
+            <div class="fld"><label for="cols">Columns</label><input id="cols" type="number" min="1" max="12" step="1" value="4" data-k="cols"></div>
+            <div class="fld"><label for="rows">Rows</label><input id="rows" type="number" min="1" max="12" step="1" value="6" data-k="rows"></div>
+            <div class="fld"><label for="gutter">Gutter</label><input id="gutter" type="number" min="0" max="120" step="0.5" value="12" data-k="gutter"></div>
+            <div class="fld"><label for="base">Baseline</label><input id="base" type="number" min="4" max="48" step="0.5" value="12" data-k="base"></div>
+          </div>
+          <label class="check"><input type="checkbox" id="lock" checked data-testid="lock"> Lock rows to the baseline</label>
+          <label class="check"><input type="checkbox" id="showMod" checked> Show modules</label>
+          <label class="check"><input type="checkbox" id="showBase" checked> Show baseline grid</label>
+        </div>
+        <div class="panel" aria-live="polite">
+          <h3>Resulting grid</h3>
+          <table class="spec">
+            <tr><th scope="row">Measure (text width)</th><td data-testid="r-measure">—</td></tr>
+            <tr><th scope="row">Depth (text height)</th><td data-testid="r-depth">—</td></tr>
+            <tr><th scope="row">Column width</th><td data-testid="r-colw">—</td></tr>
+            <tr><th scope="row">Row height</th><td data-testid="r-rowh">—</td></tr>
+            <tr><th scope="row">Row gap</th><td data-testid="r-rowgap">—</td></tr>
+            <tr><th scope="row">Lines per module</th><td data-testid="r-lines">—</td></tr>
+            <tr><th scope="row">Unused depth</th><td data-testid="r-spare">—</td></tr>
+          </table>
+          <p class="sum" data-testid="r-sum">—</p>
+          <p class="status" data-testid="r-status"></p>
+        </div>
+      </div>
+      <div>
+        <div class="stage">
+          <svg id="gridSvg" data-testid="grid-svg" tabindex="0" role="img" aria-label="Grid preview" xmlns="http://www.w3.org/2000/svg"></svg>
+        </div>
+        <div class="legend"><span><i style="background:#f9d3e2"></i>Modules</span><span><i style="background:none;border-top:2px solid var(--cyan)"></i>Baselines</span><span><i style="background:#eee;border:1px dashed var(--mute)"></i>Margins</span></div>
+        <div class="panel" style="margin-top:14px">
+          <h3>Content blocks</h3>
+          <div class="row" role="group" aria-label="Select a block" data-testid="block-pick">
+            <button type="button" data-pick="headline" aria-pressed="true">Headline</button>
+            <button type="button" data-pick="image" aria-pressed="false">Image</button>
+            <button type="button" data-pick="textA" aria-pressed="false">Text A</button>
+            <button type="button" data-pick="textB" aria-pressed="false">Text B</button>
+          </div>
+          <div class="fields four" style="margin-top:10px">
+            <div class="fld"><label for="bc">Column</label><input id="bc" type="number" min="1" step="1" data-testid="b-col"></div>
+            <div class="fld"><label for="br">Row</label><input id="br" type="number" min="1" step="1" data-testid="b-row"></div>
+            <div class="fld"><label for="bcs">Col span</label><input id="bcs" type="number" min="1" step="1" data-testid="b-cs"></div>
+            <div class="fld"><label for="brs">Row span</label><input id="brs" type="number" min="1" step="1" data-testid="b-rs"></div>
+          </div>
+          <p class="hint">Drag a block on the sheet and it snaps to the nearest module edges. With the sheet focused, arrow keys move the selected block one module; Shift + arrows change its span; Tab through the block buttons to pick another.</p>
+          <p class="status" data-testid="b-status" aria-live="polite"></p>
+          <div class="row" style="margin-top:8px"><button type="button" id="dlGrid" data-testid="dl-grid">Download layout SVG</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sheet" id="posters" aria-labelledby="h-poster">
+    <div class="sechead"><span class="no">02</span><h2 id="h-poster">Poster generator</h2><p>Seeded Swiss-style compositions on the grid above.</p></div>
+    <div class="bench poster-bench">
+      <div class="stage"><svg id="posterSvg" data-testid="poster-svg" role="img" aria-label="Generated poster" xmlns="http://www.w3.org/2000/svg"></svg></div>
+      <div>
+        <div class="panel">
+          <h3>Composition</h3>
+          <div class="fields">
+            <div class="fld"><label for="pseed">Seed</label><input id="pseed" type="number" min="0" max="999999" step="1" value="7" data-testid="p-seed"></div>
+            <div class="fld"><span>&nbsp;</span><button type="button" class="primary" id="pnext" data-testid="p-next" style="width:100%">Next seed</button></div>
+          </div>
+          <label class="check"><input type="checkbox" id="pOverlay" data-testid="p-overlay"> Show the grid over the poster</label>
+          <p class="hint">Every shape, rule and line of type is placed on a module edge or a baseline. The poster uses whatever grid you set in section 01, so try 3 columns, then 7.</p>
+          <p class="status" data-testid="p-status" aria-live="polite"></p>
+          <div class="row"><button type="button" id="dlPoster" data-testid="dl-poster">Download poster SVG</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="credit">
+    <p data-testid="credit">This page works in the tradition of the International Typographic Style and its grid manuals, such as Josef Müller-Brockmann's <cite>Grid Systems in Graphic Design</cite> (1981). The tools, text and posters here are original; nothing is reproduced from the book.</p>
+    <p class="small">The poster events are fictional. Need a design system or a landing page built on a grid, and tested? See <a href="../index.html#services">Services</a>.</p>
+  </footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const NS = 'http://www.w3.org/2000/svg';
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const fx = (v, d = 2) => (Math.round(v * 10 ** d) / 10 ** d).toFixed(d);
+  const PRESETS = {
+    a4: { w: 595, h: 842, mt: 48, ml: 42, mr: 42, mb: 58 },
+    a3: { w: 842, h: 1191, mt: 60, ml: 54, mr: 54, mb: 80 },
+    letter: { w: 612, h: 792, mt: 48, ml: 44, mr: 44, mb: 54 },
+    square: { w: 720, h: 720, mt: 40, ml: 40, mr: 40, mb: 40 },
+  };
+  const S = { w: 595, h: 842, mt: 48, ml: 42, mr: 42, mb: 58, cols: 4, rows: 6, gutter: 12, base: 12, lock: true, showMod: true, showBase: true };
+  const blocks = {
+    headline: { c: 0, r: 0, cs: 3, rs: 1 },
+    image: { c: 0, r: 1, cs: 4, rs: 2 },
+    textA: { c: 0, r: 3, cs: 2, rs: 3 },
+    textB: { c: 2, r: 3, cs: 2, rs: 3 },
+  };
+  let selected = 'headline';
+
+  /** Module geometry. Row gap = gutter, or exactly one baseline when rows are locked to the baseline. */
+  function metrics(s = S) {
+    const measure = s.w - s.ml - s.mr, depth = s.h - s.mt - s.mb;
+    const colW = (measure - (s.cols - 1) * s.gutter) / s.cols;
+    let rowGap, rowH, lines;
+    if (s.lock) {
+      rowGap = s.base;
+      lines = Math.floor((depth + s.base) / (s.rows * s.base) + 1e-9) - 1;   // whole lines per module
+      rowH = lines * s.base;
+    } else {
+      rowGap = s.gutter;
+      rowH = (depth - (s.rows - 1) * s.gutter) / s.rows;
+      lines = rowH / s.base;
+    }
+    const used = s.rows * rowH + (s.rows - 1) * rowGap;
+    const ok = colW >= 1 && rowH >= 1 && measure > 0 && depth > 0;
+    const colX = (c) => s.ml + c * (colW + s.gutter);
+    const rowY = (r) => s.mt + r * (rowH + rowGap);
+    return { measure, depth, colW, rowH, rowGap, lines, used, spare: depth - used, ok, colX, rowY,
+      colEnd: (c) => colX(c) + colW, rowEnd: (r) => rowY(r) + rowH };
+  }
+  const boxOf = (b, m = metrics()) => {
+    const x = m.colX(b.c), y = m.rowY(b.r);
+    return { x, y, w: m.colEnd(b.c + b.cs - 1) - x, h: m.rowEnd(b.r + b.rs - 1) - y };
+  };
+  /** Snap a free rectangle (pt) to the nearest module edges: left/top to a module start, right/bottom to a module end. */
+  function snap(raw, s = S) {
+    const m = metrics(s);
+    const near = (n, f, v, from = 0) => { let best = from, bd = Infinity; for (let i = from; i < n; i++) { const d = Math.abs(f(i) - v); if (d < bd - 1e-9) { bd = d; best = i; } } return best; };
+    const c = near(s.cols, m.colX, raw.x), r = near(s.rows, m.rowY, raw.y);
+    const ce = near(s.cols, m.colEnd, raw.x + raw.w, c), re = near(s.rows, m.rowEnd, raw.y + raw.h, r);
+    return { c, r, cs: ce - c + 1, rs: re - r + 1 };
+  }
+  function clampBlock(b) {
+    b.c = Math.max(0, Math.min(S.cols - 1, b.c | 0)); b.r = Math.max(0, Math.min(S.rows - 1, b.r | 0));
+    b.cs = Math.max(1, Math.min(S.cols - b.c, b.cs | 0)); b.rs = Math.max(1, Math.min(S.rows - b.r, b.rs | 0));
+    return b;
+  }
+  /** First baseline-grid line that can carry text starting at `top` (cap height about 0.8 of a line). */
+  const firstBaseline = (top, s = S) => s.mt + s.base * Math.ceil((top + 0.8 * s.base - s.mt) / s.base - 1e-9);
+
+  const COPY = 'A grid is a promise the page makes to its reader. Things that belong together line up, and the eye learns where to look next. Columns fix the measure, rows fix the pace, and the baseline keeps each line of text in step with its neighbours across the whole spread. Order like this is not decoration; it is what lets the content speak plainly. ';
+  function wrap(text, n) {
+    const out = []; let line = '';
+    for (const w of text.split(/\s+/).filter(Boolean)) {
+      if ((line + ' ' + w).trim().length > n && line) { out.push(line); line = w; } else line = (line + ' ' + w).trim();
+    }
+    if (line) out.push(line);
+    return out;
+  }
+  const el = (tag, attrs = {}, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+  const r2 = (v) => Math.round(v * 1000) / 1000;
+
+  function drawGrid(svg, s, m, opts) {
+    const g = el('g', { 'data-layer': 'grid' }, svg);
+    el('rect', { x: s.ml, y: s.mt, width: r2(s.w - s.ml - s.mr), height: r2(s.h - s.mt - s.mb), fill: 'none', stroke: opts.dark ? '#ffffff55' : '#8a8a8a', 'stroke-dasharray': '4 3', 'stroke-width': .75 }, g);
+    if (opts.mod) for (let r = 0; r < s.rows; r++) for (let c = 0; c < s.cols; c++) {
+      el('rect', { x: r2(m.colX(c)), y: r2(m.rowY(r)), width: r2(m.colW), height: r2(m.rowH), fill: opts.dark ? '#ff2f7a22' : '#f9d3e2', stroke: opts.dark ? '#ff2f7a88' : '#e7a3be', 'stroke-width': .5, 'data-module': c + ',' + r }, g);
+    }
+    if (opts.base) {
+      const bg = el('g', { 'data-layer': 'baselines' }, g);
+      for (let y = s.mt + s.base, i = 1; y <= s.h - s.mb + 1e-9; y = s.mt + s.base * ++i) el('line', { x1: s.ml, x2: r2(s.w - s.mr), y1: r2(y), y2: r2(y), stroke: opts.dark ? '#35d0f055' : '#0a7f99', 'stroke-opacity': opts.dark ? 1 : .35, 'stroke-width': .5, 'data-baseline': i }, bg);
+    }
+    return g;
+  }
+
+  // ---------- grid designer ----------
+  const gsvg = $('#gridSvg');
+  function renderDesigner() {
+    const m = metrics();
+    const status = $('[data-testid=r-status]'), sum = $('[data-testid=r-sum]');
+    $('[data-testid=tb-sheet]').textContent = `${S.w} × ${S.h} pt`;
+    $('[data-testid=tb-base]').textContent = `${fx(S.base, 1).replace(/\.0$/, '')} pt`;
+    if (!m.ok) {
+      gsvg.replaceChildren();
+      ['measure', 'depth', 'colw', 'rowh', 'rowgap', 'lines', 'spare'].forEach((k) => ($(`[data-testid=r-${k}]`).textContent = '—'));
+      sum.textContent = 'This grid does not fit: the gutters or margins leave no room for a module.'; sum.classList.add('bad');
+      status.textContent = 'Reduce the columns, rows, gutter or margins.';
+      $('[data-testid=tb-module]').textContent = '—';
+      gsvg.setAttribute('aria-label', 'No grid: the settings leave no room for a module.');
+      return;
+    }
+    sum.classList.remove('bad');
+    $('[data-testid=r-measure]').textContent = fx(m.measure) + ' pt';
+    $('[data-testid=r-depth]').textContent = fx(m.depth) + ' pt';
+    $('[data-testid=r-colw]').textContent = fx(m.colW) + ' pt';
+    $('[data-testid=r-rowh]').textContent = fx(m.rowH) + ' pt';
+    $('[data-testid=r-rowgap]').textContent = fx(m.rowGap) + ' pt' + (S.lock ? ' (1 line)' : '');
+    $('[data-testid=r-lines]').textContent = S.lock ? String(m.lines) : fx(m.lines) + ' (not whole)';
+    $('[data-testid=r-spare]').textContent = fx(m.spare) + ' pt';
+    $('[data-testid=tb-module]').textContent = `${fx(m.colW)} × ${fx(m.rowH)} pt`;
+    sum.textContent = `${S.cols} × ${fx(m.colW)} + ${S.cols - 1} × ${fx(S.gutter)} = ${fx(S.cols * m.colW + (S.cols - 1) * S.gutter)} = measure ${fx(m.measure)} ✓`;
+    const offGrid = [];
+    for (let r = 0; r < S.rows; r++) { const k = (m.rowY(r) - S.mt) / S.base; if (Math.abs(k - Math.round(k)) > 1e-6) offGrid.push(r + 1); }
+    status.textContent = offGrid.length
+      ? `${offGrid.length} of ${S.rows} rows start between baselines (rows ${offGrid.join(', ')}). Lock rows to the baseline to fix it.`
+      : (S.lock ? `Every row starts on a baseline; ${fx(m.spare)} pt of depth is left at the foot.` : 'Every row happens to start on a baseline.');
+
+    gsvg.setAttribute('viewBox', `0 0 ${S.w} ${S.h}`);
+    gsvg.setAttribute('width', S.w); gsvg.setAttribute('height', S.h);
+    gsvg.replaceChildren();
+    el('title', {}, gsvg).textContent = 'Grid layout';
+    el('rect', { x: 0, y: 0, width: S.w, height: S.h, fill: '#ffffff', 'data-layer': 'page' }, gsvg);
+    drawGrid(gsvg, S, m, { mod: S.showMod, base: S.showBase });
+    const bl = el('g', { class: 'blk', 'data-layer': 'blocks' }, gsvg);
+    for (const id of Object.keys(blocks)) {
+      const b = clampBlock(blocks[id]), bx = boxOf(b, m);
+      const g = el('g', { 'data-group': id }, bl);
+      const sel = id === selected;
+      if (id === 'image') {
+        el('rect', { x: r2(bx.x), y: r2(bx.y), width: r2(bx.w), height: r2(bx.h), fill: '#26282e', 'data-block': id }, g);
+        el('path', { d: `M${r2(bx.x)} ${r2(bx.y)}L${r2(bx.x + bx.w)} ${r2(bx.y + bx.h)}M${r2(bx.x + bx.w)} ${r2(bx.y)}L${r2(bx.x)} ${r2(bx.y + bx.h)}`, stroke: '#ffffff44', 'stroke-width': 1, 'pointer-events': 'none' }, g);
+        const t = el('text', { x: r2(bx.x + 8), y: r2(bx.y + 16), fill: '#fff', 'font-size': 10, 'font-family': 'Helvetica, Arial, sans-serif', 'pointer-events': 'none' }, g);
+        t.textContent = `Image ${b.cs} × ${b.rs} modules`;
+      } else {
+        el('rect', { x: r2(bx.x), y: r2(bx.y), width: r2(bx.w), height: r2(bx.h), fill: '#ffffff', 'fill-opacity': .01, stroke: sel ? '#c8105a' : 'none', 'data-block': id }, g);
+        if (id === 'headline') {
+          const fs = Math.max(S.base, Math.min(S.base * 3, bx.w / 7.2));
+          const y = S.mt + S.base * Math.ceil((bx.y + 0.72 * fs - S.mt) / S.base - 1e-9);
+          if (y <= bx.y + bx.h + 1e-9) {
+            const t = el('text', { x: r2(bx.x), y: r2(y), 'font-size': r2(fs), 'font-weight': 700, 'font-family': 'Helvetica Neue, Helvetica, Arial, sans-serif', fill: '#1b1d22', 'data-line': 'headline', 'pointer-events': 'none' }, g);
+            t.textContent = 'Order on the page';
+            if (fs * 0.55 * 17 > bx.w) { t.setAttribute('textLength', r2(bx.w)); t.setAttribute('lengthAdjust', 'spacingAndGlyphs'); }
+          }
+        } else {
+          const fs = S.base * 0.75, per = Math.max(8, Math.floor(bx.w / (fs * 0.5)));
+          const lines = wrap((id === 'textB' ? COPY.slice(120) + COPY : COPY).repeat(4), per);
+          let y = firstBaseline(bx.y), i = 0;
+          while (y <= bx.y + bx.h + 1e-9 && i < lines.length) {
+            const t = el('text', { x: r2(bx.x), y: r2(y), 'font-size': r2(fs), 'font-family': 'Helvetica Neue, Helvetica, Arial, sans-serif', fill: '#1b1d22', 'data-line': id, 'pointer-events': 'none' }, g);
+            t.textContent = lines[i++];
+            y = S.mt + S.base * (Math.round((y - S.mt) / S.base) + 1);
+          }
+        }
+      }
+      if (sel) el('rect', { x: r2(bx.x - 2), y: r2(bx.y - 2), width: r2(bx.w + 4), height: r2(bx.h + 4), fill: 'none', stroke: '#c8105a', 'stroke-width': 2, 'data-selection': id, 'pointer-events': 'none' }, g);
+    }
+    gsvg.setAttribute('aria-label', `Grid preview: ${S.cols} columns by ${S.rows} rows on a ${S.w} by ${S.h} point sheet; modules ${fx(m.colW)} by ${fx(m.rowH)} points. ` +
+      Object.entries(blocks).map(([id, b]) => `${id} at column ${b.c + 1}, row ${b.r + 1}, ${b.cs} by ${b.rs}`).join('; ') + '.');
+    syncBlockFields();
+    renderPoster();
+  }
+
+  function syncBlockFields() {
+    const b = blocks[selected];
+    $('#bc').value = b.c + 1; $('#br').value = b.r + 1; $('#bcs').value = b.cs; $('#brs').value = b.rs;
+    $('#bc').max = S.cols; $('#br').max = S.rows; $('#bcs').max = S.cols - b.c; $('#brs').max = S.rows - b.r;
+    $$('[data-pick]').forEach((btn) => btn.setAttribute('aria-pressed', String(btn.dataset.pick === selected)));
+  }
+  function announce(msg) { $('[data-testid=b-status]').textContent = msg; }
+  const names = { headline: 'Headline', image: 'Image', textA: 'Text A', textB: 'Text B' };
+  const describe = (id) => { const b = blocks[id]; return `${names[id]}: column ${b.c + 1}, row ${b.r + 1}, ${b.cs} × ${b.rs} modules.`; };
+
+  function readInputs() {
+    $$('input[data-k]').forEach((i) => { const v = Number(i.value); if (i.value !== '' && Number.isFinite(v)) S[i.dataset.k] = (i.dataset.k === 'cols' || i.dataset.k === 'rows') ? Math.max(1, Math.min(12, Math.round(v))) : v; });
+    S.lock = $('#lock').checked; S.showMod = $('#showMod').checked; S.showBase = $('#showBase').checked;
+  }
+  $$('input[data-k]').forEach((i) => i.addEventListener('input', () => {
+    if (['w', 'h', 'mt', 'ml', 'mr', 'mb'].includes(i.dataset.k)) $('#preset').value = 'custom';
+    readInputs(); renderDesigner();
+  }));
+  ['#lock', '#showMod', '#showBase'].forEach((q) => $(q).addEventListener('change', () => { readInputs(); renderDesigner(); }));
+  $('#preset').addEventListener('change', (e) => {
+    const p = PRESETS[e.target.value]; if (!p) return;
+    for (const k in p) { S[k] = p[k]; $('#' + k).value = p[k]; }
+    renderDesigner();
+  });
+  $$('[data-pick]').forEach((btn) => btn.addEventListener('click', () => { selected = btn.dataset.pick; renderDesigner(); announce('Selected ' + describe(selected)); }));
+  [['#bc', 'c', -1], ['#br', 'r', -1], ['#bcs', 'cs', 0], ['#brs', 'rs', 0]].forEach(([q, k, off]) => $(q).addEventListener('input', (e) => {
+    const v = Number(e.target.value); if (!Number.isFinite(v) || e.target.value === '') return;
+    blocks[selected][k] = v + off; clampBlock(blocks[selected]); renderDesigner(); announce(describe(selected));
+  }));
+
+  gsvg.addEventListener('keydown', (e) => {
+    const b = blocks[selected]; const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+    if (!d) return;
+    e.preventDefault();
+    if (e.shiftKey) { b.cs += d[0]; b.rs += d[1]; } else { b.c = Math.max(0, Math.min(S.cols - b.cs, b.c + d[0])); b.r = Math.max(0, Math.min(S.rows - b.rs, b.r + d[1])); }
+    clampBlock(b); renderDesigner(); announce(describe(selected));
+  });
+
+  // pointer drag: move freely, snap to the nearest module edges
+  let drag = null;
+  const toPt = (ev) => { const p = gsvg.createSVGPoint(); p.x = ev.clientX; p.y = ev.clientY; return p.matrixTransform(gsvg.getScreenCTM().inverse()); };
+  gsvg.addEventListener('pointerdown', (ev) => {
+    const t = ev.target.closest('[data-block]'); if (!t) return;
+    selected = t.dataset.block; const bx = boxOf(blocks[selected]);
+    drag = { id: selected, start: toPt(ev), box: bx }; gsvg.setPointerCapture(ev.pointerId);
+    renderDesigner();
+  });
+  gsvg.addEventListener('pointermove', (ev) => {
+    if (!drag) return; const p = toPt(ev);
+    const raw = { x: drag.box.x + p.x - drag.start.x, y: drag.box.y + p.y - drag.start.y, w: drag.box.w, h: drag.box.h };
+    const sn = snap(raw); const b = blocks[drag.id];
+    if (sn.c !== b.c || sn.r !== b.r || sn.cs !== b.cs || sn.rs !== b.rs) { Object.assign(b, sn); renderDesigner(); }
+  });
+  const endDrag = () => { if (drag) { announce(describe(drag.id)); drag = null; } };
+  gsvg.addEventListener('pointerup', endDrag); gsvg.addEventListener('pointercancel', endDrag);
+
+  // ---------- poster generator ----------
+  function mulberry32(a) { return function () { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  const PALETTES = [
+    { name: 'Signal', bg: '#f4f1ea', ink: '#111111', acc: '#e3342f', acc2: '#111111' },
+    { name: 'Night', bg: '#121418', ink: '#f2f2f2', acc: '#ffcc00', acc2: '#3d7eff' },
+    { name: 'Cobalt', bg: '#1f3fbf', ink: '#ffffff', acc: '#ff6a2b', acc2: '#0b1640' },
+    { name: 'Paper', bg: '#ffffff', ink: '#1b1d22', acc: '#0a7f99', acc2: '#c8105a' },
+    { name: 'Ochre', bg: '#e8b33c', ink: '#161616', acc: '#ffffff', acc2: '#b3261e' },
+  ];
+  const WORDS = ['ORDER', 'MEASURE', 'RHYTHM', 'MODULE', 'SYSTEM', 'FORM', 'SCALE', 'STRUCTURE', 'TENSION', 'PLANE', 'INTERVAL', 'FIELD'];
+  const PLACES = ['Hall 3', 'Studio North', 'Room 12', 'The Annex', 'Gallery B'];
+  function posterSpec(seed, s = S) {
+    const m = metrics(s); if (!m.ok) return null;
+    const R = mulberry32(seed >>> 0 || 1);
+    const ri = (a, b) => a + Math.floor(R() * (b - a + 1));
+    const pal = PALETTES[ri(0, PALETTES.length - 1)];
+    const occ = new Set(), items = [];
+    const free = (b) => { for (let r = b.r; r < b.r + b.rs; r++) for (let c = b.c; c < b.c + b.cs; c++) if (occ.has(c + ',' + r)) return false; return true; };
+    const take = (b) => { for (let r = b.r; r < b.r + b.rs; r++) for (let c = b.c; c < b.c + b.cs; c++) occ.add(c + ',' + r); };
+    // headline: spans at least half the columns, set on a baseline, its width fitted to the columns it spans
+    const word = WORDS[ri(0, WORDS.length - 1)];
+    const hcs = ri(Math.ceil(s.cols / 2), s.cols), hc = ri(0, s.cols - hcs), hr = ri(0, Math.max(0, s.rows - 2));
+    const hb = { c: hc, r: hr, cs: hcs, rs: 1 };
+    items.push({ kind: 'headline', ...hb, word, fill: pal.ink });
+    take(hb);
+    const kinds = ['rect', 'circle', 'bar', 'ring', 'rule', 'rect', 'circle'];
+    const n = ri(3, 6);
+    for (let i = 0, tries = 0; i < n && tries < 60; tries++) {
+      const kind = kinds[ri(0, kinds.length - 1)];
+      const cs = kind === 'bar' || kind === 'rule' ? ri(1, s.cols) : ri(1, Math.min(3, s.cols));
+      const rs = kind === 'bar' || kind === 'rule' ? 1 : ri(1, Math.min(3, s.rows));
+      const b = { c: ri(0, s.cols - cs), r: ri(0, s.rows - rs), cs, rs };
+      if (!free(b)) continue;
+      take(b); i++;
+      items.push({ kind, ...b, fill: [pal.acc, pal.acc2, pal.ink][ri(0, 2)] });
+    }
+    // information lines: a fictional event, set small on the baseline grid
+    const day = ri(1, 28), mon = ri(1, 12);
+    const info = ['Fictional exhibition', `${word.charAt(0) + word.slice(1).toLowerCase()} on the grid`, `${String(day).padStart(2, '0')}.${String(mon).padStart(2, '0')}.–${String(Math.min(28, day + ri(7, 20))).padStart(2, '0')}.${String(mon % 12 + 1).padStart(2, '0')}.`, PLACES[ri(0, PLACES.length - 1)], 'Admission free'];
+    let placed = false;
+    for (let t = 0; t < 40 && !placed; t++) {
+      const b = { c: ri(0, s.cols - 1), r: ri(0, s.rows - 1), cs: 1, rs: 1 };
+      if (free(b) || t === 39) { take(b); items.push({ kind: 'info', ...b, lines: info.slice(0, ri(3, 5)), fill: pal.ink }); placed = true; }
+    }
+    return { seed, palette: pal.name, bg: pal.bg, ink: pal.ink, items };
+  }
+
+  const psvg = $('#posterSvg');
+  let seed = 7;
+  function renderPoster() {
+    const m = metrics(), spec = posterSpec(seed);
+    $('[data-testid=seed]').textContent = String(seed);
+    psvg.replaceChildren();
+    if (!spec) { $('[data-testid=p-status]').textContent = 'Fix the grid in section 01 first.'; return; }
+    psvg.setAttribute('viewBox', `0 0 ${S.w} ${S.h}`); psvg.setAttribute('width', S.w); psvg.setAttribute('height', S.h);
+    el('title', {}, psvg).textContent = `Grid poster, seed ${seed}`;
+    el('rect', { x: 0, y: 0, width: S.w, height: S.h, fill: spec.bg, 'data-layer': 'page' }, psvg);
+    const g = el('g', { 'data-layer': 'poster' }, psvg);
+    for (const it of spec.items) {
+      const bx = boxOf(it, m);
+      const common = { 'data-snap': it.kind, 'data-box': [bx.x, bx.y, bx.w, bx.h].map(r2).join(' '), 'data-cell': `${it.c},${it.r},${it.cs},${it.rs}` };
+      if (it.kind === 'rect') el('rect', { ...common, x: r2(bx.x), y: r2(bx.y), width: r2(bx.w), height: r2(bx.h), fill: it.fill }, g);
+      else if (it.kind === 'bar') el('rect', { ...common, x: r2(bx.x), y: r2(bx.y), width: r2(bx.w), height: r2(S.base), fill: it.fill }, g);
+      else if (it.kind === 'rule') el('rect', { ...common, x: r2(bx.x), y: r2(bx.y), width: r2(bx.w), height: r2(Math.max(1, S.base / 6)), fill: it.fill }, g);
+      else if (it.kind === 'circle' || it.kind === 'ring') {
+        const rad = Math.min(bx.w, bx.h) / 2, sw = it.kind === 'ring' ? Math.max(2, rad / 5) : 0;
+        el('circle', { ...common, cx: r2(bx.x + bx.w / 2), cy: r2(bx.y + bx.h / 2), r: r2(rad - sw / 2), fill: it.kind === 'ring' ? 'none' : it.fill, stroke: it.kind === 'ring' ? it.fill : 'none', 'stroke-width': r2(sw) }, g);
+      } else if (it.kind === 'headline') {
+        const fs = Math.max(S.base * 2, Math.min(m.rowH + m.rowGap, bx.w / (0.66 * it.word.length)));
+        const y = S.mt + S.base * Math.ceil((bx.y + 0.72 * fs - S.mt) / S.base - 1e-9);
+        const t = el('text', { ...common, x: r2(bx.x), y: r2(y), 'font-size': r2(fs), 'font-weight': 700, 'font-family': 'Helvetica Neue, Helvetica, Arial, sans-serif', fill: it.fill, textLength: r2(bx.w), lengthAdjust: 'spacingAndGlyphs' }, g);
+        t.textContent = it.word;
+      } else if (it.kind === 'info') {
+        let y = firstBaseline(bx.y);
+        const tg = el('g', common, g);
+        it.lines.forEach((ln, i) => {
+          const t = el('text', { x: r2(bx.x), y: r2(y), 'font-size': r2(S.base * 0.75), 'font-weight': i === 0 ? 700 : 400, 'font-family': 'Helvetica Neue, Helvetica, Arial, sans-serif', fill: it.fill, 'data-line': 'info' }, tg);
+          t.textContent = ln; y += S.base;
+        });
+      }
+    }
+    if ($('#pOverlay').checked) drawGrid(psvg, S, m, { mod: true, base: true, dark: true }).setAttribute('data-overlay', '1');
+    psvg.setAttribute('aria-label', `Poster for seed ${seed}, ${spec.palette} palette: the word ${spec.items[0].word} across ${spec.items[0].cs} columns, ${spec.items.length - 2} shapes and a block of event details, all on the ${S.cols} by ${S.rows} grid.`);
+    $('[data-testid=p-status]').textContent = `Seed ${seed}: ${spec.palette} palette, ${spec.items.length} elements, all on module edges.`;
+  }
+  function setSeed(v) { seed = Math.max(0, Math.min(999999, Math.round(v) || 0)); $('#pseed').value = seed; renderPoster(); }
+  $('#pseed').addEventListener('input', (e) => { if (e.target.value !== '') setSeed(Number(e.target.value)); });
+  $('#pnext').addEventListener('click', () => setSeed(seed + 1));
+  $('#pOverlay').addEventListener('change', renderPoster);
+
+  // ---------- export ----------
+  function svgString(which) {
+    const src = which === 'poster' ? psvg : gsvg;
+    const c = src.cloneNode(true);
+    ['tabindex', 'role', 'aria-label', 'data-testid', 'id', 'class'].forEach((a) => c.removeAttribute(a));
+    c.querySelectorAll('[data-selection]').forEach((n) => n.remove());
+    c.setAttribute('xmlns', NS);
+    return new XMLSerializer().serializeToString(c);
+  }
+  function download(name, text) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: 'image/svg+xml' }));
+    a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  $('#dlGrid').addEventListener('click', () => download('grid-layout.svg', svgString('grid')));
+  $('#dlPoster').addEventListener('click', () => download(`grid-poster-seed-${seed}.svg`, svgString('poster')));
+
+  // ---------- boot ----------
+  const qs = new URLSearchParams(location.search).get('seed');
+  if (qs !== null && /^\d+$/.test(qs)) seed = Number(qs);
+  $('#pseed').value = seed;
+  readInputs();
+  renderDesigner();
+
+  window.__grid = {
+    state: () => JSON.parse(JSON.stringify({ ...S, seed, selected, blocks })),
+    metrics: () => { const m = metrics(); return { measure: m.measure, depth: m.depth, colW: m.colW, rowH: m.rowH, rowGap: m.rowGap, lines: m.lines, used: m.used, spare: m.spare, ok: m.ok }; },
+    snap: (raw) => snap(raw),
+    place: (id, raw) => { Object.assign(blocks[id], snap(raw)); selected = id; renderDesigner(); return { ...blocks[id] }; },
+    poster: (sd) => posterSpec(sd),
+    svg: (which) => svgString(which),
+  };
+})();
+</script>
+</body>
+</html>

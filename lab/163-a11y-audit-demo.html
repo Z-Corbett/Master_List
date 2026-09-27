@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Accessibility Audit — break it, audit it, fix it</title>
+<meta name="description" content="A fictional shop page with twelve deliberate WCAG 2.2 failures, from missing alt text and low contrast to a keyboard trap and undersized targets. Fix each one with a toggle, watch twelve in-page checks update live, and export the audit as a Markdown report with each success criterion cited by number, name and level.">
+<style>
+  :root {
+    --bg: #f5f7fb;
+    --grid: #e3e8f2;
+    --panel: #ffffff;
+    --ink: #111827;
+    --muted: #4b5563;
+    --rule: #d6dce8;
+    --blue: #1f4fd1;
+    --blue-soft: #e6edff;
+    --pass: #146c3a;
+    --pass-soft: #dcf3e5;
+    --fail: #b42318;
+    --fail-soft: #fde4e1;
+    --warn: #8a4b00;
+    --mono: Consolas, "Cascadia Mono", Menlo, "DejaVu Sans Mono", monospace;
+    --sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg) linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 100% 28px; color: var(--ink); font: 15.5px/1.55 var(--sans); overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+  a { color: var(--blue); }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 60; background: var(--blue); color: #fff; text-decoration: none; font: 700 13px/1 var(--sans); padding: 8px 12px; border-radius: 999px; }
+  .wrap { max-width: 1260px; margin: 0 auto; padding: 62px 16px 56px; }
+  .kicker { margin: 0; font: 700 12px/1.4 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--blue); overflow-wrap: anywhere; }
+  h1 { margin: 6px 0 0; font: 800 clamp(30px, 6vw, 52px)/1.04 var(--sans); letter-spacing: -.02em; overflow-wrap: anywhere; }
+  h1 span { color: var(--blue); }
+  .lede { max-width: 76ch; color: var(--muted); margin: 12px 0 0; }
+  .layout { display: grid; grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); gap: 18px; margin-top: 22px; align-items: start; }
+  @media (max-width: 980px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  .panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 14px; padding: 16px; min-width: 0; box-shadow: 0 10px 30px -24px rgba(17, 24, 39, .5); }
+  .panel h2 { margin: 0 0 4px; font: 800 20px/1.25 var(--sans); }
+  .panel .sub { margin: 0 0 12px; color: var(--muted); font-size: 14px; }
+  /* browser frame around the sample site */
+  .frame { border: 1px solid var(--rule); border-radius: 12px; overflow: hidden; background: #fff; min-width: 0; }
+  .chrome { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: #eef1f6; border-bottom: 1px solid var(--rule); min-width: 0; }
+  .chrome i { width: 10px; height: 10px; border-radius: 50%; background: #c9cfdb; flex: none; }
+  .chrome .url { flex: 1; min-width: 0; font: 12px var(--mono); color: var(--muted); background: #fff; border: 1px solid var(--rule); border-radius: 999px; padding: 3px 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fictional { font: 700 11px/1.3 var(--mono); color: #fff; background: #6b21a8; padding: 3px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: .06em; flex: none; }
+  /* audit panel */
+  .score { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; margin: 0 0 10px; }
+  .score b { font: 800 34px/1 var(--sans); }
+  .score span { color: var(--muted); }
+  .meter { height: 10px; border-radius: 999px; background: var(--fail-soft); overflow: hidden; margin-bottom: 12px; }
+  .meter i { display: block; height: 100%; background: var(--pass); width: 0; transition: width .25s; }
+  .btnrow { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+  .btn { min-height: 40px; padding: 8px 14px; border-radius: 10px; border: 2px solid var(--blue); background: var(--blue); color: #fff; font: 700 14px var(--sans); cursor: pointer; }
+  .btn.ghost { background: #fff; color: var(--blue); }
+  ol.checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .check { border: 1px solid var(--rule); border-left: 5px solid var(--fail); border-radius: 10px; padding: 10px 12px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; background: #fff; }
+  .check[data-status=pass] { border-left-color: var(--pass); }
+  .check h3 { margin: 0; font: 700 15px/1.3 var(--sans); overflow-wrap: anywhere; }
+  .check .st { font: 700 11px/1 var(--mono); padding: 4px 7px; border-radius: 6px; text-transform: uppercase; letter-spacing: .05em; margin-right: 6px; vertical-align: 1px; }
+  .check[data-status=fail] .st { background: var(--fail-soft); color: var(--fail); }
+  .check[data-status=pass] .st { background: var(--pass-soft); color: var(--pass); }
+  .check .sc { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; list-style: none; }
+  .check .sc li { font: 12px/1.3 var(--mono); background: var(--blue-soft); color: #173a9c; padding: 3px 7px; border-radius: 6px; overflow-wrap: anywhere; }
+  .check .ev { grid-column: 1 / -1; margin: 0; font-size: 13.5px; color: var(--muted); overflow-wrap: anywhere; }
+  .check .note { grid-column: 1 / -1; margin: 0; font-size: 12.5px; color: var(--warn); }
+  .toggle { display: inline-flex; align-items: center; gap: 8px; font: 700 13px var(--sans); cursor: pointer; white-space: nowrap; align-self: start; min-height: 32px; }
+  .toggle input { appearance: none; -webkit-appearance: none; width: 44px; height: 26px; border-radius: 999px; background: #cbd2df; position: relative; cursor: pointer; margin: 0; flex: none; transition: background .15s; }
+  .toggle input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: left .15s; box-shadow: 0 1px 2px rgba(0, 0, 0, .3); }
+  .toggle input:checked { background: var(--pass); }
+  .toggle input:checked::after { left: 21px; }
+  .toggle input:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+  details.report { margin-top: 12px; }
+  details.report summary { cursor: pointer; font-weight: 700; }
+  details.report pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.5 var(--mono); background: #0f172a; color: #e2e8f0; padding: 12px; border-radius: 10px; max-height: 420px; overflow: auto; }
+  .honest { font-size: 13px; color: var(--muted); margin: 12px 0 0; }
+  .cta { margin-top: 26px; background: linear-gradient(135deg, #1f4fd1, #3b2bb5); color: #fff; border-radius: 16px; padding: 22px 20px; }
+  .cta h2 { margin: 0; font: 800 24px/1.2 var(--sans); }
+  .cta p { margin: 8px 0 0; max-width: 72ch; color: #e0e7ff; }
+  .cta a.btn { display: inline-block; margin-top: 14px; background: #fff; color: #1f2f8a; border-color: #fff; text-decoration: none; }
+  .howto { margin-top: 18px; }
+  .howto ol { margin: 0; padding-left: 20px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
+<!-- The sample site's own styles. Its deliberate failures live here, switched off one by one by the fx-* classes. -->
+<style id="demo-css">
+  .demo { position: relative; background: #fffaf3; color: #2b2118; font: 15px/1.5 Georgia, "Times New Roman", serif; min-width: 0; overflow: hidden; }
+  .demo * { box-sizing: border-box; }
+  .demo .skip { position: absolute; left: 8px; top: -60px; z-index: 5; background: #2b2118; color: #fffaf3; padding: 8px 12px; border-radius: 6px; font: 700 14px/1.2 var(--sans); }
+  .demo .skip:focus { top: 8px; }
+  .demo .d-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 14px; padding: 12px 14px; border-bottom: 1px solid #eadfcd; }
+  .demo .logo { font: 700 19px/1.1 Georgia, serif; letter-spacing: .02em; }
+  .demo nav ul { display: flex; flex-wrap: wrap; gap: 2px; margin: 0; padding: 0; list-style: none; }
+  .demo nav a { display: inline-block; padding: 6px 9px; color: #2b2118; text-decoration: none; font: 600 14px/1.2 var(--sans); border-radius: 6px; }
+  .demo nav a:hover { background: #f3e7d3; }
+  .demo .promo { background: #2b2118; color: #fce9c8; overflow: hidden; display: flex; align-items: center; min-width: 0; }
+  .demo .promo-view { flex: 1; min-width: 0; overflow: hidden; }
+  .demo .promo-track { display: inline-block; white-space: nowrap; padding: 7px 0; font: 600 13px/1.3 var(--sans); animation: demo-marquee 16s linear infinite; }
+  .demo .promo-pause { flex: none; margin: 0 6px; min-width: 28px; min-height: 28px; border: 1px solid #fce9c8; border-radius: 6px; background: transparent; color: #fce9c8; font: 700 12px var(--sans); cursor: pointer; padding: 2px 8px; }
+  .demo .promo.paused .promo-track { animation-play-state: paused; }
+  @keyframes demo-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  @media (prefers-reduced-motion: reduce) { .demo.fx-motion .promo-track { animation: none; } }
+  .demo .d-main { padding: 14px; }
+  .demo .d-main:focus { outline: none; }
+  .demo h2 { margin: 0; font: 700 24px/1.15 Georgia, serif; }
+  .demo .tagline { margin: 6px 0 12px; font-style: italic; }
+  .demo .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  @media (max-width: 560px) { .demo .cards { grid-template-columns: minmax(0, 1fr); } }
+  .demo .card { background: #fff; border: 1px solid #eadfcd; border-radius: 10px; padding: 8px; min-width: 0; display: grid; gap: 6px; align-content: start; }
+  .demo .card img { width: 100%; height: auto; aspect-ratio: 4 / 3; display: block; border-radius: 6px; background: #f3e7d3; }
+  .demo .pname { margin: 0; font: 700 16px/1.2 Georgia, serif; }
+  .demo .price { margin: 0; font: 600 15px/1.2 var(--sans); color: #5b4636; }
+  .demo:not(.fx-contrast) .price { color: #b2a898; }
+  .demo .row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .demo .add { display: inline-flex; align-items: center; justify-content: center; min-height: 34px; padding: 6px 12px; border: 0; border-radius: 8px; background: #7a3b12; color: #fff; font: 700 13.5px/1.2 var(--sans); cursor: pointer; }
+  .demo .qv { min-height: 34px; padding: 6px 10px; border: 1px solid #7a3b12; border-radius: 8px; background: #fff; color: #7a3b12; font: 700 13px/1.2 var(--sans); cursor: pointer; }
+  .demo .qty { display: inline-flex; align-items: center; gap: 4px; font: 600 13px var(--sans); }
+  .demo .qty button { width: 28px; height: 28px; padding: 0; border: 1px solid #7a3b12; border-radius: 6px; background: #fff; color: #7a3b12; font: 700 14px/1 var(--sans); cursor: pointer; }
+  .demo:not(.fx-target) .qty { gap: 2px; }
+  .demo:not(.fx-target) .qty button { width: 16px; height: 16px; font-size: 11px; border-radius: 3px; }
+  .demo .news { margin-top: 14px; background: #fff; border: 1px solid #eadfcd; border-radius: 10px; padding: 12px; }
+  .demo .news h3 { margin: 0 0 6px; font: 700 17px/1.2 Georgia, serif; }
+  .demo .nl-label { display: block; font: 700 13px var(--sans); margin-bottom: 4px; }
+  .demo .news input { width: 100%; max-width: 320px; min-height: 36px; padding: 6px 10px; border: 2px solid #8c7b6b; border-radius: 8px; font: 15px var(--sans); background: #fff; color: #2b2118; }
+  .demo .news input.invalid { border-color: #c9302c; }
+  .demo .nl-err { margin: 6px 0 0; color: #a4161a; font: 700 13.5px/1.3 var(--sans); }
+  .demo .sub { margin-top: 8px; min-height: 34px; padding: 6px 12px; border: 0; border-radius: 8px; background: #2b2118; color: #fffaf3; font: 700 13.5px var(--sans); cursor: pointer; }
+  /* Focus indicator removed: the classic "outline: none" with nothing in its place. */
+  .demo:not(.fx-focus) a:focus, .demo:not(.fx-focus) button:focus, .demo:not(.fx-focus) input:focus, .demo:not(.fx-focus) [tabindex]:focus { outline: none; }
+  .demo.fx-focus :focus-visible { outline: 3px solid #1f4fd1; outline-offset: 2px; }
+  /* quick-view modal, contained in the sample site */
+  .demo .qv-back { position: absolute; inset: 0; background: rgba(43, 33, 24, .55); display: flex; align-items: flex-start; justify-content: center; padding: 16px; z-index: 10; }
+  .demo .qv-box { position: relative; width: 100%; max-width: 380px; background: #fffaf3; border-radius: 12px; padding: 14px; box-shadow: 0 20px 40px -20px #000; min-width: 0; }
+  .demo .qv-box h3 { margin: 6px 36px 6px 0; font: 700 18px/1.2 Georgia, serif; }
+  .demo .qv-box p { margin: 0 0 8px; }
+  .demo .qv-box .links a { display: inline-block; padding: 4px 2px; margin-right: 10px; color: #7a3b12; font: 600 14px var(--sans); }
+  .demo .x { position: absolute; top: 44px; right: 10px; width: 30px; height: 30px; border: 0; border-radius: 50%; background: #eadfcd; color: #2b2118; font: 700 18px/30px var(--sans); text-align: center; cursor: pointer; padding: 0; }
+  .demo .harness { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 8px; border-radius: 8px; background: repeating-linear-gradient(135deg, #ffe066 0 10px, #fff3bf 10px 20px); font: 12px/1.3 var(--sans); color: #3d2e00; }
+  .demo .harness button { min-height: 30px; padding: 4px 10px; border: 2px solid #3d2e00; border-radius: 6px; background: #fff; color: #3d2e00; font: 800 12.5px var(--sans); cursor: pointer; }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<main class="wrap">
+  <header>
+    <p class="kicker">QA &amp; Testing · Lab 163</p>
+    <h1>Accessibility Audit: <span>break it, audit it, fix it.</span></h1>
+    <p class="lede">Bramblewick Goods is a fictional candle shop, built here with twelve realistic WCAG 2.2 failures. The panel beside it runs twelve checks in your browser against the live sample, cites each success criterion by number, name and level, and updates the moment you fix something. Turn the fixes on one at a time and watch the results change, then export the audit as a Markdown report.</p>
+  </header>
+
+  <div class="layout">
+    <section class="panel" aria-labelledby="demo-h">
+      <h2 id="demo-h">The sample site</h2>
+      <p class="sub">Try it with the keyboard. The quick-view modal really does trap focus until you fix it, but the striped <b>Exit demo</b> button inside it always gets you out.</p>
+      <div class="frame">
+        <div class="chrome" aria-hidden="true"><i></i><i></i><i></i><span class="url">https://bramblewick-goods.example/</span><span class="fictional">fictional</span></div>
+        <div class="demo" id="demo" data-testid="demo">
+          <div class="d-head">
+            <span class="logo">Bramblewick Goods</span>
+            <nav aria-label="Sample shop"><ul><li><a href="#demo-main">Shop</a></li><li><a href="#demo-main">Journal</a></li><li><a href="#demo-main">About</a></li><li><a href="#demo-news">Cart (2)</a></li></ul></nav>
+          </div>
+          <div class="promo" id="promo" data-testid="promo">
+            <div class="promo-view"><span class="promo-track" id="promo-track">Free shipping on orders over $40 ✦ New: beeswax pillars ✦ Wick trimming is free for life ✦ Free shipping on orders over $40 ✦ New: beeswax pillars ✦ Wick trimming is free for life ✦&nbsp;</span></div>
+          </div>
+          <div class="d-main" id="demo-main" tabindex="-1">
+            <h2>Hand-poured candles, made slow</h2>
+            <p class="tagline"><span class="frag" data-testid="frag">Hecho a mano en pequeños lotes</span>: made by hand in small batches, in a workshop that smells of cedar.</p>
+            <div class="cards" data-testid="cards"></div>
+            <div class="news" id="demo-news">
+              <h3>Join the letter</h3>
+              <form id="nl-form" novalidate>
+                <div class="nl-label" id="nl-label">Email</div>
+                <input type="email" id="nl-email" value="jo@" class="invalid" data-testid="nl-email" autocomplete="off">
+                <div><button class="sub" type="submit">Subscribe</button></div>
+              </form>
+            </div>
+          </div>
+          <div class="qv-back" id="qv" hidden data-testid="modal">
+            <div class="qv-box" role="dialog" aria-modal="true" aria-labelledby="qv-h" id="qv-box">
+              <div class="harness"><button type="button" id="exit-demo" data-testid="exit-demo">Exit demo</button><span>Test-harness control: always closes this modal.</span></div>
+              <h3 id="qv-h">Quick view: <span id="qv-name"></span></h3>
+              <span class="x" id="qv-close" data-testid="modal-close">×</span>
+              <p id="qv-desc"></p>
+              <p class="links"><a href="#demo-main" data-testid="qv-link">Size guide</a><a href="#demo-main">Care instructions</a></p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="howto">
+        <h3>Things to try</h3>
+        <ol>
+          <li>Tab through the sample. Where did the focus go?</li>
+          <li>Open a quick view with the keyboard, then try Escape and Tab.</li>
+          <li>Fix the issues one at a time and watch the checks change.</li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="audit-h" data-testid="audit">
+      <h2 id="audit-h">Audit: twelve in-page checks</h2>
+      <p class="score"><b id="score" data-testid="score">0/12</b><span id="summary" data-testid="summary" role="status" aria-live="polite"></span></p>
+      <div class="meter" aria-hidden="true"><i id="meter"></i></div>
+      <div class="btnrow">
+        <button class="btn ghost" type="button" id="break-all" data-testid="break-all">Break everything</button>
+        <button class="btn ghost" type="button" id="fix-all" data-testid="fix-all">Fix everything</button>
+        <button class="btn" type="button" id="export" data-testid="export">Export report (.md)</button>
+      </div>
+      <ol class="checks" id="checks" data-testid="checks"></ol>
+      <details class="report"><summary>Preview the Markdown report</summary><pre id="report" data-testid="report"></pre></details>
+      <p class="honest" data-testid="honest">These are twelve checks this page runs in your browser against the sample above. They are not Lighthouse, axe or any official score, and passing them is not a claim of WCAG conformance: a real audit adds screen-reader testing, manual review and many more criteria.</p>
+    </section>
+  </div>
+
+  <section class="cta" aria-labelledby="cta-h" data-testid="cta">
+    <h2 id="cta-h">Want this done on your real site?</h2>
+    <p>An <b>accessibility audit</b> of your pages: the failures that matter most, each tied to its WCAG 2.2 success criterion, with concrete fixes and Playwright checks so they stay fixed. I take audits on at the <b>hourly rate ($65/hr)</b>, scoped to the pages you care about.</p>
+    <a class="btn" href="../index.html#services" data-testid="cta-link">See services and rates</a>
+  </section>
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const demo = $('demo');
+
+  // ---------- the twelve issues, with their success criteria ----------
+  const ISSUES = [
+    { id: 'alt', title: 'Product image has no text alternative', sc: [['1.1.1', 'Non-text Content', 'A']], fix: 'Add alt text that says what the image shows (alt="" only for decoration).' },
+    { id: 'contrast', title: 'Price text has low contrast', sc: [['1.4.3', 'Contrast (Minimum)', 'AA']], fix: 'Darken the price to at least 4.5:1 against its background (3:1 for large text).' },
+    { id: 'label', title: 'Email field has no label', sc: [['4.1.2', 'Name, Role, Value', 'A'], ['3.3.2', 'Labels or Instructions', 'A']], fix: 'Make the visible "Email" text a <label for> the input.' },
+    { id: 'divbutton', title: '"Add to cart" is a clickable div', sc: [['2.1.1', 'Keyboard', 'A'], ['4.1.2', 'Name, Role, Value', 'A']], fix: 'Use a real <button>: focusable, announced as a button, and activated by Enter and Space.' },
+    { id: 'focus', title: 'Focus indicator removed', sc: [['2.4.7', 'Focus Visible', 'AA']], fix: 'Remove outline: none, or replace it with a clearly visible focus style.' },
+    { id: 'heading', title: 'Heading level skipped', sc: [['1.3.1', 'Info and Relationships', 'A']], fix: 'Product names are h3 under the h2, not h4.', note: 'Advisory: skipped levels are a best-practice finding usually filed under 1.3.1, not a hard failure on their own.' },
+    { id: 'skip', title: 'No skip link', sc: [['2.4.1', 'Bypass Blocks', 'A']], fix: 'Add a "Skip to products" link as the first focusable element (landmarks can also meet 2.4.1).' },
+    { id: 'trap', title: 'Keyboard trap in the quick-view modal', sc: [['2.1.2', 'No Keyboard Trap', 'A']], fix: 'Give the modal a real close button and close it on Escape, returning focus to the opener.' },
+    { id: 'coloronly', title: 'Error shown by colour alone', sc: [['1.4.1', 'Use of Color', 'A'], ['3.3.1', 'Error Identification', 'A']], fix: 'Describe the error in text, link it with aria-describedby, and set aria-invalid.' },
+    { id: 'motion', title: 'Autoplaying banner with no pause or reduced-motion support', sc: [['2.2.2', 'Pause, Stop, Hide', 'A']], fix: 'Add a pause button, and stop the animation under prefers-reduced-motion.', note: 'Honouring prefers-reduced-motion is technique C39, which supports 2.3.3 Animation from Interactions (AAA).' },
+    { id: 'target', title: 'Quantity buttons are too small', sc: [['2.5.8', 'Target Size (Minimum)', 'AA']], fix: 'Make each target at least 24 by 24 CSS pixels, or space them so 24 px circles do not overlap.', note: 'New in WCAG 2.2.' },
+    { id: 'lang', title: 'Spanish phrase without a lang attribute', sc: [['3.1.2', 'Language of Parts', 'AA']], fix: 'Mark the phrase lang="es" so screen readers switch pronunciation.' },
+  ];
+  const fixed = Object.fromEntries(ISSUES.map((i) => [i.id, false]));
+
+  // ---------- the sample site ----------
+  const svg = (a, b, c) => 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90"><rect width="120" height="90" fill="${a}"/><rect x="42" y="30" width="36" height="46" rx="5" fill="${b}"/><rect x="40" y="24" width="40" height="9" rx="3" fill="${c}"/><path d="M60 14c4 5 4 8 0 10c-4-2-4-5 0-10z" fill="#f59f00"/></svg>`);
+  const PRODUCTS = [
+    { name: 'Amber Jar', price: '$24.00', img: svg('#f3e7d3', '#d9822b', '#7a4a21'), alt: 'Amber glass jar candle with a wooden lid', desc: '8 oz soy wax, cedar and orange peel. Burns about 45 hours.' },
+    { name: 'Beeswax Pillar', price: '$18.00', img: svg('#efe6d8', '#e8b64c', '#b07f1a'), alt: 'Tall golden beeswax pillar candle', desc: 'Pure beeswax, unscented, hand-dipped wick. Burns about 30 hours.' },
+    { name: 'Cedar Tin', price: '$12.00', img: svg('#ece4d9', '#9aa39b', '#5f6b62'), alt: 'Small silver travel tin candle', desc: '4 oz travel tin, cedar and smoke. Burns about 20 hours.' },
+  ];
+  const cards = demo.querySelector('.cards');
+  PRODUCTS.forEach((p, i) => {
+    const c = document.createElement('article'); c.className = 'card';
+    c.innerHTML = `<img src="${p.img}" width="120" height="90"${i === 0 ? '' : ` alt="${p.alt}"`} data-i="${i}">
+      <h4 class="pname">${p.name}</h4>
+      <p class="price" data-testid="price">${p.price}</p>
+      <div class="row">
+        <div class="add" data-testid="add" data-i="${i}">Add to cart</div>
+        <button class="qv" type="button" data-testid="quick-view" data-i="${i}">Quick view</button>
+      </div>
+      <div class="qty"><span>Qty <b class="n">1</b></span><button type="button" aria-label="Decrease quantity of ${p.name}" data-d="-1" data-testid="qty-minus">−</button><button type="button" aria-label="Increase quantity of ${p.name}" data-d="1" data-testid="qty-plus">+</button></div>`;
+    cards.appendChild(c);
+  });
+  let cart = 2;
+  demo.addEventListener('click', (e) => {
+    const add = e.target.closest('.add');
+    if (add) { cart++; demo.querySelector('nav a[href="#demo-news"]').textContent = `Cart (${cart})`; return; }
+    const q = e.target.closest('.qty button');
+    if (q) { const n = q.parentElement.querySelector('.n'); n.textContent = String(Math.max(1, Number(n.textContent) + Number(q.dataset.d))); return; }
+    const v = e.target.closest('.qv');
+    if (v) { openModal(Number(v.dataset.i), v); return; }
+    if (e.target.closest('#qv-close')) closeModal();
+    if (e.target.closest('#exit-demo')) closeModal();
+  });
+  $('nl-form').addEventListener('submit', (e) => { e.preventDefault(); const i = $('nl-email'); i.classList.toggle('invalid', !i.checkValidity()); if (fixed.coloronly) syncError(); });
+
+  // ---------- the modal ----------
+  const qv = $('qv'), box = $('qv-box');
+  let opener = null;
+  const focusables = () => [...box.querySelectorAll('a[href], button, [tabindex]:not([tabindex="-1"])')].filter((el) => el.getClientRects().length);
+  function openModal(i, from, silent) {
+    const p = PRODUCTS[i || 0];
+    $('qv-name').textContent = p.name; $('qv-desc').textContent = p.desc;
+    qv.hidden = false;
+    if (!silent) { opener = from || null; box.querySelector('.links a').focus(); }
+  }
+  function closeModal(silent) {
+    qv.hidden = true;
+    if (!silent && opener) { opener.focus(); opener = null; }
+  }
+  box.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { if (fixed.trap) { e.preventDefault(); closeModal(); } return; } // broken: Escape does nothing
+    if (e.key === 'Tab') { // focus cycles inside the modal (correct for a modal, a trap only when there is no way out)
+      const f = focusables(); if (!f.length) return;
+      const i = f.indexOf(document.activeElement);
+      const next = e.shiftKey ? (i <= 0 ? f.length - 1 : i - 1) : (i === f.length - 1 ? 0 : i + 1);
+      e.preventDefault(); f[next].focus();
+    }
+  });
+
+  // ---------- applying and removing each fix ----------
+  function retag(el, tag, attrs) {
+    const n = document.createElement(tag);
+    for (const a of el.attributes) n.setAttribute(a.name, a.value);
+    for (const [k, v] of Object.entries(attrs || {})) { if (v === null) n.removeAttribute(k); else n.setAttribute(k, v); }
+    while (el.firstChild) n.appendChild(el.firstChild);
+    el.replaceWith(n); return n;
+  }
+  function syncError() {
+    const i = $('nl-email');
+    let msg = $('nl-err');
+    const invalid = !i.checkValidity();
+    if (fixed.coloronly && invalid) {
+      if (!msg) { msg = document.createElement('p'); msg.id = 'nl-err'; msg.className = 'nl-err'; msg.setAttribute('data-testid', 'nl-err'); i.insertAdjacentElement('afterend', msg); }
+      msg.textContent = '⚠ Enter a full email address, like name@example.com.';
+      i.setAttribute('aria-invalid', 'true'); i.setAttribute('aria-describedby', 'nl-err');
+    } else {
+      if (msg) msg.remove();
+      i.removeAttribute('aria-invalid'); i.removeAttribute('aria-describedby');
+    }
+  }
+  const APPLY = {
+    alt(on) { const img = demo.querySelector('img[data-i="0"]'); if (on) img.setAttribute('alt', PRODUCTS[0].alt); else img.removeAttribute('alt'); },
+    contrast(on) { demo.classList.toggle('fx-contrast', on); },
+    label(on) { const l = $('nl-label'); retag(l, on ? 'label' : 'div', on ? { for: 'nl-email' } : { for: null }); },
+    divbutton(on) { for (const el of demo.querySelectorAll('.add')) retag(el, on ? 'button' : 'div', on ? { type: 'button' } : { type: null }); },
+    focus(on) { demo.classList.toggle('fx-focus', on); },
+    heading(on) { for (const el of demo.querySelectorAll('.pname')) retag(el, on ? 'h3' : 'h4'); },
+    skip(on) {
+      const s = demo.querySelector('.skip');
+      if (on && !s) { const a = document.createElement('a'); a.className = 'skip'; a.href = '#demo-main'; a.textContent = 'Skip to products'; a.setAttribute('data-testid', 'skip-link'); a.addEventListener('click', (e) => { e.preventDefault(); $('demo-main').focus(); }); demo.prepend(a); }
+      if (!on && s) s.remove();
+    },
+    trap(on) {
+      const x = $('qv-close');
+      const n = retag(x, on ? 'button' : 'span', on ? { type: 'button', 'aria-label': 'Close quick view' } : { type: null, 'aria-label': null });
+      if (!qv.hidden && document.activeElement === document.body) n.focus();
+    },
+    coloronly(on) { syncError(); },
+    motion(on) {
+      demo.classList.toggle('fx-motion', on);
+      const promo = $('promo'); let b = promo.querySelector('.promo-pause');
+      if (on && !b) {
+        b = document.createElement('button'); b.type = 'button'; b.className = 'promo-pause'; b.setAttribute('aria-controls', 'promo-track'); b.setAttribute('aria-pressed', 'false'); b.setAttribute('data-testid', 'promo-pause'); b.textContent = 'Pause';
+        b.addEventListener('click', () => { const p = promo.classList.toggle('paused'); b.setAttribute('aria-pressed', String(p)); b.textContent = p ? 'Play' : 'Pause'; });
+        promo.appendChild(b);
+      }
+      if (!on && b) { b.remove(); promo.classList.remove('paused'); }
+    },
+    target(on) { demo.classList.toggle('fx-target', on); },
+    lang(on) { const f = demo.querySelector('.frag'); if (on) f.setAttribute('lang', 'es'); else f.removeAttribute('lang'); },
+  };
+  function setFix(id, on) {
+    fixed[id] = !!on;
+    // fixing coloronly after label (or vice versa) must not lose the other: both only touch their own attributes
+    APPLY[id](fixed[id]);
+    const t = document.querySelector(`[data-fix="${id}"]`); if (t) t.checked = fixed[id];
+    audit();
+  }
+
+  // ---------- the checks ----------
+  const lum = (c) => { const [r, g, b] = c.map((v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+  const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+  const rgb = (s) => { const m = s.match(/rgba?\(([^)]+)\)/); if (!m) return null; const p = m[1].split(/[ ,/]+/).filter(Boolean).map(Number); return { c: p.slice(0, 3), a: p.length > 3 ? p[3] : 1 }; };
+  const rendered = (el) => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
+  function bgOf(el) {
+    for (let n = el; n && n !== document.documentElement; n = n.parentElement) { const c = rgb(getComputedStyle(n).backgroundColor); if (c && c.a > 0.99) return c.c; }
+    return [255, 255, 255];
+  }
+  const accName = (el) => {
+    if (el.getAttribute('aria-label')) return el.getAttribute('aria-label').trim();
+    if (el.getAttribute('aria-labelledby')) return el.getAttribute('aria-labelledby').split(/\s+/).map((id) => ($(id) ? $(id).textContent : '')).join(' ').trim();
+    if (el.id) { const l = demo.querySelector(`label[for="${el.id}"]`); if (l) return l.textContent.trim(); }
+    const w = el.closest('label'); if (w) return w.textContent.trim();
+    return '';
+  };
+  const TABBABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type=hidden]), select, textarea, [tabindex]';
+  const tabbable = () => [...demo.querySelectorAll(TABBABLE)].filter((el) => el.tabIndex >= 0 && rendered(el) && !el.closest('[hidden]'));
+  function cssRules() { const out = []; const walk = (rules, media) => { for (const r of rules) { if (r.cssRules && r.media) walk(r.cssRules, r.media.mediaText); else if (r.selectorText) out.push({ r, media }); } }; for (const s of document.styleSheets) { try { walk(s.cssRules, ''); } catch (e) {} } return out; }
+  const SPANISH = new Set('a al con de del el en es hecho la las los lotes mano muy para pequeños pequeñas por que se su sus un una y hecha velas cera'.split(' '));
+
+  const CHECKS = {
+    alt() {
+      const bad = [...demo.querySelectorAll('img')].filter((i) => !i.hasAttribute('alt') && rendered(i));
+      return bad.length ? { pass: false, ev: `${bad.length} image${bad.length > 1 ? 's' : ''} without an alt attribute (first: the ${PRODUCTS[bad[0].dataset.i].name} photo).` } : { pass: true, ev: 'Every image has an alt attribute.' };
+    },
+    contrast() {
+      const fails = [];
+      let worst = null;
+      for (const el of demo.querySelectorAll('*')) {
+        if (!rendered(el) || el.closest('[hidden]')) continue;
+        const own = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
+        if (!own) continue;
+        const cs = getComputedStyle(el), fg = rgb(cs.color).c, bg = bgOf(el);
+        const size = parseFloat(cs.fontSize), bold = Number(cs.fontWeight) >= 700;
+        const large = size >= 24 || (size >= 18.66 && bold);
+        const r = ratio(fg, bg), need = large ? 3 : 4.5;
+        if (r < need) { fails.push({ el, r, need }); if (!worst || r < worst.r) worst = { el, r, need }; }
+      }
+      if (!fails.length) return { pass: true, ev: 'All text in the sample meets its minimum contrast (4.5:1, or 3:1 for large text).' };
+      return { pass: false, ev: `${fails.length} text element${fails.length > 1 ? 's' : ''} below the minimum; the lowest is "${worst.el.textContent.trim().slice(0, 24)}" at ${worst.r.toFixed(2)}:1 (needs ${worst.need}:1).`, ratio: Number(worst.r.toFixed(2)) };
+    },
+    label() {
+      const bad = [...demo.querySelectorAll('input, select, textarea')].filter((i) => i.type !== 'hidden' && rendered(i) && !accName(i));
+      return bad.length ? { pass: false, ev: `${bad.length} form field${bad.length > 1 ? 's' : ''} with no accessible name: the "Email" text next to it is not a <label>.` } : { pass: true, ev: 'Every form field has a label.' };
+    },
+    divbutton() {
+      const native = 'a[href], button, input, select, textarea, label, summary';
+      const bad = [...demo.querySelectorAll('*')].filter((el) => rendered(el) && !el.closest('[hidden]') && getComputedStyle(el).cursor === 'pointer' && !el.matches(native) && !el.parentElement.closest(native + ', [role=button]') && !(el.getAttribute('role') && el.tabIndex >= 0));
+      return bad.length ? { pass: false, ev: `${bad.length} element${bad.length > 1 ? 's' : ''} look clickable (pointer cursor) but are not buttons or links and cannot be reached with Tab: "${bad[0].textContent.trim()}".` } : { pass: true, ev: 'Everything that looks clickable is a native button or link.' };
+    },
+    focus() {
+      const bad = [];
+      for (const { r } of cssRules()) {
+        if (!/:focus/.test(r.selectorText)) continue;
+        const style = r.style;
+        const kills = style.outlineStyle === 'none' || style.outline === 'none' || style.outlineWidth === '0px';
+        const replaces = style.boxShadow || style.borderColor || style.backgroundColor || (style.outlineStyle && style.outlineStyle !== 'none');
+        if (!kills || replaces) continue;
+        for (const part of r.selectorText.split(',')) {
+          if (!/:focus/.test(part)) continue;
+          const base = part.replace(/:focus(-visible|-within)?/g, '').trim() || '*';
+          try { const hit = tabbable().filter((el) => el.matches(base)); if (hit.length) bad.push({ sel: part.trim(), n: hit.length }); } catch (e) {}
+        }
+      }
+      if (!bad.length) return { pass: true, ev: 'No rule removes the focus outline without replacing it.' };
+      const n = new Set(); for (const el of tabbable()) for (const b of bad) if (el.matches(b.sel.replace(/:focus(-visible|-within)?/g, ''))) n.add(el);
+      return { pass: false, ev: `"outline: none" on :focus with no replacement hides focus on ${n.size} of ${tabbable().length} focusable elements (e.g. ${bad[0].sel}).` };
+    },
+    heading() {
+      const hs = [...demo.querySelectorAll('h1, h2, h3, h4, h5, h6')].filter((h) => rendered(h) && !h.closest('[hidden]'));
+      for (let i = 1; i < hs.length; i++) {
+        const a = Number(hs[i - 1].tagName[1]), b = Number(hs[i].tagName[1]);
+        if (b > a + 1) return { pass: false, ev: `Heading levels jump from h${a} to h${b} ("${hs[i - 1].textContent.trim()}" → "${hs[i].textContent.trim()}").` };
+      }
+      return { pass: true, ev: `Headings step down one level at a time (${hs.map((h) => h.tagName.toLowerCase()).filter((t, i, a) => a.indexOf(t) === i).join(', ')}).` };
+    },
+    skip() {
+      const first = tabbable()[0];
+      const ok = first && first.matches('a[href^="#"]') && /skip/i.test(first.textContent) && demo.querySelector(first.getAttribute('href'));
+      return ok ? { pass: true, ev: `The first Tab stop is "${first.textContent.trim()}", which jumps past the header and banner.` } : { pass: false, ev: `The first Tab stop is "${first ? first.textContent.trim() : 'nothing'}", so keyboard users tab through the whole header on every page.` };
+    },
+    trap() {
+      // A behaviour probe: open the modal without moving focus, send it an Escape, and look for a keyboard-operable close button.
+      const wasOpen = !qv.hidden;
+      if (!wasOpen) openModal(0, null, true);
+      box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      const escCloses = qv.hidden;
+      if (!wasOpen && !escCloses) closeModal(true);
+      if (wasOpen && escCloses) openModal(0, null, true);
+      const close = [...box.querySelectorAll('button, [role=button]')].find((b) => !b.closest('.harness') && b.tabIndex >= 0 && accName(b) + b.textContent);
+      if (escCloses && close) return { pass: true, ev: 'The modal closes on Escape and has a focusable Close button.' };
+      return { pass: false, ev: `Tab cycles inside the modal, Escape ${escCloses ? 'works' : 'does nothing'}, and ${close ? 'there is a close button' : 'its × is a span that the keyboard cannot reach'}. Only the demo's Exit button gets you out.` };
+    },
+    coloronly() {
+      const bad = [...demo.querySelectorAll('input, select, textarea')].filter((i) => rendered(i) && !i.checkValidity()).filter((i) => {
+        const desc = (i.getAttribute('aria-describedby') || '').split(/\s+/).map((id) => $(id)).filter((d) => d && rendered(d) && d.textContent.trim());
+        return i.getAttribute('aria-invalid') !== 'true' || !desc.length;
+      });
+      return bad.length ? { pass: false, ev: `${bad.length} invalid field${bad.length > 1 ? 's' : ''} marked only by a red border: no error text, no aria-invalid.` } : { pass: true, ev: 'Invalid fields have an error message in text, linked with aria-describedby, and aria-invalid.' };
+    },
+    motion() {
+      const anims = demo.getAnimations({ subtree: true }).filter((a) => { const t = a.effect && a.effect.getComputedTiming(); return t && (t.iterations === Infinity || t.activeDuration > 5000); });
+      if (!anims.length) return { pass: true, ev: 'No long-running animation is playing (reduced motion is respected).' };
+      const rules = cssRules().filter((x) => /prefers-reduced-motion/.test(x.media));
+      const bad = anims.filter((a) => {
+        const el = a.effect.target;
+        const pause = [...demo.querySelectorAll('button[aria-controls]')].some((b) => b.getAttribute('aria-controls').split(/\s+/).some((id) => $(id) && $(id).contains(el)));
+        const rm = rules.some((x) => { try { return el.matches(x.r.selectorText); } catch (e) { return false; } });
+        a._why = !pause && !rm ? 'no pause control and no reduced-motion rule' : !pause ? 'no pause control' : 'no reduced-motion rule';
+        return !(pause && rm);
+      });
+      return bad.length ? { pass: false, ev: `The promo banner scrolls forever on its own: ${bad[0]._why}.` } : { pass: true, ev: 'The banner can be paused, and it stops under prefers-reduced-motion.' };
+    },
+    target() {
+      const els = tabbable().filter((el) => !el.matches('.skip') && !el.closest('p a, li p a'));
+      const rects = els.map((el) => ({ el, r: el.getBoundingClientRect() }));
+      const small = rects.filter((x) => x.r.width < 24 || x.r.height < 24);
+      const center = (r) => [r.left + r.width / 2, r.top + r.height / 2];
+      const distToRect = ([x, y], r) => Math.hypot(Math.max(r.left - x, 0, x - r.right), Math.max(r.top - y, 0, y - r.bottom));
+      const bad = small.filter((a) => rects.some((b) => {
+        if (b === a) return false;
+        const ca = center(a.r);
+        if (small.includes(b)) return Math.hypot(ca[0] - center(b.r)[0], ca[1] - center(b.r)[1]) < 24;
+        return distToRect(ca, b.r) < 12;
+      }));
+      if (!bad.length) return { pass: true, ev: small.length ? 'Small targets are spaced so their 24 px circles do not overlap.' : 'Every target is at least 24 × 24 CSS px.' };
+      const r = bad[0].r;
+      return { pass: false, ev: `${bad.length} targets are ${Math.round(r.width)} × ${Math.round(r.height)} px and too close together; 2.5.8 needs 24 × 24 px or enough spacing.`, size: [r.width, r.height] };
+    },
+    lang() {
+      // A small heuristic: text that is mostly common Spanish words, inside an element whose language is English.
+      for (const el of demo.querySelectorAll('*')) {
+        const text = [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join(' ');
+        const words = text.toLowerCase().match(/\p{L}+/gu) || [];
+        if (words.length < 3) continue;
+        const es = words.filter((w) => SPANISH.has(w)).length;
+        if (es / words.length < 0.6) continue;
+        const lang = (el.closest('[lang]') || document.documentElement).getAttribute('lang') || '';
+        if (!/^es/i.test(lang)) return { pass: false, ev: `"${text.trim()}" is Spanish, but it inherits lang="${lang}", so a screen reader reads it with English pronunciation.` };
+      }
+      return { pass: true, ev: 'Foreign-language passages carry their own lang attribute.' };
+    },
+  };
+
+  // ---------- rendering ----------
+  const list = $('checks');
+  ISSUES.forEach((iss, n) => {
+    const li = document.createElement('li'); li.className = 'check'; li.dataset.id = iss.id; li.setAttribute('data-testid', 'check');
+    li.innerHTML = `<h3><span class="st" data-testid="status"></span>${n + 1}. ${iss.title}</h3>
+      <label class="toggle"><input type="checkbox" role="switch" data-fix="${iss.id}" data-testid="fix-${iss.id}" aria-label="Fix: ${iss.title}"> Fix</label>
+      <ul class="sc" aria-label="WCAG 2.2 success criteria">${iss.sc.map(([num, name, lvl]) => `<li data-testid="sc">${num} ${name} (${lvl})</li>`).join('')}</ul>
+      <p class="ev" data-testid="evidence"></p>${iss.note ? `<p class="note">${iss.note}</p>` : ''}`;
+    list.appendChild(li);
+    li.querySelector('input').addEventListener('change', (e) => setFix(iss.id, e.target.checked));
+  });
+
+  let results = {};
+  function audit() {
+    results = {};
+    for (const iss of ISSUES) results[iss.id] = CHECKS[iss.id]();
+    let pass = 0;
+    for (const iss of ISSUES) {
+      const r = results[iss.id], li = list.querySelector(`[data-id="${iss.id}"]`);
+      li.dataset.status = r.pass ? 'pass' : 'fail';
+      li.querySelector('.st').textContent = r.pass ? 'Pass' : 'Fail';
+      li.querySelector('.ev').textContent = r.ev;
+      if (r.pass) pass++;
+    }
+    $('score').textContent = `${pass}/12`;
+    $('summary').textContent = `${pass} of 12 in-page checks pass, ${12 - pass} fail.`;
+    $('meter').style.width = (pass / 12 * 100) + '%';
+    $('report').textContent = report();
+    return results;
+  }
+
+  function report() {
+    const pass = ISSUES.filter((i) => results[i.id].pass).length;
+    const sc = (i) => i.sc.map(([n, name]) => `${n} ${name}`).join('; ');
+    const lv = (i) => [...new Set(i.sc.map((s) => s[2]))].join(', ');
+    const out = ['# Accessibility audit: Bramblewick Goods (fictional sample site)', '',
+      'Produced by 12 checks that run in the browser against the sample page. This is not Lighthouse, axe or an official score, and it is not a WCAG conformance claim.', '',
+      `**Result: ${pass} of 12 checks pass, ${12 - pass} fail.**`, '',
+      '| # | Issue | WCAG 2.2 success criterion | Level | Status |', '| --- | --- | --- | --- | --- |'];
+    ISSUES.forEach((i, n) => out.push(`| ${n + 1} | ${i.title} | ${sc(i)} | ${lv(i)} | ${results[i.id].pass ? 'Pass' : 'Fail'} |`));
+    out.push('', '## Findings');
+    ISSUES.forEach((i, n) => {
+      const r = results[i.id];
+      out.push('', `### ${n + 1}. ${i.title}: ${r.pass ? 'Pass' : 'Fail'}`, '');
+      for (const [num, name, lvl] of i.sc) out.push(`- Success criterion: ${num} ${name} (Level ${lvl})`);
+      out.push(`- Evidence: ${r.ev}`);
+      if (!r.pass) out.push(`- Fix: ${i.fix}`);
+      if (i.note) out.push(`- Note: ${i.note}`);
+    });
+    return out.join('\n') + '\n';
+  }
+
+  $('fix-all').addEventListener('click', () => { for (const i of ISSUES) { fixed[i.id] = true; APPLY[i.id](true); document.querySelector(`[data-fix="${i.id}"]`).checked = true; } audit(); });
+  $('break-all').addEventListener('click', () => { closeModal(true); for (const i of ISSUES) { fixed[i.id] = false; APPLY[i.id](false); document.querySelector(`[data-fix="${i.id}"]`).checked = false; } audit(); });
+  $('export').addEventListener('click', () => {
+    const url = URL.createObjectURL(new Blob([report()], { type: 'text/markdown' }));
+    const a = document.createElement('a'); a.href = url; a.download = 'a11y-audit-bramblewick.md'; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+
+  audit();
+  window.__a11y = { audit: () => audit(), fix: (id, on) => setFix(id, on), get fixed() { return { ...fixed }; }, report, issues: ISSUES.map((i) => ({ id: i.id, title: i.title, sc: i.sc })) };
+})();
+</script>
+</body>
+</html>

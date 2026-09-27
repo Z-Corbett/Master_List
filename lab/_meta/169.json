@@ -1,0 +1,37 @@
+{
+  "id": "169",
+  "slug": "169-embroidery-hoop",
+  "file": "lab/169-embroidery-hoop.html",
+  "title": "Embroidery Hoop — preview a design in the hoop",
+  "category": "Tools",
+  "tags": ["svg", "canvas", "ciede2000", "print-css", "file-upload", "embroidery"],
+  "description": "Put a design in a hoop before the first stitch. Choose one of three bundled line designs or your own picture, then a 4, 5, 6, 7, 8 or 10 in round hoop or a 5 × 7 or 6 × 9 in oval, and a fabric colour. The design is scaled so its corners sit on a chosen share of the hoop's inner diameter. Each colour is matched to the nearest of 20 generic, unnumbered thread colours by CIEDE2000, and threads that would vanish into the fabric are flagged. Every shape or colour region gets a suggested stitch with the reason: backstitch for lines, satin up to ⅜ in across, long-and-short beyond. The transfer pattern prints at true size in CSS inches, mirrored if you want an iron-on, beside a 1 in calibration square. Pictures are processed in the tab and never uploaded.",
+  "prompt": "Make an embroidery hoop previewer. I can upload a picture or use a few bundled line designs made in the page; uploads stay on the device and the page must say so next to the file input. Preview it inside round or oval hoops of real common sizes (4, 5, 6, 7, 8 and 10 in) on a fabric colour, mapping colours to a small generic thread palette with no brand numbers. Suggest a stitch per region (backstitch for outlines, satin for small areas, long-and-short for large ones) and explain why. Add a transfer-pattern export with a mirror option for iron-on, printed at true size through print CSS with a 1 inch calibration square. The spec should check the scaling to the hoop's inner diameter, the true-size print in CSS inches and the calibration square, the mirror transform, and the palette mapping by nearest ΔE.",
+  "qa": {
+    "methodology": [
+      "Scaling oracle: for all three designs, five hoops (round and oval) and two fill levels, the scale must equal fill ÷ √((w/A)² + (h/B)²), which puts the design box's corners exactly on fill × the inner ellipse. For a 6 in round hoop at 75% that is a 4.5 in diagonal, and the drawn group must sit inside the fabric ellipse at the same ratio on screen.",
+      "True size: under emulated print media the pattern SVG measures width × 96 CSS px per inch to within a pixel, its width and height attributes are in inches, and the calibration square measures 96 × 96 px. The controls, preview and tables are hidden.",
+      "Mirror: with the transform matrix(-1 0 0 1 w 0), an asymmetric marker shape's gap to the left edge must become its gap to the right, with the same top and width, for every design.",
+      "Independent ΔE: the spec has its own sRGB → Lab and CIEDE2000, checked against three Sharma et al. (2005) pairs. The page's nearest thread must match the spec's argmin for 60 seeded random colours and for every bundled design colour, and the low-contrast flags must match ΔE00 < 12 on four fabrics.",
+      "Upload flow: a 120 × 80 synthetic PNG in exact palette colours must give three regions with known areas and perimeters, 'across' = 2A/P × scale, the stitch the thresholds predict, a 436-edge transfer outline and zero network requests."
+    ],
+    "risks": [
+      "Hoop sizes are nominal; real wooden hoops differ by a few millimetres, and oval sizes vary between makers.",
+      "Stitch suggestions are a width heuristic (satin up to about ⅜ in), not a rule; texture, thread count and taste change the choice.",
+      "Photos are reduced to 120 px and eight threads, so busy photos give many small regions; only the 15 largest are listed.",
+      "True-size printing depends on the print dialog being at 100%, which the page can't control; the calibration square is there to catch it."
+    ],
+    "playwright": "page.emulateMedia({ media: 'print' }) plus boundingBox() made the true-size promise testable: CSS inches resolve to 96 px on both the desktop and the Pixel 7 project, whatever the device pixel ratio. setInputFiles with a PNG drawn in the page gave exact region areas to assert against. getBoundingClientRect inside page.evaluate measured the mirrored marker, which was clearer than parsing transforms alone. Honest note: every test passed on its first run, so the spec hasn't caught a bug yet; it is a guard for later changes. locator.fill on a range input and the 1 px visually-hidden radio buttons (checked with force) needed a little care.",
+    "coverage": [
+      "Hoop list and privacy note",
+      "Scale for 3 designs × 5 hoops × 2 fills; on-screen fit",
+      "Nearest thread vs independent CIEDE2000; design thread lists",
+      "Stitch suggestions at three hoop sizes",
+      "True-size print, calibration square, print-only sheet",
+      "Mirror transform for three designs",
+      "Upload regions, sizes, stitches, outline, no requests",
+      "Non-image refusal; fabric colour, keyboard radios and low-contrast flags"
+    ]
+  },
+  "a11y": "Designs are toggle buttons with aria-pressed; the hoop, fill slider (with a live output), fabric radio group, mirror checkbox and file input are all labelled native controls, and the privacy note is tied to the file input with aria-describedby. The hoop preview and the transfer pattern are SVGs with aria-labels giving the design, hoop, fabric and size. Status messages are in a live region, and the stitch suggestions are a real table."
+}

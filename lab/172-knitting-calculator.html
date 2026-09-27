@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Knitting Calculator — gauge, stitches and yardage</title>
+<meta name="description" content="A knitter's calculator: gauge from a swatch, cast-on counts rounded to a pattern repeat, exact 'increase or decrease N evenly' instructions, rough yardage by project and Craft Yarn Council weight, and converting a pattern to your gauge, in inches or centimetres.">
+<style>
+  :root {
+    --oat: #f4ede1;
+    --oat-2: #e8dcc8;
+    --plum: #5b2a4e;
+    --plum-2: #7e3d6c;
+    --rose: #d9869b;
+    --moss: #56704a;
+    --ink: #2d2226;
+    --ink-2: #6b5a60;
+    --card: #fffaf3;
+    --sans: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+    --round: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { color: var(--ink); font: 15px/1.55 var(--sans); background: var(--oat); overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--rose); outline-offset: 2px; }
+  button, input, select { font: inherit; color: inherit; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; background: var(--card); color: var(--plum); border: 2px solid var(--plum); text-decoration: none; font: 700 13px/1 var(--sans); padding: 7px 12px; border-radius: 8px; }
+  a.back:hover { background: var(--plum); color: #fff; }
+  .knit { height: 64px; background-color: var(--plum);
+    background-image: linear-gradient(135deg, transparent 0 40%, rgba(255,255,255,.12) 40% 50%, transparent 50%), linear-gradient(225deg, transparent 0 40%, rgba(0,0,0,.18) 40% 50%, transparent 50%);
+    background-size: 16px 20px; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px 40px; }
+  header.top { background: var(--card); border-radius: 0 0 18px 18px; padding: 22px 22px 18px; box-shadow: 0 8px 22px rgba(91,42,78,.1); margin-bottom: 22px; }
+  header.top h1 { margin: 0; font: 700 clamp(30px, 6.4vw, 56px)/1.05 var(--round); color: var(--plum); overflow-wrap: anywhere; }
+  header.top p { margin: 8px 0 0; color: var(--ink-2); max-width: 68ch; }
+  .units { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 14px; }
+  .seg { display: inline-flex; background: var(--oat-2); border-radius: 999px; padding: 3px; }
+  .seg button { border: 0; background: transparent; padding: 6px 14px; border-radius: 999px; cursor: pointer; font-weight: 700; font-size: 13px; }
+  .seg button[aria-pressed=true] { background: var(--plum); color: #fff; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+  .grid > * { min-width: 0; }
+  .card { background: var(--card); border-radius: 16px; padding: 16px 18px; border: 1px solid var(--oat-2); }
+  .card.wide { grid-column: 1 / -1; }
+  .card h2 { margin: 0 0 4px; font: 700 20px/1.25 var(--round); color: var(--plum); }
+  .card .sub { margin: 0 0 10px; color: var(--ink-2); font-size: 13.5px; }
+  .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px 12px; }
+  .fields > * { min-width: 0; }
+  label.f { display: block; font-size: 12.5px; font-weight: 700; color: var(--ink-2); margin-bottom: 3px; }
+  input[type=number], select { width: 100%; min-width: 0; padding: 7px 9px; border: 1.5px solid #d6c7b0; border-radius: 9px; background: #fff; }
+  .out { margin-top: 12px; background: #fff; border-radius: 12px; border: 1.5px dashed var(--rose); padding: 10px 12px; overflow-wrap: anywhere; }
+  .out .big { font: 700 22px/1.25 var(--round); color: var(--plum); }
+  .out .instr { font: 600 15px/1.5 var(--mono); color: var(--ink); overflow-wrap: anywhere; }
+  .muted { color: var(--ink-2); font-size: 13px; }
+  .err { color: #a3302a; font-weight: 600; }
+  .btn { border: 0; background: var(--plum); color: #fff; font-weight: 700; padding: 7px 14px; border-radius: 9px; cursor: pointer; margin-top: 8px; }
+  .btn:hover { background: var(--plum-2); }
+  .swatch { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--oat-2); }
+  .tablewrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--oat-2); }
+  th { font-size: 12px; color: var(--ink-2); }
+  tr.on td { background: #f8e8ee; font-weight: 600; }
+  .row-vis { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 10px; }
+  .row-vis span { width: 8px; height: 12px; border-radius: 4px 4px 2px 2px; background: var(--oat-2); }
+  .row-vis span.inc { background: var(--moss); }
+  .row-vis span.dec { background: var(--rose); }
+  .hire { margin-top: 20px; background: var(--plum); color: #fff; border-radius: 16px; padding: 16px 18px; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; justify-content: space-between; }
+  .hire p { margin: 0; max-width: 66ch; min-width: 0; }
+  .hire a { background: var(--rose); color: var(--ink); padding: 8px 16px; border-radius: 9px; font-weight: 700; text-decoration: none; }
+  footer { text-align: center; color: var(--ink-2); font-size: 12.5px; margin-top: 16px; }
+  @media (max-width: 760px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="knit" aria-hidden="true"></div>
+<div class="wrap">
+  <header class="top">
+    <h1>Knitting Calculator</h1>
+    <p>Gauge from your swatch, a cast-on that fits the pattern repeat, a written "increase evenly" line that really adds up, rough yardage, and a pattern resized to your gauge.</p>
+    <div class="units">
+      <span class="muted" id="units-label">Units</span>
+      <div class="seg" role="group" aria-labelledby="units-label">
+        <button type="button" data-unit="imperial" aria-pressed="true" data-testid="unit-imperial">Inches &amp; yards</button>
+        <button type="button" data-unit="metric" aria-pressed="false" data-testid="unit-metric">Centimetres &amp; metres</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <section class="card" aria-labelledby="h-gauge">
+      <h2 id="h-gauge">1 · Gauge</h2>
+      <p class="sub">In stockinette (or the pattern's stitch), after blocking.</p>
+      <div class="fields">
+        <div><label class="f" for="g-sts">Stitches per <span class="gl">4 in</span></label><input id="g-sts" type="number" min="1" max="80" step="0.1" data-testid="gauge-sts"></div>
+        <div><label class="f" for="g-rows">Rows per <span class="gl">4 in</span></label><input id="g-rows" type="number" min="1" max="120" step="0.1" data-testid="gauge-rows"></div>
+      </div>
+      <div class="out" aria-live="polite" data-testid="gauge-out"></div>
+      <div class="swatch">
+        <p class="muted" style="margin:0 0 6px">Or measure a swatch: count stitches and rows across part of it.</p>
+        <div class="fields">
+          <div><label class="f" for="sw-sts">Stitches counted</label><input id="sw-sts" type="number" min="1" step="1" value="17" data-testid="sw-sts"></div>
+          <div><label class="f" for="sw-w">over width (<span class="ul">in</span>)</label><input id="sw-w" type="number" min="0.1" step="0.1" value="3.5" data-testid="sw-w"></div>
+          <div><label class="f" for="sw-rows">Rows counted</label><input id="sw-rows" type="number" min="1" step="1" value="22" data-testid="sw-rows"></div>
+          <div><label class="f" for="sw-h">over height (<span class="ul">in</span>)</label><input id="sw-h" type="number" min="0.1" step="0.1" value="3" data-testid="sw-h"></div>
+        </div>
+        <button type="button" class="btn" id="use-swatch" data-testid="use-swatch">Use swatch gauge</button>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="h-cast">
+      <h2 id="h-cast">2 · Cast on</h2>
+      <p class="sub">For a target width, rounded to the nearest count that fits the stitch pattern.</p>
+      <div class="fields">
+        <div><label class="f" for="c-w">Target width (<span class="ul">in</span>)</label><input id="c-w" type="number" min="0.5" step="0.25" data-testid="co-width"></div>
+        <div><label class="f" for="c-m">Multiple of</label><input id="c-m" type="number" min="1" step="1" value="4" data-testid="co-mult"></div>
+        <div><label class="f" for="c-e">plus</label><input id="c-e" type="number" min="0" step="1" value="2" data-testid="co-plus"></div>
+      </div>
+      <div class="out" aria-live="polite" data-testid="co-out"></div>
+    </section>
+
+    <section class="card wide" aria-labelledby="h-even">
+      <h2 id="h-even">3 · Increase or decrease evenly</h2>
+      <p class="sub">The classic "increase 8 sts evenly across the row", written out stitch by stitch.</p>
+      <div class="fields">
+        <div><label class="f" for="e-k">Stitches now</label><input id="e-k" type="number" min="2" max="2000" step="1" value="80" data-testid="ev-k"></div>
+        <div><label class="f" for="e-type">Shaping</label><select id="e-type" data-testid="ev-type"><option value="inc">Increase (M1)</option><option value="dec">Decrease (k2tog)</option></select></div>
+        <div><label class="f" for="e-n">How many</label><input id="e-n" type="number" min="0" max="1000" step="1" value="8" data-testid="ev-n"></div>
+        <div><label class="f" for="e-mode">Worked</label><select id="e-mode" data-testid="ev-mode"><option value="flat">Flat (a row)</option><option value="round">In the round</option></select></div>
+      </div>
+      <div class="out" aria-live="polite">
+        <div class="instr" data-testid="ev-instr"></div>
+        <div class="muted" data-testid="ev-summary"></div>
+        <div class="row-vis" data-testid="ev-vis" aria-hidden="true"></div>
+      </div>
+      <p class="muted" style="margin:8px 0 0">k = knit, M1 = make one (lift the bar between stitches and knit into its back), k2tog = knit two together. [ ] n times = work the bracket n times in all. Flat rows keep shaping away from the edge stitches.</p>
+    </section>
+
+    <section class="card" aria-labelledby="h-yd">
+      <h2 id="h-yd">4 · Yardage (rough)</h2>
+      <p class="sub">A model, not a promise: stitch pattern, ease and size swing it a lot.</p>
+      <div class="fields">
+        <div><label class="f" for="y-p">Project</label><select id="y-p" data-testid="yd-project"></select></div>
+        <div><label class="f" for="y-w">Yarn weight (CYC)</label><select id="y-w" data-testid="yd-weight"></select></div>
+        <div><label class="f" for="y-g">Gauge used</label><select id="y-g" data-testid="yd-gauge"><option value="typical">Typical for the weight</option><option value="mine">My gauge (section 1)</option></select></div>
+      </div>
+      <div class="out" aria-live="polite" data-testid="yd-out"></div>
+      <p class="muted" data-testid="yd-model" style="margin:8px 0 0">Model: area × rows per inch × 5.5 in of yarn per inch of row, shown as a rough range from 0.8× to 1.25× and rounded to 10. Typical rows are stitches × 1.4. Buy an extra skein from the same dye lot.</p>
+    </section>
+
+    <section class="card" aria-labelledby="h-conv">
+      <h2 id="h-conv">5 · Convert a pattern to your gauge</h2>
+      <p class="sub">Same finished size, your stitches. Uses your gauge from section 1.</p>
+      <div class="fields">
+        <div><label class="f" for="p-sts">Pattern sts per <span class="gl">4 in</span></label><input id="p-sts" type="number" min="1" step="0.1" data-testid="pat-sts"></div>
+        <div><label class="f" for="p-rows">Pattern rows per <span class="gl">4 in</span></label><input id="p-rows" type="number" min="1" step="0.1" data-testid="pat-rows"></div>
+        <div><label class="f" for="p-n">Pattern stitch count</label><input id="p-n" type="number" min="1" step="1" value="110" data-testid="pat-n"></div>
+        <div><label class="f" for="p-r">Pattern row count</label><input id="p-r" type="number" min="1" step="1" value="60" data-testid="pat-r"></div>
+      </div>
+      <p class="muted" style="margin:6px 0 0">Stitch counts are rounded to the repeat set in section 2.</p>
+      <div class="out" aria-live="polite" data-testid="conv-out"></div>
+    </section>
+
+    <section class="card wide" aria-labelledby="h-cyc">
+      <h2 id="h-cyc">Craft Yarn Council weights</h2>
+      <p class="sub">Standard categories 0–7, with the CYC's suggested knit gauge in stockinette and needle range. Your yarn's label wins.</p>
+      <div class="tablewrap"><table data-testid="cyc-table"><thead><tr><th scope="col">#</th><th scope="col">Category</th><th scope="col">Sts per 4 in (10 cm)</th><th scope="col">Needles</th></tr></thead><tbody id="cyc-body"></tbody></table></div>
+    </section>
+  </div>
+
+  <div class="hire">
+    <p>Need a calculator for your yarn shop or pattern site, with every figure checked by real browser tests? That's a job I do.</p>
+    <a href="../index.html#services" data-testid="services-link">See services</a>
+  </div>
+  <footer>Built by Zac Corbett · plain JavaScript, no libraries · the Playwright spec knits every instruction it checks</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const CM = 2.54, M_PER_YD = 0.9144;
+  const CYC = [
+    { n: 0, name: 'Lace', lo: 33, hi: 40, typ: 36.5, needles: '1.5–2.25 mm (US 000–1)' },
+    { n: 1, name: 'Super Fine', lo: 27, hi: 32, typ: 29.5, needles: '2.25–3.25 mm (US 1–3)' },
+    { n: 2, name: 'Fine', lo: 23, hi: 26, typ: 24.5, needles: '3.25–3.75 mm (US 3–5)' },
+    { n: 3, name: 'Light', lo: 21, hi: 24, typ: 22.5, needles: '3.75–4.5 mm (US 5–7)' },
+    { n: 4, name: 'Medium', lo: 16, hi: 20, typ: 18, needles: '4.5–5.5 mm (US 7–9)' },
+    { n: 5, name: 'Bulky', lo: 12, hi: 15, typ: 13.5, needles: '5.5–8 mm (US 9–11)' },
+    { n: 6, name: 'Super Bulky', lo: 7, hi: 11, typ: 9, needles: '8–12.75 mm (US 11–17)' },
+    { n: 7, name: 'Jumbo', lo: null, hi: 6, typ: 5, needles: '12.75 mm and larger (US 17 and up)' },
+  ];
+  // knitted fabric area in square inches (adult sizes unless stated)
+  const PROJECTS = [
+    { id: 'hat', name: 'Hat (21 in round × 9 in)', area: 21 * 9 },
+    { id: 'mitts', name: 'Mittens, pair (8 × 10 in each)', area: 2 * 8 * 10 },
+    { id: 'socks', name: 'Socks, pair (8 in round × 17 in)', area: 2 * 8 * 17 },
+    { id: 'cowl', name: 'Cowl (24 in round × 10 in)', area: 24 * 10 },
+    { id: 'scarf', name: 'Scarf (7 × 60 in)', area: 7 * 60 },
+    { id: 'shawl', name: 'Triangle shawl (60 × 25 in)', area: (60 * 25) / 2 },
+    { id: 'baby', name: 'Baby blanket (30 × 36 in)', area: 30 * 36 },
+    { id: 'sweater', name: 'Sweater, 40 in chest (body + sleeves)', area: 40 * 24 + 2 * 13 * 19 },
+    { id: 'throw', name: 'Throw blanket (40 × 50 in)', area: 40 * 50 },
+  ];
+  const YARN_PER_ROW_INCH = 5.5, ROW_RATIO = 1.4;
+
+  // internal units: per inch, inches
+  const state = { unit: 'imperial', stsIn: 20 / 4, rowsIn: 28 / 4, widthIn: 18, patStsIn: 22 / 4, patRowsIn: 30 / 4 };
+  const gSpan = () => (state.unit === 'imperial' ? 4 : 10 / CM);          // the gauge span, in inches
+  const lenFromIn = (x) => (state.unit === 'imperial' ? x : x * CM);
+  const lenToIn = (x) => (state.unit === 'imperial' ? x : x / CM);
+  const r1 = (x) => Math.round(x * 10) / 10, r2 = (x) => Math.round(x * 100) / 100;
+
+  function castOn(widthIn, stsIn, m, e) {
+    const raw = widthIn * stsIn;
+    m = Math.max(1, Math.round(m)); e = Math.max(0, Math.round(e));
+    const k = (raw - e) / m;
+    const down = Math.max(e + m * Math.floor(k), e || m), up = e + m * Math.ceil(k);
+    const n = raw - down < up - raw ? down : up;                           // nearest; ties go up
+    return { raw, n, down, up, widthIn: n / stsIn };
+  }
+
+  function group(times, items) { if (times <= 0) return []; const body = items.filter(Boolean).join(', '); return [times === 1 ? body : `[${body}] ${times} times`]; }
+  const kn = (q) => (q > 0 ? `k${q}` : '');
+  function distribute(K, N, type, mode) {
+    K = Math.round(K); N = Math.round(N);
+    if (!(K >= 1) || !(N >= 0)) return { error: 'Enter whole numbers.' };
+    if (N === 0) return { text: `k${K}`, result: K, gaps: [K] };
+    if (type === 'inc') {
+      const gaps = mode === 'flat' ? N + 1 : N;
+      if (K < gaps) return { error: mode === 'flat' ? `At most ${K - 1} increases fit between ${K} stitches in a flat row. For more, work kfb in several stitches or spread it over two rows.` : `At most ${K} increases fit in a round of ${K}.` };
+      const q = Math.floor(K / gaps), r = K % gaps;
+      const parts = mode === 'flat'
+        ? [...group(r, [kn(q + 1), 'M1']), ...group(N - r, [kn(q), 'M1']), kn(q)]
+        : [...group(r, [kn(q + 1), 'M1']), ...group(N - r, [kn(q), 'M1'])];
+      return { text: parts.filter(Boolean).join(', '), result: K + N, q, r, gaps: mode === 'flat' ? [...Array(r).fill(q + 1), ...Array(N - r + 1).fill(q)] : [...Array(r).fill(q + 1), ...Array(N - r).fill(q)] };
+    }
+    const P = K - 2 * N, gaps = mode === 'flat' ? N + 1 : N;
+    if (P < 0) return { error: `${N} k2tog decreases need ${2 * N} stitches; you have ${K}. The most is ${Math.floor(K / 2)}.` };
+    const q = Math.floor(P / gaps), r = P % gaps;
+    const parts = mode === 'flat'
+      ? [...group(r, [kn(q + 1), 'k2tog']), ...group(N - r, [kn(q), 'k2tog']), kn(q)]
+      : [...group(r, [kn(q + 1), 'k2tog']), ...group(N - r, [kn(q), 'k2tog'])];
+    return { text: parts.filter(Boolean).join(', '), result: K - N, q, r, gaps: mode === 'flat' ? [...Array(r).fill(q + 1), ...Array(N - r + 1).fill(q)] : [...Array(r).fill(q + 1), ...Array(N - r).fill(q)] };
+  }
+
+  function yardage(projectId, weightN, gaugeSrc) {
+    const p = PROJECTS.find((x) => x.id === projectId), w = CYC[weightN];
+    const rowsIn = gaugeSrc === 'mine' ? state.rowsIn : (w.typ * ROW_RATIO) / 4;
+    const yd = (p.area * rowsIn * YARN_PER_ROW_INCH) / 36;
+    const round10 = (x) => Math.max(10, Math.round(x / 10) * 10);
+    return { yd, rowsIn, lo: round10(yd * 0.8), hi: round10(yd * 1.25), loM: round10(yd * 0.8 * M_PER_YD), hiM: round10(yd * 1.25 * M_PER_YD) };
+  }
+
+  function convert(n, rows, m, e) {
+    const sts = n * state.stsIn / state.patStsIn, rw = rows * state.rowsIn / state.patRowsIn;
+    m = Math.max(1, Math.round(m)); e = Math.max(0, Math.round(e));
+    const k = Math.round((sts - e) / m), rounded = Math.max(e + m * k, e || m);
+    return { sts, rounded, rows: rw, roundedRows: Math.round(rw), widthIn: n / state.patStsIn };
+  }
+
+  // ---- render ----
+  const num = (id) => parseFloat($(id).value);
+  function fillInputs() {
+    const span = gSpan();
+    document.querySelectorAll('.gl').forEach((e) => { e.textContent = state.unit === 'imperial' ? '4 in' : '10 cm'; });
+    document.querySelectorAll('.ul').forEach((e) => { e.textContent = state.unit === 'imperial' ? 'in' : 'cm'; });
+    $('#g-sts').value = r1(state.stsIn * span); $('#g-rows').value = r1(state.rowsIn * span);
+    $('#p-sts').value = r1(state.patStsIn * span); $('#p-rows').value = r1(state.patRowsIn * span);
+    $('#c-w').value = r1(lenFromIn(state.widthIn));
+  }
+  function render() {
+    const u = state.unit === 'imperial', unit = u ? 'in' : 'cm';
+    $('[data-testid=gauge-out]').innerHTML = `<div class="big" data-testid="per-unit">${u ? r2(state.stsIn) + ' sts and ' + r2(state.rowsIn) + ' rows per inch' : r2(state.stsIn / CM) + ' sts and ' + r2(state.rowsIn / CM) + ' rows per cm'}</div>
+      <div class="muted">One stitch is <b data-testid="st-mm">${r2(25.4 / state.stsIn)} mm</b> wide · also ${u ? `${r1(state.stsIn * 10 / CM)} sts per 10 cm` : `${r1(state.stsIn * 4)} sts per 4 in`}</div>`;
+    const co = castOn(state.widthIn, state.stsIn, num('#c-m'), num('#c-e'));
+    const w = (x) => `${r1(lenFromIn(x))} ${unit}`;
+    $('[data-testid=co-out]').innerHTML = `<div class="big">Cast on <span data-testid="co-n">${co.n}</span> sts</div>
+      <div class="muted" data-testid="co-detail">${r1(co.raw)} sts at your gauge, rounded to a multiple of ${Math.max(1, Math.round(num('#c-m')))} + ${Math.max(0, Math.round(num('#c-e')))}: ${co.n} sts = <b>${w(co.widthIn)}</b>.${co.down !== co.up ? ` The two nearest fits: ${co.down} (${w(co.down / state.stsIn)}) or ${co.up} (${w(co.up / state.stsIn)}).` : ' That fits the repeat exactly.'}</div>`;
+    const ev = distribute(num('#e-k'), num('#e-n'), $('#e-type').value, $('#e-mode').value);
+    const vis = $('[data-testid=ev-vis]');
+    vis.textContent = '';
+    if (ev.error) {
+      $('[data-testid=ev-instr]').innerHTML = `<span class="err">${ev.error}</span>`; $('[data-testid=ev-summary]').textContent = '';
+    } else {
+      $('[data-testid=ev-instr]').textContent = ev.text;
+      const inc = $('#e-type').value === 'inc', N = Math.round(num('#e-n'));
+      $('[data-testid=ev-summary]').innerHTML = `${Math.round(num('#e-k'))} sts → <b data-testid="ev-result">${ev.result}</b> sts${N ? ` · plain stitches between ${inc ? 'increases' : 'decreases'}: ${[...new Set(ev.gaps)].sort((a, b) => b - a).join(' or ')}` : ''}`;
+      if (ev.result <= 400) ev.text.split(', ').length && drawVis(ev.text, vis, inc);
+    }
+    const yd = yardage($('#y-p').value, +$('#y-w').value, $('#y-g').value);
+    $('[data-testid=yd-out]').innerHTML = u
+      ? `<div class="big" data-testid="yd-range">${yd.lo}–${yd.hi} yd</div><div class="muted">rough range · about ${r1(yd.rowsIn * 4)} rows per 4 in</div>`
+      : `<div class="big" data-testid="yd-range">${yd.loM}–${yd.hiM} m</div><div class="muted">rough range · about ${r1(yd.rowsIn * 10 / CM)} rows per 10 cm</div>`;
+    const cv = convert(num('#p-n'), num('#p-r'), num('#c-m'), num('#c-e'));
+    $('[data-testid=conv-out]').innerHTML = `<div class="big">Cast on <span data-testid="conv-n">${cv.rounded}</span> sts, work <span data-testid="conv-rows">${cv.roundedRows}</span> rows</div>
+      <div class="muted" data-testid="conv-detail">${r1(cv.sts)} sts and ${r1(cv.rows)} rows at your gauge, for the pattern's ${w(cv.widthIn)} width.</div>`;
+    document.querySelectorAll('#cyc-body tr').forEach((tr) => tr.classList.toggle('on', tr.dataset.n === $('#y-w').value));
+    window.__knit.last = { co, ev, yd, cv };
+  }
+  function drawVis(text, box, inc) {
+    // expand the instruction into single stitches for a picture of the row
+    const expand = (s) => { const out = []; const re = /\[([^\]]+)\] (\d+) times|([^,\[\]]+)/g; let m; while ((m = re.exec(s))) { if (m[1]) for (let i = 0; i < +m[2]; i++) out.push(...expand(m[1])); else if (m[3].trim()) out.push(m[3].trim()); } return out; };
+    expand(text).forEach((t) => {
+      if (/^k\d+$/.test(t)) for (let i = 0; i < +t.slice(1); i++) box.appendChild(document.createElement('span'));
+      else { const s = document.createElement('span'); s.className = inc ? 'inc' : 'dec'; box.appendChild(s); }
+    });
+  }
+
+  // ---- wire up ----
+  $('#y-p').innerHTML = PROJECTS.map((p) => `<option value="${p.id}">${p.name}</option>`).join('');
+  $('#y-w').innerHTML = CYC.map((c) => `<option value="${c.n}"${c.n === 4 ? ' selected' : ''}>${c.n} · ${c.name}</option>`).join('');
+  $('#cyc-body').innerHTML = CYC.map((c) => `<tr data-n="${c.n}" data-testid="cyc-${c.n}"><td>${c.n}</td><td>${c.name}</td><td>${c.lo === null ? `${c.hi} and fewer` : `${c.lo}–${c.hi}`}</td><td>${c.needles}</td></tr>`).join('');
+  document.querySelectorAll('.seg button').forEach((b) => b.addEventListener('click', () => {
+    state.unit = b.dataset.unit;
+    document.querySelectorAll('.seg button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    fillInputs(); render();
+  }));
+  const onNum = (id, fn) => $(id).addEventListener('input', () => { const v = num(id); if (isFinite(v) && v > 0) { fn(v); render(); } });
+  onNum('#g-sts', (v) => { state.stsIn = v / gSpan(); });
+  onNum('#g-rows', (v) => { state.rowsIn = v / gSpan(); });
+  onNum('#p-sts', (v) => { state.patStsIn = v / gSpan(); });
+  onNum('#p-rows', (v) => { state.patRowsIn = v / gSpan(); });
+  onNum('#c-w', (v) => { state.widthIn = lenToIn(v); });
+  ['#c-m', '#c-e', '#e-k', '#e-n', '#p-n', '#p-r'].forEach((id) => $(id).addEventListener('input', render));
+  ['#e-type', '#e-mode', '#y-p', '#y-w', '#y-g'].forEach((id) => $(id).addEventListener('change', render));
+  $('#use-swatch').addEventListener('click', () => {
+    const s = num('#sw-sts'), wd = lenToIn(num('#sw-w')), r = num('#sw-rows'), h = lenToIn(num('#sw-h'));
+    if (![s, wd, r, h].every((x) => isFinite(x) && x > 0)) return;
+    state.stsIn = s / wd; state.rowsIn = r / h;
+    fillInputs(); render();
+    $('#g-sts').focus();
+  });
+
+  window.__knit = { state, castOn, distribute, yardage, convert, CYC, PROJECTS };
+  fillInputs(); render();
+})();
+</script>
+</body>
+</html>
