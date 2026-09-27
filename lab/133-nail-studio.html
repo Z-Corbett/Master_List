@@ -1,0 +1,668 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nail Studio — find a polish that suits you</title>
+<meta name="description" content="Upload a photo of your hand, or use a drawn demo hand, tap your skin to sample its colour, and try forty invented polish shades on your nails in cream, shimmer or matte. A friendly studio review scores each shade on contrast (CIEDE2000), undertone harmony and occasion, and suggests shades to try. Photos never leave your device.">
+<style>
+  :root {
+    --blush: #fbeef0;
+    --blush-2: #f4dde2;
+    --plum: #4a1d3f;
+    --plum-2: #6e2e5e;
+    --rose: #c2476f;
+    --gold: #b98a3e;
+    --ink: #2b1a26;
+    --muted: #7b6272;
+    --card: #fffafb;
+    --line: #ecd3da;
+    --ok: #2f7a5a;
+    --display: "Didot", "Bodoni MT", "Bodoni 72", "Playfair Display", Georgia, "Times New Roman", serif;
+    --sans: "Avenir Next", "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--blush); color: var(--ink); font: 15px/1.55 var(--sans); overflow-x: hidden;
+    background-image: radial-gradient(circle at 12% 0%, rgba(194,71,111,.14), transparent 40%), radial-gradient(circle at 100% 30%, rgba(185,138,62,.12), transparent 40%); }
+  :focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: #fff; background: var(--plum); text-decoration: none; font: 600 13px/1 var(--sans); padding: 8px 12px; border-radius: 999px; }
+  a.back:hover { background: var(--rose); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 60px 16px 40px; }
+  header.hero { text-align: center; margin-bottom: 18px; }
+  .eyebrow { margin: 0; font: 600 12px/1.3 var(--sans); letter-spacing: .3em; text-transform: uppercase; color: var(--gold); }
+  h1 { font: 400 clamp(40px, 8vw, 72px)/1 var(--display); margin: 6px 0; color: var(--plum); letter-spacing: .01em; }
+  h1 em { color: var(--rose); }
+  .lede { max-width: 640px; margin: 0 auto; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  @media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px; min-width: 0; box-shadow: 0 14px 34px -24px rgba(74,29,63,.55); }
+  h2 { font: 400 26px/1.15 var(--display); color: var(--plum); margin: 0 0 8px; }
+  h3 { font: 700 13px/1.3 var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; }
+  p { margin: 0 0 8px; overflow-wrap: anywhere; }
+  .note { font-size: 13px; color: var(--muted); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-width: 0; }
+  .btn { font: 600 14px/1.1 var(--sans); border-radius: 999px; border: 1px solid var(--plum); background: var(--plum); color: #fff; padding: 9px 14px; min-height: 40px; cursor: pointer; max-width: 100%; }
+  .btn:hover { background: var(--plum-2); }
+  .btn.ghost { background: transparent; color: var(--plum); }
+  .btn.ghost:hover { background: var(--blush-2); }
+  .btn.small { min-height: 32px; padding: 5px 10px; font-size: 13px; }
+  .btn[aria-pressed="true"] { background: var(--rose); border-color: var(--rose); color: #fff; }
+  .tones { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tone { width: 40px; height: 40px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); cursor: pointer; padding: 0; }
+  .tone[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--rose); }
+  .stage { position: relative; margin-top: 10px; border-radius: 14px; overflow: hidden; background: #efe3ea; }
+  #canvas { display: block; width: 100%; height: auto; cursor: crosshair; touch-action: manipulation; }
+  #canvas.nailing { touch-action: none; }
+  .modes { display: inline-flex; border: 1px solid var(--plum); border-radius: 999px; overflow: hidden; flex-wrap: wrap; }
+  .modes button { border: 0; background: transparent; color: var(--plum); font: 600 13px/1 var(--sans); padding: 10px 14px; cursor: pointer; min-height: 40px; }
+  .modes button[aria-pressed="true"] { background: var(--plum); color: #fff; }
+  .file { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .file label { font-weight: 600; }
+  .file input { max-width: 100%; font: 13px var(--sans); }
+  .privacy { background: #eef6f1; color: #24533f; border-radius: 10px; padding: 8px 10px; font-size: 13px; }
+  .skin { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 10px; align-items: center; margin-top: 10px; }
+  .chip { width: 56px; height: 56px; border-radius: 14px; border: 1px solid var(--line); background: repeating-linear-gradient(45deg, #f4e8ec 0 6px, #fff 6px 12px); }
+  .readout { font-size: 14px; min-width: 0; }
+  .readout b { color: var(--plum); }
+  .palette { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; }
+  .shade { aspect-ratio: 1; min-height: 40px; border-radius: 12px 12px 18px 18px; border: 2px solid rgba(255,255,255,.8); box-shadow: 0 0 0 1px var(--line); cursor: pointer; padding: 0; position: relative; }
+  .shade[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--plum); }
+  .shade[aria-pressed="true"]::after { content: "✓"; position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-weight: 700; text-shadow: 0 0 3px #000; }
+  .finish { display: flex; flex-wrap: wrap; gap: 12px; border: 0; padding: 0; margin: 8px 0 0; min-width: 0; }
+  .finish legend { font-weight: 600; padding: 0; margin-bottom: 4px; }
+  .finish label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+  .picks { list-style: none; padding: 0; margin: 6px 0 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .picks li { display: inline-flex; align-items: center; gap: 6px; background: var(--blush-2); border-radius: 999px; padding: 4px 6px 4px 4px; max-width: 100%; min-width: 0; }
+  .picks .dot { width: 22px; height: 22px; border-radius: 50%; flex: none; border: 1px solid rgba(0,0,0,.15); }
+  .picks button { border: 0; background: transparent; color: var(--plum); cursor: pointer; font-size: 16px; line-height: 1; padding: 2px 4px; }
+  .current { font: italic 18px/1.3 var(--display); color: var(--plum); }
+  .review { display: grid; gap: 10px; }
+  .rev { border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 10px; background: #fff; }
+  .rev .sw { width: 44px; height: 58px; border-radius: 14px 14px 22px 22px; border: 1px solid rgba(0,0,0,.12); }
+  .rev h4 { margin: 0 0 2px; font: 400 20px/1.2 var(--display); color: var(--plum); }
+  .meter { display: flex; gap: 3px; align-items: center; }
+  .meter i { width: 14px; height: 6px; border-radius: 3px; background: var(--line); display: block; }
+  .meter i.on { background: var(--rose); }
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 4px 12px; font-size: 13px; margin: 4px 0; }
+  .facts span { color: var(--muted); }
+  .sugs { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; list-style: none; padding: 0; margin: 0; }
+  .sugs li { border: 1px solid var(--line); border-radius: 12px; padding: 8px; background: #fff; display: grid; gap: 4px; min-width: 0; }
+  .sugs .bar { height: 28px; border-radius: 8px; border: 1px solid rgba(0,0,0,.1); }
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; list-style: none; padding: 0; margin: 8px 0 0; }
+  .gallery li { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 6px; display: grid; gap: 4px; min-width: 0; }
+  .gallery img { width: 100%; height: auto; border-radius: 8px; display: block; }
+  .gallery small { color: var(--muted); overflow-wrap: anywhere; }
+  .status { min-height: 1.5em; font-size: 14px; color: var(--plum-2); }
+  details { margin-top: 10px; }
+  summary { cursor: pointer; font-weight: 600; color: var(--plum); }
+  kbd { font: 12px ui-monospace, Consolas, monospace; background: #fff; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+  footer { margin-top: 24px; text-align: center; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="hero">
+    <p class="eyebrow">A little salon in your browser</p>
+    <h1>Nail <em>Studio</em></h1>
+    <p class="lede">Sample your skin tone, paint your nails with forty invented shades, and get a friendly studio review. Every skin tone has gorgeous options; this just helps you find a starting point.</p>
+  </header>
+
+  <div class="grid">
+    <section class="card" aria-labelledby="h-hand">
+      <h2 id="h-hand">1 · Your hand</h2>
+      <div class="row" style="justify-content:space-between">
+        <div>
+          <p class="note" id="tones-label" style="margin-bottom:4px">Demo hands (drawn in the page)</p>
+          <div class="tones" role="group" aria-labelledby="tones-label" id="tones" data-testid="tones"></div>
+        </div>
+        <div class="file">
+          <label for="file">Or use your own photo</label>
+          <input type="file" id="file" accept="image/*" data-testid="file" aria-describedby="privacy">
+        </div>
+      </div>
+      <p class="privacy" id="privacy" data-testid="privacy">🔒 Your photo stays on this device. It is read into a canvas in this page and never uploaded: there are no network requests at all.</p>
+      <div class="row" style="margin-top:8px;justify-content:space-between">
+        <div class="modes" role="group" aria-label="What a tap on the photo does">
+          <button type="button" id="mode-sample" aria-pressed="true" data-testid="mode-sample">Tap to sample skin</button>
+          <button type="button" id="mode-nails" aria-pressed="false" data-testid="mode-nails">Tap to place nails</button>
+        </div>
+        <div class="row">
+          <button type="button" class="btn ghost small" id="auto" data-testid="auto">Auto-place on demo</button>
+          <button type="button" class="btn ghost small" id="clear-nails" data-testid="clear-nails">Clear nails</button>
+        </div>
+      </div>
+      <div class="stage">
+        <canvas id="canvas" width="480" height="600" tabindex="0" data-testid="canvas" role="img" aria-describedby="canvas-help" aria-label="Hand photo"></canvas>
+      </div>
+      <p class="note" id="canvas-help">Tap the photo to sample skin (the back of a finger in even light works best), or switch to placing nails: tap a nail to add a polish oval, drag it to adjust. Keyboard: focus the photo, move the crosshair with the arrow keys and press <kbd>Enter</kbd>. With a nail selected, arrows move it, <kbd>+</kbd>/<kbd>−</kbd> resize, <kbd>[</kbd>/<kbd>]</kbd> rotate and <kbd>Delete</kbd> removes it.</p>
+      <p class="status" id="status" role="status" aria-live="polite" data-testid="status"></p>
+
+      <div class="skin">
+        <div class="chip" id="skin-chip" data-testid="skin-chip" aria-hidden="true"></div>
+        <div class="readout" id="skin-readout" data-testid="skin-readout" aria-live="polite">No skin sample yet.</div>
+      </div>
+      <details>
+        <summary>What the colour numbers mean (and don't)</summary>
+        <p class="note">The page averages a 7 × 7 pixel patch where you tap and converts it from sRGB to CIELAB (D65). The <b>Individual Typology Angle</b> is ITA = arctan((L* − 50) / b*) in degrees, a measure from dermatology research (Chardon et al., 1991) that describes how light a colour is relative to its yellowness. It is a description, not a ranking. The <b>undertone</b> is a rough guess from the balance of b* (yellow) to a* (red): a hue angle h = atan2(b*, a*) of 60° or more reads warm, 50° or less reads cool, and in between reads neutral.</p>
+        <p class="note">It is only a colour heuristic. There is no recognition of hands or skin here, just the pixels you tap. Warm bulbs, shade, screens and camera white balance all shift the numbers, so try a sample in daylight, and trust your own eye over the maths.</p>
+      </details>
+    </section>
+
+    <section class="card" aria-labelledby="h-polish">
+      <h2 id="h-polish">2 · Polish bar</h2>
+      <p class="current" aria-live="polite">Trying: <span id="current" data-testid="current">—</span></p>
+      <div class="palette" id="palette" role="group" aria-label="Polish shades" data-testid="palette"></div>
+      <fieldset class="finish">
+        <legend>Finish</legend>
+        <label><input type="radio" name="finish" value="cream" checked data-testid="finish-cream"> Cream</label>
+        <label><input type="radio" name="finish" value="shimmer" data-testid="finish-shimmer"> Shimmer</label>
+        <label><input type="radio" name="finish" value="matte" data-testid="finish-matte"> Matte</label>
+      </fieldset>
+      <h3>Your picks (up to 5)</h3>
+      <ul class="picks" id="picks" data-testid="picks" aria-live="polite"></ul>
+      <p class="note">Tap a shade to paint it on and add it to your picks. The review covers every pick.</p>
+    </section>
+  </div>
+
+  <section class="card" style="margin-top:16px" aria-labelledby="h-review">
+    <h2 id="h-review">3 · Studio review</h2>
+    <div id="review" class="review" data-testid="review" aria-live="polite"></div>
+    <h3>Shades the studio would hand you next</h3>
+    <ul class="sugs" id="sugs" data-testid="suggestions"></ul>
+    <p class="note">Contrast is the CIEDE2000 colour difference (ΔE₀₀) between your sampled skin and the polish: under 12 is a whisper, 12–25 soft, 25–40 balanced, 40–55 a pop and 55 or more a statement. None is better than another; it's a question of mood.</p>
+  </section>
+
+  <section class="card" style="margin-top:16px" aria-labelledby="h-gallery">
+    <h2 id="h-gallery">4 · Your look book</h2>
+    <div class="row">
+      <button type="button" class="btn" id="submit" data-testid="submit">Submit your look</button>
+      <button type="button" class="btn ghost small" id="clear-gallery" data-testid="clear-gallery">Delete all looks</button>
+    </div>
+    <p class="note">Looks are saved as small thumbnails in this browser's local storage only. Delete them any time.</p>
+    <p class="status" id="gstatus" role="status" aria-live="polite" data-testid="gallery-status"></p>
+    <ul class="gallery" id="gallery" data-testid="gallery"></ul>
+  </section>
+  <footer>Built by Zac Corbett · sRGB → CIELAB (D65) and CIEDE2000 (Sharma, Wu &amp; Dalal, 2005) in plain JavaScript · all shade names are invented · add <code>?seed=</code> for a repeatable shimmer</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  const SEED = (parseInt(params.get('seed'), 10) >>> 0) || 133;
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+  // ---------- colour science ----------
+  const hexToRgb = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+  const rgbToHex = (r, g, b) => '#' + [r, g, b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
+  function srgbToLab(r, g, b) {
+    const lin = (c) => { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+    const R = lin(r), G = lin(g), B = lin(b);
+    const X = (0.4124564 * R + 0.3575761 * G + 0.1804375 * B) / 0.95047;
+    const Y = 0.2126729 * R + 0.7151522 * G + 0.0721750 * B;
+    const Z = (0.0193339 * R + 0.1191920 * G + 0.9503041 * B) / 1.08883;
+    const f = (t) => t > 216 / 24389 ? Math.cbrt(t) : (24389 / 27 * t + 16) / 116;
+    const fx = f(X), fy = f(Y), fz = f(Z);
+    return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+  }
+  function deltaE2000(l1, l2) {
+    const [L1, a1, b1] = l1, [L2, a2, b2] = l2, rad = Math.PI / 180;
+    const C1 = Math.hypot(a1, b1), C2 = Math.hypot(a2, b2), Cb = (C1 + C2) / 2;
+    const G = 0.5 * (1 - Math.sqrt(Cb ** 7 / (Cb ** 7 + 25 ** 7)));
+    const a1p = (1 + G) * a1, a2p = (1 + G) * a2;
+    const C1p = Math.hypot(a1p, b1), C2p = Math.hypot(a2p, b2);
+    const hp = (b, a) => { if (a === 0 && b === 0) return 0; const h = Math.atan2(b, a) / rad; return h < 0 ? h + 360 : h; };
+    const h1p = hp(b1, a1p), h2p = hp(b2, a2p);
+    const dL = L2 - L1, dC = C2p - C1p;
+    let dh = 0;
+    if (C1p * C2p !== 0) { dh = h2p - h1p; if (dh > 180) dh -= 360; else if (dh < -180) dh += 360; }
+    const dH = 2 * Math.sqrt(C1p * C2p) * Math.sin(dh * rad / 2);
+    const Lb = (L1 + L2) / 2, Cbp = (C1p + C2p) / 2;
+    let hb = h1p + h2p;
+    if (C1p * C2p !== 0) { if (Math.abs(h1p - h2p) <= 180) hb /= 2; else hb = (h1p + h2p < 360) ? (hb + 360) / 2 : (hb - 360) / 2; }
+    const T = 1 - 0.17 * Math.cos((hb - 30) * rad) + 0.24 * Math.cos(2 * hb * rad) + 0.32 * Math.cos((3 * hb + 6) * rad) - 0.20 * Math.cos((4 * hb - 63) * rad);
+    const dTh = 30 * Math.exp(-(((hb - 275) / 25) ** 2));
+    const RC = 2 * Math.sqrt(Cbp ** 7 / (Cbp ** 7 + 25 ** 7));
+    const SL = 1 + 0.015 * (Lb - 50) ** 2 / Math.sqrt(20 + (Lb - 50) ** 2), SC = 1 + 0.045 * Cbp, SH = 1 + 0.015 * Cbp * T;
+    const RT = -Math.sin(2 * dTh * rad) * RC;
+    return Math.sqrt((dL / SL) ** 2 + (dC / SC) ** 2 + (dH / SH) ** 2 + RT * (dC / SC) * (dH / SH));
+  }
+  const hueAngle = (lab) => { const h = Math.atan2(lab[2], lab[1]) * 180 / Math.PI; return h < 0 ? h + 360 : h; };
+  const ita = (lab) => Math.atan2(lab[0] - 50, lab[2]) * 180 / Math.PI;
+  // Chardon et al. (1991) / Del Bino et al. (2006) ITA groups: descriptive names from the research, not a ranking.
+  function itaGroup(a) {
+    if (a > 55) return 'very light'; if (a > 41) return 'light'; if (a > 28) return 'intermediate';
+    if (a > 10) return 'tan'; if (a > -30) return 'brown'; return 'dark';
+  }
+  function undertone(lab) { const h = hueAngle(lab); return h >= 60 ? 'warm' : h <= 50 ? 'cool' : 'neutral'; }
+  // A polish's own temperature, from its hue angle and chroma.
+  function shadeTemp(lab) {
+    const C = Math.hypot(lab[1], lab[2]), h = hueAngle(lab);
+    if (C < 10) return 'neutral';
+    if (h < 25 || h >= 330) return 'cool';
+    if (h < 45) return 'neutral';
+    if (h < 120) return 'warm';
+    return 'cool';
+  }
+
+  // ---------- data ----------
+  const DEMO_TONES = ['#f3d3c0', '#e8b890', '#c68a5c', '#a86b43', '#7a4a3a', '#4a2a1a'];
+  const PALETTE = [
+    ['porcelain-cup', 'Porcelain Cup', '#efe4dc'], ['oat-milk', 'Oat Milk', '#e3c3a8'], ['linen-letter', 'Linen Letter', '#d9b39a'], ['rosy-biscuit', 'Rosy Biscuit', '#d7a49a'],
+    ['sandbar', 'Sandbar', '#c9a07e'], ['toffee-walk', 'Toffee Walk', '#a8744f'], ['cocoa-hour', 'Cocoa Hour', '#7a4b33'], ['espresso-shot', 'Espresso Shot', '#4b2e22'],
+    ['ballet-slipper', 'Ballet Slipper', '#f2c4ce'], ['peony-post', 'Peony Post', '#e889a8'], ['bubblegum-sky', 'Bubblegum Sky', '#ff6fae'], ['dusty-rose-garden', 'Dusty Rose Garden', '#c47c86'],
+    ['hot-pink-radio', 'Hot Pink Radio', '#e0218a'], ['fire-engine', 'Fire Engine', '#d0202c'], ['cherry-soda', 'Cherry Soda', '#b3122e'], ['brick-lane', 'Brick Lane', '#9c3b2b'],
+    ['oxblood-letter', 'Oxblood Letter', '#5e1a1f'], ['tomato-stand', 'Tomato Stand', '#e24a33'], ['wine-cellar', 'Wine Cellar', '#6d1f3c'], ['plum-jam', 'Plum Jam', '#5b2a4e'],
+    ['lilac-lane', 'Lilac Lane', '#b8a2d6'], ['violet-hour', 'Violet Hour', '#6a3fa0'], ['grape-soda', 'Grape Soda', '#4b2466'], ['orchid-card', 'Orchid Card', '#c46bb3'],
+    ['coral-reef-cafe', 'Coral Reef Café', '#ff6f61'], ['peach-fuzz-day', 'Peach Fuzz Day', '#f7b39a'], ['tangerine-tram', 'Tangerine Tram', '#f28c28'], ['terracotta-pot', 'Terracotta Pot', '#c0603d'],
+    ['cornflower-note', 'Cornflower Note', '#6c8fd6'], ['navy-knot', 'Navy Knot', '#1f2d5a'], ['robin-egg', 'Robin Egg', '#8fd3d1'], ['teal-tide', 'Teal Tide', '#1b7f86'],
+    ['sage-porch', 'Sage Porch', '#9cae8e'], ['forest-walk', 'Forest Walk', '#2f5a3b'], ['mint-julep', 'Mint Julep', '#b7e4c7'], ['buttercup-field', 'Buttercup Field', '#f5d24b'],
+    ['mustard-seed', 'Mustard Seed', '#c9a227'], ['storm-cloud', 'Storm Cloud', '#6e6e78'], ['midnight-ink', 'Midnight Ink', '#1c1c24'], ['cloud-white', 'Cloud White', '#f6f5f0'],
+  ].map(([id, name, hex]) => { const lab = srgbToLab(...hexToRgb(hex)); return { id, name, hex, lab, temp: shadeTemp(lab) }; });
+  const byId = Object.fromEntries(PALETTE.map((p) => [p.id, p]));
+
+  // ---------- review model ----------
+  const BANDS = [
+    { max: 12, level: 1, word: 'whisper', line: 'a barely-there, your-skin-but-polished look' },
+    { max: 25, level: 2, word: 'soft', line: 'gentle contrast that reads clean and effortless' },
+    { max: 40, level: 3, word: 'balanced', line: 'clear colour that still feels easy to wear' },
+    { max: 55, level: 4, word: 'pop', line: 'a crisp pop your hands will show off' },
+    { max: Infinity, level: 5, word: 'statement', line: 'high-contrast drama, every gesture noticed' },
+  ];
+  const band = (de) => BANDS.find((b) => de < b.max);
+  function harmony(skinTone, temp) {
+    if (temp === 'neutral') return { score: 4, text: 'a neutral shade, so it plays nicely with any undertone' };
+    if (skinTone === 'neutral') return { score: 4, text: `a ${temp} shade, and a neutral undertone can go either way` };
+    if (temp === skinTone) return { score: 5, text: `a ${temp} shade that echoes your ${skinTone} undertone` };
+    return { score: 3, text: `a ${temp} shade against your ${skinTone} undertone: a fresh, playful contrast` };
+  }
+  function occasions(shade, de) {
+    const [L, a, b] = shade.lab, C = Math.hypot(a, b), h = hueAngle(shade.lab), out = [];
+    if (de < 25 || C < 12) out.push('office & everyday');
+    if (L < 38) out.push('evening & date night');
+    if (C >= 45 && L >= 38) out.push('weekend & parties');
+    if (C >= 20 && h >= 130 && h < 300) out.push('creative & festival');
+    if (!out.length) out.push('anywhere, any day');
+    return out;
+  }
+  function reviewShade(skinLab, skinTone, shade) {
+    const de = deltaE2000(skinLab, shade.lab), bd = band(de), hm = harmony(skinTone, shade.temp), occ = occasions(shade, de);
+    const text = `${shade.name} gives ${bd.line} (ΔE₀₀ ${de.toFixed(1)}). It's ${hm.text}. Wear it for ${occ.join(', ')}.`;
+    return { id: shade.id, name: shade.name, hex: shade.hex, deltaE: de, contrast: bd.level, contrastWord: bd.word, harmony: hm.score, temp: shade.temp, occasions: occ, text };
+  }
+  function suggest(skinLab, skinTone, seed) {
+    const scored = PALETTE.map((p) => reviewShade(skinLab, skinTone, p));
+    const picks = [];
+    for (const lv of [2, 3, 4, 5, 1]) {
+      const inBand = scored.filter((s) => s.contrast === lv && !picks.includes(s));
+      if (!inBand.length) continue;
+      const mid = lv === 5 ? 62 : (BANDS[lv - 1].max + (lv > 1 ? BANDS[lv - 2].max : 0)) / 2;
+      inBand.sort((x, y) => (y.harmony - x.harmony) || (Math.abs(x.deltaE - mid) - Math.abs(y.deltaE - mid)));
+      picks.push(inBand[0]);
+      if (picks.length >= 4) break;
+    }
+    // a seeded wildcard from the cool-toned brights, for fun
+    const r = mulberry32(seed);
+    const wild = scored.filter((s) => !picks.includes(s) && s.occasions.includes('creative & festival'));
+    if (wild.length) picks.push(wild[Math.floor(r() * wild.length)]);
+    for (const s of scored.sort((x, y) => y.harmony - x.harmony)) { if (picks.length >= 3) break; if (!picks.includes(s)) picks.push(s); }
+    return picks.slice(0, 5);
+  }
+
+  // ---------- canvas & state ----------
+  const cv = $('canvas'), ctx = cv.getContext('2d', { willReadFrequently: true });
+  let base = document.createElement('canvas');
+  const state = {
+    seed: SEED, source: 'demo', demoTone: 0, mode: 'sample', skin: null, nails: [], selected: -1,
+    shade: null, picks: [], finish: 'cream', cursor: { x: 240, y: 300 }, review: [], suggestions: [],
+    sampleSpot: { x: 245, y: 440 }, fingertips: [],
+  };
+
+  const FINGERS = [ // x0,y0 base → x1,y1 tip, width
+    [178, 390, 150, 210, 40], [218, 372, 205, 150, 44], [258, 368, 262, 128, 46], [298, 378, 318, 160, 44], [330, 470, 402, 372, 46],
+  ];
+  function shade(hex, k) { const [r, g, b] = hexToRgb(hex); return rgbToHex(r * k, g * k, b * k); }
+  function mix(hex, hex2, t) { const a = hexToRgb(hex), b = hexToRgb(hex2); return rgbToHex(...a.map((v, i) => v + (b[i] - v) * t)); }
+  function drawDemo(tone) {
+    const c = document.createElement('canvas'); c.width = 480; c.height = 600;
+    const g = c.getContext('2d');
+    const bg = g.createLinearGradient(0, 0, 480, 600); bg.addColorStop(0, '#f5e9ef'); bg.addColorStop(1, '#e6d3de');
+    g.fillStyle = bg; g.fillRect(0, 0, 480, 600);
+    g.strokeStyle = 'rgba(110,46,94,.08)'; g.lineWidth = 2;
+    for (let y = 20; y < 600; y += 28) { g.beginPath(); g.moveTo(0, y); g.lineTo(480, y + 40); g.stroke(); }
+    const skin = tone, edge = shade(tone, 0.8);
+    const capsule = (x0, y0, x1, y1, w, col) => { g.strokeStyle = col; g.lineCap = 'round'; g.lineWidth = w; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); };
+    const palm = (col, grow) => { g.fillStyle = col; g.beginPath(); g.roundRect(160 - grow, 350 - grow, 180 + 2 * grow, 190 + 2 * grow, 60 + grow); g.fill(); };
+    // outlines first, then fills, so the silhouette reads as one hand
+    capsule(245, 640, 245, 520, 150 + 4, edge); palm(edge, 2);
+    for (const [x0, y0, x1, y1, w] of FINGERS) capsule(x0, y0, x1, y1, w + 4, edge);
+    capsule(245, 640, 245, 520, 150, skin); palm(skin, 0);
+    for (const [x0, y0, x1, y1, w] of FINGERS) capsule(x0, y0, x1, y1, w, skin);
+    // knuckle creases, away from the sample spot
+    g.strokeStyle = shade(tone, 0.86); g.lineWidth = 2; g.lineCap = 'round';
+    state.fingertips = [];
+    for (const [x0, y0, x1, y1, w] of FINGERS) {
+      const ang = Math.atan2(y1 - y0, x1 - x0), len = Math.hypot(x1 - x0, y1 - y0);
+      for (const t of [0.45, 0.72]) {
+        const cx = x0 + (x1 - x0) * t, cy = y0 + (y1 - y0) * t, nx = Math.cos(ang + Math.PI / 2) * w * 0.22, ny = Math.sin(ang + Math.PI / 2) * w * 0.22;
+        g.beginPath(); g.moveTo(cx - nx, cy - ny); g.lineTo(cx + nx, cy + ny); g.stroke();
+      }
+      // nail bed
+      const nx = x1 - Math.cos(ang) * w * 0.18, ny = y1 - Math.sin(ang) * w * 0.18;
+      g.fillStyle = mix(tone, '#ffd6de', 0.35);
+      g.beginPath(); g.ellipse(nx, ny, w * 0.42, w * 0.3, ang, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = shade(tone, 0.86);
+      g.beginPath(); g.ellipse(nx, ny, w * 0.42, w * 0.3, ang, 0, Math.PI * 2); g.stroke();
+      state.fingertips.push({ x: nx, y: ny, rx: w * 0.3, ry: w * 0.44, rot: ang + Math.PI / 2 });
+      void len;
+    }
+    return c;
+  }
+
+  function setBase(c) {
+    base = c; cv.width = c.width; cv.height = c.height;
+    state.cursor = { x: Math.round(c.width / 2), y: Math.round(c.height / 2) };
+    state.nails = []; state.selected = -1;
+    render();
+  }
+
+  function render(clean) {
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.drawImage(base, 0, 0);
+    const p = state.shade ? byId[state.shade] : null;
+    state.nails.forEach((n, i) => {
+      if (p) paintNail(ctx, n, p, state.finish, i);
+      if (!clean && i === state.selected) {
+        ctx.save(); ctx.setLineDash([5, 4]); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.ellipse(n.x, n.y, n.rx + 4, n.ry + 4, n.rot, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = '#4a1d3f'; ctx.lineDashOffset = 4; ctx.stroke(); ctx.restore();
+      }
+      if (!clean && !p) { ctx.save(); ctx.strokeStyle = '#4a1d3f'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(n.x, n.y, n.rx, n.ry, n.rot, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
+    });
+    if (!clean && document.activeElement === cv) {
+      const { x, y } = state.cursor; ctx.save(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(x - 12, y); ctx.lineTo(x + 12, y); ctx.moveTo(x, y - 12); ctx.lineTo(x, y + 12); ctx.stroke();
+      ctx.strokeStyle = '#4a1d3f'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.restore();
+    }
+  }
+  function paintNail(g, n, p, finish, i) {
+    g.save();
+    g.translate(n.x, n.y); g.rotate(n.rot);
+    g.beginPath(); g.ellipse(0, 0, n.rx, n.ry, 0, 0, Math.PI * 2); g.clip();
+    g.fillStyle = p.hex; g.fillRect(-n.rx - 2, -n.ry - 2, 2 * n.rx + 4, 2 * n.ry + 4);
+    if (finish !== 'matte') {
+      const hl = g.createLinearGradient(-n.rx, 0, n.rx, 0);
+      hl.addColorStop(0, 'rgba(255,255,255,0)'); hl.addColorStop(0.18, 'rgba(255,255,255,.55)'); hl.addColorStop(0.32, 'rgba(255,255,255,0)'); hl.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = hl; g.fillRect(-n.rx, -n.ry, n.rx * 0.7, 2 * n.ry);
+      g.strokeStyle = 'rgba(0,0,0,.18)'; g.lineWidth = 2; g.beginPath(); g.ellipse(0, 0, n.rx, n.ry, 0, 0, Math.PI * 2); g.stroke();
+    }
+    if (finish === 'shimmer') {
+      const r = mulberry32(state.seed * 31 + i);
+      for (let k = 0; k < 26; k++) {
+        const x = (r() * 2 - 1) * n.rx, y = (r() * 2 - 1) * n.ry;
+        g.fillStyle = r() < 0.6 ? 'rgba(255,255,255,.75)' : 'rgba(255,226,160,.8)';
+        g.beginPath(); g.arc(x, y, 0.8 + r() * 1.4, 0, Math.PI * 2); g.fill();
+      }
+    }
+    g.restore();
+  }
+
+  // ---------- sampling ----------
+  function sampleAt(x, y) {
+    x = Math.round(x); y = Math.round(y);
+    const R = 3, x0 = Math.max(0, x - R), y0 = Math.max(0, y - R), x1 = Math.min(base.width - 1, x + R), y1 = Math.min(base.height - 1, y + R);
+    const d = base.getContext('2d', { willReadFrequently: true }).getImageData(x0, y0, x1 - x0 + 1, y1 - y0 + 1).data;
+    let r = 0, g = 0, b = 0, n = 0;
+    for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
+    const rgb = [r / n, g / n, b / n], lab = srgbToLab(...rgb), a = ita(lab);
+    state.skin = { at: { x, y }, rgb, hex: rgbToHex(...rgb), lab, ita: a, group: itaGroup(a), hue: hueAngle(lab), undertone: undertone(lab), patch: n };
+    showSkin(); update();
+    say(`Sampled skin: ${state.skin.undertone} undertone.`);
+  }
+  function showSkin() {
+    const s = state.skin;
+    if (!s) { $('skin-chip').style.background = ''; $('skin-readout').textContent = 'No skin sample yet. Tap the skin on the photo.'; return; }
+    $('skin-chip').style.background = s.hex;
+    $('skin-readout').innerHTML = `Undertone: <b data-testid="undertone">${s.undertone}</b> <span class="note">(hue ${s.hue.toFixed(1)}°)</span><br>` +
+      `L* <span data-testid="lab-l">${s.lab[0].toFixed(1)}</span> · a* <span data-testid="lab-a">${s.lab[1].toFixed(1)}</span> · b* <span data-testid="lab-b">${s.lab[2].toFixed(1)}</span><br>` +
+      `ITA <b data-testid="ita">${s.ita.toFixed(1)}°</b> <span class="note">(“${s.group}” in the Chardon groups; a description, not a ranking)</span>`;
+  }
+
+  // ---------- UI ----------
+  function say(msg) { $('status').textContent = msg; }
+  const tonesEl = $('tones');
+  DEMO_TONES.forEach((hex, i) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'tone'; b.style.background = hex;
+    b.setAttribute('aria-label', `Demo hand, tone ${i + 1}`); b.setAttribute('aria-pressed', 'false');
+    b.dataset.testid = `tone-${i}`;
+    b.addEventListener('click', () => loadDemo(i));
+    tonesEl.appendChild(b);
+  });
+  function loadDemo(i) {
+    state.source = 'demo'; state.demoTone = i;
+    [...tonesEl.children].forEach((b, k) => b.setAttribute('aria-pressed', String(k === i)));
+    setBase(drawDemo(DEMO_TONES[i]));
+    cv.setAttribute('aria-label', `Drawn demo hand, tone ${i + 1}`);
+    sampleAt(state.sampleSpot.x, state.sampleSpot.y);
+    autoPlace();
+    say(`Demo hand ${i + 1} loaded and sampled from the back of the hand.`);
+  }
+  function autoPlace() {
+    if (state.source !== 'demo') { say('Auto-place knows where the demo hand’s nails are; on your photo, tap each nail instead.'); return; }
+    state.nails = state.fingertips.map((f) => ({ ...f })); state.selected = -1; render();
+  }
+
+  const paletteEl = $('palette');
+  PALETTE.forEach((p) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'shade'; b.style.background = p.hex; b.title = p.name;
+    b.setAttribute('aria-label', p.name); b.setAttribute('aria-pressed', 'false'); b.dataset.testid = `shade-${p.id}`; b.dataset.id = p.id;
+    b.addEventListener('click', () => chooseShade(p.id));
+    paletteEl.appendChild(b);
+  });
+  function chooseShade(id) {
+    state.shade = id;
+    if (!state.picks.includes(id)) { state.picks.push(id); if (state.picks.length > 5) state.picks.shift(); }
+    [...paletteEl.children].forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.id === id)));
+    $('current').textContent = byId[id].name;
+    render(); update();
+  }
+  function renderPicks() {
+    const ul = $('picks'); ul.innerHTML = '';
+    if (!state.picks.length) { const li = document.createElement('li'); li.textContent = 'No picks yet'; li.style.background = 'transparent'; ul.appendChild(li); return; }
+    for (const id of state.picks) {
+      const p = byId[id], li = document.createElement('li');
+      li.innerHTML = `<span class="dot" style="background:${p.hex}"></span><span>${p.name}</span>`;
+      const x = document.createElement('button'); x.type = 'button'; x.textContent = '×'; x.setAttribute('aria-label', `Remove ${p.name} from picks`);
+      x.addEventListener('click', () => {
+        state.picks = state.picks.filter((k) => k !== id);
+        if (state.shade === id) { state.shade = state.picks.at(-1) || null; $('current').textContent = state.shade ? byId[state.shade].name : '—'; [...paletteEl.children].forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.id === state.shade))); }
+        render(); update(); paletteEl.querySelector('button').focus();
+      });
+      li.appendChild(x); ul.appendChild(li);
+    }
+  }
+
+  function meter(n) { return `<span class="meter" aria-hidden="true">${[1, 2, 3, 4, 5].map((k) => `<i class="${k <= n ? 'on' : ''}"></i>`).join('')}</span>`; }
+  function update() {
+    renderPicks();
+    const rev = $('review'), sugs = $('sugs');
+    if (!state.skin) {
+      state.review = []; state.suggestions = [];
+      rev.innerHTML = '<p class="note">Sample your skin first, then pick a shade or two.</p>'; sugs.innerHTML = ''; return;
+    }
+    const s = state.skin;
+    state.review = state.picks.map((id) => reviewShade(s.lab, s.undertone, byId[id]));
+    state.suggestions = suggest(s.lab, s.undertone, state.seed);
+    const intro = `<p data-testid="review-intro">Your sample reads <b>${s.undertone}</b>. Good news: that opens up whispers, pops and statements alike. Here's how your picks land.</p>`;
+    rev.innerHTML = intro + (state.review.length ? state.review.map((r) => `
+      <article class="rev" data-testid="review-item" data-id="${r.id}">
+        <div class="sw" style="background:${r.hex}" aria-hidden="true"></div>
+        <div style="min-width:0">
+          <h4>${r.name}</h4>
+          <div class="facts">
+            <div><span>Contrast</span> ${meter(r.contrast)} <b data-testid="contrast-word">${r.contrastWord}</b> · ΔE₀₀ <b data-testid="delta-e">${r.deltaE.toFixed(1)}</b></div>
+            <div><span>Harmony</span> ${meter(r.harmony)} <b data-testid="harmony">${r.harmony}/5</b></div>
+            <div><span>Occasion</span> <b data-testid="occasion">${r.occasions.join(', ')}</b></div>
+          </div>
+          <p data-testid="review-text">${r.text}</p>
+        </div>
+      </article>`).join('') : '<p class="note">Tap a shade in the polish bar to get its review.</p>');
+    sugs.innerHTML = state.suggestions.map((r) => `
+      <li data-testid="suggestion" data-id="${r.id}">
+        <div class="bar" style="background:${r.hex}" aria-hidden="true"></div>
+        <b>${r.name}</b><small>${r.contrastWord} contrast · ${r.occasions[0]}</small>
+        <button type="button" class="btn ghost small" data-try="${r.id}">Try it</button>
+      </li>`).join('');
+    sugs.querySelectorAll('[data-try]').forEach((b) => b.addEventListener('click', () => chooseShade(b.dataset.try)));
+  }
+
+  // modes
+  function setMode(m) {
+    state.mode = m;
+    $('mode-sample').setAttribute('aria-pressed', String(m === 'sample'));
+    $('mode-nails').setAttribute('aria-pressed', String(m === 'nails'));
+    cv.classList.toggle('nailing', m === 'nails');
+    say(m === 'sample' ? 'Tap your skin to sample it.' : 'Tap each nail to add a polish oval; drag to adjust.');
+  }
+  $('mode-sample').addEventListener('click', () => setMode('sample'));
+  $('mode-nails').addEventListener('click', () => setMode('nails'));
+  $('auto').addEventListener('click', autoPlace);
+  $('clear-nails').addEventListener('click', () => { state.nails = []; state.selected = -1; render(); say('Nails cleared.'); });
+
+  const toCanvas = (e) => { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * cv.width / r.width, y: (e.clientY - r.top) * cv.height / r.height }; };
+  function hitNail(x, y) {
+    for (let i = state.nails.length - 1; i >= 0; i--) {
+      const n = state.nails[i], c = Math.cos(-n.rot), s = Math.sin(-n.rot), dx = x - n.x, dy = y - n.y;
+      const u = dx * c - dy * s, v = dx * s + dy * c;
+      if ((u / (n.rx + 4)) ** 2 + (v / (n.ry + 4)) ** 2 <= 1) return i;
+    }
+    return -1;
+  }
+  function addNail(x, y) {
+    const k = cv.width / 480;
+    state.nails.push({ x, y, rx: 13 * k, ry: 19 * k, rot: 0 });
+    state.selected = state.nails.length - 1; render();
+    say(`Nail ${state.nails.length} added${state.shade ? '' : '. Pick a shade to paint it'}.`);
+  }
+  let drag = null;
+  cv.addEventListener('pointerdown', (e) => {
+    const p = toCanvas(e); state.cursor = { x: Math.round(p.x), y: Math.round(p.y) };
+    if (state.mode === 'sample') { sampleAt(p.x, p.y); return; }
+    const i = hitNail(p.x, p.y);
+    if (i >= 0) { state.selected = i; drag = { i, dx: p.x - state.nails[i].x, dy: p.y - state.nails[i].y, id: e.pointerId }; try { cv.setPointerCapture(e.pointerId); } catch (_) {} render(); }
+    else addNail(p.x, p.y);
+  });
+  cv.addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const p = toCanvas(e), n = state.nails[drag.i];
+    n.x = Math.max(0, Math.min(cv.width, p.x - drag.dx)); n.y = Math.max(0, Math.min(cv.height, p.y - drag.dy)); render();
+  });
+  const endDrag = () => { drag = null; };
+  cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
+  cv.addEventListener('focus', () => render()); cv.addEventListener('blur', () => render());
+  cv.addEventListener('keydown', (e) => {
+    const step = e.shiftKey ? 10 : 3, n = state.nails[state.selected];
+    const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+    if (moves[e.key]) {
+      e.preventDefault();
+      const [dx, dy] = moves[e.key];
+      if (state.mode === 'nails' && n) { n.x += dx; n.y += dy; }
+      else state.cursor = { x: Math.max(0, Math.min(cv.width - 1, state.cursor.x + dx)), y: Math.max(0, Math.min(cv.height - 1, state.cursor.y + dy)) };
+      render(); return;
+    }
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (state.mode === 'sample') sampleAt(state.cursor.x, state.cursor.y); else addNail(state.cursor.x, state.cursor.y);
+      return;
+    }
+    if (!n) return;
+    if (e.key === '+' || e.key === '=') { n.rx *= 1.1; n.ry *= 1.1; }
+    else if (e.key === '-' || e.key === '_') { n.rx /= 1.1; n.ry /= 1.1; }
+    else if (e.key === '[') n.rot -= 0.1;
+    else if (e.key === ']') n.rot += 0.1;
+    else if (e.key === 'Delete' || e.key === 'Backspace') { state.nails.splice(state.selected, 1); state.selected = -1; say('Nail removed.'); }
+    else return;
+    e.preventDefault(); render();
+  });
+
+  document.querySelectorAll('input[name="finish"]').forEach((r) => r.addEventListener('change', () => { state.finish = r.value; render(); say(`${r.value[0].toUpperCase() + r.value.slice(1)} finish.`); }));
+
+  // ---------- upload (never leaves the page) ----------
+  async function decode(file) {
+    if (window.createImageBitmap) { try { return await createImageBitmap(file); } catch (_) { /* fall through */ } }
+    const url = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(file); });
+    return await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = url; });
+  }
+  $('file').addEventListener('change', async (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    try {
+      const img = await decode(f);
+      const w = img.width, h = img.height, k = Math.min(1, 600 / Math.max(w, h));
+      const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      state.source = 'upload';
+      [...tonesEl.children].forEach((b) => b.setAttribute('aria-pressed', 'false'));
+      setBase(c); state.skin = null; showSkin(); update(); setMode('sample');
+      cv.setAttribute('aria-label', 'Your uploaded hand photo');
+      say(`Photo loaded (${c.width} × ${c.height}, kept on this device). Tap your skin to sample it.`);
+      cv.focus({ preventScroll: true });
+    } catch (err) { say('That file could not be read as an image. Try a JPEG or PNG.'); }
+  });
+
+  // ---------- gallery (localStorage only) ----------
+  const KEY = 'nail-studio.looks';
+  const loadLooks = () => { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (_) { return []; } };
+  function saveLooks(list) { try { localStorage.setItem(KEY, JSON.stringify(list)); return true; } catch (_) { return false; } }
+  function renderGallery() {
+    const list = loadLooks(), ul = $('gallery'); ul.innerHTML = '';
+    if (!list.length) { const li = document.createElement('li'); li.className = 'note'; li.style.border = '0'; li.style.background = 'transparent'; li.textContent = 'No looks saved yet.'; ul.appendChild(li); }
+    for (const look of list) {
+      const li = document.createElement('li'); li.dataset.testid = 'look';
+      const img = document.createElement('img'); img.src = look.img; img.alt = `Saved look: ${look.shades.join(', ') || 'no polish'}, ${look.finish} finish`;
+      const cap = document.createElement('small'); cap.textContent = `${look.shades.join(', ') || 'No polish'} · ${look.finish}`;
+      const del = document.createElement('button'); del.type = 'button'; del.className = 'btn ghost small'; del.textContent = 'Delete'; del.dataset.testid = 'delete-look';
+      del.setAttribute('aria-label', `Delete look: ${cap.textContent}`);
+      del.addEventListener('click', () => { saveLooks(loadLooks().filter((l) => l.id !== look.id)); renderGallery(); $('gstatus').textContent = 'Look deleted.'; $('submit').focus(); });
+      li.append(img, cap, del); ul.appendChild(li);
+    }
+  }
+  $('submit').addEventListener('click', () => {
+    render(true);
+    const k = Math.min(1, 220 / Math.max(cv.width, cv.height)), t = document.createElement('canvas');
+    t.width = Math.round(cv.width * k); t.height = Math.round(cv.height * k);
+    t.getContext('2d').drawImage(cv, 0, 0, t.width, t.height);
+    render();
+    const look = { id: `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`, t: Date.now(), img: t.toDataURL('image/jpeg', 0.8), shades: state.shade ? [byId[state.shade].name] : [], picks: state.picks.map((id) => byId[id].name), finish: state.finish, skin: state.skin ? state.skin.hex : null };
+    const list = loadLooks(); list.unshift(look);
+    let ok = saveLooks(list), dropped = 0;
+    while (!ok && list.length > 1) { list.pop(); dropped++; ok = saveLooks(list); }   // quota: make room by dropping the oldest
+    $('gstatus').textContent = !ok ? 'Storage is full, so this look could not be saved. Delete a few looks and try again.'
+      : dropped ? `Look saved. Storage was full, so the ${dropped} oldest look${dropped > 1 ? 's were' : ' was'} removed to make room.` : 'Look saved to this browser.';
+    renderGallery();
+  });
+  $('clear-gallery').addEventListener('click', () => { try { localStorage.removeItem(KEY); } catch (_) {} renderGallery(); $('gstatus').textContent = 'All looks deleted.'; });
+
+  // ---------- boot ----------
+  loadDemo(1);
+  setMode('sample');
+  say('Demo hand 2 loaded. Tap the skin to sample it, or pick a demo tone.');
+  renderGallery();
+
+  window.__nails = {
+    srgbToLab, deltaE2000, ita, itaGroup, undertone, hueAngle, shadeTemp, reviewShade, suggest,
+    palette: PALETTE.map((p) => ({ id: p.id, name: p.name, hex: p.hex, lab: p.lab.slice(), temp: p.temp })),
+    demoTones: DEMO_TONES.slice(),
+    get state() { return JSON.parse(JSON.stringify({ ...state, canvas: { w: cv.width, h: cv.height } })); },
+    pixel(x, y) { render(true); const d = ctx.getImageData(x, y, 1, 1).data; render(); return [d[0], d[1], d[2]]; },
+  };
+})();
+</script>
+</body>
+</html>

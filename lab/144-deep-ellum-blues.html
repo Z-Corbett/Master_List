@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deep Ellum Blues — a 12-bar blues generator</title>
+<meta name="description" content="A 12-bar blues generator inspired by Deep Ellum in Dallas: pick a key, slow or quick change, a walking or boogie bass and a triplet shuffle, and hear a seeded solo on the blues scale that lands on chord tones, all synthesized with Web Audio, with a chord chart and piano roll.">
+<style>
+  :root {
+    --night: #1a1230; --night-2: #241a40; --brick: #8e3b2a; --brick-2: #6e2c1f; --cream: #f4e8cf; --muted: #c9b99a;
+    --neon: #52f2d0; --pink: #ff5c8a; --gold: #f2c14e; --ink: #140d24;
+    --serif: "Rockwell", "Roboto Slab", "Clarendon", "Georgia", "Times New Roman", serif;
+    --sans: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+    --mono: ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--night); color: var(--cream); font: 15px/1.55 var(--sans); overflow-x: hidden; min-height: 100vh;
+    background-image:
+      linear-gradient(180deg, rgba(26,18,48,0) 0, var(--night) 340px),
+      repeating-linear-gradient(0deg, transparent 0 22px, rgba(0,0,0,.25) 22px 24px),
+      repeating-linear-gradient(90deg, var(--brick) 0 46px, var(--brick-2) 46px 48px);
+    background-size: 100% 100%, 100% 100%, 100% 100%; background-repeat: no-repeat; }
+  [hidden] { display: none !important; }
+  :focus-visible { outline: 3px solid var(--neon); outline-offset: 2px; }
+  a.back { position: fixed; top: 12px; left: 12px; z-index: 30; color: var(--ink); background: var(--gold); text-decoration: none; font: 700 13px/1 var(--sans); padding: 8px 12px; border-radius: 2px; box-shadow: 3px 3px 0 var(--ink); }
+  a.back:hover { background: var(--neon); }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 64px 16px 40px; }
+  header { text-align: center; margin-bottom: 20px; }
+  .sign { display: inline-block; border: 3px solid var(--pink); border-radius: 10px; padding: 10px 22px 12px; box-shadow: 0 0 18px rgba(255,92,138,.55), inset 0 0 12px rgba(255,92,138,.35); background: rgba(20,13,36,.7); max-width: 100%; }
+  h1 { font: 700 clamp(30px, 7.5vw, 58px)/1 var(--serif); margin: 0; color: #fff5f8; text-shadow: 0 0 10px var(--pink), 0 0 26px rgba(255,92,138,.6); overflow-wrap: anywhere; }
+  .sub { font: 600 13px/1.3 var(--mono); letter-spacing: .2em; text-transform: uppercase; color: var(--neon); margin-top: 6px; text-shadow: 0 0 8px rgba(82,242,208,.6); }
+  .blurb { max-width: 66ch; margin: 16px auto 0; color: var(--cream); background: rgba(20,13,36,.78); padding: 10px 14px; border-left: 4px solid var(--gold); text-align: left; }
+  section { background: var(--night-2); border: 1px solid #3b2d63; border-radius: 4px; padding: 16px; margin-top: 16px; min-width: 0; box-shadow: 6px 6px 0 rgba(0,0,0,.35); }
+  h2 { font: 700 20px/1.2 var(--serif); margin: 0 0 12px; color: var(--gold); }
+  .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; align-items: end; }
+  .controls > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  label.l, legend { font: 600 12px/1.2 var(--mono); color: var(--muted); letter-spacing: .05em; text-transform: uppercase; }
+  select, input[type=number] { font: 15px var(--sans); background: var(--ink); color: var(--cream); border: 1px solid #54457e; border-radius: 3px; padding: 8px; min-height: 42px; width: 100%; min-width: 0; }
+  button { font: 700 15px var(--sans); border-radius: 3px; border: 2px solid var(--gold); background: var(--gold); color: var(--ink); padding: 9px 16px; min-height: 44px; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--gold); }
+  button[aria-pressed=true] { background: var(--pink); border-color: var(--pink); color: #fff; }
+  .transport { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 14px; }
+  .transport .seed { font: 13px var(--mono); color: var(--muted); }
+  .status { font: 14px/1.4 var(--mono); color: var(--neon); min-height: 1.4em; margin-top: 10px; overflow-wrap: anywhere; }
+  .chart { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border: 2px solid var(--cream); border-radius: 2px; }
+  .bar { border-right: 2px solid var(--cream); border-bottom: 2px solid var(--cream); padding: 10px 8px; min-height: 70px; min-width: 0; position: relative; background: rgba(20,13,36,.5); transition: background .1s; }
+  .bar:nth-child(4n) { border-right: 0; }
+  .bar:nth-last-child(-n+4) { border-bottom: 0; }
+  .bar .name { font: 700 clamp(18px, 4.5vw, 26px)/1 var(--serif); color: #fff; overflow-wrap: anywhere; }
+  .bar .rn { font: 12px var(--mono); color: var(--muted); }
+  .bar .num { position: absolute; top: 4px; right: 6px; font: 11px var(--mono); color: #7d6fa8; }
+  .bar.now { background: rgba(255,92,138,.35); box-shadow: inset 0 0 0 2px var(--pink); }
+  .roll { display: flex; flex-direction: column; gap: 10px; }
+  .roll svg { display: block; width: 100%; height: auto; background: var(--ink); border: 1px solid #3b2d63; border-radius: 3px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font: 12px var(--mono); color: var(--muted); margin-top: 8px; }
+  .legend i { display: inline-block; width: 12px; height: 12px; vertical-align: -2px; margin-right: 5px; border-radius: 2px; }
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .facts p { margin: 0; color: var(--cream); }
+  .facts b { color: var(--gold); }
+  code { font: 13px var(--mono); color: var(--neon); }
+  footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 24px; }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <div class="sign"><h1>Deep Ellum Blues</h1><div class="sub">12 bars · shuffle · blues scale</div></div>
+    <p class="blurb">Deep Ellum, just east of downtown Dallas, was a centre of early blues. Blind Lemon Jefferson performed there in the 1920s. This page is a small tribute, not a history: it writes a 12-bar blues, a shuffle bass and a seeded solo, and plays them with synthesized Web Audio voices.</p>
+  </header>
+
+  <section aria-labelledby="h-set">
+    <h2 id="h-set">The band</h2>
+    <div class="controls">
+      <div><label class="l" for="key">Key</label><select id="key" data-testid="key"></select></div>
+      <div><label class="l" for="variant">Changes</label>
+        <select id="variant" data-testid="variant"><option value="slow">Slow change (I for 4 bars)</option><option value="quick">Quick change (IV in bar 2)</option></select></div>
+      <div><label class="l" for="bass">Bass line</label>
+        <select id="bass" data-testid="bass"><option value="walking">Walking (quarters)</option><option value="boogie">Boogie (1-3-5-6-♭7)</option></select></div>
+      <div><label class="l" for="feel">Feel</label>
+        <select id="feel" data-testid="feel"><option value="shuffle">Triplet shuffle (2:1)</option><option value="straight">Straight eighths</option></select></div>
+      <div><label class="l" for="bpm">Tempo (BPM)</label><input id="bpm" type="number" min="50" max="180" step="1" value="92" data-testid="bpm"></div>
+    </div>
+    <div class="transport">
+      <button type="button" id="play" aria-pressed="false" data-testid="play">Play</button>
+      <button type="button" id="newsolo" class="ghost" data-testid="new-solo">New solo</button>
+      <span class="seed" id="seedTxt" data-testid="seed"></span>
+    </div>
+    <div class="status" id="status" role="status" aria-live="polite" data-testid="status"></div>
+  </section>
+
+  <section aria-labelledby="h-chart">
+    <h2 id="h-chart">Chord chart</h2>
+    <div class="chart" id="chart" role="list" aria-label="Twelve-bar chord chart" data-testid="chart"></div>
+  </section>
+
+  <section aria-labelledby="h-roll">
+    <h2 id="h-roll">Piano roll</h2>
+    <div class="roll" id="roll" data-testid="roll"></div>
+    <div class="legend"><span><i style="background:#ff5c8a"></i>solo, strong beat (chord tone)</span><span><i style="background:#f2c14e"></i>solo, other notes</span><span><i style="background:#52f2d0"></i>bass</span><span><i style="background:#6a5a9c"></i>chord</span></div>
+  </section>
+
+  <section aria-labelledby="h-how">
+    <h2 id="h-how">How it's built</h2>
+    <div class="facts">
+      <p><b>The form.</b> Twelve bars of dominant sevenths: I–I–I–I, IV–IV–I–I, V–IV–I–V. The last bar's V is the turnaround back to the top. A quick change moves to IV in bar 2 and back.</p>
+      <p><b>The shuffle.</b> Each beat splits into a triplet, and the off-beat eighth falls on the third triplet: at <code>2/3</code> of the beat, a long–short 2:1 swing.</p>
+      <p><b>The solo.</b> Notes come from the blues scale (minor pentatonic plus the ♭5: 1, ♭3, 4, ♭5, 5, ♭7). On the strong beats (1 and 3) the solo lands on a note that is also in the current chord. The same <code>?seed=</code> plays the same solo.</p>
+    </div>
+  </section>
+  <footer>Built by Zac Corbett · all sound synthesized in the browser, nothing sampled · add <code>?seed=</code> for a repeatable solo</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = s => document.querySelector(s);
+  const SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  const FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+  const KEYS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+  const FLAT_KEYS = new Set(['F', 'Bb', 'Eb', 'Ab', 'Db']);
+  const PROG = { slow: [0, 0, 0, 0, 1, 1, 0, 0, 2, 1, 0, 2], quick: [0, 1, 0, 0, 1, 1, 0, 0, 2, 1, 0, 2] };
+  const DEG_SEMI = [0, 5, 7], DEG_RN = ['I7', 'IV7', 'V7'];
+  const BLUES = [0, 3, 5, 6, 7, 10];               // minor pentatonic + ♭5
+  const CHORD = [0, 4, 7, 10];                      // dominant seventh
+  const WALK = [0, 4, 7, 9], BOOGIE = [0, 4, 7, 9, 10, 9, 7, 4];
+  const LOOKAHEAD = 0.1, TICK_MS = 25, START_DELAY = 0.05;
+
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const params = new URLSearchParams(location.search);
+  let seed = (parseInt(params.get('seed'), 10) >>> 0) || 1927;
+  const opt = { key: 'A', variant: 'slow', bass: 'walking', feel: 'shuffle', bpm: 92 };
+
+  const keyPc = k => (KEYS.includes(k) ? KEYS.indexOf(k) : 9);        // KEYS runs chromatically from C
+  const nameOf = (pc, key) => (FLAT_KEYS.has(key) ? FLAT : SHARP)[((pc % 12) + 12) % 12];
+  const swingFrac = feel => (feel === 'shuffle' ? 2 / 3 : 1 / 2);
+
+  // ---------- composition (pure) ----------
+  function compose(o, sd) {
+    const r = mulberry32(sd);
+    const K = keyPc(o.key), prog = PROG[o.variant], sw = swingFrac(o.feel);
+    const chords = prog.map(d => ({ degree: d, rn: DEG_RN[d], root: (K + DEG_SEMI[d]) % 12, name: nameOf(K + DEG_SEMI[d], o.key) + '7' }));
+    const events = [];
+    const at = (bar, beat, sub) => bar * 4 + beat + (sub ? sw : 0);
+    // chords: a held voicing on beat 1, stabs on the off-beats of 2 and 4
+    const chordMidi = root => { const b = 52 + ((root - 4 + 12) % 12); return CHORD.map(i => b + i); };
+    chords.forEach((c, bar) => {
+      events.push({ voice: 'chord', bar, beat: 0, sub: 0, tb: at(bar, 0, 0), dur: 1, midi: chordMidi(c.root), name: c.name });
+      for (const beat of [1, 3]) events.push({ voice: 'chord', bar, beat, sub: 1, tb: at(bar, beat, 1), dur: 1 - sw, midi: chordMidi(c.root), name: c.name });
+    });
+    // bass
+    const bassRoot = pc => 40 + ((pc - 4 + 12) % 12);                // E2 .. D#3
+    chords.forEach((c, bar) => {
+      const R = bassRoot(c.root);
+      if (o.bass === 'walking') {
+        const next = chords[(bar + 1) % 12];
+        for (let beat = 0; beat < 4; beat++) {
+          let m = R + WALK[beat];
+          if (beat === 3 && next.root !== c.root) { const nr = bassRoot(next.root); m = nr + (r() < 0.5 ? -1 : 1); }   // chromatic approach
+          events.push({ voice: 'bass', bar, beat, sub: 0, tb: at(bar, beat, 0), dur: 0.9, midi: m });
+        }
+      } else {
+        for (let i = 0; i < 8; i++) {
+          const beat = i >> 1, sub = i & 1;
+          events.push({ voice: 'bass', bar, beat, sub, tb: at(bar, beat, sub), dur: (sub ? 1 - sw : sw) * 0.95, midi: R + BOOGIE[i] });
+        }
+      }
+    });
+    // solo: a seeded walk on the blues scale, snapping to chord tones on beats 1 and 3
+    const home = 60 + K;                                            // C4 .. B4
+    const scale = [];
+    for (let m = home - 5; m <= home + 17; m++) if (BLUES.includes(((m - K) % 12 + 12) % 12)) scale.push(m);
+    let idx = scale.indexOf(home) + 2;
+    for (let bar = 0; bar < 12; bar++) {
+      const c = chords[bar];
+      const ct = CHORD.map(i => (c.root + i) % 12);
+      const strongPool = scale.filter(m => ct.includes(m % 12));
+      const breath = bar % 4 === 3;                                    // the last bar of each line answers with space
+      for (let beat = 0; beat < 4; beat++) {
+        let pat;
+        const x = r();
+        if (breath && beat >= 1) pat = x < 0.7 ? 'r' : 'd';
+        else if (beat === 0) pat = x < 0.55 ? 'd' : 'do';
+        else pat = x < 0.3 ? 'd' : x < 0.65 ? 'do' : x < 0.85 ? 'o' : 'r';
+        for (const sub of [0, 1]) {
+          if (sub === 0 && !(pat === 'd' || pat === 'do')) continue;
+          if (sub === 1 && !(pat === 'o' || pat === 'do')) continue;
+          const steps = [-2, -1, -1, 0, 1, 1, 2];
+          idx = Math.max(0, Math.min(scale.length - 1, idx + steps[Math.floor(r() * steps.length)]));
+          let m = scale[idx];
+          const strong = sub === 0 && (beat === 0 || beat === 2);
+          if (strong) {
+            let best = strongPool[0], bd = 1e9;
+            for (const s of strongPool) { const d = Math.abs(s - m) + (r() * 0.5); if (d < bd) { bd = d; best = s; } }
+            m = best; idx = scale.indexOf(m);
+          }
+          const dur = pat === 'd' ? 0.95 : (sub ? 1 - sw : sw) * 0.95;
+          events.push({ voice: 'melody', bar, beat, sub, tb: at(bar, beat, sub), dur, midi: m, strong });
+        }
+      }
+    }
+    events.sort((a, b) => a.tb - b.tb || a.voice.localeCompare(b.voice));
+    return { seed: sd, key: o.key, variant: o.variant, bass: o.bass, feel: o.feel, swing: sw, chords, events, scalePcs: BLUES.map(i => (K + i) % 12) };
+  }
+
+  let song = compose(opt, seed);
+
+  // ---------- audio ----------
+  let ctx = null, master = null, audioNote = 'none';
+  function ensureAudio() {
+    if (ctx) { if (ctx.state !== 'running' && ctx.resume) { try { ctx.resume().catch(() => {}); } catch (e) {} } return; }
+    const Ctor = window.AudioContext || window.webkitAudioContext;
+    if (!Ctor) { audioNote = 'unavailable'; return; }
+    try { ctx = new Ctor(); } catch (e) { ctx = null; audioNote = 'unavailable'; return; }
+    master = ctx.createGain(); master.gain.value = 0.6;
+    const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -12; comp.ratio.value = 4;
+    master.connect(comp); comp.connect(ctx.destination);
+    ctx.onstatechange = onAudioState;
+    try { const p = ctx.resume(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+  }
+  const audioRunning = () => !!ctx && ctx.state === 'running';
+  const hz = m => 440 * 2 ** ((m - 69) / 12);
+  function tone(m, t, dur, type, peak, cutoff) {
+    const o = ctx.createOscillator(), g = ctx.createGain(), f = ctx.createBiquadFilter();
+    o.type = type; o.frequency.setValueAtTime(hz(m), t);
+    f.type = 'lowpass'; f.frequency.value = cutoff;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(peak * 0.5, t + Math.min(dur, 0.15)); g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.06);
+    o.connect(f); f.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.1);
+  }
+  let sounded = 0;
+  function sound(e, t, beatSec) {
+    if (!audioRunning()) return false;
+    try {
+      t = Math.max(t, ctx.currentTime);
+      const d = e.dur * beatSec;
+      if (e.voice === 'melody') { tone(e.midi, t, d, 'sawtooth', 0.18, 2400); if (e.strong) tone(e.midi + 12, t, d * 0.7, 'sine', 0.03, 4000); }
+      else if (e.voice === 'bass') tone(e.midi, t, d, 'triangle', 0.5, 700);
+      else e.midi.forEach(m => tone(m, t, d * 0.8, 'triangle', 0.06, 1800));
+      sounded++; return true;
+    } catch (err) { return false; }
+  }
+
+  // ---------- transport ----------
+  let playing = false, clockKind = 'silent', t0 = 0, cursor = 0, chorus = 0, timer = 0, log = [], queue = [], shownBar = -1;
+  const perfNow = () => performance.now() / 1000;
+  const now = () => (clockKind === 'audio' ? ctx.currentTime : perfNow());
+  const beatSec = () => 60 / opt.bpm;
+  const CHORUS_BEATS = 48;
+  function scheduler() {
+    const limit = now() + LOOKAHEAD, b = beatSec();
+    while (true) {
+      if (cursor >= song.events.length) { cursor = 0; chorus++; }
+      const e = song.events[cursor];
+      const t = t0 + (chorus * CHORUS_BEATS + e.tb) * b;
+      if (t >= limit) break;
+      const s = sound(e, t, b);
+      log.push({ voice: e.voice, bar: e.bar, beat: e.beat, sub: e.sub, chorus, t: +(t - t0).toFixed(9), tb: e.tb, midi: e.midi, sounded: s });
+      if (log.length > 2000) log.shift();
+      if (e.voice !== 'chord' || e.sub === 0) queue.push({ at: t, bar: e.bar, beat: e.beat });
+      cursor++;
+    }
+  }
+  let cur = { bar: -1, beat: -1 };
+  function draw() {
+    if (!playing) return;
+    const t = now();
+    while (queue.length && queue[0].at <= t) { const q = queue.shift(); cur = { bar: q.bar, beat: q.beat }; }
+    if (cur.bar !== shownBar) { shownBar = cur.bar; paintBar(cur.bar); }
+    paintPlayhead(t);
+    requestAnimationFrame(draw);
+  }
+  function start() {
+    ensureAudio();
+    clockKind = audioRunning() ? 'audio' : 'silent';
+    t0 = now() + START_DELAY; cursor = 0; chorus = 0; log = []; queue = []; shownBar = -1; cur = { bar: -1, beat: -1 };
+    playing = true; scheduler(); timer = setInterval(scheduler, TICK_MS); requestAnimationFrame(draw);
+    renderTransport();
+  }
+  function stop() { playing = false; clearInterval(timer); timer = 0; queue = []; shownBar = -1; cur = { bar: -1, beat: -1 }; paintBar(-1); paintPlayhead(null); renderTransport(); }
+  function onAudioState() {
+    if (playing && clockKind === 'silent' && audioRunning()) {
+      const off = ctx.currentTime - perfNow(); t0 += off; queue.forEach(q => q.at += off); clockKind = 'audio';
+    } else if (playing && clockKind === 'audio' && !audioRunning()) {
+      const off = perfNow() - ctx.currentTime; t0 += off; queue.forEach(q => q.at += off); clockKind = 'silent';
+    }
+    renderTransport();
+  }
+  function audioMessage() {
+    if (audioNote === 'unavailable') return 'Web Audio is not available here, so it plays silently; the chart and piano roll still keep time.';
+    if (ctx && ctx.state !== 'running') return 'Audio is suspended by the browser, so it plays silently; the chart and piano roll still keep time.';
+    return '';
+  }
+  function say(t) { $('#status').textContent = t; }
+  function renderTransport() {
+    const p = $('#play'); p.setAttribute('aria-pressed', String(playing)); p.textContent = playing ? 'Stop' : 'Play';
+    if (!playing) { say('Stopped. Sound starts when you press Play.'); return; }
+    const a = audioMessage();
+    say(`Playing a 12-bar in ${opt.key} at ${opt.bpm} BPM, ${opt.feel === 'shuffle' ? 'triplet shuffle' : 'straight'}.` + (a ? ' ' + a : ''));
+  }
+
+  // ---------- views ----------
+  function renderChart() {
+    $('#chart').innerHTML = song.chords.map((c, i) => `<div class="bar" role="listitem" data-testid="bar-${i}" data-chord="${c.name}" aria-label="Bar ${i + 1}: ${c.name}, ${c.rn.replace('7', '')}"><span class="num">${i + 1}</span><div class="name">${c.name}</div><div class="rn">${c.rn}</div></div>`).join('');
+  }
+  function paintBar(b) { document.querySelectorAll('.bar').forEach((el, i) => el.classList.toggle('now', i === b)); $('#chart').dataset.now = b; }
+  const ROW_BEATS = 16, W = 640, PAD = 30;
+  let rollLo = 0, rollHi = 0;
+  function renderRoll() {
+    const ev = song.events;
+    const all = ev.flatMap(e => (Array.isArray(e.midi) ? e.midi : [e.midi]));
+    rollLo = Math.min(...all) - 1; rollHi = Math.max(...all) + 1;
+    const H = 150, span = rollHi - rollLo, ny = m => 8 + (1 - (m - rollLo) / span) * (H - 16), xb = b => PAD + (b / ROW_BEATS) * (W - PAD - 6);
+    const nh = Math.max(2, (H - 16) / span - 0.6);
+    let out = '';
+    for (let row = 0; row < 3; row++) {
+      let g = `<rect x="${PAD}" y="4" width="${W - PAD - 6}" height="${H - 8}" fill="#140d24"/>`;
+      for (let m = rollLo; m <= rollHi; m++) if ([1, 3, 6, 8, 10].includes(m % 12)) g += `<rect x="${PAD}" y="${(ny(m) - nh / 2).toFixed(2)}" width="${W - PAD - 6}" height="${nh.toFixed(2)}" fill="#1d1535"/>`;
+      for (let b = 0; b <= ROW_BEATS; b++) g += `<line x1="${xb(b).toFixed(2)}" x2="${xb(b).toFixed(2)}" y1="4" y2="${H - 4}" stroke="${b % 4 ? '#2a2048' : '#6a5a9c'}" stroke-width="${b % 4 ? 1 : 2}"/>`;
+      for (let k = 0; k < 4; k++) { const bar = row * 4 + k; g += `<text x="${(xb(k * 4) + 4).toFixed(2)}" y="18" fill="#f2c14e" font-size="13" font-weight="700" font-family="Georgia, serif">${song.chords[bar].name}</text>`; }
+      for (let m = rollLo; m <= rollHi; m++) if (m % 12 === keyPc(opt.key)) g += `<text x="${PAD - 4}" y="${(ny(m) + 3).toFixed(2)}" fill="#c9b99a" font-size="9" text-anchor="end" font-family="monospace">${nameOf(m, opt.key)}${Math.floor(m / 12) - 1}</text>`;
+      for (const e of ev) {
+        if (Math.floor(e.bar / 4) !== row) continue;
+        const b = e.tb - row * ROW_BEATS, x = xb(b), w = Math.max(2, xb(b + e.dur) - x - 1);
+        const ms = Array.isArray(e.midi) ? e.midi : [e.midi];
+        const fill = e.voice === 'bass' ? '#52f2d0' : e.voice === 'chord' ? '#6a5a9c' : e.strong ? '#ff5c8a' : '#f2c14e';
+        for (const m of ms) g += `<rect x="${x.toFixed(2)}" y="${(ny(m) - nh / 2).toFixed(2)}" width="${w.toFixed(2)}" height="${nh.toFixed(2)}" rx="1.5" fill="${fill}"${e.voice === 'melody' ? ` data-midi="${m}" data-tb="${e.tb.toFixed(4)}"` : ''}/>`;
+      }
+      g += `<line class="ph" x1="-10" x2="-10" y1="4" y2="${H - 4}" stroke="#ffffff" stroke-width="2"/>`;
+      const bars = song.chords.slice(row * 4, row * 4 + 4).map(c => c.name).join(', ');
+      const nMel = ev.filter(e => e.voice === 'melody' && Math.floor(e.bar / 4) === row).length;
+      out += `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Bars ${row * 4 + 1} to ${row * 4 + 4} (${bars}): ${nMel} solo notes" data-row="${row}">${g}</svg>`;
+    }
+    $('#roll').innerHTML = out;
+  }
+  function paintPlayhead(t) {
+    const lines = document.querySelectorAll('#roll .ph');
+    lines.forEach(l => { l.setAttribute('x1', -10); l.setAttribute('x2', -10); });
+    if (t == null) return;
+    const pos = ((t - t0) / beatSec()) % CHORUS_BEATS;
+    if (pos < 0) return;
+    const row = Math.floor(pos / ROW_BEATS), x = PAD + ((pos - row * ROW_BEATS) / ROW_BEATS) * (W - PAD - 6);
+    const l = lines[row]; if (l) { l.setAttribute('x1', x.toFixed(2)); l.setAttribute('x2', x.toFixed(2)); }
+  }
+  function renderAll() {
+    song = compose(opt, seed);
+    $('#seedTxt').textContent = `solo seed ${seed}`;
+    renderChart(); renderRoll();
+    $('#key').value = opt.key; $('#variant').value = opt.variant; $('#bass').value = opt.bass; $('#feel').value = opt.feel; $('#bpm').value = opt.bpm;
+  }
+  function restartIfPlaying() { if (playing) { stop(); start(); } }
+
+  // ---------- wiring ----------
+  KEYS.forEach(k => { const o = document.createElement('option'); o.value = k; o.textContent = k.replace('b', '♭').replace('#', '♯'); $('#key').appendChild(o); });
+  for (const id of ['key', 'variant', 'bass', 'feel']) $('#' + id).addEventListener('change', e => { opt[id] = e.target.value; renderAll(); restartIfPlaying(); say(`12-bar in ${opt.key}: ${song.chords[0].name}, ${song.chords[4].name}, ${song.chords[8].name}; ${opt.variant} change, ${opt.bass} bass.`); });
+  $('#bpm').addEventListener('change', e => { const v = Math.round(+e.target.value); if (Number.isFinite(v)) opt.bpm = Math.min(180, Math.max(50, v)); renderAll(); restartIfPlaying(); });
+  $('#play').addEventListener('click', () => (playing ? stop() : start()));
+  $('#newsolo').addEventListener('click', () => {
+    seed = (Math.floor(mulberry32(seed ^ 0x9e3779b9)() * 1e9) >>> 0) || 1;
+    try { const u = new URL(location.href); u.searchParams.set('seed', seed); history.replaceState(null, '', u); } catch (e) {}
+    renderAll(); restartIfPlaying(); say(`New solo, seed ${seed}.`);
+  });
+  renderAll(); renderTransport();
+
+  window.__blues = {
+    get state() { return { ...opt, seed, playing, clock: clockKind, audio: ctx ? ctx.state : (audioNote === 'unavailable' ? 'unavailable' : 'none'), sounded, bar: cur.bar, beat: cur.beat, beatSec: beatSec() }; },
+    get song() { return JSON.parse(JSON.stringify(song)); },
+    get log() { return log.map(e => ({ ...e })); },
+    compose: (o, s) => JSON.parse(JSON.stringify(compose({ ...opt, ...o }, s))),
+    LOOKAHEAD, START_DELAY,
+  };
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crawfish Boil Planner — Viet-Cajun, Houston style</title>
+<meta name="description" content="Plan a Houston-style Viet-Cajun crawfish boil: scale live crawfish by guests and appetite, round up to sacks, size the pot and batches, season by spice level, mix a lemongrass garlic butter, run the boil and soak timers, and take a shopping list in US or metric units.">
+<style>
+  :root {
+    --paper: #f3ecdc; --paper-2: #e8dec8; --ink: #2a2118; --muted: #6d5d49; --red: #c8331f; --red-2: #9e2414;
+    --butter: #f4c542; --grass: #5f8f2f; --steel: #3d4a52; --line: #cdbf9f;
+    --serif: "Georgia", "Times New Roman", serif;
+    --sans: "Trebuchet MS", "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+    --mono: ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: #d9cdb2; color: var(--ink); font: 15px/1.55 var(--sans); overflow-x: hidden; min-height: 100vh;
+    background-image: repeating-linear-gradient(0deg, rgba(42,33,24,.05) 0 1px, transparent 1px 7px), repeating-linear-gradient(90deg, rgba(42,33,24,.03) 0 1px, transparent 1px 180px); }
+  [hidden] { display: none !important; }
+  :focus-visible { outline: 3px solid #1d6fd6; outline-offset: 2px; }
+  a.back { position: fixed; top: 12px; left: 12px; z-index: 30; color: #fff; background: var(--red); text-decoration: none; font: 700 13px/1 var(--sans); padding: 8px 12px; border-radius: 20px; box-shadow: 0 2px 0 var(--red-2); }
+  a.back:hover { background: var(--ink); }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 60px 16px 40px; }
+  .masthead { background: var(--paper); border: 1px solid var(--line); padding: 16px 18px; box-shadow: 0 3px 0 rgba(0,0,0,.08); position: relative; }
+  .masthead .kicker { font: 700 12px/1 var(--sans); letter-spacing: .18em; text-transform: uppercase; color: var(--red); }
+  h1 { font: 700 clamp(30px, 7vw, 54px)/1 var(--serif); margin: 6px 0 8px; overflow-wrap: anywhere; }
+  h1 em { color: var(--red); font-style: italic; }
+  .masthead p { margin: 0; max-width: 72ch; color: var(--ink); }
+  .rule { border-top: 3px double var(--ink); margin: 10px 0; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 16px; margin-top: 16px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  section { background: var(--paper); border: 1px solid var(--line); padding: 16px; min-width: 0; box-shadow: 0 3px 0 rgba(0,0,0,.06); }
+  h2 { font: 700 22px/1.2 var(--serif); margin: 0 0 10px; }
+  h2 small { font: 600 12px var(--sans); color: var(--muted); letter-spacing: .06em; text-transform: uppercase; margin-left: 6px; }
+  .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; min-width: 0; }
+  .field > label, legend { font: 700 13px/1.2 var(--sans); color: var(--ink); }
+  fieldset { border: 1px solid var(--line); padding: 8px 10px 10px; margin: 0 0 12px; min-width: 0; }
+  .opts { display: flex; flex-wrap: wrap; gap: 6px; }
+  .opts label { display: flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: #fffaf0; padding: 7px 10px; border-radius: 18px; cursor: pointer; min-height: 40px; }
+  .opts label:has(input:checked) { background: var(--red); color: #fff; border-color: var(--red); }
+  .opts.spice label:has(input:checked) { background: var(--red-2); }
+  input[type=number], select { font: 16px var(--sans); border: 1px solid #b7a887; background: #fffaf0; padding: 8px; min-height: 42px; border-radius: 4px; width: 100%; min-width: 0; color: var(--ink); }
+  .hint { font-size: 12px; color: var(--muted); }
+  .big { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+  .stat { background: #fffaf0; border: 1px solid var(--line); border-top: 4px solid var(--red); padding: 10px; min-width: 0; }
+  .stat b { display: block; font: 700 12px/1.2 var(--sans); color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+  .stat output { display: block; font: 700 24px/1.2 var(--serif); overflow-wrap: anywhere; }
+  .stat small { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; display: block; }
+  .safety { margin-top: 14px; border: 2px solid var(--red); background: #fff1ea; padding: 10px 12px; }
+  .safety strong { color: var(--red-2); }
+  .sauce { border-top: 4px solid var(--butter); }
+  .sauce ul, .shop ul { margin: 0; padding-left: 0; list-style: none; }
+  .sauce li, .shop li { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px dotted var(--line); flex-wrap: wrap; }
+  .sauce li span:last-child, .shop li span:last-child { font-family: var(--mono); font-size: 14px; text-align: right; overflow-wrap: anywhere; min-width: 0; }
+  .timeline { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+  .timeline li { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 8px; border-bottom: 1px solid var(--line); }
+  .timeline li::before { counter-increment: step; content: counter(step); width: 30px; height: 30px; border-radius: 50%; background: var(--paper-2); display: grid; place-items: center; font: 700 14px var(--sans); }
+  .timeline li.now { background: #fff4c9; }
+  .timeline li.now::before { background: var(--red); color: #fff; }
+  .timeline li.done { color: var(--muted); }
+  .timeline li.done::before { content: "✓"; background: var(--grass); color: #fff; }
+  .timeline .t { font: 700 14px var(--mono); }
+  .timeline .d { font-size: 13px; color: var(--muted); }
+  .clock { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 12px 0; }
+  .clock output { font: 700 clamp(34px, 9vw, 56px)/1 var(--mono); color: var(--red-2); min-width: 0; }
+  .clock .lbl { font: 700 15px var(--sans); overflow-wrap: anywhere; min-width: 0; flex: 1 1 160px; }
+  .btns { display: flex; flex-wrap: wrap; gap: 8px; }
+  button { font: 700 15px var(--sans); border: 2px solid var(--red); background: var(--red); color: #fff; border-radius: 22px; padding: 8px 16px; min-height: 44px; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--red-2); }
+  button:disabled { opacity: .5; cursor: default; }
+  .units { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  .units button[aria-pressed=true] { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .units button[aria-pressed=false] { background: transparent; color: var(--ink); border-color: var(--ink); }
+  footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 24px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <div class="masthead">
+    <div class="kicker">Spread the newspaper · Houston style</div>
+    <h1>Crawfish Boil <em>Planner</em></h1>
+    <div class="rule"></div>
+    <p>Houston's Vietnamese-American cooks helped popularise a crawfish style often called Viet-Cajun: a Louisiana-style boil, then a toss in garlic butter with lemongrass and Cajun spice. This planner scales a boil for your crowd. Every quantity is a planning estimate, not a recipe from any restaurant, so taste as you go.</p>
+  </div>
+
+  <div class="grid">
+    <section aria-labelledby="h-crowd">
+      <h2 id="h-crowd">The crowd</h2>
+      <div class="field">
+        <label for="guests">Guests</label>
+        <input id="guests" type="number" min="1" max="200" step="1" value="10" inputmode="numeric" data-testid="guests">
+      </div>
+      <fieldset>
+        <legend>Appetite</legend>
+        <div class="opts" id="appetite">
+          <label><input type="radio" name="appetite" value="3" data-testid="appetite-3"> Light · 3 lb</label>
+          <label><input type="radio" name="appetite" value="4" data-testid="appetite-4" checked> Regular · 4 lb</label>
+          <label><input type="radio" name="appetite" value="5" data-testid="appetite-5"> Big eaters · 5 lb</label>
+        </div>
+        <div class="hint">Live crawfish per person. A common rule of thumb is 3–5 lb each; it's a rule of thumb, not a law.</div>
+      </fieldset>
+      <fieldset>
+        <legend>Spice level</legend>
+        <div class="opts spice">
+          <label><input type="radio" name="spice" value="mild" data-testid="spice-mild"> Mild</label>
+          <label><input type="radio" name="spice" value="medium" data-testid="spice-medium" checked> Medium</label>
+          <label><input type="radio" name="spice" value="hot" data-testid="spice-hot"> Hot</label>
+          <label><input type="radio" name="spice" value="fire" data-testid="spice-fire"> Fire</label>
+        </div>
+        <div class="hint">Spice scales the boil seasoning, the chili in the butter and the soak time.</div>
+      </fieldset>
+      <div class="field">
+        <label for="pot">Pot size</label>
+        <select id="pot" data-testid="pot">
+          <option value="60">60 qt (about 20 lb a batch)</option>
+          <option value="80" selected>80 qt (about 30 lb a batch)</option>
+          <option value="100">100 qt (about 40 lb a batch)</option>
+        </select>
+      </div>
+      <fieldset>
+        <legend>In the pot too</legend>
+        <div class="opts">
+          <label><input type="checkbox" id="s-corn" data-testid="side-corn" checked> Corn</label>
+          <label><input type="checkbox" id="s-pot" data-testid="side-potatoes" checked> Potatoes</label>
+          <label><input type="checkbox" id="s-sau" data-testid="side-sausage" checked> Sausage</label>
+        </div>
+      </fieldset>
+      <div class="safety" data-testid="safety" role="note">
+        <strong>Food safety:</strong> only cook crawfish that are alive when they go in the pot. Rinse them in clean water, then pick out and discard any dead ones (limp, not moving) before cooking. Keep them cool and ventilated, not submerged, until the boil.
+      </div>
+    </section>
+
+    <section aria-labelledby="h-plan">
+      <h2 id="h-plan">The plan <small aria-live="polite" id="planSum" data-testid="plan-summary"></small></h2>
+      <div class="big">
+        <div class="stat"><b>Live crawfish needed</b><output id="o-live" data-testid="live-lb"></output><small id="o-live2"></small></div>
+        <div class="stat"><b>Buy</b><output id="o-buy" data-testid="buy"></output><small id="o-buy2" data-testid="buy-note"></small></div>
+        <div class="stat"><b>Batches</b><output id="o-batch" data-testid="batches"></output><small id="o-batch2"></small></div>
+        <div class="stat"><b>Boil seasoning</b><output id="o-seas" data-testid="seasoning"></output><small id="o-seas2"></small></div>
+      </div>
+
+      <h2 style="margin-top:16px">Garlic butter <small>lemongrass · garlic · butter · Cajun spice</small></h2>
+      <div class="sauce stat" style="border-top-width:4px">
+        <ul id="sauce" data-testid="sauce"></ul>
+        <div class="hint" style="margin-top:6px">Melt the butter, sweat the garlic and minced lemongrass until fragrant, stir in the spices, then toss with the drained crawfish in a big bag or tub.</div>
+      </div>
+
+      <h2 style="margin-top:16px">Timeline <small>one batch</small></h2>
+      <div class="clock">
+        <output id="count" data-testid="countdown" aria-hidden="true">25:00</output>
+        <div class="lbl" id="stepName" data-testid="step-name">Ready</div>
+      </div>
+      <div class="btns">
+        <button type="button" id="start" data-testid="timer-start">Start the boil</button>
+        <button type="button" id="skip" class="ghost" data-testid="timer-skip" disabled>Next step</button>
+        <button type="button" id="reset" class="ghost" data-testid="timer-reset">Reset</button>
+      </div>
+      <ol class="timeline" id="timeline" data-testid="timeline" style="margin-top:10px"></ol>
+      <p class="sr" id="timerLive" aria-live="assertive" data-testid="timer-live"></p>
+    </section>
+  </div>
+
+  <section class="shop" aria-labelledby="h-shop" style="margin-top:16px">
+    <h2 id="h-shop">Shopping list</h2>
+    <div class="units" role="group" aria-label="Units">
+      <button type="button" data-u="us" aria-pressed="true" data-testid="units-us">US units</button>
+      <button type="button" data-u="metric" aria-pressed="false" data-testid="units-metric">Metric</button>
+    </div>
+    <ul id="shop" data-testid="shop"></ul>
+    <p class="hint">Conversions: 1 lb = 0.45359237 kg; 1 US gal = 3.785 L; 1 cup = 236.6 mL; 1 tbsp = 14.79 mL; 1 tsp = 4.93 mL; a stick of butter is ½ cup, 4 oz (113 g).</p>
+  </section>
+  <footer>Built by Zac Corbett · planning estimates only; seasoning brands vary, so follow your seasoning's label and taste as you go</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = s => document.querySelector(s);
+  // Planning constants (rules of thumb, labelled as such on the page)
+  const SACK_LB = 35, SACK_RANGE = '30–40 lb', BY_POUND_MAX = 20;       // under ~20 lb, buy by the pound in 5-lb steps
+  const POTS = { 60: 20, 80: 30, 100: 40 };                                // lb of crawfish per batch, with sides
+  const SPICE = { mild: { mult: 0.75, chili: 0.5, soak: 15 }, medium: { mult: 1, chili: 1, soak: 20 }, hot: { mult: 1.25, chili: 2, soak: 25 }, fire: { mult: 1.5, chili: 3, soak: 30 } };
+  const LB_KG = 0.45359237, GAL_L = 3.785411784, CUP_ML = 236.5882365, TBSP_ML = 14.78676478, TSP_ML = 4.92892159, STICK_G = 113.3980925;
+
+  const st = { guests: 10, per: 4, spice: 'medium', pot: 80, corn: true, potatoes: true, sausage: true, units: 'us' };
+
+  // ---------- plan (pure) ----------
+  function plan(o) {
+    const liveLb = o.guests * o.per;
+    const purchase = liveLb <= BY_POUND_MAX ? { by: 'lb', lb: Math.ceil(liveLb / 5) * 5 } : { by: 'sack', sacks: Math.ceil(liveLb / SACK_LB) };
+    const buyLb = purchase.by === 'lb' ? purchase.lb : purchase.sacks * SACK_LB;
+    const cap = POTS[o.pot], batches = Math.ceil(buyLb / cap);
+    const sp = SPICE[o.spice], f = buyLb / 10;                           // sauce and seasoning are per 10 lb cooked
+    return {
+      liveLb, purchase, buyLb, cap, batches,
+      waterGal: (o.pot / 4) * 0.5,                                        // fill about half the pot, refreshed as needed
+      seasoningLb: Math.ceil(f * sp.mult * 2) / 2,                        // 1 lb per 10 lb at medium, to the next ½ lb
+      lemons: Math.ceil(f * 2), onions: Math.ceil(f), boilGarlic: Math.ceil(f),
+      corn: o.corn ? o.guests : 0,                                        // one ear each, halved
+      potatoLb: o.potatoes ? Math.ceil(o.guests * 0.25) : 0,
+      sausagePacks: o.sausage ? Math.ceil(o.guests * 0.25) : 0,           // ~¼ lb each, sold in ~1 lb packs
+      sauce: {
+        butterSticks: Math.ceil(f * 2),                                   // 1 cup (2 sticks) per 10 lb
+        garlicHeads: Math.ceil(f),
+        lemongrass: Math.ceil(f),
+        cajunTbsp: Math.round(f * 2 * sp.mult * 10) / 10,
+        lemonPepperTbsp: Math.round(f * 10) / 10,
+        chiliTsp: Math.round(f * sp.chili * 10) / 10,
+      },
+      soakMin: sp.soak,
+    };
+  }
+  function steps(o, p) {
+    const s = [{ id: 'boil', label: 'Bring to a rolling boil', min: 25, note: `about ${fmtN(p.waterGal)} gal water, seasoning, lemons, onions, garlic (time depends on your burner)` }];
+    if (o.potatoes || o.corn || o.sausage) s.push({ id: 'sides', label: 'Sides in', min: 10, note: 'potatoes first; corn and sausage can join them' });
+    s.push({ id: 'crawfish', label: 'Crawfish in: boil', min: 4, note: 'count from when it returns to a boil' });
+    s.push({ id: 'kill', label: 'Kill the heat', min: 2, note: 'burner off; a bag of ice or cold water helps them sink into the seasoning' });
+    s.push({ id: 'soak', label: 'Soak', min: p.soakMin, note: `${o.spice} spice: longer soak, more heat` });
+    return s;
+  }
+
+  // ---------- units ----------
+  const fmtN = (x, d = 2) => (Math.round(x * 10 ** d) / 10 ** d).toLocaleString('en-US', { maximumFractionDigits: d });
+  const conv = {
+    lb: x => (st.units === 'us' ? `${fmtN(x)} lb` : `${fmtN(x * LB_KG)} kg`),
+    gal: x => (st.units === 'us' ? `${fmtN(x)} gal` : `${fmtN(x * GAL_L)} L`),
+    tbsp: x => (st.units === 'us' ? `${fmtN(x, 1)} tbsp` : `${fmtN(x * TBSP_ML, 0)} mL`),
+    tsp: x => (st.units === 'us' ? `${fmtN(x, 1)} tsp` : `${fmtN(x * TSP_ML, 1)} mL`),
+    sticks: n => (st.units === 'us' ? `${n} sticks (${fmtN(n / 2)} cups, ${fmtN(n / 4)} lb)` : `${fmtN(n * STICK_G, 0)} g (${fmtN(n / 2 * CUP_ML, 0)} mL)`),
+  };
+
+  // ---------- render ----------
+  let P = plan(st), STEPS = steps(st, P);
+  function renderPlan() {
+    P = plan(st);
+    $('#o-live').textContent = `${fmtN(P.liveLb)} lb`;
+    $('#o-live2').textContent = `${st.guests} guests × ${st.per} lb (rule of thumb) · ${fmtN(P.liveLb * LB_KG)} kg`;
+    if (P.purchase.by === 'sack') {
+      $('#o-buy').textContent = `${P.purchase.sacks} sack${P.purchase.sacks > 1 ? 's' : ''}`;
+      $('#o-buy2').textContent = `≈ ${P.buyLb} lb. Sacks are approximate, usually ${SACK_RANGE}; this plan assumes about ${SACK_LB} lb.`;
+    } else {
+      $('#o-buy').textContent = `${P.purchase.lb} lb`;
+      $('#o-buy2').textContent = `By the pound, rounded up to 5 lb. Under ~${BY_POUND_MAX} lb, a whole sack (roughly ${SACK_RANGE}) is more than you need.`;
+    }
+    $('#o-batch').textContent = `${P.batches} × ${st.pot} qt`;
+    $('#o-batch2').textContent = `≈ ${P.cap} lb a batch (rough) · ${fmtN(P.waterGal)} gal water`;
+    $('#o-seas').textContent = conv.lb(P.seasoningLb);
+    $('#o-seas2').textContent = `powdered boil seasoning, ${st.spice} (1 lb per 10 lb at medium; check your label)`;
+    $('#planSum').textContent = `${fmtN(P.liveLb)} lb for ${st.guests}`;
+    const sc = P.sauce;
+    $('#sauce').innerHTML = [
+      ['Butter', conv.sticks(sc.butterSticks), 'butter'],
+      ['Garlic', `${sc.garlicHeads} head${sc.garlicHeads > 1 ? 's' : ''}, minced`, 'garlic'],
+      ['Lemongrass', `${sc.lemongrass} stalk${sc.lemongrass > 1 ? 's' : ''}, minced`, 'lemongrass'],
+      ['Cajun seasoning', conv.tbsp(sc.cajunTbsp), 'cajun'],
+      ['Lemon pepper', conv.tbsp(sc.lemonPepperTbsp), 'lemonpepper'],
+      [`Cayenne or chili flakes (${st.spice})`, conv.tsp(sc.chiliTsp), 'chili'],
+    ].map(([a, b, id]) => `<li data-item="${id}"><span>${a}</span><span>${b}</span></li>`).join('');
+    renderShop();
+    if (!T.running && T.index < 0) { STEPS = steps(st, P); renderTimeline(); }
+  }
+  function renderShop() {
+    const items = [
+      ['live', 'Live crawfish', P.purchase.by === 'sack' ? `${P.purchase.sacks} sack${P.purchase.sacks > 1 ? 's' : ''} (≈ ${conv.lb(P.buyLb)})` : conv.lb(P.buyLb)],
+      ['seasoning', 'Boil seasoning', conv.lb(P.seasoningLb)],
+      ['lemons', 'Lemons', `${P.lemons}`],
+      ['onions', 'Onions', `${P.onions}`],
+      ['garlic', 'Garlic', `${P.boilGarlic + P.sauce.garlicHeads} heads`],
+      ['butter', 'Butter', conv.sticks(P.sauce.butterSticks)],
+      ['lemongrass', 'Lemongrass', `${P.sauce.lemongrass} stalks`],
+    ];
+    if (P.corn) items.push(['corn', 'Corn', `${P.corn} ears (halved)`]);
+    if (P.potatoLb) items.push(['potatoes', 'Small red potatoes', conv.lb(P.potatoLb)]);
+    if (P.sausagePacks) items.push(['sausage', 'Smoked sausage', `${P.sausagePacks} × ~1 lb pack (${conv.lb(P.sausagePacks)})`]);
+    items.push(['water', 'Water per batch', conv.gal(P.waterGal)]);
+    $('#shop').innerHTML = items.map(([id, a, b]) => `<li data-item="${id}"><span>${a}</span><span>${b}</span></li>`).join('');
+    document.querySelectorAll('.units button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.u === st.units)));
+  }
+
+  // ---------- timers (Date.now deadlines, so page.clock drives them) ----------
+  const T = { index: -1, running: false, endsAt: 0, remaining: 0, startedAt: 0, log: [], done: false, iv: 0 };
+  const mmss = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
+  function remainingMs() { return T.index < 0 ? STEPS[0].min * 60000 : T.done ? 0 : T.running ? Math.max(0, T.endsAt - Date.now()) : T.remaining; }
+  function announce(t) { $('#timerLive').textContent = t; }
+  function enter(i, at) {
+    T.index = i;
+    if (i >= STEPS.length) { T.done = true; T.running = false; clearInterval(T.iv); T.log.push({ id: 'done', at: at - T.startedAt }); announce('Soak done. Drain, toss in the garlic butter and serve.'); renderTimeline(); return; }
+    T.endsAt = at + STEPS[i].min * 60000;
+    T.log.push({ id: STEPS[i].id, at: at - T.startedAt });
+    announce(`Step ${i + 1}: ${STEPS[i].label}, ${STEPS[i].min} minutes.`);
+    renderTimeline();
+  }
+  function tick() {
+    if (!T.running) return;
+    let guard = 0;
+    while (T.running && !T.done && Date.now() >= T.endsAt && guard++ < 10) enter(T.index + 1, T.endsAt);   // chain deadlines: no drift
+    renderClock();
+  }
+  function startPause() {
+    if (T.done) resetTimer();
+    if (T.index < 0) { STEPS = steps(st, P); T.startedAt = Date.now(); T.running = true; T.log = []; enter(0, T.startedAt); T.iv = setInterval(tick, 250); }
+    else if (T.running) { T.remaining = Math.max(0, T.endsAt - Date.now()); T.running = false; clearInterval(T.iv); announce('Paused.'); }
+    else { T.endsAt = Date.now() + T.remaining; T.running = true; T.iv = setInterval(tick, 250); announce('Resumed.'); }
+    renderTimeline();
+  }
+  function skip() { if (T.index < 0 || T.done) return; const now = Date.now(); if (!T.running) { T.running = true; clearInterval(T.iv); T.iv = setInterval(tick, 250); } enter(T.index + 1, now); renderClock(); }
+  function resetTimer() { clearInterval(T.iv); Object.assign(T, { index: -1, running: false, endsAt: 0, remaining: 0, log: [], done: false }); STEPS = steps(st, P); announce('Timer reset.'); renderTimeline(); }
+  function renderClock() {
+    $('#count').textContent = mmss(remainingMs());
+    $('#stepName').textContent = T.done ? 'Done! Toss and serve.' : T.index < 0 ? `Ready: ${STEPS.length} steps, ${STEPS.reduce((a, s) => a + s.min, 0)} min` : `${T.index + 1}/${STEPS.length} · ${STEPS[T.index].label}${T.running ? '' : ' (paused)'}`;
+  }
+  function renderTimeline() {
+    $('#timeline').innerHTML = STEPS.map((s, i) => `<li class="${i < T.index || T.done ? 'done' : i === T.index ? 'now' : ''}" data-step="${s.id}"${i === T.index && !T.done ? ' aria-current="step"' : ''}><span><b>${s.label}</b><br><span class="d">${s.note}</span></span><span class="t">${s.min} min</span></li>`).join('');
+    $('#start').textContent = T.done ? 'Start again' : T.index < 0 ? 'Start the boil' : T.running ? 'Pause' : 'Resume';
+    $('#skip').disabled = T.index < 0 || T.done;
+    renderClock();
+  }
+
+  // ---------- wiring ----------
+  $('#guests').addEventListener('input', e => { const v = Math.round(+e.target.value); if (Number.isFinite(v) && v >= 1) { st.guests = Math.min(200, v); renderPlan(); } });
+  $('#guests').addEventListener('change', e => { e.target.value = st.guests; });
+  document.querySelectorAll('input[name=appetite]').forEach(r => r.addEventListener('change', () => { st.per = +r.value; renderPlan(); }));
+  document.querySelectorAll('input[name=spice]').forEach(r => r.addEventListener('change', () => { st.spice = r.value; renderPlan(); }));
+  $('#pot').addEventListener('change', e => { st.pot = +e.target.value; renderPlan(); });
+  [['#s-corn', 'corn'], ['#s-pot', 'potatoes'], ['#s-sau', 'sausage']].forEach(([id, k]) => $(id).addEventListener('change', e => { st[k] = e.target.checked; renderPlan(); }));
+  document.querySelectorAll('.units button').forEach(b => b.addEventListener('click', () => { st.units = b.dataset.u; renderPlan(); }));
+  $('#start').addEventListener('click', startPause);
+  $('#skip').addEventListener('click', skip);
+  $('#reset').addEventListener('click', resetTimer);
+
+  renderPlan(); renderTimeline();
+
+  window.__boil = {
+    get state() {
+      return JSON.parse(JSON.stringify({ ...st, plan: P, timer: { index: T.index, stepId: T.index >= 0 && !T.done ? STEPS[T.index].id : null, running: T.running, done: T.done, remainingMs: remainingMs(), log: T.log, steps: STEPS } }));
+    },
+    plan: o => JSON.parse(JSON.stringify(plan({ ...st, ...o }))),
+    SACK_LB, POTS,
+  };
+})();
+</script>
+</body>
+</html>

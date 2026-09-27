@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>River Walk Barge — steer a tour boat through the bends</title>
+<meta name="description" content="A gentle steering game inspired by San Antonio's River Walk. Pilot a slow tour barge with real momentum and a capped turn rate through a seeded, winding channel under stone bridges, past cypress trees and café umbrellas. Ease to a stop at each landing to pick up passengers, and try not to bump the stone walls.">
+<style>
+  :root {
+    --water: #2f6f63;
+    --water-2: #3f8676;
+    --stone: #d9ccb0;
+    --stone-2: #b9a784;
+    --cypress: #2f4a2a;
+    --ink: #1f2a26;
+    --muted: #55655d;
+    --paper: #f5f1e6;
+    --card: #fffdf7;
+    --terracotta: #c4552d;
+    --gold: #d9a441;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --serif: "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--paper); color: var(--ink); font: 15px/1.5 var(--sans); overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--terracotta); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; background: var(--water); color: #fff; text-decoration: none; font: 700 13px/1 var(--sans); padding: 8px 12px; border-radius: 8px; }
+  a.back:hover { background: var(--terracotta); }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 58px 16px 40px; }
+  header { text-align: center; }
+  .eyebrow { margin: 0; font: 700 12px/1.3 var(--sans); letter-spacing: .24em; text-transform: uppercase; color: var(--terracotta); overflow-wrap: anywhere; }
+  h1 { margin: 4px 0 0; font: 700 clamp(32px, 7vw, 58px)/1.05 var(--serif); color: var(--water); font-style: italic; overflow-wrap: anywhere; }
+  .lede { margin: 10px auto 0; max-width: 64ch; color: var(--muted); }
+  .layout { display: grid; grid-template-columns: minmax(0, 480px) minmax(0, 1fr); gap: 18px; margin-top: 18px; align-items: start; justify-content: center; }
+  .stage { position: relative; min-width: 0; background: var(--card); border: 1px solid var(--stone-2); border-radius: 14px; padding: 10px; box-shadow: 0 6px 20px rgba(31,42,38,.08); }
+  .hud { display: flex; flex-wrap: wrap; gap: 4px 14px; justify-content: space-between; font: 600 14px/1.3 var(--sans); margin-bottom: 8px; }
+  .hud b { color: var(--water); font-variant-numeric: tabular-nums; }
+  canvas { display: block; width: 100%; height: auto; border-radius: 10px; background: var(--water); touch-action: none; }
+  .overlay { position: absolute; inset: 10px; display: grid; place-items: center; background: rgba(31,42,38,.25); border-radius: 10px; text-align: center; padding: 16px; }
+  .overlay > div { background: var(--card); border-radius: 12px; padding: 14px 18px; max-width: 380px; box-shadow: 0 8px 24px rgba(31,42,38,.25); }
+  .overlay h2 { margin: 0 0 6px; font: 700 28px/1.1 var(--serif); color: var(--water); font-style: italic; }
+  .overlay p { margin: 4px 0; }
+  .btn { min-height: 42px; padding: 8px 16px; border-radius: 10px; border: 2px solid var(--water); background: var(--water); color: #fff; font: 700 15px/1 var(--sans); cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--water); }
+  .helm { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+  .helm button { min-height: 50px; border-radius: 10px; border: 2px solid var(--stone-2); background: var(--paper); color: var(--ink); font: 700 14px/1.1 var(--sans); cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .helm button.on { background: var(--gold); border-color: var(--gold); }
+  .guide { margin-top: 10px; background: #fff; border-left: 4px solid var(--terracotta); border-radius: 6px; padding: 8px 12px; font: italic 15px/1.45 var(--serif); min-height: 3em; }
+  .guide b { font-style: normal; font-family: var(--sans); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--terracotta); display: block; }
+  .card { background: var(--card); border: 1px solid var(--stone-2); border-radius: 14px; padding: 14px 16px; min-width: 0; }
+  .card + .card { margin-top: 14px; }
+  .card h2 { margin: 0 0 8px; font: 700 20px/1.2 var(--serif); color: var(--water); }
+  .note { font-size: 13px; color: var(--muted); margin: 8px 0 0; overflow-wrap: anywhere; }
+  ol.stops { margin: 6px 0 0; padding-left: 20px; }
+  ol.stops li.done { color: var(--water); font-weight: 700; }
+  kbd { font: 12px/1 Consolas, monospace; background: #fff; border: 1px solid var(--stone-2); border-bottom-width: 2px; padding: 2px 5px; border-radius: 4px; }
+  .meter { height: 8px; border-radius: 4px; background: #e6dfcf; overflow: hidden; margin-top: 4px; }
+  .meter i { display: block; height: 100%; background: var(--water); width: 0; }
+  .meter.slow i { background: var(--gold); }
+  #status { min-height: 1.4em; font-weight: 600; color: var(--terracotta); margin: 8px 0 0; }
+  footer { margin-top: 24px; text-align: center; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+  @media (max-width: 820px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">A slow boat, inspired by San Antonio's River Walk</p>
+    <h1>River Walk Barge</h1>
+    <p class="lede">The river winds a storey below the streets, between stone walls, under arched bridges and past cypress trees and café tables. Your barge is heavy and slow: it keeps drifting when you ease off, and it swings round only gradually. Stop gently at each landing to take on passengers.</p>
+  </header>
+
+  <div class="layout">
+    <div class="stage">
+      <div class="hud">
+        <span>Score <b id="score" data-testid="score">0</b></span>
+        <span>Aboard <b id="aboard" data-testid="aboard">0</b></span>
+        <span>Bumps <b id="bumps" data-testid="bumps">0</b></span>
+        <span>Time <b id="time" data-testid="time">0:00</b></span>
+      </div>
+      <canvas id="river" data-testid="river" width="480" height="640" tabindex="0" role="img" aria-label="The river from above, with your barge"></canvas>
+      <div class="overlay" id="ready" data-testid="ready">
+        <div>
+          <h2>All aboard</h2>
+          <p><kbd>↑</kbd>/<kbd>W</kbd> ahead · <kbd>↓</kbd>/<kbd>S</kbd> astern · <kbd>←</kbd><kbd>→</kbd>/<kbd>A</kbd><kbd>D</kbd> rudder</p>
+          <p style="margin-bottom:12px">or hold the helm buttons. Stop slowly at the landings.</p>
+          <button type="button" class="btn" id="start" data-testid="start">Cast off</button>
+        </div>
+      </div>
+      <div class="overlay" id="over" data-testid="over" hidden>
+        <div>
+          <h2 id="overTitle">End of the tour</h2>
+          <p id="overLine" data-testid="over-line"></p>
+          <p>Final score <b id="finalScore" data-testid="final-score">0</b></p>
+          <p style="margin-top:12px"><button type="button" class="btn" id="again" data-testid="again">Another tour</button></p>
+        </div>
+      </div>
+      <div class="helm" aria-label="Helm">
+        <button type="button" data-ctl="left" data-testid="helm-left">⟲ Port</button>
+        <button type="button" data-ctl="ahead" data-testid="helm-ahead">▲ Ahead</button>
+        <button type="button" data-ctl="right" data-testid="helm-right">Starboard ⟳</button>
+        <span></span>
+        <button type="button" data-ctl="astern" data-testid="helm-astern">▼ Astern</button>
+        <span></span>
+      </div>
+      <div class="note" style="margin-top:8px">Speed <span id="speedTxt" data-testid="speed">0.0</span> <div class="meter" id="meter"><i id="meterBar"></i></div></div>
+      <div class="guide" aria-live="polite"><b>Your guide</b><span id="guide" data-testid="guide">“Keep your hands inside the barge, folks, and wave at the ducks.”</span></div>
+      <p id="status" data-testid="status" role="status" aria-live="polite"></p>
+    </div>
+
+    <div>
+      <section class="card" aria-labelledby="h-stops">
+        <h2 id="h-stops">Landings</h2>
+        <ol class="stops" id="stops" data-testid="stops"></ol>
+        <p class="note">To dock, bring the barge alongside the wooden landing and slow to under <b>6</b> on the speed readout (the meter turns gold). Each landing is worth 50, plus 10 per passenger.</p>
+      </section>
+      <section class="card" aria-labelledby="h-boat">
+        <h2 id="h-boat">How the barge handles</h2>
+        <p style="margin:0">The engine pushes against water drag, so speed builds and fades gradually. The rudder doesn't turn the boat directly; it spins it up, and the turn rate is capped at about 34° per second. It bites harder the faster you're moving, so a barge at rest barely turns.</p>
+        <p class="note">Each fresh knock on the walls costs 15 points. Reaching the turning basin at the top ends the tour, with a point for every second left of the five-minute run.</p>
+        <p class="note">River <b id="seedTxt" data-testid="seed">seed</b> · <button type="button" class="btn ghost" id="reseed" data-testid="reseed" style="min-height:30px;padding:4px 10px;font-size:13px">New river</button></p>
+      </section>
+    </div>
+  </div>
+  <footer>Built by Zac Corbett · a fixed-timestep boat model on canvas · not affiliated with any tour operator · add <code>?seed=</code> for a repeatable river</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  let SEED = (parseInt(params.get('seed'), 10) >>> 0) || 1718;
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+  // ---------- constants ----------
+  const DT = 1 / 60, TIME = 300;
+  const L = 3200, HW = 62, STEP = 8;                    // channel length, horizontal half-width, bank sample spacing
+  const HULL = { len: 40, beam: 14 };
+  const B = { ACC: 30, DRAG: 0.5, REV_MAX: 18, TURN_ACC: 1.2, ANG_DRAG: 1.2, MAX_TURN: 0.6, DOCK_V: 6, DOCK_R: 28 };
+  const GUIDE = [
+    'Those tall trees along the banks are bald cypress. They love having their feet wet.',
+    'Notice we\'re a floor below the street. Up there, traffic; down here, ducks with right of way.',
+    'Every bridge we pass under carries a street. The stone arches have seen a lot of barges.',
+    'Café umbrellas on the left, café umbrellas on the right. Nobody on this river goes hungry.',
+    'Legend says this duck has ridden more tours than I have. That legend is me. I made it up.',
+    'If you hear a mariachi trumpet somewhere above, that\'s not part of the tour, but it should be.',
+    'Why so green? Mostly tiny algae, which love a slow, sunny river.',
+  ];
+
+  // ---------- the channel: banks are x as a function of y, sampled every STEP px ----------
+  function channel(seed) {
+    const r = mulberry32(seed);
+    const waves = [0, 1, 2].map((k) => ({ A: [55, 35, 18][k] * (0.7 + r() * 0.5), lam: [1300, 720, 430][k] * (0.85 + r() * 0.3), ph: r() * Math.PI * 2 }));
+    const centre = [];
+    for (let i = 0; i * STEP <= L; i++) {
+      const s = i * STEP, ramp = Math.min(1, s / 260);
+      let x = 0; for (const w of waves) x += w.A * (Math.sin(2 * Math.PI * s / w.lam + w.ph) - Math.sin(w.ph));
+      centre.push([x * ramp * ramp, -s]);
+    }
+    const left = centre.map(([x, y]) => [x - HW, y]), right = centre.map(([x, y]) => [x + HW, y]);
+    const landings = [], bridges = [], trees = [], cafes = [];
+    for (let k = 0; k < 4; k++) {
+      const s = L * (k + 1) / 5 + (r() - 0.5) * 160, i = Math.round(s / STEP), side = r() < 0.5 ? -1 : 1;
+      landings.push({ id: k, y: centre[i][1], side, x: centre[i][0] + side * (HW - 16), passengers: 2 + Math.floor(r() * 5), line: GUIDE[(k + Math.floor(r() * GUIDE.length)) % GUIDE.length] });
+    }
+    for (let k = 0; k < 3; k++) { const s = L * (k + 0.5) / 4 + 60 + r() * 120; bridges.push({ y: -s }); }
+    for (let s = 40; s < L + 300; s += 26 + r() * 40) {
+      const side = r() < 0.5 ? -1 : 1, i = Math.min(centre.length - 1, Math.round(s / STEP));
+      if (r() < 0.62) trees.push({ x: centre[i][0] + side * (HW + 18 + r() * 40), y: -s, r: 11 + r() * 8 });
+      else cafes.push({ x: centre[i][0] + side * (HW + 30 + r() * 50), y: -s, c: ['#c4552d', '#d9a441', '#2f8f83', '#b83b5e'][Math.floor(r() * 4)] });
+    }
+    return { seed, centre, left, right, landings, bridges, trees, cafes, polygon: left.concat(right.slice().reverse()) };
+  }
+  /** Centre-line x at height y, by the same linear interpolation that defines the bank polygon. */
+  function centreAt(ch, y) {
+    const s = Math.min(L, Math.max(0, -y)), i = Math.min(ch.centre.length - 2, Math.floor(s / STEP)), f = (s - i * STEP) / STEP;
+    return ch.centre[i][0] * (1 - f) + ch.centre[i + 1][0] * f;
+  }
+
+  // ---------- the boat ----------
+  function corners(b) {
+    const c = Math.cos(b.th), s = Math.sin(b.th), fx = s, fy = -c, rx = c, ry = s;   // forward and starboard unit vectors
+    const hl = HULL.len / 2, hb = HULL.beam / 2;
+    return [[hl, hb], [hl, -hb], [-hl, -hb], [-hl, hb]].map(([f, q]) => [b.x + fx * f + rx * q, b.y + fy * f + ry * q]);
+  }
+  /** One fixed step of the boat model. Returns true if the hull touched a wall this step. */
+  function stepBoat(b, ctl, ch, walls = true) {
+    const thr = Math.max(-1, Math.min(1, ctl.throttle)), rud = Math.max(-1, Math.min(1, ctl.rudder));
+    b.u += (B.ACC * thr - B.DRAG * b.u) * DT;
+    if (b.u < -B.REV_MAX) b.u = -B.REV_MAX;
+    const auth = (0.25 + 0.75 * Math.min(1, Math.abs(b.u) / (B.ACC / B.DRAG))) * (b.u < -0.5 ? -1 : 1);
+    b.w += (B.TURN_ACC * rud * auth - B.ANG_DRAG * b.w) * DT;
+    if (b.w > B.MAX_TURN) b.w = B.MAX_TURN; if (b.w < -B.MAX_TURN) b.w = -B.MAX_TURN;
+    b.th += b.w * DT;
+    b.x += Math.sin(b.th) * b.u * DT; b.y -= Math.cos(b.th) * b.u * DT;
+    if (!walls) return false;
+    if (b.y > -24) { b.y = -24; b.u = 0; }             // the lock gate behind the start
+    // walls: find the deepest corner past either bank and slide the boat back sideways by that much
+    let push = 0;
+    for (const [x, y] of corners(b)) {
+      const g = x - centreAt(ch, y);
+      if (g > HW && HW - g < push) push = HW - g;
+      if (g < -HW && -HW - g > push) push = -HW - g;
+    }
+    if (push) {
+      b.x += push * 1.0000001;
+      b.u *= 0.6; b.w *= 0.5;
+      return true;
+    }
+    return false;
+  }
+
+  // ---------- game ----------
+  let S, CH = channel(SEED);
+  const ctl = { throttle: 0, rudder: 0 }, held = new Set();
+  function fresh() {
+    return { mode: 'ready', t: 0, frame: 0, boat: { x: centreAt(CH, -24), y: -24, th: 0, u: 0, w: 0 }, score: 0, bumps: 0, contact: false, aboard: 0, docked: [], bonus: 0, reason: null, tooFastAt: -1 };
+  }
+  const scoreOf = () => S.docked.reduce((a, id) => a + 50 + 10 * CH.landings[id].passengers, 0) - 15 * S.bumps + S.bonus;
+  function tick() {
+    if (S.mode !== 'play') return;
+    const hit = stepBoat(S.boat, ctl, CH);
+    if (hit && !S.contact) { S.bumps++; say('Bump! The stone walls are unforgiving (−15).'); }
+    S.contact = hit;
+    for (const l of CH.landings) {
+      if (S.docked.includes(l.id)) continue;
+      const d = Math.hypot(S.boat.x - l.x, S.boat.y - l.y);
+      if (d > B.DOCK_R) continue;
+      if (Math.abs(S.boat.u) < B.DOCK_V) {
+        S.docked.push(l.id); S.aboard += l.passengers;
+        $('guide').textContent = `“${l.line}”`;
+        say(`Landing ${l.id + 1}: ${l.passengers} passengers step aboard.`);
+        renderStops();
+      } else if (S.tooFastAt !== l.id) { S.tooFastAt = l.id; say(`Too fast to tie up at landing ${l.id + 1}. Ease off!`); }
+    }
+    S.frame++; S.t = S.frame * DT;
+    if (S.boat.y < -L + 40) end('finish');
+    else if (S.t >= TIME - 1e-9) end('time');
+    S.score = scoreOf();
+  }
+  function end(reason) {
+    S.mode = 'over'; S.reason = reason;
+    S.bonus = reason === 'finish' ? Math.floor(TIME - S.t + 1e-9) : 0;
+    S.score = scoreOf();
+    $('overTitle').textContent = reason === 'finish' ? 'Welcome to the turning basin' : 'Out of time';
+    $('overLine').textContent = `${S.docked.length} of ${CH.landings.length} landings, ${S.aboard} passengers, ${S.bumps} bump${S.bumps === 1 ? '' : 's'}${S.bonus ? ` · time bonus ${S.bonus}` : ''}.`;
+    $('finalScore').textContent = S.score;
+    $('over').hidden = false; held.clear(); syncCtl();
+    $('again').focus({ preventScroll: true });
+    say(`Tour over. ${$('overLine').textContent} Score ${S.score}.`);
+    hud();
+  }
+  function start() {
+    S = fresh(); S.mode = 'play'; held.clear(); syncCtl();
+    $('ready').hidden = true; $('over').hidden = true;
+    $('guide').textContent = '“Keep your hands inside the barge, folks, and wave at the ducks.”';
+    renderStops();
+    cv.focus({ preventScroll: true });
+    say('Cast off! Four landings ahead.');
+    hud(); draw();
+  }
+  function reset() { CH = channel(SEED); S = fresh(); $('ready').hidden = false; $('over').hidden = true; $('seedTxt').textContent = `seed ${SEED}`; renderStops(); hud(); draw(); }
+  function renderStops() {
+    $('stops').innerHTML = CH.landings.map((l) => `<li class="${S && S.docked.includes(l.id) ? 'done' : ''}">Landing ${l.id + 1}, ${l.side < 0 ? 'west' : 'east'} bank · ${l.passengers} waiting${S && S.docked.includes(l.id) ? ' · aboard ✓' : ''}</li>`).join('');
+  }
+  const say = (m) => { $('status').textContent = m; };
+  let hudKey = '';
+  function hud() {
+    const sp = Math.abs(S.boat.u);
+    const k = `${S.score}|${S.aboard}|${S.bumps}|${Math.floor(S.t)}|${sp.toFixed(1)}`;
+    if (k === hudKey) return; hudKey = k;
+    $('score').textContent = S.score; $('aboard').textContent = S.aboard; $('bumps').textContent = S.bumps;
+    const tt = Math.floor(S.t); $('time').textContent = `${Math.floor(tt / 60)}:${String(tt % 60).padStart(2, '0')}`;
+    $('speedTxt').textContent = sp.toFixed(1);
+    $('meterBar').style.width = `${Math.min(100, Math.abs(S.boat.u) / (B.ACC / B.DRAG) * 100)}%`;
+    $('meter').classList.toggle('slow', Math.abs(S.boat.u) < B.DOCK_V);
+    cv.setAttribute('aria-label', `The river from above. ${S.docked.length} of ${CH.landings.length} landings visited, ${Math.round(Math.max(0, -S.boat.y) / L * 100)}% of the way up the river.`);
+  }
+
+  // ---------- drawing ----------
+  const cv = $('river'), ctx = cv.getContext('2d'), VW = 480, VH = 640;
+  function draw() {
+    const b = S.boat;
+    const camY = Math.min(40 - VH, b.y - VH * 0.68), camX = centreAt(CH, b.y) * 0.6 - VW / 2;
+    ctx.setTransform(cv.width / VW, 0, 0, cv.height / VH, 0, 0);
+    ctx.fillStyle = '#d9ccb0'; ctx.fillRect(0, 0, VW, VH);
+    ctx.save(); ctx.translate(-camX, -camY);
+    const y0 = camY - 40, y1 = camY + VH + 40;
+    const i0 = Math.max(0, Math.floor(-y1 / STEP)), i1 = Math.min(CH.centre.length - 1, Math.ceil(-y0 / STEP));
+    // paving pattern
+    ctx.strokeStyle = 'rgba(120,100,70,.18)'; ctx.lineWidth = 1;
+    for (let y = Math.floor(y0 / 30) * 30; y < y1; y += 30) { ctx.beginPath(); ctx.moveTo(camX, y); ctx.lineTo(camX + VW, y); ctx.stroke(); }
+    // water
+    ctx.beginPath();
+    for (let i = i0; i <= i1; i++) ctx[i === i0 ? 'moveTo' : 'lineTo'](CH.left[i][0], CH.left[i][1]);
+    for (let i = i1; i >= i0; i--) ctx.lineTo(CH.right[i][0], CH.right[i][1]);
+    ctx.closePath(); ctx.fillStyle = '#2f6f63'; ctx.fill();
+    ctx.strokeStyle = '#8f7f5e'; ctx.lineWidth = 4; ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.08)'; ctx.lineWidth = 2;
+    for (let i = i0; i <= i1; i += 6) { const [cx, cy] = CH.centre[i]; ctx.beginPath(); ctx.moveTo(cx - 20, cy + (i % 12)); ctx.lineTo(cx + 14, cy + (i % 12)); ctx.stroke(); }
+    // turning basin
+    if (-L > y0) { ctx.fillStyle = '#3f8676'; const c = CH.centre[CH.centre.length - 1]; ctx.beginPath(); ctx.arc(c[0], c[1], HW + 10, 0, 7); ctx.fill(); ctx.fillStyle = '#fff'; ctx.font = '700 13px "Segoe UI", Arial'; ctx.textAlign = 'center'; ctx.fillText('TURNING BASIN', c[0], c[1] + 4); }
+    // landings
+    for (const l of CH.landings) {
+      if (l.y < y0 || l.y > y1) continue;
+      const done = S.docked.includes(l.id);
+      ctx.fillStyle = done ? '#8a6a3f' : '#a97b45'; ctx.fillRect(l.x + l.side * 4 - 14, l.y - 24, 28, 48);
+      ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; for (let k = -20; k < 24; k += 8) { ctx.beginPath(); ctx.moveTo(l.x + l.side * 4 - 14, l.y + k); ctx.lineTo(l.x + l.side * 4 + 14, l.y + k); ctx.stroke(); }
+      ctx.strokeStyle = done ? 'rgba(255,255,255,.3)' : '#ffd36b'; ctx.setLineDash([4, 4]); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(l.x, l.y, B.DOCK_R, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+      if (!done) for (let p = 0; p < l.passengers; p++) { ctx.fillStyle = ['#c4552d', '#2f8f83', '#d9a441', '#6b4fa0'][p % 4]; ctx.beginPath(); ctx.arc(l.x + l.side * 30, l.y - 18 + p * 8, 3.5, 0, 7); ctx.fill(); }
+      ctx.fillStyle = '#1f2a26'; ctx.font = '700 12px "Segoe UI", Arial'; ctx.textAlign = 'center'; ctx.fillText(String(l.id + 1), l.x + l.side * 44, l.y + 4);
+    }
+    // trees and umbrellas
+    for (const t of CH.trees) { if (t.y < y0 - 30 || t.y > y1 + 30) continue; ctx.fillStyle = 'rgba(0,0,0,.15)'; ctx.beginPath(); ctx.arc(t.x + 4, t.y + 4, t.r, 0, 7); ctx.fill(); ctx.fillStyle = '#2f4a2a'; ctx.beginPath(); ctx.arc(t.x, t.y, t.r, 0, 7); ctx.fill(); ctx.fillStyle = '#44663a'; ctx.beginPath(); ctx.arc(t.x - t.r * .3, t.y - t.r * .3, t.r * .55, 0, 7); ctx.fill(); }
+    for (const c of CH.cafes) { if (c.y < y0 - 20 || c.y > y1 + 20) continue; for (let k = 0; k < 8; k++) { ctx.fillStyle = k % 2 ? '#fff4dc' : c.c; ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.arc(c.x, c.y, 12, k * Math.PI / 4, (k + 1) * Math.PI / 4); ctx.fill(); } }
+    // the barge
+    const [p0, p1, p2, p3] = corners(b);
+    ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.beginPath(); [p0, p1, p2, p3].forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x + 3, y + 3)); ctx.closePath(); ctx.fill();
+    ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.th);
+    ctx.fillStyle = '#c4552d'; ctx.beginPath(); ctx.moveTo(0, -HULL.len / 2 - 4); ctx.lineTo(HULL.beam / 2, -HULL.len / 2 + 6); ctx.lineTo(HULL.beam / 2, HULL.len / 2); ctx.lineTo(-HULL.beam / 2, HULL.len / 2); ctx.lineTo(-HULL.beam / 2, -HULL.len / 2 + 6); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#f5f1e6'; for (let k = -12; k <= 12; k += 6) ctx.fillRect(-HULL.beam / 2 + 2, k, HULL.beam - 4, 3);
+    ctx.fillStyle = '#1f2a26'; ctx.fillRect(-3, HULL.len / 2 - 6, 6, 5);
+    ctx.restore();
+    // bridges over everything
+    for (const br of CH.bridges) {
+      if (br.y < y0 - 30 || br.y > y1 + 30) continue;
+      ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(camX, br.y - 14, VW, 34);
+      ctx.fillStyle = '#c9b48a'; ctx.fillRect(camX, br.y - 18, VW, 28);
+      ctx.fillStyle = '#b39c70'; for (let x = Math.floor(camX / 16) * 16; x < camX + VW; x += 16) ctx.fillRect(x, br.y - 18, 1.5, 28);
+      ctx.strokeStyle = '#8f7f5e'; ctx.lineWidth = 2; ctx.strokeRect(camX - 2, br.y - 18, VW + 4, 28);
+    }
+    ctx.restore();
+  }
+
+  // ---------- loop ----------
+  let manual = false, last = null, acc = 0;
+  function frame(now) {
+    const dt = last === null ? 0 : Math.min(0.1, Math.max(0, (now - last) / 1000)); last = now;
+    if (!manual && S.mode === 'play') { acc += dt; let n = 0; while (acc >= DT - 1e-9 && n < 12) { tick(); acc -= DT; n++; } if (n === 12) acc = 0; }
+    hud(); draw();
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- input ----------
+  function syncCtl() {
+    ctl.throttle = (held.has('ahead') ? 1 : 0) - (held.has('astern') ? 1 : 0);
+    ctl.rudder = (held.has('right') ? 1 : 0) - (held.has('left') ? 1 : 0);
+    document.querySelectorAll('.helm button').forEach((b) => b.classList.toggle('on', held.has(b.dataset.ctl)));
+  }
+  const KEYMAP = { ArrowUp: 'ahead', w: 'ahead', W: 'ahead', ArrowDown: 'astern', s: 'astern', S: 'astern', ArrowLeft: 'left', a: 'left', A: 'left', ArrowRight: 'right', d: 'right', D: 'right' };
+  document.addEventListener('keydown', (e) => {
+    const k = KEYMAP[e.key]; if (!k || S.mode !== 'play' || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.target && /^(SELECT|INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+    e.preventDefault(); held.add(k); syncCtl();
+  });
+  document.addEventListener('keyup', (e) => { const k = KEYMAP[e.key]; if (k) { held.delete(k); syncCtl(); } });
+  addEventListener('blur', () => { held.clear(); syncCtl(); });
+  document.querySelectorAll('.helm button').forEach((b) => {
+    const k = b.dataset.ctl;
+    b.addEventListener('pointerdown', (e) => { if (S.mode !== 'play') return; held.add(k); syncCtl(); try { b.setPointerCapture(e.pointerId); } catch (err) { /* synthetic */ } e.preventDefault(); });
+    const off = () => { held.delete(k); syncCtl(); };
+    b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off);
+    b.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && S.mode === 'play') { e.preventDefault(); e.stopPropagation(); held.add(k); syncCtl(); } });
+    b.addEventListener('keyup', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); off(); } });
+  });
+  $('start').addEventListener('click', start);
+  $('again').addEventListener('click', start);
+  $('reseed').addEventListener('click', () => {
+    SEED = (Math.floor(Math.random() * 1e6) + 1) >>> 0;
+    try { const u = new URL(location.href); u.searchParams.set('seed', SEED); history.replaceState(null, '', u); } catch (e) { /* ignore */ }
+    reset(); say(`New river, seed ${SEED}.`);
+  });
+
+  // ---------- test hook ----------
+  window.__barge = {
+    get state() { return JSON.parse(JSON.stringify({ mode: S.mode, seed: SEED, t: S.t, frame: S.frame, boat: S.boat, hull: corners(S.boat), ctl, score: S.score, bumps: S.bumps, contact: S.contact, aboard: S.aboard, docked: S.docked, bonus: S.bonus, reason: S.reason })); },
+    consts: { DT, TIME, L, HW, STEP, HULL, B },
+    channel: (seed) => { const c = channel(seed ?? SEED); return JSON.parse(JSON.stringify(c)); },
+    manual(on) { manual = on !== false; acc = 0; return manual; },
+    frames(n) { for (let i = 0; i < n && S.mode === 'play'; i++) tick(); hud(); draw(); return this.state; },
+    /** Step n frames and return the boat after each one (for rate and wall checks). */
+    trace(n, control) {
+      if (control) Object.assign(ctl, control);
+      const out = [];
+      for (let i = 0; i < n && S.mode === 'play'; i++) { tick(); out.push({ ...S.boat, hull: corners(S.boat), contact: S.contact }); }
+      hud(); draw(); return out;
+    },
+    /** The same boat model on open water (no walls), for handling tests. */
+    openWater(boat, control, n) { const b = { x: 0, y: 0, th: 0, u: 0, w: 0, ...boat }, out = []; for (let i = 0; i < n; i++) { stepBoat(b, control, CH, false); out.push({ ...b }); } return out; },
+    input(o) { Object.assign(ctl, o); return { ...ctl }; },
+    place(o) { Object.assign(S.boat, o); S.contact = false; return this.state; },
+    set(o) { Object.assign(S, o); return this.state; },
+    start() { start(); return this.state; },
+  };
+
+  reset();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

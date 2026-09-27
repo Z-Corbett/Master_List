@@ -1,0 +1,37 @@
+{
+  "id": "141",
+  "slug": "141-art-car-garage",
+  "file": "lab/141-art-car-garage.html",
+  "title": "Art Car Garage — design a rolling sculpture",
+  "category": "Generative",
+  "tags": ["canvas", "seeded-rng", "layers", "page-clock", "png-export", "animation"],
+  "description": "A garage for rolling sculpture, inspired by Houston's long-running Art Car Parade. Start from a sedan, pickup, bug-style car or school bus and stack six seeded decoration layers: a patterned paint job, mosaic tiles, bottle caps, a flame job, googly eyes and sculpture add-ons (longhorn-style horns, tail fins, a giant armadillo). Reorder, hide, lock and reroll the layers, send the car rolling past a city skyline under falling confetti, and export the design as a PNG.",
+  "prompt": "Build an art car designer inspired by Houston's Art Car Parade. Name it as the inspiration, with no official branding. Start from a car silhouette (sedan, pickup, a VW-bug-like car, a school bus) and apply seeded generative decoration layers: mosaic tiles, bottle caps, a painted flame job, googly eyes and sculpture add-ons like horns, fins and a giant armadillo. Give me a layer stack I can reorder, lock and reroll, and a parade mode that rolls the car across a Houston skyline backdrop with confetti. Export as PNG. Tests should check that layers render in stack order through a state hook, that reroll only changes unlocked layers, that each seed is deterministic, the parade animation under page.clock, and the export.",
+  "qa": {
+    "methodology": [
+      "Render order from the hook: the page logs the layers it actually draws, bottom to top. The spec checks the log after moves, swaps and hides, and that the list shows the top of the stack first.",
+      "Pixels as a side check: an FNV hash of the rendered garage image must change when the paint moves to the top or a layer is hidden, and must return to exactly the original hash when the move or hide is undone.",
+      "Reroll: with paint and eyes locked, Reroll unlocked must change the seed and data of exactly the four other layers and leave the locked ones byte-for-byte equal. A single-layer reroll touches one layer, and with everything locked nothing changes.",
+      "Determinism: a reload of ?seed=7 gives the same layer seeds, data and image hash, the same reroll after a reload gives the same result again, ?seed=8 differs, and New car seed writes a reproducible seed to the URL.",
+      "Parade under page.clock: halfway through, the car's x must be linear in progress across the full width and the wheel angle must equal distance over radius (rolling without slipping). Confetti keeps coming, the parade ends at p = 1 back in the garage, and Stop freezes it. The export download is checked for its filename, the PNG signature and a 960 × 540 IHDR."
+    ],
+    "risks": [
+      "The image hash relies on Chromium drawing the same canvas pixels every time on one machine. That held here, but a GPU or font change could alter pixels between machines, so the hash is only compared within a single test run, never against a stored value.",
+      "Placement uses isPointInPath on the silhouettes; the spec checks decorations against each car's bounding box and eye spacing, not the exact curved outline.",
+      "The skyline is a generic set of towers, deliberately not any real building, so it reads as 'a city' rather than recognisably Houston.",
+      "Confetti respects prefers-reduced-motion by not drawing, but the car still rolls; the parade is not tested with reduced motion on."
+    ],
+    "playwright": "page.clock.install() before goto plus pauseAt() let runFor() drive the requestAnimationFrame parade, so progress, x and wheel angle are exact numbers the spec can relate to each other rather than screenshots. page.waitForEvent('download') captured the data-URL export on both desktop and the Pixel 7 project, and the file was read from download.path() to check the PNG header bytes. The __artcar hook exposes the render log, layer seeds and generated data, and a hash of the canvas, which made 'reroll only changes unlocked layers' a plain equality check. Everything passed on the first run, so this spec hasn't caught a regression yet. Its weak spot is the pixel hash, which is machine-dependent by nature.",
+    "coverage": [
+      "Default stack and render order, disabled end buttons, canvas description",
+      "Reorder: render log, pixel change, exact restore, focus follows the moved layer",
+      "Hide and show",
+      "Locked vs unlocked reroll, single reroll, all locked",
+      "Seed determinism, reroll sequence, URL seed",
+      "Car swap keeps seeds; decorations inside the car; all add-on kinds appear",
+      "Parade timing, rolling without slipping, confetti, end and stop",
+      "PNG export filename, signature and size; keyboard operation"
+    ]
+  },
+  "a11y": "The car picker is a native radio group (arrow keys work), and every layer action is a real button named for its layer (for example 'Lock Googly eyes'), with aria-pressed on lock and hide. After a move, focus follows the moved layer's button. The canvas has an aria-label that describes the car and its layers bottom to top and changes during the parade, and actions are announced in a polite status region. Confetti is not drawn when reduced motion is requested."
+}

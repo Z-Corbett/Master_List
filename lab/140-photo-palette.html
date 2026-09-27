@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Photo Palette — pull a crafting palette from any photo</title>
+<meta name="description" content="Pull a 3 to 10 colour palette from a photo or a built-in demo scene with seeded k-means in CIELAB or median cut, see each colour's share, a friendly name and a WCAG contrast matrix, then turn it into yarn stripes, a quilt block or a nail-polish set. Photos are processed in your browser and never uploaded.">
+<style>
+  :root {
+    --bg: #f4f1ea;
+    --ink: #1d232b;
+    --muted: #5e6670;
+    --card: #fffefb;
+    --line: #dcd5c7;
+    --accent: #2f6f73;
+    --accent-2: #d9643a;
+    --mono: "Cascadia Mono", "Consolas", "Menlo", monospace;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --display: "Rockwell", "Roboto Slab", "Georgia", serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--sans); overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--accent-2); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: #fff; background: var(--ink); text-decoration: none; font: 600 13px/1 var(--sans); padding: 8px 12px; border-radius: 3px; }
+  a.back:hover { background: var(--accent); }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 58px 16px 36px; }
+  header { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 260px); gap: 12px 24px; align-items: end; margin-bottom: 16px; border-bottom: 3px solid var(--ink); padding-bottom: 12px; }
+  h1 { font: 700 clamp(36px, 6.5vw, 64px)/1 var(--display); margin: 0; letter-spacing: -.01em; }
+  .chipstrip { display: flex; height: 18px; width: 100%; border: 2px solid var(--ink); }
+  .chipstrip i { flex: 1; }
+  .lede { margin: 6px 0 0; max-width: 70ch; color: var(--muted); overflow-wrap: anywhere; }
+  .layout { display: grid; grid-template-columns: minmax(0, 360px) minmax(0, 1fr); gap: 18px; align-items: start; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; min-width: 0; }
+  .card + .card { margin-top: 16px; }
+  h2 { font: 700 20px/1.2 var(--display); margin: 0 0 10px; }
+  h3 { font: 700 13px/1.3 var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; }
+  .privacy { background: #e6f1ef; border-left: 4px solid var(--accent); padding: 8px 10px; font-size: 13px; margin: 8px 0; overflow-wrap: anywhere; }
+  .file { display: block; font-weight: 600; margin-bottom: 4px; }
+  input[type=file] { max-width: 100%; font: 14px var(--sans); }
+  .demos { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+  .btn { min-height: 38px; padding: 7px 12px; border-radius: 4px; border: 2px solid var(--ink); background: #fff; color: var(--ink); font: 600 14px/1 var(--sans); cursor: pointer; }
+  .btn[aria-pressed="true"], .btn.primary { background: var(--ink); color: #fff; }
+  .btn.small { min-height: 30px; padding: 4px 8px; font-size: 12px; border-width: 1px; }
+  #preview { display: block; width: 100%; height: auto; border-radius: 4px; background: #ddd; }
+  .field { margin: 10px 0 0; min-width: 0; }
+  .field label, .lab { display: flex; justify-content: space-between; gap: 8px; font: 600 12px/1.3 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  input[type=number] { width: 100%; font: 15px var(--sans); padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; }
+  .seg { display: flex; flex-wrap: wrap; gap: 6px; }
+  .seg label { position: relative; min-width: 0; }
+  .seg input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+  .seg span { display: inline-block; padding: 6px 10px; border: 2px solid var(--ink); border-radius: 4px; font-size: 13px; font-weight: 600; background: #fff; }
+  .seg input:checked + span { background: var(--ink); color: #fff; }
+  .seg input:focus-visible + span { outline: 3px solid var(--accent-2); outline-offset: 2px; }
+  .status { font-size: 13px; margin: 8px 0 0; min-height: 1.4em; overflow-wrap: anywhere; }
+  .status.err { color: #a3261b; font-weight: 600; }
+  .bar { display: flex; height: 46px; border: 2px solid var(--ink); border-radius: 4px; overflow: hidden; }
+  .bar i { display: block; min-width: 2px; }
+  .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; padding: 0; list-style: none; }
+  .sw { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; min-width: 0; background: #fff; }
+  .sw .chip { height: 58px; display: flex; align-items: flex-end; justify-content: flex-end; padding: 4px 6px; font: 700 13px var(--mono); }
+  .sw .meta { padding: 6px 8px; font-size: 13px; overflow-wrap: anywhere; }
+  .sw .meta b { display: block; font-size: 14px; }
+  .sw .row { display: flex; justify-content: space-between; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .tablewrap { overflow-x: auto; max-width: 100%; }
+  table.matrix { border-collapse: collapse; font: 12px/1.2 var(--mono); }
+  table.matrix th, table.matrix td { padding: 0; border: 1px solid #fff; text-align: center; }
+  table.matrix td span { display: block; min-width: 46px; padding: 8px 3px; }
+  table.matrix th i { display: block; width: 46px; height: 22px; }
+  table.matrix th.rowh i { width: 22px; height: 34px; }
+  .legend { font-size: 12px; color: var(--muted); margin: 6px 0 0; overflow-wrap: anywhere; }
+  .pairs { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+  .pairs li { padding: 10px 12px; border-radius: 4px; font-weight: 600; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; overflow-wrap: anywhere; }
+  .hobby { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .hobby > div { min-width: 0; }
+  .hobby svg { display: block; width: 100%; height: auto; }
+  .hobby p { font-size: 13px; margin: 6px 0 0; overflow-wrap: anywhere; }
+  textarea { width: 100%; min-height: 150px; font: 12px/1.45 var(--mono); padding: 8px; border: 1px solid var(--line); border-radius: 4px; background: #fbfaf7; color: var(--ink); resize: vertical; }
+  .exports { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+  footer { margin-top: 24px; text-align: center; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+  @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } .hobby { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .exports { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 520px) { header { grid-template-columns: minmax(0, 1fr); } .hobby { grid-template-columns: minmax(0, 1fr); } .swatches { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Photo Palette</h1>
+      <p class="lede">Pull a crafting palette out of any photo: the colours, how much of the picture each one covers, what to call them, which pairs are readable as text, and what they'd look like as yarn, fabric or polish.</p>
+    </div>
+    <div class="chipstrip" id="strip" aria-hidden="true"></div>
+  </header>
+
+  <div class="layout">
+    <div>
+      <section class="card" aria-labelledby="h-src">
+        <h2 id="h-src">Your picture</h2>
+        <label class="file" for="file">Choose a photo</label>
+        <input id="file" data-testid="file" type="file" accept="image/*">
+        <p class="privacy" data-testid="privacy"><b>Your photo stays on your device.</b> It's read with the browser's File API and drawn into a canvas on this page; nothing is uploaded, sent or stored.</p>
+        <div class="demos" role="group" aria-label="Demo pictures">
+          <button type="button" class="btn" data-demo="sunset" data-testid="demo-sunset" aria-pressed="false">Sunset</button>
+          <button type="button" class="btn" data-demo="bluebonnets" data-testid="demo-bluebonnets" aria-pressed="false">Bluebonnet field</button>
+          <button type="button" class="btn" data-demo="desert" data-testid="demo-desert" aria-pressed="false">Desert</button>
+        </div>
+        <canvas id="preview" data-testid="preview" width="360" height="240" role="img" aria-label="Picture being analysed"></canvas>
+        <p class="status" id="status" data-testid="status" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="card" aria-labelledby="h-how">
+        <h2 id="h-how">Extraction</h2>
+        <fieldset style="border:0;padding:0;margin:0;min-width:0"><legend class="lab" style="padding:0">Method</legend>
+          <div class="seg" data-testid="algo">
+            <label><input type="radio" name="algo" value="kmeans" checked><span>k-means (CIELAB)</span></label>
+            <label><input type="radio" name="algo" value="median"><span>Median cut</span></label>
+          </div>
+        </fieldset>
+        <div class="field"><label for="k">Colours <output id="kOut" for="k" data-testid="k-out">5</output></label>
+          <input id="k" data-testid="k" type="range" min="3" max="10" step="1" value="5"></div>
+        <div class="field"><label for="seed">Seed</label>
+          <input id="seed" data-testid="seed" type="number" min="1" max="999999" value="1" inputmode="numeric"></div>
+        <p class="legend" id="method" data-testid="method-note"></p>
+      </section>
+    </div>
+
+    <div>
+      <section class="card" aria-labelledby="h-pal">
+        <h2 id="h-pal">Palette</h2>
+        <div class="bar" id="bar" data-testid="bar" role="img" aria-label="Palette proportions"></div>
+        <ul class="swatches" id="swatches" data-testid="swatches"></ul>
+        <p class="legend">Names come from a built-in list of 40 colours; each swatch takes the nearest by ΔE*ab (CIE 1976: straight-line distance in CIELAB, D65 white). Under about 2.3 is roughly a just-noticeable difference.</p>
+      </section>
+
+      <section class="card" aria-labelledby="h-con">
+        <h2 id="h-con">Contrast</h2>
+        <div class="tablewrap"><table class="matrix" id="matrix" data-testid="matrix"></table></div>
+        <p class="legend">Row = text colour, column = background. WCAG 2 contrast ratio, (L1 + 0.05) / (L2 + 0.05) from relative luminance. <b>AA</b> needs 4.5 for normal text, <b>AA large</b> 3 for large text; pass/fail uses the unrounded ratio.</p>
+        <h3>Suggested text on background (AA)</h3>
+        <ul class="pairs" id="pairs" data-testid="pairs"></ul>
+      </section>
+
+      <section class="card" aria-labelledby="h-hob">
+        <h2 id="h-hob">For your hobby</h2>
+        <div class="hobby">
+          <div><h3 style="margin-top:0">Yarn stripes</h3><div id="yarn" data-testid="yarn"></div><p id="yarnTxt" data-testid="yarn-text"></p></div>
+          <div><h3 style="margin-top:0">Quilt block</h3><div id="quilt" data-testid="quilt"></div><p id="quiltTxt" data-testid="quilt-text"></p></div>
+          <div><h3 style="margin-top:0">Nail-polish set</h3><div id="nails" data-testid="nails"></div><p><a href="../lab/133-nail-studio.html" data-testid="nail-link">Try these shades in Nail Studio →</a></p></div>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="h-exp">
+        <h2 id="h-exp">Export</h2>
+        <div class="exports">
+          <div><label class="lab" for="css">CSS variables</label><textarea id="css" data-testid="css" readonly></textarea>
+            <button type="button" class="btn small" id="copyCss" data-testid="copy-css">Copy CSS</button></div>
+          <div><label class="lab" for="json">JSON</label><textarea id="json" data-testid="json" readonly></textarea>
+            <button type="button" class="btn small" id="copyJson" data-testid="copy-json">Copy JSON</button></div>
+        </div>
+      </section>
+    </div>
+  </div>
+  <footer>Built by Zac Corbett · canvas pixels, k-means and median cut written from scratch, no network · add <code>?seed=</code> for repeatable k-means starts and demo scenes</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const MAX_SIDE = 200;   // pictures are downscaled to at most this for analysis
+
+  const NAMES = [
+    ['Snow', '#fafafa'], ['Ink', '#1c1c24'], ['Charcoal', '#3d3f45'], ['Slate', '#6b7280'], ['Silver', '#c0c4c8'],
+    ['Cream', '#f3e9d2'], ['Sand', '#d9c09a'], ['Tan', '#b8926a'], ['Terracotta', '#c4623f'], ['Rust', '#a0482a'],
+    ['Brick', '#8e3b2e'], ['Chocolate', '#5a3825'], ['Scarlet', '#d62828'], ['Cherry', '#9d0f2b'], ['Coral', '#f27a5e'],
+    ['Salmon', '#f4a18c'], ['Blush', '#f2c4c4'], ['Rose', '#e0668a'], ['Magenta', '#c2185b'], ['Plum', '#6d2e5b'],
+    ['Lavender', '#b9a7d8'], ['Violet', '#6a4bc4'], ['Bluebonnet', '#3f5bb8'], ['Navy', '#1f2d5a'], ['Cobalt', '#1f5fd6'],
+    ['Sky', '#8ec5ea'], ['Teal', '#138a8a'], ['Turquoise', '#35c3b5'], ['Mint', '#a8e6c3'], ['Sage', '#9cae88'],
+    ['Olive', '#6f7a32'], ['Leaf', '#4f8a3a'], ['Forest', '#24492c'], ['Lime', '#a6cf3a'], ['Mustard', '#d4a72c'],
+    ['Sunflower', '#f5c518'], ['Marigold', '#f29f05'], ['Tangerine', '#f27b13'], ['Peach', '#f9c38f'], ['Butter', '#f7e59b'],
+  ];
+
+  // ---------- colour maths ----------
+  const hex = (rgb) => '#' + rgb.map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
+  const rgbOf = (h) => { const n = parseInt(h.slice(1), 16); return [n >> 16, n >> 8 & 255, n & 255]; };
+  const lin = (v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+  function lab([r, g, b]) {
+    const R = lin(r), G = lin(g), B = lin(b);
+    const X = (0.4124 * R + 0.3576 * G + 0.1805 * B) / 0.95047, Y = 0.2126 * R + 0.7152 * G + 0.0722 * B, Z = (0.0193 * R + 0.1192 * G + 0.9505 * B) / 1.08883;
+    const f = (t) => t > 216 / 24389 ? Math.cbrt(t) : (24389 / 27 * t + 16) / 116;
+    return [116 * f(Y) - 16, 500 * (f(X) - f(Y)), 200 * (f(Y) - f(Z))];
+  }
+  const dE = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+  const NAME_LAB = NAMES.map(([n, h]) => ({ name: n, hex: h, lab: lab(rgbOf(h)) }));
+  function nameOf(rgb) { const L = lab(rgb); let best = null, bd = Infinity; for (const n of NAME_LAB) { const d = dE(L, n.lab); if (d < bd) { bd = d; best = n; } } return { name: best.name, nameHex: best.hex, dE: bd }; }
+  // WCAG 2 relative luminance (the spec's 0.03928 threshold) and contrast ratio
+  const wl = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+  const luminance = ([r, g, b]) => 0.2126 * wl(r) + 0.7152 * wl(g) + 0.0722 * wl(b);
+  const contrast = (a, b) => { const x = luminance(a), y = luminance(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+
+  // ---------- extraction ----------
+  function histogram(data) {
+    const m = new Map();
+    for (let i = 0; i < data.length; i += 4) { if (data[i + 3] < 128) continue; const key = data[i] << 16 | data[i + 1] << 8 | data[i + 2]; m.set(key, (m.get(key) || 0) + 1); }
+    return [...m].map(([key, w]) => ({ rgb: [key >> 16, key >> 8 & 255, key & 255], w }));
+  }
+  function meanRgb(pts) { let W = 0; const s = [0, 0, 0]; for (const p of pts) { W += p.w; for (let c = 0; c < 3; c++) s[c] += p.rgb[c] * p.w; } return { rgb: s.map((v) => Math.round(v / W)), w: W }; }
+
+  function kmeans(pts, k, seed) {
+    const r = mulberry32(seed), P = pts.map((p) => ({ ...p, lab: lab(p.rgb) }));
+    k = Math.min(k, P.length);
+    const total = P.reduce((a, p) => a + p.w, 0);
+    // k-means++ starts, weighted by pixel count
+    const pickW = (weights) => { let x = r() * weights.reduce((a, b) => a + b, 0); for (let i = 0; i < weights.length; i++) { x -= weights[i]; if (x <= 0 && weights[i] > 0) return i; } return weights.findIndex((w) => w > 0); };
+    const cents = [P[pickW(P.map((p) => p.w))].lab.slice()];
+    while (cents.length < k) { const d = P.map((p) => p.w * Math.min(...cents.map((c) => dE(p.lab, c))) ** 2); const i = pickW(d); if (i < 0) break; cents.push(P[i].lab.slice()); }
+    let assign = new Array(P.length).fill(-1), iter = 0;
+    for (; iter < 40; iter++) {
+      let moved = false;
+      P.forEach((p, i) => { let b = 0, bd = Infinity; cents.forEach((c, j) => { const d = dE(p.lab, c); if (d < bd) { bd = d; b = j; } }); if (assign[i] !== b) { assign[i] = b; moved = true; } });
+      cents.forEach((c, j) => { let W = 0; const s = [0, 0, 0]; P.forEach((p, i) => { if (assign[i] === j) { W += p.w; for (let q = 0; q < 3; q++) s[q] += p.lab[q] * p.w; } }); if (W) for (let q = 0; q < 3; q++) c[q] = s[q] / W; });
+      if (!moved) break;
+    }
+    const groups = cents.map((_, j) => P.filter((p, i) => assign[i] === j)).filter((g) => g.length);
+    return { clusters: groups.map(meanRgb), total, iterations: iter + 1 };
+  }
+
+  function medianCut(pts, k) {
+    const total = pts.reduce((a, p) => a + p.w, 0);
+    const range = (box) => { let best = -1, ch = 0; for (let c = 0; c < 3; c++) { let lo = 255, hi = 0; for (const p of box) { lo = Math.min(lo, p.rgb[c]); hi = Math.max(hi, p.rgb[c]); } if (hi - lo > best) { best = hi - lo; ch = c; } } return { span: best, ch }; };
+    let boxes = [pts.slice()];
+    while (boxes.length < k) {
+      // split the box with the widest channel range (ties: the most pixels)
+      let bi = -1, bs = 0, bw = 0;
+      boxes.forEach((b, i) => { if (b.length < 2) return; const { span } = range(b); const w = b.reduce((a, p) => a + p.w, 0); if (span > bs || (span === bs && w > bw)) { bs = span; bw = w; bi = i; } });
+      if (bi < 0) break;
+      const box = boxes[bi], { ch } = range(box);
+      box.sort((a, b) => a.rgb[ch] - b.rgb[ch]);
+      const W = box.reduce((a, p) => a + p.w, 0);
+      let acc = 0, m = 0; while (m < box.length && acc + box[m].w <= W / 2) { acc += box[m].w; m++; }
+      // cut between two different values, as close to the weighted median as possible
+      const cuts = []; for (let i = 1; i < box.length; i++) if (box[i].rgb[ch] !== box[i - 1].rgb[ch]) cuts.push(i);
+      const cut = cuts.reduce((b, c) => (Math.abs(c - m) < Math.abs(b - m) ? c : b), cuts[0]);
+      boxes.splice(bi, 1, box.slice(0, cut), box.slice(cut));
+    }
+    return { clusters: boxes.map(meanRgb), total };
+  }
+
+  // ---------- demo scenes, drawn in the page ----------
+  function drawDemo(name, g, W, H, seed) {
+    const r = mulberry32(seed * 13 + name.length);
+    g.save();
+    if (name === 'sunset') {
+      const sky = g.createLinearGradient(0, 0, 0, H * .62);
+      sky.addColorStop(0, '#2b1b4a'); sky.addColorStop(.45, '#b8356b'); sky.addColorStop(.8, '#f2852a'); sky.addColorStop(1, '#fcd36a');
+      g.fillStyle = sky; g.fillRect(0, 0, W, H * .62);
+      g.fillStyle = '#ffe7a1'; g.beginPath(); g.arc(W * .62, H * .6, H * .12, Math.PI, 0); g.fill();
+      const sea = g.createLinearGradient(0, H * .62, 0, H); sea.addColorStop(0, '#6a2a52'); sea.addColorStop(1, '#261633');
+      g.fillStyle = sea; g.fillRect(0, H * .62, W, H * .38);
+      g.fillStyle = 'rgba(252, 200, 110, .8)';
+      for (let i = 0; i < 16; i++) { const y = H * .64 + i * H * .02, w = W * (.16 - i * .007) * (0.7 + r() * .6); g.fillRect(W * .62 - w / 2, y, w, H * .006); }
+      g.fillStyle = '#1b1024'; g.beginPath(); g.moveTo(0, H * .62); g.lineTo(W * .12, H * .5); g.lineTo(W * .25, H * .56); g.lineTo(W * .34, H * .62); g.closePath(); g.fill();
+    } else if (name === 'bluebonnets') {
+      const sky = g.createLinearGradient(0, 0, 0, H * .45); sky.addColorStop(0, '#6fa8dc'); sky.addColorStop(1, '#cfe6f5');
+      g.fillStyle = sky; g.fillRect(0, 0, W, H * .45);
+      g.fillStyle = '#7e9b5a'; g.beginPath(); g.moveTo(0, H * .45); g.quadraticCurveTo(W * .3, H * .33, W * .6, H * .42); g.quadraticCurveTo(W * .8, H * .36, W, H * .41); g.lineTo(W, H * .5); g.lineTo(0, H * .5); g.fill();
+      // a live oak on the horizon
+      g.fillStyle = '#3b4a2a'; g.fillRect(W * .74, H * .3, W * .015, H * .14);
+      g.beginPath(); g.ellipse(W * .75, H * .3, W * .08, H * .07, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#5c8a3a'; g.fillRect(0, H * .45, W, H * .55);
+      for (let i = 0; i < 1300; i++) {
+        const y = H * .46 + r() ** 0.8 * H * .54, s = 1 + (y - H * .45) / H * 7, x = r() * W;
+        const paint = r() < 0.07;
+        g.fillStyle = paint ? '#e0482d' : (r() < .5 ? '#3f5bb8' : '#2f4aa0');
+        g.beginPath(); g.ellipse(x, y, s * .7, s * 1.5, 0, 0, Math.PI * 2); g.fill();
+        if (!paint) { g.fillStyle = '#f4f6fb'; g.beginPath(); g.arc(x, y - s * 1.3, s * .45, 0, Math.PI * 2); g.fill(); }
+      }
+    } else {
+      const sky = g.createLinearGradient(0, 0, 0, H * .55); sky.addColorStop(0, '#5aa2d6'); sky.addColorStop(1, '#d9ecf5');
+      g.fillStyle = sky; g.fillRect(0, 0, W, H * .55);
+      g.fillStyle = '#a4553a'; g.beginPath(); g.moveTo(W * .05, H * .55); g.lineTo(W * .12, H * .3); g.lineTo(W * .38, H * .3); g.lineTo(W * .44, H * .55); g.fill();
+      g.fillStyle = '#8a4430'; g.fillRect(W * .12, H * .3, W * .26, H * .04);
+      g.fillStyle = '#e0b77e'; g.beginPath(); g.moveTo(0, H * .55); g.quadraticCurveTo(W * .4, H * .47, W, H * .58); g.lineTo(W, H); g.lineTo(0, H); g.fill();
+      g.fillStyle = '#c98f55'; g.beginPath(); g.moveTo(0, H * .8); g.quadraticCurveTo(W * .5, H * .62, W, H * .78); g.lineTo(W, H); g.lineTo(0, H); g.fill();
+      g.strokeStyle = '#4f6b3a'; g.lineWidth = 2; g.lineCap = 'round';
+      for (let p = 0; p < 4; p++) { const cx = W * (.55 + p * .12 + r() * .04), cy = H * (.7 + r() * .12); for (let i = 0; i < 9; i++) { const a = -Math.PI / 2 + (i - 4) * .22; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.cos(a) * H * .09, cy + Math.sin(a) * H * .09); g.stroke(); } }
+    }
+    g.restore();
+  }
+
+  // ---------- state ----------
+  const S = { seed: (parseInt(params.get('seed'), 10) >>> 0) || 1, algo: 'kmeans', k: 5, source: 'demo: sunset', demo: 'sunset', size: [0, 0] };
+  let pixels = null, palette = [], lastCopied = '', result = null;
+  const work = document.createElement('canvas');
+
+  function say(t, err) { $('status').textContent = t; $('status').classList.toggle('err', !!err); }
+
+  function useImage(img, w, h) {
+    const sc = Math.min(1, MAX_SIDE / Math.max(w, h));
+    const W = Math.max(1, Math.round(w * sc)), H = Math.max(1, Math.round(h * sc));
+    work.width = W; work.height = H;
+    const g = work.getContext('2d', { willReadFrequently: true });
+    g.clearRect(0, 0, W, H); g.drawImage(img, 0, 0, W, H);
+    pixels = g.getImageData(0, 0, W, H).data;
+    S.size = [W, H];
+    const pv = $('preview'), pg = pv.getContext('2d');
+    pv.width = 360; pv.height = Math.max(60, Math.round(360 * h / w));
+    pg.imageSmoothingEnabled = true; pg.drawImage(img, 0, 0, pv.width, pv.height);
+  }
+  function loadDemo(name) {
+    const c = document.createElement('canvas'); c.width = 480; c.height = 320;
+    drawDemo(name, c.getContext('2d'), 480, 320, S.seed);
+    S.demo = name; S.source = 'demo: ' + name;
+    useImage(c, 480, 320);
+    document.querySelectorAll('[data-demo]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.demo === name)));
+    $('preview').setAttribute('aria-label', `Demo picture: ${{ sunset: 'a sunset over the sea', bluebonnets: 'a Texas bluebonnet field under a blue sky', desert: 'a desert with a red mesa and sand dunes' }[name]}`);
+    analyse();
+    say(`Demo picture: ${name}. Drawn on this page, analysed at ${S.size[0]} × ${S.size[1]} px.`);
+  }
+
+  async function loadFile(file) {
+    if (!file) return;
+    if (!/^image\//.test(file.type)) { say(`“${file.name}” isn't an image this page can read.`, true); return; }
+    try {
+      let img, w, h;
+      if (window.createImageBitmap) { img = await createImageBitmap(file); w = img.width; h = img.height; }
+      else {
+        const url = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(file); });
+        img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = url; });
+        w = img.naturalWidth; h = img.naturalHeight;
+      }
+      S.demo = null; S.source = 'upload: ' + file.name;
+      useImage(img, w, h);
+      document.querySelectorAll('[data-demo]').forEach((b) => b.setAttribute('aria-pressed', 'false'));
+      $('preview').setAttribute('aria-label', `Your picture, ${file.name}`);
+      analyse();
+      say(`Read ${file.name} (${w} × ${h} px) in your browser and analysed it at ${S.size[0]} × ${S.size[1]} px. Nothing was uploaded.`);
+    } catch (e) {
+      say(`Couldn't read “${file.name}” as an image.`, true);
+    }
+  }
+
+  function analyse() {
+    if (!pixels) return;
+    const pts = histogram(pixels);
+    const out = S.algo === 'kmeans' ? kmeans(pts, S.k, S.seed) : medianCut(pts, S.k);
+    palette = out.clusters.map((c) => ({ rgb: c.rgb, hex: hex(c.rgb), share: c.w / out.total, lab: lab(c.rgb), ...nameOf(c.rgb) }))
+      .sort((a, b) => b.share - a.share || (a.hex < b.hex ? -1 : 1));
+    result = { distinct: pts.length, iterations: out.iterations || null, total: out.total };
+    render();
+  }
+
+  const pct = (x) => (x * 100).toFixed(1) + '%';
+  const textOn = (rgb) => (contrast(rgb, [255, 255, 255]) >= contrast(rgb, [0, 0, 0]) ? '#fff' : '#000');
+
+  function suggestions() {
+    const cands = [];
+    const all = palette.map((p) => ({ hex: p.hex, name: p.name, rgb: p.rgb })).concat([{ hex: '#ffffff', name: 'White', rgb: [255, 255, 255] }, { hex: '#000000', name: 'Black', rgb: [0, 0, 0] }]);
+    for (const bg of palette) for (const fg of all) {
+      if (fg.hex === bg.hex) continue;
+      const ratio = contrast(fg.rgb, bg.rgb);
+      if (ratio >= 4.5) cands.push({ text: fg.hex, textName: fg.name, bg: bg.hex, bgName: bg.name, ratio, fromPalette: fg.hex !== '#ffffff' && fg.hex !== '#000000' });
+    }
+    // palette-on-palette pairs first, then the best white/black pairings
+    cands.sort((a, b) => (b.fromPalette - a.fromPalette) || b.ratio - a.ratio);
+    return cands.slice(0, 6);
+  }
+
+  function cssText() {
+    return ':root {\n' + palette.map((p, i) => `  --palette-${i + 1}: ${p.hex}; /* ${p.name}, ${pct(p.share)} */`).join('\n') + '\n}\n';
+  }
+  function jsonText() {
+    return JSON.stringify({ source: S.source, method: S.algo === 'kmeans' ? 'k-means (CIELAB)' : 'median cut', colours: palette.map((p) => ({ hex: p.hex, name: p.name, share: Math.round(p.share * 10000) / 10000 })) }, null, 2);
+  }
+
+  function yarnPlan() {
+    const ROWS = 30;
+    const rows = palette.map((p) => Math.max(1, Math.round(p.share * ROWS)));
+    return palette.map((p, i) => ({ hex: p.hex, name: p.name, rows: rows[i] }));
+  }
+
+  function render() {
+    $('strip').innerHTML = palette.map((p) => `<i style="background:${p.hex}"></i>`).join('');
+    $('bar').innerHTML = palette.map((p) => `<i style="background:${p.hex};flex:${p.share.toFixed(5)} 1 0" title="${p.name} ${pct(p.share)}"></i>`).join('');
+    $('bar').setAttribute('aria-label', 'Palette proportions: ' + palette.map((p) => `${p.name} ${pct(p.share)}`).join(', '));
+    $('swatches').innerHTML = palette.map((p, i) => `<li class="sw" data-hex="${p.hex}"><div class="chip" style="background:${p.hex};color:${textOn(p.rgb)}">${pct(p.share)}</div><div class="meta"><b data-testid="name-${i}">${p.name}</b><div class="row"><code data-testid="hex-${i}">${p.hex}</code><button type="button" class="btn small" data-copy="${p.hex}" data-testid="copy-${i}" aria-label="Copy ${p.hex}">Copy</button></div><small>ΔE ${p.dE.toFixed(1)} from ${p.name} ${p.nameHex}</small></div></li>`).join('');
+    // contrast matrix
+    const head = `<tr><th scope="col"><span class="sr" style="position:absolute;left:-9999px">text \\ background</span></th>${palette.map((p) => `<th scope="col"><i style="background:${p.hex}" title="${p.name}"></i><span style="position:absolute;left:-9999px">background ${p.name}</span></th>`).join('')}</tr>`;
+    const body = palette.map((fg, i) => `<tr><th scope="row" class="rowh"><i style="background:${fg.hex}" title="${fg.name}"></i><span style="position:absolute;left:-9999px">text ${fg.name}</span></th>${palette.map((bg, j) => {
+      if (i === j) return `<td style="background:${bg.hex}"><span style="color:${fg.hex}">–</span></td>`;
+      const r = contrast(fg.rgb, bg.rgb), lvl = r >= 4.5 ? 'AA' : r >= 3 ? 'AA large' : 'fail';
+      return `<td style="background:${bg.hex}" data-i="${i}" data-j="${j}" data-ratio="${r}" data-level="${lvl}"><span style="color:${fg.hex}">${r.toFixed(2)}${lvl === 'AA' ? ' ✓' : lvl === 'AA large' ? ' L' : ''}</span></td>`;
+    }).join('')}</tr>`).join('');
+    $('matrix').innerHTML = head + body;
+    const sug = suggestions();
+    $('pairs').innerHTML = sug.length ? sug.map((s) => `<li style="background:${s.bg};color:${s.text}" data-text="${s.text}" data-bg="${s.bg}" data-ratio="${s.ratio}">${s.textName} on ${s.bgName}<span>${s.ratio.toFixed(2)} : 1</span></li>`).join('') : '<li>No pair reaches 4.5 : 1.</li>';
+    // yarn stripes
+    const plan = yarnPlan(), total = plan.reduce((a, p) => a + p.rows, 0);
+    let y = 0;
+    const rowsSvg = []; for (let rep = 0; rep < 2; rep++) for (const p of plan) { rowsSvg.push(`<rect x="10" y="${(y * 110 / (total * 2)).toFixed(2)}" width="80" height="${(p.rows * 110 / (total * 2) + .3).toFixed(2)}" fill="${p.hex}"/>`); y += p.rows; }
+    $('yarn').innerHTML = `<svg viewBox="0 0 100 130" role="img" aria-label="Scarf in stripes"><g>${rowsSvg.join('')}</g>${[20, 35, 50, 65, 80].map((x) => `<line x1="${x}" y1="110" x2="${x}" y2="124" stroke="${plan[0].hex}" stroke-width="3" stroke-linecap="round"/>`).join('')}<rect x="10" y="0" width="80" height="110" fill="none" stroke="rgba(0,0,0,.25)"/></svg>`;
+    $('yarnTxt').textContent = 'Stripe repeat of ' + total + ' rows: ' + plan.map((p) => `${p.rows} ${p.name}`).join(', ') + '.';
+    // quilt block: an Ohio star
+    const bg = palette[0], star = palette.slice(1).reduce((b, p) => (contrast(p.rgb, bg.rgb) > contrast(b.rgb, bg.rgb) ? p : b), palette[1] || palette[0]);
+    const centre = palette.find((p) => p !== bg && p !== star) || star;
+    const U = 40, qst = (x, y, rot) => `<g transform="translate(${x + U / 2} ${y + U / 2}) rotate(${rot})"><rect x="${-U / 2}" y="${-U / 2}" width="${U}" height="${U}" fill="${bg.hex}"/><path d="M${-U / 2} ${U / 2} L0 0 L${U / 2} ${U / 2}Z M${-U / 2} ${-U / 2} L0 0 L${-U / 2} ${U / 2}Z" fill="${star.hex}"/><path d="M${-U / 2} ${-U / 2} L${U / 2} ${-U / 2} L0 0Z" fill="${bg.hex}"/></g>`;
+    $('quilt').innerHTML = `<svg viewBox="0 0 120 120" role="img" aria-label="Ohio star quilt block"><rect width="120" height="120" fill="${bg.hex}"/>${qst(U, 0, 0)}${qst(2 * U, U, 90)}${qst(U, 2 * U, 180)}${qst(0, U, 270)}<rect x="${U}" y="${U}" width="${U}" height="${U}" fill="${centre.hex}"/><g stroke="rgba(0,0,0,.18)" fill="none"><path d="M40 0V120M80 0V120M0 40H120M0 80H120"/></g></svg>`;
+    $('quiltTxt').textContent = `Ohio star: ${bg.name} background, ${star.name} points (the strongest contrast with it), ${centre.name} centre.`;
+    // nail polish bottles
+    const five = palette.slice(0, 5);
+    $('nails').innerHTML = `<svg viewBox="0 0 ${five.length * 26 + 4} 70" role="img" aria-label="Nail polish set: ${five.map((p) => p.name).join(', ')}">${five.map((p, i) => `<g class="bottle" transform="translate(${i * 26 + 4} 0)"><rect x="7" y="4" width="8" height="22" rx="2" fill="#2b2b2b"/><rect x="2" y="26" width="18" height="36" rx="5" fill="${p.hex}" stroke="rgba(0,0,0,.35)"/><rect x="5" y="30" width="3" height="22" rx="1.5" fill="rgba(255,255,255,.45)"/></g>`).join('')}</svg>`;
+    $('css').value = cssText();
+    $('json').value = jsonText();
+    $('kOut').textContent = String(S.k);
+    $('method').textContent = (S.algo === 'kmeans'
+      ? `k-means in CIELAB: seeded k-means++ starts (seed ${S.seed}), then points are assigned to the nearest centre by ΔE and centres moved to the weighted mean until nothing changes${result.iterations ? ` (${result.iterations} rounds)` : ''}.`
+      : 'Median cut: the box of colours with the widest red, green or blue range is split at its weighted median until there are enough boxes; each box gives its average colour.')
+      + ` ${result.distinct} distinct colours in the picture.` + (palette.length < S.k ? ` Only ${palette.length} colours could be found.` : '');
+  }
+
+  async function copy(text, label) {
+    let ok = false;
+    try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); ok = true; } } catch (e) { ok = false; }
+    if (!ok) {
+      const ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.left = '-9999px';
+      document.body.appendChild(ta); ta.select();
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      ta.remove();
+    }
+    lastCopied = text;
+    say(ok ? `Copied ${label}.` : `Couldn't reach the clipboard; select the text and copy it yourself.`, !ok);
+  }
+
+  // ---------- controls ----------
+  $('file').addEventListener('change', () => loadFile($('file').files[0]));
+  document.querySelectorAll('[data-demo]').forEach((b) => b.addEventListener('click', () => loadDemo(b.dataset.demo)));
+  document.querySelectorAll('input[name=algo]').forEach((el) => el.addEventListener('change', () => { S.algo = el.value; analyse(); say(`${S.algo === 'kmeans' ? 'k-means (CIELAB)' : 'Median cut'}: ${palette.length} colours.`); }));
+  $('k').addEventListener('input', () => { $('kOut').textContent = $('k').value; });
+  $('k').addEventListener('change', () => { S.k = parseInt($('k').value, 10); analyse(); say(`${palette.length} colours.`); });
+  $('seed').addEventListener('change', () => {
+    const v = parseInt($('seed').value, 10); if (v >= 1) S.seed = v; $('seed').value = S.seed;
+    try { const u = new URL(location.href); u.searchParams.set('seed', S.seed); history.replaceState(null, '', u); } catch (e) { /* ignore */ }
+    if (S.demo) loadDemo(S.demo); else analyse();
+  });
+  $('swatches').addEventListener('click', (e) => { const b = e.target.closest('[data-copy]'); if (b) copy(b.dataset.copy, b.dataset.copy); });
+  $('copyCss').addEventListener('click', () => copy($('css').value, 'the CSS variables'));
+  $('copyJson').addEventListener('click', () => copy($('json').value, 'the JSON'));
+
+  $('seed').value = S.seed;
+  loadDemo('sunset');
+
+  window.__palette = {
+    get state() { return JSON.parse(JSON.stringify({ seed: S.seed, algo: S.algo, k: S.k, source: S.source, size: S.size, palette, result, suggestions: suggestions(), lastCopied })); },
+    names: NAMES.map(([name, hex]) => ({ name, hex })),
+    contrast: (a, b) => contrast(rgbOf(a), rgbOf(b)),
+    css: () => cssText(),
+    json: () => jsonText(),
+  };
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cross-Stitch Pattern Maker — any photo to a chart</title>
+<meta name="description" content="Turn a photo or the built-in demo picture into a counted cross-stitch chart. Pick the fabric count and finished size, reduce to N colours with a seeded k-means in CIELAB (optional Floyd–Steinberg dithering), and map them to 60 generic numbered floss colours by CIEDE2000. Prints a symbol chart with 10 × 10 grid lines, a legend with stitch counts and skein estimates, and a finished-size calculator. Photos never leave your device.">
+<style>
+  :root {
+    --linen: #f3eee2;
+    --aida: #fbf8f0;
+    --ink: #22313a;
+    --muted: #66727a;
+    --thread: #b8323f;
+    --thread-2: #2f6f73;
+    --line: #d9d0bc;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --mono: ui-monospace, Consolas, "Liberation Mono", monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--linen); color: var(--ink); font: 15px/1.55 var(--sans); overflow-x: hidden;
+    background-image: linear-gradient(rgba(34,49,58,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(34,49,58,.035) 1px, transparent 1px); background-size: 8px 8px; }
+  :focus-visible { outline: 3px solid var(--thread-2); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: #fff; background: var(--ink); text-decoration: none; font: 600 13px/1 var(--sans); padding: 8px 12px; border-radius: 3px; border: 2px dashed rgba(255,255,255,.5); }
+  a.back:hover { background: var(--thread); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 60px 16px 40px; }
+  header.hoop { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px; align-items: center; margin-bottom: 18px; }
+  .ring { width: 86px; height: 86px; border-radius: 50%; border: 8px solid #c69c6d; box-shadow: inset 0 0 0 3px #a87c4f, 0 3px 0 #8a6038; background: repeating-linear-gradient(0deg, transparent 0 5px, rgba(34,49,58,.08) 5px 6px), repeating-linear-gradient(90deg, transparent 0 5px, rgba(34,49,58,.08) 5px 6px), var(--aida); display: grid; place-items: center; font: 700 30px var(--serif); color: var(--thread); }
+  h1 { font: 600 clamp(30px, 5.5vw, 52px)/1.05 var(--serif); margin: 0; }
+  .sub { margin: 4px 0 0; color: var(--muted); }
+  .layout { display: grid; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); gap: 16px; align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } header.hoop { grid-template-columns: minmax(0, 1fr); } .ring { display: none; } }
+  .panel { background: var(--aida); border: 1px solid var(--line); border-radius: 6px; padding: 14px; min-width: 0; box-shadow: 0 1px 0 #fff inset, 0 8px 20px -16px rgba(34,49,58,.5); position: relative; }
+  .panel::before { content: ""; position: absolute; inset: 5px; border: 1px dashed rgba(184,50,63,.28); border-radius: 4px; pointer-events: none; }
+  h2 { font: 600 22px/1.2 var(--serif); margin: 0 0 8px; }
+  h3 { font: 700 12px/1.3 var(--sans); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 14px 0 6px; }
+  p { margin: 0 0 8px; overflow-wrap: anywhere; }
+  .note { font-size: 13px; color: var(--muted); }
+  .field { display: grid; gap: 3px; margin-top: 10px; min-width: 0; }
+  .field > label, .field .lbl { font-weight: 600; font-size: 13px; }
+  .pair { display: flex; gap: 6px; flex-wrap: wrap; min-width: 0; }
+  select, input[type="number"] { font: 14px var(--sans); padding: 7px 8px; border: 1px solid #b9ae95; border-radius: 4px; background: #fff; color: var(--ink); min-width: 0; max-width: 100%; }
+  input[type="number"] { width: 100px; }
+  input[type="file"] { max-width: 100%; font: 13px var(--sans); }
+  .check { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: start; margin-top: 10px; font-size: 14px; }
+  .check input { margin-top: 4px; }
+  .btn { font: 600 14px/1.1 var(--sans); border: 1px solid var(--ink); background: #fff; color: var(--ink); border-radius: 4px; padding: 9px 12px; min-height: 40px; cursor: pointer; max-width: 100%; }
+  .btn.primary { background: var(--thread); border-color: var(--thread); color: #fff; }
+  .btn:hover { filter: brightness(.95); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-width: 0; }
+  .privacy { background: #e8f2ef; border-radius: 4px; padding: 8px 10px; font-size: 13px; color: #1f5153; margin-top: 8px; }
+  .sizes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 6px 0 10px; }
+  .size { background: #fff; border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; min-width: 0; }
+  .size small { display: block; font: 600 11px/1.3 var(--sans); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .size b { font: 600 20px/1.2 var(--serif); }
+  .size span { font-size: 12px; color: var(--muted); display: block; }
+  .chart-wrap { overflow: auto; max-height: 72vh; background: #fff; border: 1px solid var(--line); border-radius: 4px; }
+  #chart { display: block; }
+  table.legend { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .legend th, .legend td { border-bottom: 1px solid var(--line); padding: 5px 6px; text-align: left; vertical-align: middle; }
+  .legend th { font: 700 11px/1.3 var(--sans); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .legend td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .legend .sym { font: 700 15px/1 var(--sans); width: 26px; height: 26px; display: inline-grid; place-items: center; border: 1px solid #999; background: #fff; }
+  .legend .sw { width: 26px; height: 26px; display: inline-block; border: 1px solid rgba(0,0,0,.2); vertical-align: middle; }
+  .legend-wrap { overflow-x: auto; }
+  .status { min-height: 1.5em; font-size: 14px; color: var(--thread-2); font-weight: 600; }
+  .preview { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+  .preview canvas { max-width: 140px; width: 100%; height: auto; border: 1px solid var(--line); image-rendering: pixelated; background: #fff; }
+  footer { margin-top: 24px; text-align: center; color: var(--muted); font-size: 13px; }
+  @media print {
+    @page { margin: 0.4in; }
+    body { background: #fff; background-image: none; }
+    a.back, header.hoop, .layout > aside, .no-print, footer { display: none !important; }
+    .wrap { padding: 0; max-width: none; }
+    .layout { display: block; }
+    .panel { border: 0; box-shadow: none; padding: 0; }
+    .panel::before { display: none; }
+    .chart-wrap { overflow: visible; max-height: none; border: 0; }
+    #chart { max-width: 100%; height: auto; }
+    table.legend { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="hoop">
+    <div class="ring" aria-hidden="true">✕</div>
+    <div>
+      <h1>Cross-Stitch Pattern Maker</h1>
+      <p class="sub">Any photo to a counted chart: pick your fabric and size, choose how many colours, and print it.</p>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="panel" aria-labelledby="h-set">
+      <h2 id="h-set">Your design</h2>
+      <div class="field">
+        <label for="file">Picture</label>
+        <input type="file" id="file" accept="image/*" data-testid="file" aria-describedby="privacy">
+        <button type="button" class="btn" id="demo" data-testid="demo" style="justify-self:start">Use the demo picture</button>
+      </div>
+      <p class="privacy" id="privacy" data-testid="privacy">🔒 Your picture stays on this device. It's read into a canvas and charted right here, never uploaded.</p>
+      <div class="field">
+        <label for="count">Fabric count (stitches per inch)</label>
+        <select id="count" data-testid="count"><option value="11">11-count Aida</option><option value="14" selected>14-count Aida</option><option value="16">16-count Aida</option><option value="18">18-count Aida</option><option value="22">22-count Hardanger</option></select>
+      </div>
+      <div class="field">
+        <label for="width">Design width</label>
+        <div class="pair">
+          <input type="number" id="width" min="0.5" max="300" step="0.5" value="5" data-testid="width">
+          <select id="unit" aria-label="Width unit" data-testid="unit"><option value="in" selected>inches</option><option value="st">stitches</option></select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="colors">Colours</label>
+        <input type="number" id="colors" min="2" max="30" value="12" data-testid="colors">
+      </div>
+      <label class="check"><input type="checkbox" id="dither" data-testid="dither"><span>Floyd–Steinberg dithering (smoother gradients, busier chart)</span></label>
+      <div class="field">
+        <label for="seed">k-means seed</label>
+        <div class="pair"><input type="number" id="seed" min="1" max="999999" data-testid="seed"><button type="button" class="btn" id="reseed" data-testid="reseed">New seed</button></div>
+      </div>
+      <div class="field">
+        <label for="margin">Fabric margin each side (in)</label>
+        <input type="number" id="margin" min="0" max="10" step="0.5" value="3" data-testid="margin">
+      </div>
+      <div class="field">
+        <label for="strands">Strands per stitch</label>
+        <select id="strands" data-testid="strands"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option></select>
+      </div>
+      <div class="field">
+        <label for="view">Chart view</label>
+        <select id="view" data-testid="view"><option value="both" selected>Symbols on colour</option><option value="symbols">Symbols only (best for printing)</option><option value="color">Colour only</option></select>
+      </div>
+      <h3>Preview</h3>
+      <div class="preview"><canvas id="prev" width="1" height="1" role="img" aria-label="Stitched preview" data-testid="preview"></canvas><p class="note" style="flex:1 1 120px">One pixel per stitch, in the floss colours.</p></div>
+      <p class="note" style="margin-top:10px">How it works: the picture is averaged down to one colour per stitch, converted to CIELAB, grouped into N colours with k-means (seeded k-means++ start, so the same seed gives the same chart), and each group is matched to the closest floss by CIEDE2000.</p>
+    </aside>
+
+    <section class="panel" aria-labelledby="h-chart">
+      <div class="row no-print" style="justify-content:space-between">
+        <h2 id="h-chart" style="margin:0">Chart</h2>
+        <div class="row"><button type="button" class="btn primary" id="print" data-testid="print">🖨 Print chart</button></div>
+      </div>
+      <div class="sizes" aria-live="polite" data-testid="sizes">
+        <div class="size"><small>Stitches</small><b id="s-grid" data-testid="grid-size">—</b><span id="s-total" data-testid="total"></span></div>
+        <div class="size"><small>Finished size</small><b id="s-fin" data-testid="finished">—</b><span id="s-fin-cm" data-testid="finished-cm"></span></div>
+        <div class="size"><small>Cut fabric</small><b id="s-fab" data-testid="fabric">—</b><span id="s-fab-note"></span></div>
+        <div class="size"><small>Colours</small><b id="s-cols" data-testid="n-colors">—</b><span id="s-skeins" data-testid="skeins-total"></span></div>
+      </div>
+      <p class="status" id="status" role="status" aria-live="polite" data-testid="status"></p>
+      <div class="chart-wrap" tabindex="0" aria-label="Chart, scrollable"><canvas id="chart" width="10" height="10" role="img" aria-label="Cross-stitch chart" data-testid="chart"></canvas></div>
+      <p class="note">Bold lines every 10 stitches; the arrows mark the centre, where most stitchers start. One square = one full cross stitch.</p>
+      <h3>Legend</h3>
+      <div class="legend-wrap">
+        <table class="legend" data-testid="legend">
+          <thead><tr><th scope="col">Symbol</th><th scope="col">Colour</th><th scope="col">Floss</th><th scope="col" class="num">Stitches</th><th scope="col" class="num">Skeins</th></tr></thead>
+          <tbody id="legend-body"></tbody>
+          <tfoot><tr><th scope="row" colspan="3">Total</th><td class="num" id="legend-total" data-testid="legend-total"></td><td class="num" id="legend-skeins"></td></tr></tfoot>
+        </table>
+      </div>
+      <p class="note" id="skein-note" data-testid="skein-note"></p>
+      <p class="note">Floss numbers here are generic (F-101 to F-160), not any maker's numbering. Hold real threads against the chart colours before you buy.</p>
+    </section>
+  </div>
+  <footer>Built by Zac Corbett · box-filter downscale, k-means in CIELAB, CIEDE2000 floss matching and Floyd–Steinberg dithering in plain JavaScript · <code>?seed=</code> for a repeatable chart</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+  // ---------- colour ----------
+  const hexToRgb = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+  function srgbToLab(r, g, b) {
+    const lin = (c) => { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+    const R = lin(r), G = lin(g), B = lin(b);
+    const X = (0.4124564 * R + 0.3575761 * G + 0.1804375 * B) / 0.95047, Y = 0.2126729 * R + 0.7151522 * G + 0.0721750 * B, Z = (0.0193339 * R + 0.1191920 * G + 0.9503041 * B) / 1.08883;
+    const f = (t) => t > 216 / 24389 ? Math.cbrt(t) : (24389 / 27 * t + 16) / 116;
+    const fx = f(X), fy = f(Y), fz = f(Z);
+    return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+  }
+  function deltaE2000(l1, l2) {
+    const [L1, a1, b1] = l1, [L2, a2, b2] = l2, rad = Math.PI / 180;
+    const C1 = Math.hypot(a1, b1), C2 = Math.hypot(a2, b2), Cb = (C1 + C2) / 2;
+    const G = 0.5 * (1 - Math.sqrt(Cb ** 7 / (Cb ** 7 + 25 ** 7)));
+    const a1p = (1 + G) * a1, a2p = (1 + G) * a2, C1p = Math.hypot(a1p, b1), C2p = Math.hypot(a2p, b2);
+    const hp = (b, a) => { if (a === 0 && b === 0) return 0; const h = Math.atan2(b, a) / rad; return h < 0 ? h + 360 : h; };
+    const h1p = hp(b1, a1p), h2p = hp(b2, a2p), dL = L2 - L1, dC = C2p - C1p;
+    let dh = 0; if (C1p * C2p !== 0) { dh = h2p - h1p; if (dh > 180) dh -= 360; else if (dh < -180) dh += 360; }
+    const dH = 2 * Math.sqrt(C1p * C2p) * Math.sin(dh * rad / 2), Lb = (L1 + L2) / 2, Cbp = (C1p + C2p) / 2;
+    let hb = h1p + h2p; if (C1p * C2p !== 0) { if (Math.abs(h1p - h2p) <= 180) hb /= 2; else hb = (h1p + h2p < 360) ? (hb + 360) / 2 : (hb - 360) / 2; }
+    const T = 1 - 0.17 * Math.cos((hb - 30) * rad) + 0.24 * Math.cos(2 * hb * rad) + 0.32 * Math.cos((3 * hb + 6) * rad) - 0.20 * Math.cos((4 * hb - 63) * rad);
+    const dTh = 30 * Math.exp(-(((hb - 275) / 25) ** 2)), RC = 2 * Math.sqrt(Cbp ** 7 / (Cbp ** 7 + 25 ** 7));
+    const SL = 1 + 0.015 * (Lb - 50) ** 2 / Math.sqrt(20 + (Lb - 50) ** 2), SC = 1 + 0.045 * Cbp, SH = 1 + 0.015 * Cbp * T, RT = -Math.sin(2 * dTh * rad) * RC;
+    return Math.sqrt((dL / SL) ** 2 + (dC / SC) ** 2 + (dH / SH) ** 2 + RT * (dC / SC) * (dH / SH));
+  }
+
+  // ---------- generic floss palette (invented numbers and names) ----------
+  const FLOSS = [
+    ['White', 'ffffff'], ['Ecru', 'f4efe3'], ['Oatmeal', 'e9dcc0'], ['Pale grey', 'd8d8d8'], ['Mid grey', 'a9a9a9'], ['Slate grey', '6e6e6e'], ['Charcoal', '3a3a3a'], ['Black', '111111'],
+    ['Shell', 'f7d9c4'], ['Apricot skin', 'edc0a0'], ['Warm tan', 'd9a07a'], ['Caramel', 'b87a52'], ['Chestnut', '8e5634'], ['Coffee', '5e3920'], ['Dark brown', '3b2415'],
+    ['Blush', 'f9d6d5'], ['Rose', 'f4a6b0'], ['Coral pink', 'e8697d'], ['Crimson', 'cc2f4a'], ['Cherry', 'a51c30'], ['Burgundy', '6e1423'],
+    ['Peach', 'fbd0a9'], ['Melon', 'f7a35c'], ['Orange', 'ed7a2a'], ['Rust', 'c9541c'], ['Terracotta', '8a3314'],
+    ['Cream yellow', 'fff3b0'], ['Lemon', 'fbe06b'], ['Sunflower', 'f2c12e'], ['Mustard', 'd69a1a'], ['Old gold', 'a0741a'],
+    ['Pale lime', 'e3ecb3'], ['Spring green', 'bcd66a'], ['Grass', '8db33a'], ['Moss', '5d8a2b'], ['Forest', '3a5f1f'], ['Pine', '1f3d14'],
+    ['Mint', 'c6ebd5'], ['Seafoam', '7fcfa3'], ['Jade', '3aa874'], ['Emerald', '1f7a50'], ['Deep teal green', '0f4a31'],
+    ['Ice blue', 'cdeff3'], ['Aqua', '8fd6e0'], ['Turquoise', '3fb2c6'], ['Peacock', '1f7f99'],
+    ['Powder blue', 'cfe0f7'], ['Sky blue', '94bde8'], ['Cornflower', '5a8fd6'], ['Royal blue', '2f5fa8'], ['Navy', '1b3a73'], ['Midnight', '0e1f45'],
+    ['Lavender', 'e5d4f2'], ['Lilac', 'bf9be0'], ['Amethyst', '9366c4'], ['Violet', '633a99'], ['Aubergine', '3d2166'],
+    ['Pale pink', 'f7c6e6'], ['Orchid', 'e38ac2'], ['Plum', 'b84a92'],
+  ].map(([name, hex], i) => ({ id: `F-${101 + i}`, name, hex: '#' + hex, rgb: hexToRgb('#' + hex), lab: srgbToLab(...hexToRgb('#' + hex)) }));
+  const SYMBOLS = ['●', '■', '▲', '◆', '★', '○', '□', '△', '◇', '☆', '♥', '♦', '♣', '♠', '▼', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', ...'eghkmnrtwy', ...'23456789', '#'];
+  function nearestFloss(lab, pool = FLOSS) { let best = null, bd = Infinity; for (const f of pool) { const d = deltaE2000(lab, f.lab); if (d < bd) { bd = d; best = f; } } return best; }
+
+  // ---------- k-means in CIELAB, seeded k-means++ ----------
+  function kmeans(labs, k, seed, maxIter = 30) {
+    const d2 = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
+    // distinct colours first: if there are no more than k, they are the answer exactly
+    const uniq = new Map(); for (const l of labs) { const key = l.map((v) => v.toFixed(6)).join(','); if (!uniq.has(key)) uniq.set(key, l); }
+    if (uniq.size <= k) { const centers = [...uniq.values()].map((c) => c.slice()); return { centers, assign: labs.map((l) => { let bi = 0, bd = Infinity; centers.forEach((c, i) => { const d = d2(l, c); if (d < bd) { bd = d; bi = i; } }); return bi; }), iterations: 0 }; }
+    const r = mulberry32(seed);
+    const centers = [labs[Math.floor(r() * labs.length)].slice()];
+    const dist = labs.map((l) => d2(l, centers[0]));
+    while (centers.length < k) {
+      const sum = dist.reduce((a, b) => a + b, 0); let t = r() * sum, idx = 0;
+      for (; idx < labs.length - 1; idx++) { t -= dist[idx]; if (t <= 0) break; }
+      centers.push(labs[idx].slice());
+      for (let i = 0; i < labs.length; i++) dist[i] = Math.min(dist[i], d2(labs[i], centers[centers.length - 1]));
+    }
+    const assign = new Int32Array(labs.length).fill(-1); let it = 0;
+    for (; it < maxIter; it++) {
+      let changed = 0;
+      for (let i = 0; i < labs.length; i++) { let bi = 0, bd = Infinity; for (let c = 0; c < k; c++) { const d = d2(labs[i], centers[c]); if (d < bd) { bd = d; bi = c; } } if (assign[i] !== bi) { assign[i] = bi; changed++; } }
+      const sums = centers.map(() => [0, 0, 0, 0]);
+      for (let i = 0; i < labs.length; i++) { const s = sums[assign[i]]; s[0] += labs[i][0]; s[1] += labs[i][1]; s[2] += labs[i][2]; s[3]++; }
+      sums.forEach((s, c) => { if (s[3]) centers[c] = [s[0] / s[3], s[1] / s[3], s[2] / s[3]]; });
+      if (!changed) break;
+    }
+    return { centers, assign: Array.from(assign), iterations: it };
+  }
+
+  // ---------- size & thread maths ----------
+  const SKEIN_IN = 8 * 100 / 2.54;          // an 8 m skein ≈ 315 in of 6-strand floss
+  const PER_STITCH = (2 * Math.SQRT2 + 2);  // two diagonals on the front + two sides of travel on the back, in stitch widths
+  const WASTE = 1.5;                        // +50 % for tails, starts and stops
+  const stitchesPerSkein = (count, strands) => (6 / strands) * SKEIN_IN / (PER_STITCH / count * WASTE);
+
+  // ---------- state ----------
+  const state = {
+    count: 14, width: 5, unit: 'in', N: 12, dither: false, seed: (parseInt(params.get('seed'), 10) >>> 0) || 136, margin: 3, strands: 2, view: 'both',
+    W: 0, H: 0, grid: [], palette: [], perSkein: 0, finished: null, fabric: null, source: null, sourceName: '', iterations: 0,
+  };
+  $('seed').value = state.seed;
+  let src = null;   // canvas with the picture on white
+
+  function demoPicture() {
+    const c = document.createElement('canvas'); c.width = 600; c.height = 600; const g = c.getContext('2d');
+    const sky = g.createLinearGradient(0, 0, 0, 600); sky.addColorStop(0, '#2f5fa8'); sky.addColorStop(0.45, '#5a8fd6'); sky.addColorStop(1, '#cfe0f7');
+    g.fillStyle = sky; g.fillRect(0, 0, 600, 600);
+    g.fillStyle = '#fbe06b'; g.beginPath(); g.arc(470, 120, 60, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#8db33a'; g.beginPath(); g.moveTo(0, 470); g.quadraticCurveTo(160, 390, 330, 460); g.quadraticCurveTo(470, 510, 600, 430); g.lineTo(600, 600); g.lineTo(0, 600); g.fill();
+    g.fillStyle = '#3a5f1f'; g.beginPath(); g.moveTo(0, 540); g.quadraticCurveTo(300, 480, 600, 560); g.lineTo(600, 600); g.lineTo(0, 600); g.fill();
+    // balloon: striped envelope, ropes and a basket
+    g.save(); g.beginPath(); g.ellipse(270, 220, 120, 140, 0, 0, Math.PI * 2); g.clip();
+    ['#cc2f4a', '#f4efe3', '#2f5fa8', '#f2c12e', '#cc2f4a', '#f4efe3', '#2f5fa8'].forEach((col, i) => { g.fillStyle = col; g.fillRect(150 + i * 35, 70, 35, 300); });
+    g.restore();
+    g.strokeStyle = '#5e3920'; g.lineWidth = 3; g.beginPath(); g.moveTo(200, 330); g.lineTo(245, 400); g.moveTo(340, 330); g.lineTo(295, 400); g.stroke();
+    g.fillStyle = '#b87a52'; g.fillRect(240, 398, 60, 42); g.fillStyle = '#8e5634'; g.fillRect(240, 398, 60, 8);
+    g.fillStyle = '#ffffff'; for (const [x, y, s] of [[90, 110, 1], [520, 260, 0.8]]) { g.beginPath(); g.ellipse(x, y, 50 * s, 20 * s, 0, 0, Math.PI * 2); g.ellipse(x + 30 * s, y - 12 * s, 34 * s, 20 * s, 0, 0, Math.PI * 2); g.fill(); }
+    return c;
+  }
+  function setSource(img, name) {
+    const k = Math.min(1, 1200 / Math.max(img.width, img.height));
+    const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(img.width * k)); c.height = Math.max(1, Math.round(img.height * k));
+    const g = c.getContext('2d', { willReadFrequently: true }); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+    src = c; state.source = { w: c.width, h: c.height }; state.sourceName = name;
+    build();
+  }
+
+  function gridSize() {
+    const w = state.unit === 'in' ? Math.round(state.width * state.count) : Math.round(state.width);
+    const W = Math.max(2, Math.min(300, w));
+    const H = Math.max(2, Math.min(400, Math.round(W * src.height / src.width)));
+    return { W, H };
+  }
+  // Box filter: each stitch is the mean of the source pixels whose centres fall inside it.
+  function downscale(W, H) {
+    const d = src.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, src.width, src.height).data, sw = src.width, sh = src.height;
+    const out = [];
+    for (let y = 0; y < H; y++) {
+      const y0 = Math.floor(y * sh / H), y1 = Math.max(y0 + 1, Math.floor((y + 1) * sh / H));
+      for (let x = 0; x < W; x++) {
+        const x0 = Math.floor(x * sw / W), x1 = Math.max(x0 + 1, Math.floor((x + 1) * sw / W));
+        let r = 0, g = 0, b = 0, n = 0;
+        for (let yy = y0; yy < y1; yy++) for (let xx = x0; xx < x1; xx++) { const i = (yy * sw + xx) * 4; r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
+        out.push([r / n, g / n, b / n]);
+      }
+    }
+    return out;
+  }
+
+  function build() {
+    if (!src) return;
+    const { W, H } = gridSize();
+    state.W = W; state.H = H;
+    const rgb = downscale(W, H), labs = rgb.map((c) => srgbToLab(...c));
+    const km = kmeans(labs, Math.max(2, state.N), state.seed);
+    state.iterations = km.iterations;
+    // each cluster centre goes to its nearest floss; clusters that land on the same floss merge
+    const pal = []; for (const c of km.centers) { const f = nearestFloss(c); if (!pal.includes(f)) pal.push(f); }
+    const idx = new Array(W * H);
+    if (!state.dither) {
+      for (let i = 0; i < labs.length; i++) idx[i] = pal.indexOf(nearestFloss(labs[i], pal));
+    } else {
+      const work = labs.map((l) => l.slice());
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        const i = y * W + x, f = nearestFloss(work[i], pal); idx[i] = pal.indexOf(f);
+        const e = [0, 1, 2].map((k) => work[i][k] - f.lab[k]);
+        const push = (xx, yy, w) => { if (xx < 0 || xx >= W || yy >= H) return; const j = yy * W + xx; for (let k = 0; k < 3; k++) work[j][k] += e[k] * w; };
+        push(x + 1, y, 7 / 16); push(x - 1, y + 1, 3 / 16); push(x, y + 1, 5 / 16); push(x + 1, y + 1, 1 / 16);
+      }
+    }
+    // legend order: most stitches first; drop any floss that ended up unused
+    const counts = pal.map(() => 0); idx.forEach((k) => counts[k]++);
+    const order = pal.map((_, k) => k).filter((k) => counts[k] > 0).sort((a, b) => counts[b] - counts[a] || pal[a].id.localeCompare(pal[b].id));
+    const remap = new Map(order.map((k, n) => [k, n]));
+    state.grid = idx.map((k) => remap.get(k));
+    state.perSkein = stitchesPerSkein(state.count, state.strands);
+    state.palette = order.map((k, n) => ({ id: pal[k].id, name: pal[k].name, hex: pal[k].hex, lab: pal[k].lab, count: counts[k], symbol: SYMBOLS[n], skeins: Math.max(1, Math.ceil(counts[k] / state.perSkein)) }));
+    const fw = W / state.count, fh = H / state.count;
+    state.finished = { w: fw, h: fh }; state.fabric = { w: fw + 2 * state.margin, h: fh + 2 * state.margin };
+    render();
+  }
+
+  const fmt = (v) => v.toFixed(2);
+  function render() {
+    const { W, H } = state;
+    $('s-grid').textContent = `${W} × ${H}`;
+    $('s-total').textContent = `${(W * H).toLocaleString('en-US')} stitches on ${state.count}-count`;
+    $('s-fin').textContent = `${fmt(state.finished.w)} × ${fmt(state.finished.h)} in`;
+    $('s-fin-cm').textContent = `${(state.finished.w * 2.54).toFixed(1)} × ${(state.finished.h * 2.54).toFixed(1)} cm (stitches ÷ ${state.count})`;
+    $('s-fab').textContent = `${fmt(state.fabric.w)} × ${fmt(state.fabric.h)} in`;
+    $('s-fab-note').textContent = `design + ${state.margin} in each side for framing`;
+    $('s-cols').textContent = String(state.palette.length);
+    const sk = state.palette.reduce((a, p) => a + p.skeins, 0);
+    $('s-skeins').textContent = `${sk} skein${sk === 1 ? '' : 's'} in all`;
+    // legend
+    const tb = $('legend-body'); tb.innerHTML = '';
+    for (const p of state.palette) {
+      const tr = document.createElement('tr'); tr.dataset.testid = 'legend-row';
+      tr.innerHTML = `<td><span class="sym" data-testid="symbol">${p.symbol}</span></td><td><span class="sw" style="background:${p.hex}" aria-hidden="true"></span> ${p.name}</td><td data-testid="floss-id">${p.id}</td><td class="num" data-testid="stitch-count">${p.count.toLocaleString('en-US')}</td><td class="num" data-testid="skeins">${p.skeins}</td>`;
+      tb.appendChild(tr);
+    }
+    $('legend-total').textContent = (W * H).toLocaleString('en-US');
+    $('legend-skeins').textContent = String(sk);
+    $('skein-note').textContent = `Skein estimate: assumes 8 m skeins of 6-strand floss, stitched with ${state.strands} strand${state.strands > 1 ? 's' : ''}, about ${PER_STITCH.toFixed(2)} stitch-widths of thread per full cross (both diagonals plus travel on the back), plus 50% for tails and starts. That is about ${Math.round(state.perSkein).toLocaleString('en-US')} stitches per skein on ${state.count}-count. Your tension and habits will differ, so buy a spare of the big colours.`;
+    // preview: one pixel per stitch
+    const pv = $('prev'); pv.width = W; pv.height = H; const pg = pv.getContext('2d'); const im = pg.createImageData(W, H);
+    state.grid.forEach((k, i) => { const c = hexToRgb(state.palette[k].hex); im.data.set([c[0], c[1], c[2], 255], i * 4); });
+    pg.putImageData(im, 0, 0);
+    drawChart();
+    $('chart').setAttribute('aria-label', `Cross-stitch chart, ${W} by ${H} stitches in ${state.palette.length} colours. The legend below lists every symbol.`);
+    say(`Charted ${state.sourceName}: ${W} × ${H} stitches, ${state.palette.length} colours${state.dither ? ', dithered' : ''}.`);
+  }
+  function drawChart() {
+    const { W, H } = state, cs = W > 120 || H > 160 ? 12 : 16, pad = 28;
+    const cv = $('chart'); cv.width = W * cs + pad * 2; cv.height = H * cs + pad * 2;
+    const g = cv.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height);
+    const lum = (hex) => { const [r, gg, b] = hexToRgb(hex); return 0.299 * r + 0.587 * gg + 0.114 * b; };
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = `${Math.round(cs * 0.7)}px "Segoe UI Symbol", "Segoe UI", Arial, sans-serif`;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const p = state.palette[state.grid[y * W + x]], px = pad + x * cs, py = pad + y * cs;
+      if (state.view !== 'symbols') { g.fillStyle = p.hex; g.fillRect(px, py, cs, cs); }
+      if (state.view !== 'color') { g.fillStyle = state.view === 'both' && lum(p.hex) < 110 ? '#fff' : '#111'; g.fillText(p.symbol, px + cs / 2, py + cs / 2 + 1); }
+    }
+    for (let x = 0; x <= W; x++) { g.strokeStyle = x % 10 === 0 ? '#111' : 'rgba(0,0,0,.25)'; g.lineWidth = x % 10 === 0 ? 2 : 1; g.beginPath(); g.moveTo(pad + x * cs + 0.5, pad); g.lineTo(pad + x * cs + 0.5, pad + H * cs); g.stroke(); }
+    for (let y = 0; y <= H; y++) { g.strokeStyle = y % 10 === 0 ? '#111' : 'rgba(0,0,0,.25)'; g.lineWidth = y % 10 === 0 ? 2 : 1; g.beginPath(); g.moveTo(pad, pad + y * cs + 0.5); g.lineTo(pad + W * cs, pad + y * cs + 0.5); g.stroke(); }
+    g.fillStyle = '#555'; g.font = '11px "Segoe UI", Arial, sans-serif';
+    for (let x = 10; x <= W; x += 10) { g.fillText(String(x), pad + x * cs, pad - 12); g.fillText(String(x), pad + x * cs, pad + H * cs + 12); }
+    g.textAlign = 'right'; for (let y = 10; y <= H; y += 10) g.fillText(String(y), pad - 4, pad + y * cs);
+    // centre arrows
+    g.fillStyle = '#b8323f'; const cx = pad + W * cs / 2, cy = pad + H * cs / 2;
+    const tri = (pts) => { g.beginPath(); pts.forEach(([a, b], i) => (i ? g.lineTo(a, b) : g.moveTo(a, b))); g.fill(); };
+    tri([[cx - 6, 2], [cx + 6, 2], [cx, 12]]); tri([[cx - 6, cv.height - 2], [cx + 6, cv.height - 2], [cx, cv.height - 12]]);
+    tri([[2, cy - 6], [2, cy + 6], [12, cy]]); tri([[cv.width - 2, cy - 6], [cv.width - 2, cy + 6], [cv.width - 12, cy]]);
+    state.chart = { cell: cs, pad, w: cv.width, h: cv.height, bold: { x: Array.from({ length: Math.floor(W / 10) + 1 }, (_, i) => i * 10), y: Array.from({ length: Math.floor(H / 10) + 1 }, (_, i) => i * 10) } };
+  }
+  function say(m) { $('status').textContent = m; }
+
+  // ---------- controls ----------
+  const num = (id, lo, hi, fallback) => { const v = parseFloat($(id).value); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : fallback; };
+  function readAll() {
+    state.count = +$('count').value; state.unit = $('unit').value;
+    state.width = num('width', state.unit === 'in' ? 0.5 : 2, state.unit === 'in' ? 30 : 300, state.width);
+    state.N = Math.round(num('colors', 2, 30, 12)); state.dither = $('dither').checked;
+    state.seed = (parseInt($('seed').value, 10) >>> 0) || state.seed; state.margin = num('margin', 0, 10, 3);
+    state.strands = +$('strands').value; state.view = $('view').value;
+  }
+  ['count', 'width', 'colors', 'dither', 'seed', 'margin', 'strands'].forEach((id) => $(id).addEventListener('change', () => { readAll(); if (id === 'seed') syncUrl(); build(); }));
+  $('view').addEventListener('change', () => { readAll(); drawChart(); });
+  $('unit').addEventListener('change', () => {
+    // convert the number so the design keeps its size when the unit flips
+    // (read the raw number: clamping it to the new unit's range first would turn 100 stitches into 30 inches)
+    const was = state.unit, unit = $('unit').value, raw = parseFloat($('width').value), count = +$('count').value;
+    if (Number.isFinite(raw) && was === 'in' && unit === 'st') $('width').value = String(Math.round(raw * count));
+    if (Number.isFinite(raw) && was === 'st' && unit === 'in') $('width').value = String(Math.max(0.5, Math.round(raw / count * 2) / 2));
+    $('width').step = unit === 'in' ? '0.5' : '1';
+    readAll(); build();
+  });
+  $('reseed').addEventListener('click', () => { $('seed').value = String(1 + Math.floor(Math.random() * 99999)); readAll(); syncUrl(); build(); });
+  function syncUrl() { const u = new URL(location.href); u.searchParams.set('seed', state.seed); history.replaceState(null, '', u); }
+  $('demo').addEventListener('click', () => setSource(demoPicture(), 'the demo picture'));
+  async function decode(file) {
+    if (window.createImageBitmap) { try { return await createImageBitmap(file); } catch (_) { /* fall back */ } }
+    const url = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(file); });
+    return await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = url; });
+  }
+  $('file').addEventListener('change', async (e) => {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    try { setSource(await decode(f), 'your picture'); } catch (_) { say('That file could not be read as an image.'); }
+  });
+  $('print').addEventListener('click', () => window.print());
+
+  readAll();
+  setSource(demoPicture(), 'the demo picture');
+
+  window.__stitch = {
+    get state() { const s = JSON.parse(JSON.stringify(state)); return s; },
+    floss: FLOSS.map((f) => ({ id: f.id, name: f.name, hex: f.hex, lab: f.lab.slice() })),
+    srgbToLab, deltaE2000, kmeans, stitchesPerSkein,
+    nearestFloss: (lab) => nearestFloss(lab).id,
+  };
+})();
+</script>
+</body>
+</html>

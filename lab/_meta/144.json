@@ -1,0 +1,37 @@
+{
+  "id": "144",
+  "slug": "144-deep-ellum-blues",
+  "file": "lab/144-deep-ellum-blues.html",
+  "title": "Deep Ellum Blues — a 12-bar blues generator",
+  "category": "Audio",
+  "tags": ["web-audio", "music-theory", "seeded-rng", "page-clock", "generative"],
+  "description": "A 12-bar blues generator inspired by Deep Ellum in Dallas, where Blind Lemon Jefferson performed in the 1920s. Pick any of 12 keys, slow or quick change, a walking or boogie bass and a triplet shuffle or straight feel. A seeded solo walks the blues scale (minor pentatonic plus the flat five) and lands on chord tones on beats 1 and 3. Everything is synthesized with Web Audio after you press Play, with a chord chart and a three-line piano roll that follow along, and it still keeps time with no audio at all.",
+  "prompt": "Build a 12-bar blues generator for Deep Ellum in Dallas, which was a centre of early blues. Keep the history brief and accurate: Blind Lemon Jefferson performed there in the 1920s, and don't claim anything else. Generate the 12-bar progression (I-I-I-I / IV-IV-I-I / V-IV-I-V with the turnaround) with quick-change and slow-change options, a shuffle feel with triplet 2:1 swung eighths, a walking or boogie bass line, and a seeded improvised melody on the blues scale (minor pentatonic plus the flat five) that targets chord tones on the strong beats. Synthesize it all with Web Audio, only after a gesture, and make it work with no audio. Show a chord chart, a piano roll and a key selector. Tests should check the chord sequence for each variant and key (in A: A7, D7, E7), that swing puts the off-beat at 2/3 of the beat, that melody notes are on the key's blues scale, that strong-beat notes are chord tones, and determinism per seed.",
+  "qa": {
+    "methodology": [
+      "Theory oracle: the spec spells the 12-bar itself from roman numerals (sharps for sharp keys, flats for F, B♭, E♭, A♭, D♭) and checks all 12 keys × both variants, plus the rendered chart for A (A7 ×4, D7 D7, A7 A7, E7 D7 A7 E7), the quick change and B♭.",
+      "Scale and chord-tone membership: for five keys and four seeds, every solo note's pitch class must be in the blues scale the test builds from 1, ♭3, 4, ♭5, 5, ♭7. For three keys, both variants and three seeds (over 200 notes), every note on beats 1 and 3 must be one of the four tones of that bar's dominant seventh.",
+      "Swing: every off-beat event sits at bar·4 + beat + 2/3 in the score, straight feel moves them to 1/2, and boogie bass pairs are long–short 2:1. Under page.clock with AudioContext removed, the live scheduler log must match tb × 60/BPM, including after it wraps into the second chorus.",
+      "Determinism: the same seed must reproduce the exact event list, another seed must change the solo, New solo must write its seed to the URL, and a reload of that URL must give the same solo.",
+      "Audio paths: one test deletes Web Audio and expects a silent, correctly timed run with the chart highlighting bar 2 at 2.95 s; another uses real Web Audio and checks there is no context before Play, then that notes are sounded."
+    ],
+    "risks": [
+      "The solo is a constrained random walk, not a model of blues phrasing; the tests prove it obeys the rules (scale, chord tones on strong beats), not that it sounds idiomatic.",
+      "The walking bass uses chromatic approach notes on beat 4, which are deliberately outside the scale; only the solo is held to the blues scale.",
+      "Key spelling follows one convention (F♯ rather than G♭, D♭ rather than C♯). Another convention would give different chord names, so the spec pins this one.",
+      "The real-audio test can only check that notes were handed to Web Audio, not what they sound like."
+    ],
+    "playwright": "page.clock is what makes the scheduler testable: installed before goto with AudioContext removed by addInitScript, the transport runs on performance.now, so runFor(3000) and runFor(29000) move the lookahead scheduler and the rAF playhead together, and the log comes out the same every run. The __blues.compose hook let one test sweep 24 key and variant combinations in a loop without touching the UI, which is far faster than selecting each one. One test failed on its first run: the off-beat check at 1e-9 tripped over the page rounding logged times to a nanosecond and the test then dividing by the beat length. That was a tolerance mistake in the spec, not a page bug, so the tolerance was loosened to 1e-8 with a comment. The real-audio test uses expect.poll, because the audio clock is outside page.clock's control. In the repeat-each=3 run on a machine shared with other agents, it failed once: only 3 notes had sounded after 5 seconds, because the real audio clock was running slow. It now polls for up to 20 seconds and asks for a few sounded notes rather than a count tied to tempo.",
+    "coverage": [
+      "Chord chart in A, quick change, B♭; all 12 keys × 2 variants",
+      "Swing at 2/3 (and 1/2 straight), boogie 2:1 pairs",
+      "Blues-scale membership across keys and seeds",
+      "Chord tones on beats 1 and 3; piano roll matches the score",
+      "Walking and boogie bass shapes",
+      "Seeded solos, New solo, URL round trip",
+      "Silent scheduler under page.clock, chorus wrap, stop; gesture-gated real audio",
+      "Labels, chart and roll descriptions, keyboard Play"
+    ]
+  },
+  "a11y": "All settings are labelled native selects and a number field, and Play is a toggle button with aria-pressed that works from the keyboard. The chord chart is a list whose bars are labelled with their chord and roman numeral, each piano-roll line has an aria-label naming its chords and note count, and playback state, key changes and audio problems are announced in a polite status region. Nothing sounds until Play is pressed."
+}

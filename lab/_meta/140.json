@@ -1,0 +1,39 @@
+{
+  "id": "140",
+  "slug": "140-photo-palette",
+  "file": "lab/140-photo-palette.html",
+  "title": "Photo Palette — pull a crafting palette from any photo",
+  "category": "Tools",
+  "tags": ["canvas", "k-means", "cielab", "wcag-contrast", "file-upload"],
+  "description": "Upload a photo, which is read in the browser and never sent anywhere, or use one of three scenes drawn in the page: a sunset, a Texas bluebonnet field, a desert. Extract 3 to 10 colours with seeded k-means in CIELAB or with median cut, see each colour's share of the picture, and get a name from a 40-colour list by nearest ΔE*ab. A WCAG contrast matrix and suggested AA text/background pairs come with it, plus yarn stripes, an Ohio-star quilt block and a nail-polish set that links to Nail Studio. Export as CSS variables or JSON, or copy a hex.",
+  "prompt": "Make a photo palette tool for crafters. I upload a photo or use demo images drawn in the page (a sunset, a Texas bluebonnet field, a desert). Extract 3–10 colours with seeded k-means in CIELAB or median cut (a toggle) and show the proportions. Name the colours from a small built-in name list by nearest ΔE. Build a WCAG contrast matrix with suggested text/background pairs that pass AA. Add 'for your hobby' outputs: yarn stripes, a quilt block preview, and a nail-polish set that links to ../lab/133-nail-studio.html. Export as CSS variables or JSON, and copy HEX. Photos must never leave the browser. The spec should check extraction on a synthetic image with known colour areas (proportions within tolerance for both algorithms), the contrast ratios against the WCAG formula computed in the test, the nearest-name mapping, the exports' exact text and the upload flow.",
+  "qa": {
+    "methodology": [
+      "Synthetic uploads: the test paints horizontal bands of known colours on a canvas (50/30/20 and 40/25/20/15 per cent), turns toDataURL into a Buffer and sets it on the file input. Both algorithms must return those exact colours (ΔE < 2) with shares within ±2 points, and asking for more colours than exist is reported rather than invented.",
+      "WCAG oracle: the test's own luminance and contrast code is checked against published values (21:1 for black on white, 4.54 for #767676 on white and just under 4.5 for #777777, 8.59 for blue, 4.0 for red), then compared with every cell of the matrix: raw ratio, two-decimal text, and AA / AA-large / fail level. Every suggested pair on all three demo scenes must reach 4.5.",
+      "Names: an independent sRGB → CIELAB (D65) conversion and ΔE*ab 1976 in the test picks the nearest of the page's 40 names for every colour of every demo, and exact list colours must come back with ΔE 0.",
+      "Exports are compared as literal strings: the full CSS block and the pretty-printed JSON for the known image are written out in the spec.",
+      "Privacy and flow: no request leaves the origin during an upload, the status says the file was read locally with its size, a text file is refused with an error and the previous palette is kept, and the privacy note sits next to the input."
+    ],
+    "risks": [
+      "Downscaling blends neighbouring pixels, so photos gain in-between colours; synthetic images are kept under the 200-pixel analysis size so their colours stay exact.",
+      "Median cut can split a box between identical values; the page only cuts between different values, closest to the weighted median.",
+      "Colour-managed PNGs could shift values. The test's PNGs carry no colour profile, and the palette of an ordinary photo is approximate anyway.",
+      "The clipboard API needs permission and a secure context; the page falls back to execCommand and says so if both fail."
+    ],
+    "playwright": "setInputFiles with an in-memory buffer drives the real upload path (File → createImageBitmap → canvas) without fixture files, and because the PNG is drawn in the browser the expected colours are known exactly. context.grantPermissions(['clipboard-read', 'clipboard-write']) lets the test read back what Copy wrote, on both projects. One surprise, and it came from the test machine rather than the page: on Windows, reading the clipboard back returned the CSS with CRLF line endings, so the exact-text comparison failed. The test now normalises line endings for the clipboard check; the textarea export is still compared byte for byte. A second browser page from the same context confirms seeded demo scenes and k-means starts give identical palettes.",
+    "coverage": [
+      "Upload flow: known colours and shares, local-only status, no requests",
+      "k-means and median cut on a four-colour image; too-large k",
+      "Contrast vs WCAG reference values and every matrix cell",
+      "Suggested AA pairs on three demos",
+      "Nearest-name mapping by independent ΔE*ab",
+      "Exact CSS and JSON exports",
+      "Copy HEX / Copy CSS via the clipboard",
+      "Demo scenes, bluebonnet blue, seeded determinism, ?seed=",
+      "Yarn stripe rows, Ohio star colours, polish bottles + Nail Studio link",
+      "Non-image file refused"
+    ]
+  },
+  "a11y": "The file input has a visible label with the privacy note beside it, and the demo buttons use aria-pressed. The method toggle is a native radio group, and the colour count is a labelled range with a live output. Status messages, including errors, go to an aria-live region. Every swatch shows its name, hex and share as text, the proportion bar and hobby previews have descriptive aria-labels, the contrast matrix has row and column headers naming the colours, and each Copy button is labelled with the hex it copies."
+}

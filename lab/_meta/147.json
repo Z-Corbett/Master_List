@@ -1,0 +1,38 @@
+{
+  "id": "147",
+  "slug": "147-river-walk-barge",
+  "file": "lab/147-river-walk-barge.html",
+  "title": "River Walk Barge — steer a tour boat through the bends",
+  "category": "Games",
+  "tags": ["canvas", "boat-physics", "fixed-timestep", "collision", "seeded-prng"],
+  "description": "A slow steering game inspired by San Antonio's River Walk. Pilot a heavy tour barge up a seeded, winding channel between stone walls, under arched bridges and past cypress trees and café umbrellas. The barge has momentum and turning inertia: the engine fights water drag, the rudder spins the boat up gradually, and the turn rate is capped at about 34° a second. Ease almost to a stop at each of four landings to take on passengers and hear a line from your tour guide. Fresh knocks on the walls cost points.",
+  "prompt": "Make River Walk Barge, a gentle game inspired by San Antonio's River Walk, with no official branding. Steer a slow barge, with momentum and turning inertia (a simple boat model), through a winding, seeded channel under stone bridges, past cypress trees and café umbrellas, and stop at the landings to pick up passengers. Bumping the walls costs points, and there's a gentle tour-guide line at each landing: generic, true-ish facts only (e.g. that cypress trees line the river), or keep them fictional and whimsical. Use a fixed-timestep simulation with a manual step hook. The spec should check the boat physics (no instant turns; the turn rate is capped), wall collision (the boat never crosses the channel polygon), docking detection requiring low speed, determinism and scoring.",
+  "qa": {
+    "methodology": [
+      "Walls, with an independent oracle: the spec has its own ray-casting point-in-polygon test (plus a 1e-6 boundary tolerance) and checks all four hull corners against the channel polygon on every one of 3,000 frames of seeded random helm input. It also counts fresh contacts itself and requires the page's bump count and score to agree.",
+      "Turning: one frame of full rudder can change the turn rate by at most TURN_ACC·dt and barely moves the heading; in the channel the cap holds on every frame; on open water (__barge.openWater, the same model without walls) a full-speed, hard-over turn reaches exactly the 0.6 rad/s cap, never passes it, and needs at least 2.6 s for a quarter turn. At rest the rudder has a quarter of its authority, and the steady rate matches that.",
+      "Momentum: from rest, speed after 2 s is within 1% of the first-order model a/k·(1 − e^(−kt)); with the engine cut, it decays by e^(−k) in a second; astern is capped.",
+      "Docking: at the landing, 20 and DOCK_V + 0.5 are refused ('Too fast to tie up'), DOCK_V − 1 boards exactly that landing's passengers for 50 + 10 each, the guide speaks that landing's line, and waiting there doesn't board anyone twice. Outside the landing's radius nothing happens even at a standstill.",
+      "Determinism and scoring: a scripted voyage of real key presses repeats exactly on reload; another seed gives another river. Reaching the turning basin ends the tour with a point per second left; the clock running out ends it with none."
+    ],
+    "risks": [
+      "The banks are defined as x = f(y) with linear interpolation, and collisions push the boat sideways back inside. That's exact for this polygon, but it relies on the channel never folding back on itself; the generator keeps the bends gentle.",
+      "A boat pressed against a wall is in contact on every frame; bumps are counted on fresh contact only, or scraping along a wall would drain the score.",
+      "Tour-guide lines must stay true or clearly playful. They say only general things (cypress trees, the river sitting below street level, stone bridges carrying streets, algae making the water green) or obvious jokes.",
+      "Held touch buttons need pointer capture so a finger sliding off doesn't leave the throttle stuck; blur also clears all held controls."
+    ],
+    "playwright": "Most of the spec runs in manual mode: __barge.trace(n, controls) steps the simulation n frames and returns every intermediate boat, so the wall and turn-rate checks look at every frame, not just the end state. page.clock appears once, to show the real requestAnimationFrame loop advances in whole 1/60 s steps and that manual mode freezes it. The first run caught a bad test design, not a page bug: my 'quarter turn takes 2.6 s' check ran in the narrow channel, where the barge hits a wall before it can finish the turn, so I added openWater() to run the same boat model without walls. The helm buttons are tested with dispatchEvent('pointerdown'/'pointerup'), which behaves the same on desktop and on the Pixel 7 project, and keyboard.down('Enter') covers keyboard use of those buttons.",
+    "coverage": [
+      "Seeded channel: polygon, constant width, landings, bridges",
+      "Momentum: build-up, glide, astern cap",
+      "No instant turns; turn-rate cap; low authority at rest",
+      "Hull inside the polygon for 3,000 random frames; bump counting",
+      "Ramming: one bump per fresh knock, −15 each",
+      "Docking speed threshold, passengers, guide line, no double count",
+      "Deterministic voyages per seed",
+      "Finish bonus and time-out",
+      "Keyboard and hold-to-steer helm; real loop under page.clock"
+    ]
+  },
+  "a11y": "The barge can be steered entirely from the keyboard (arrows or WASD), and Start moves focus to the river canvas. The on-screen helm buttons can be held with a finger or with Enter/Space. Bumps, docking, too-fast warnings and the end of the tour are announced in a live region, the tour guide's lines are in their own polite live region, the canvas's aria-label reports progress up the river, and a speed meter turns gold when you're slow enough to dock."
+}

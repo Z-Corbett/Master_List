@@ -1,0 +1,38 @@
+{
+  "id": "136",
+  "slug": "136-cross-stitch",
+  "file": "lab/136-cross-stitch.html",
+  "title": "Cross-Stitch Pattern Maker — any photo to a chart",
+  "category": "Tools",
+  "tags": ["canvas", "k-means", "cielab", "dithering", "file-upload", "print-css"],
+  "description": "Turn a photo, or the drawn demo picture of a hot-air balloon, into a counted cross-stitch chart. Choose the fabric count and finished width, and the picture is box-filtered down to one colour per stitch, reduced to N colours by a seeded k-means in CIELAB (with optional Floyd–Steinberg dithering), and matched to 60 generic numbered floss colours by CIEDE2000. You get a printable symbol chart with bold lines every 10 stitches and centre arrows, a legend with stitch counts and skein estimates whose assumptions are spelled out, and a finished-size and fabric calculator. Pictures never leave the device.",
+  "prompt": "Make a cross-stitch pattern maker. Downscale an uploaded or demo image to a stitch grid from the fabric count and finished size, then quantise it to N colours with a seeded k-means in CIELAB, optionally with Floyd–Steinberg dithering. Map the result to a palette of about 60 generic numbered floss colours (don't use any brand's numbering), with a symbol per colour. Output a printable chart with 10 × 10 grid lines, a legend with stitch counts and a skein estimate (explain the assumption), and a finished-size calculator (stitches ÷ count = inches, plus a margin). Photos stay on the device. The spec should check the size maths, that the stitch counts sum to the grid area, k-means determinism per seed, that the palette mapping chooses the nearest colour by ΔE, the exact dithering-off output for a synthetic two-colour image, and the upload flow.",
+  "qa": {
+    "methodology": [
+      "Size maths from first principles: 5 in on 14-count must give 70 stitches, 5.00 in and 12.7 cm, and 11.00 in of fabric with 3 in margins. A 3:4 picture 100 stitches wide on 18-count must give 133 rows, 100/18 and 133/18 in, plus 2 × 2 in of margin. Switching units must keep the design's size.",
+      "Conservation: at four settings (4 to 30 colours, dithering on and off, 11- to 22-count) the legend's stitch counts, both in the state and as rendered text, must sum to W × H. The legend must be sorted by count, with one distinct symbol per colour and no unused colours.",
+      "Independent ΔE oracle: the spec has its own CIEDE2000, checked against four Sharma et al. (2005) pairs, and its own sRGB → Lab conversion. The page's nearest-floss choice must match the test's argmin for 60 seeded random colours, and every floss colour must map to itself.",
+      "Exact output: an 80 × 40 px checkerboard of 10 px blocks, charted 40 stitches wide, must produce exactly the checkerboard in the two flosses the test predicts, with 400 stitches each and zero k-means iterations (two distinct colours are the centres). Dithering on must still use only those two threads.",
+      "Determinism: the k-means hook returns identical centres for the same seed and different ones for another seed. The UI chart for seed 7 is identical after switching to seed 8 and back, and after a reload of ?seed=7."
+    ],
+    "risks": [
+      "Floss colours are generic approximations shown on screen; a real thread will look different, and the page says to check real threads before buying.",
+      "The skein estimate is a model (8 m skeins, 4.83 stitch-widths of thread per cross, +50 % waste) that lands near the common ~1,800-stitches-per-skein rule on 14-count, but tension and habits vary a lot.",
+      "k-means can land in a local optimum; seeded k-means++ makes it repeatable, not optimal. \"New seed\" offers another result.",
+      "Big charts: grids are capped at 300 × 400 stitches, and a large chart canvas is heavy to print on some browsers."
+    ],
+    "playwright": "setInputFiles with PNGs drawn in the page made the quantiser testable exactly: a checkerboard whose blocks land on whole stitches gives a chart that can be compared cell by cell. The size-maths test caught a real bug. Switching the width unit from stitches to inches clamped 100 to the inches field's 30-inch maximum before converting, so the width became 1.5 in instead of 5.5. The page now converts the raw value first. page.emulateMedia checks the print stylesheet, and small getImageData reads of the chart canvas confirm that bold lines fall every 10 stitches and the centre arrow is drawn, without pixel snapshots. page.on('request') proves the upload makes no network calls.",
+    "coverage": [
+      "Stitches, finished size, cm and fabric maths; unit round-trip",
+      "Legend counts sum to the grid area at four settings; sorted, unique symbols",
+      "k-means determinism in the hook, the UI and the URL",
+      "Nearest floss vs an independent CIEDE2000 on 60 colours",
+      "Exact two-colour checkerboard with dithering off; dithering on",
+      "Upload flow, preview pixels, zero requests",
+      "Chart canvas size, bold 10-stitch lines, centre arrow",
+      "Skein estimate vs its stated assumptions, strands and count",
+      "Print CSS keeps chart and legend, hides controls"
+    ]
+  },
+  "a11y": "Every setting is a labelled native control, and the privacy note is tied to the file input. The chart canvas has a label giving its size and colour count and points to the legend, which is a real table with header cells that lists each symbol, colour name, floss number, stitch count and skeins. The scrollable chart area is focusable, so it can be scrolled with the keyboard. The size readouts and status line are aria-live. A symbols-only view prints clearly in black and white."
+}

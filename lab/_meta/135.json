@@ -1,0 +1,38 @@
+{
+  "id": "135",
+  "slug": "135-pose-coach",
+  "file": "lab/135-pose-coach.html",
+  "title": "Pose Coach — ideas for your next phone photo",
+  "category": "Tools",
+  "tags": ["svg", "getusermedia", "page-clock", "seeded-prng", "clipboard", "localstorage"],
+  "description": "Choose the number of people (1–6), the setting (city street, nature, beach, wedding, graduation, food and drink, sports), the vibe and the orientation, and get pose cards from a library of 34. Each card has an SVG mannequin sketch drawn from joint angles, tips for hands, chin, weight shift and angles, and camera tips for height, distance, framing and light. A camera frame shows a live preview (or a demo scene or your photo) with a rule-of-thirds grid, a pose ghost and a self-timer. Favourites, seeded shuffles and a shot list you can copy. It suggests poses; it doesn't detect bodies.",
+  "prompt": "Build Pose Coach, ideas for your next phone photo. I pick the number of people (1–6), the setting (city street, nature, beach, wedding, graduation, food and drink, sports), the vibe (candid, classic, playful, editorial) and the orientation. It suggests pose cards: an SVG mannequin per pose, with tips on hands, chin, weight shift and angles, plus camera tips on height, lens distance, the rule of thirds and backlight. A camera mode shows a live preview with a thirds grid and a pose ghost overlay, and a self-timer countdown. Without a camera it falls back to an uploaded or demo image with the overlay. Add favourites, a seeded shuffle and a shot list I can copy. Be honest: it doesn't detect bodies, it suggests. The spec should check the filtering (every card shown matches the group size and setting), seed determinism, the self-timer under page.clock, the thirds grid geometry, the fallback without getUserMedia, favourites persisting, and the copied shot-list text.",
+  "qa": {
+    "methodology": [
+      "Exhaustive filter check: all 42 group-size × setting combinations go through the deck function, and every card must fit the size range and list the setting. The card count must equal min(6, the number of poses that fit), computed in the test from the pose data. Five combinations are also checked through the rendered cards, including that on-vibe cards come first and the rest carry a note.",
+      "Seeds: the same filters and seed give the same order twice; across seven seeds there are at least three different orders. Shuffle writes the new seed to the URL, and reloading that URL reproduces the cards.",
+      "Timer under page.clock: the clock is installed before load and paused. At 999 ms the countdown still shows 3, and at exactly 1000 ms it shows 2. The snapshot appears at 3000 ms, focus returns to the shutter button, and a cancelled 5-second timer takes nothing, even 10 seconds later.",
+      "Geometry: the four grid lines' centres must sit within 1 px of 1/3 and 2/3 of the frame's width and height, spanning it fully, in both portrait (3:4) and landscape (4:3).",
+      "Camera paths: navigator.mediaDevices removed (fallback: demo scene, an upload whose pixel colour is checked, a timed snapshot), a fake camera from canvas.captureStream() (live video at 320 px wide, then stop), and a refused permission. The copied shot list is compared with text rebuilt from the rendered cards."
+    ],
+    "risks": [
+      "Real cameras differ: the fake stream proves the start/stop wiring and overlay, not a phone's rear camera or its permission prompt.",
+      "Pose advice is general photography craft, not measured. The page states plainly that it has no body detection, and the ghost is only a guide to line up by eye.",
+      "Library coverage: a new setting or a narrow pose could leave a combination with fewer than three ideas. The exhaustive 42-combination test would catch it.",
+      "Clipboard access varies by browser and permission. The page falls back to selecting the text in the preview, and the test stubs writeText to capture the exact string."
+    ],
+    "playwright": "addInitScript did most of the work here. It removes navigator.mediaDevices for the fallback test, replaces getUserMedia with a canvas captureStream() for a fake camera that works on both projects without launch flags, rejects it for the permission-denied path, and stubs navigator.clipboard to capture the copied text. page.clock drives the self-timer. The first run failed on the timer test because I had installed the clock without pausing it, so real time kept draining the countdown while the test asserted; adding pauseAt() after goto fixed it, as the repo's own guidance says. boundingBox() checks the thirds grid in CSS pixels on both viewports, and setInputFiles with a buffer drawn in the page proves the upload fills the frame.",
+    "coverage": [
+      "All 42 people × setting combinations; UI filters and vibe ordering",
+      "Seed determinism, shuffle URL round-trip",
+      "Self-timer countdown, snapshot, focus, cancel",
+      "Thirds grid at 1/3 and 2/3, both orientations; grid toggle",
+      "No getUserMedia fallback with upload and snapshot",
+      "Fake camera start/stop; denied permission",
+      "Ghost figure count and card choice",
+      "Favourites persist across reloads and remove",
+      "Copied shot-list text and preview"
+    ]
+  },
+  "a11y": "The filters are native radio groups inside fieldsets with legends, styled as chips with a visible focus ring. Each mannequin sketch is an SVG with role=img and a label naming the pose and group size. Favourite and ghost buttons use aria-pressed. The countdown is also announced in an aria-live status, focus moves to Cancel while the timer runs and back to the shutter afterwards, and the camera buttons hand focus to each other. The file input is labelled by a visible button and tied to the privacy note."
+}

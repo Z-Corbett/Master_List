@@ -1,0 +1,36 @@
+{
+  "id": "142",
+  "slug": "142-space-city-transfer",
+  "file": "lab/142-space-city-transfer.html",
+  "title": "Space City Transfer — plan an orbit change",
+  "category": "Data Viz",
+  "tags": ["orbital-mechanics", "hohmann", "svg", "page-clock", "kepler", "physics"],
+  "description": "A Hohmann transfer console for Houston, Space City. Pick two circular orbits around Earth (LEO, an ISS-like 420 km, GPS or GEO, or any altitude) or two planets around the Sun, and get both burns, the total delta-v, the transfer time and the phase angle at departure. An animated SVG diagram flies the transfer with Kepler's equation, a bi-elliptic comparison shows when three burns beat two (radius ratio above 11.94), and a rocket-equation calculator says what mass ratio the trip needs.",
+  "prompt": "Build a Hohmann transfer calculator themed on Houston as Space City. Support circular orbits around Earth with presets for LEO (300 km), an ISS-like 420 km, GPS at about 20,200 km and GEO at 35,786 km, plus transfers between planets around the Sun. Compute Δv1, Δv2, the total Δv, the transfer time and the phase angle at departure using μ⊕ = 398600.4418 km³/s², R⊕ = 6378.137 km and μ☉ = 1.32712440018e11. Draw an animated SVG orbit diagram that page.clock can drive, add a bi-elliptic comparison that shows when it wins (radius ratio above 11.94), and a rocket equation calculator. The tests should check LEO to GEO at about 3.9 km/s total, Earth to Mars at about 259 days, the 11.94 crossover and the rocket equation, all against my own computations rather than the page's.",
+  "qa": {
+    "methodology": [
+      "Vis-viva oracle: the spec computes both burns, the transfer time and the phase angle itself, and checks the page against it to 1e-9 km/s. LEO 300 km to GEO must also land in the published 3.89–3.94 km/s band (it is 2.426 + 1.467 = 3.893), take 5 h 17 min and need a 100.66° lead.",
+      "Heliocentric check: Earth to Mars with JPL mean semi-major axes must take 258–260 days (the textbook 'about 259') with a phase angle near 44° and a first burn near 2.94 km/s. Going down (GEO to LEO) must cost exactly the same total, burn retrograde and report the target trailing.",
+      "Animation under page.clock: half the animation in, the craft's angle must equal the true anomaly from Kepler's equation, solved in the test by bisection (the page uses Newton), and the target must have moved n₂·t. At the end both sit at 180° on the target orbit: a rendezvous. Pause must freeze it, and the slider scrubs it with Home and End.",
+      "Bi-elliptic: the crossover is found by an independent bisection in the test and must equal the page's 11.9388. At R = 13 (between 11.94 and 15.58) a close r_b loses and a far one wins; Mercury to Neptune (R = 77.68) wins even at 1.5 × the outer radius.",
+      "Rocket equation: m₀/m_f = e gives exactly Isp·g₀ (4.413 km/s at 450 s), the mass ratio needed for the current transfer is exp(Δv/Isp·g₀), and an impossible m₀ < m_f shows a dash, not a number."
+    ],
+    "risks": [
+      "The model is idealised: circular, coplanar orbits and instant burns. Real GEO transfers also change inclination, which costs more; the page says so up front rather than quoting a 'real' mission number.",
+      "Planet orbits are treated as circles with their mean semi-major axes, so Mars transfers here are the symmetric textbook case, not an actual launch window.",
+      "The animation samples performance.now once per frame, so the tested midpoint is 'about half' (0.48–0.52) and the Kepler check is made at whatever p the page reports, not at exactly 0.5.",
+      "Displayed values are rounded to three decimals; the tests compare raw numbers from the hook and only a few formatted strings, so a formatting slip elsewhere could pass."
+    ],
+    "playwright": "page.clock.install() before goto plus pauseAt() fixes time, and runFor() then drives requestAnimationFrame, so the orbit animation lands in the same place every run and the rendezvous is checked at p = 1 exactly. The __space hook exposes the raw Hohmann, bi-elliptic and animation numbers, which let the spec check relationships (time-reversal symmetry, the target meeting the craft at 180°) instead of pixels. Keyboard presses on a range input (Home, End) fire real input events, which was simpler than setting the value by script. The whole spec passed on its first run, so it hasn't caught a regression yet; its value is the independent oracles, especially the bisection Kepler solver, which would disagree with a sign or quadrant slip in the page's Newton solver.",
+    "coverage": [
+      "LEO→GEO burns, total, time and phase angle; formatted readouts",
+      "ISS-like→GPS preset and custom altitudes",
+      "Inward transfer: symmetry, retrograde burns, trailing target",
+      "Earth→Mars: 259 days, 44° phase",
+      "Kepler-timed animation, rendezvous, pause and keyboard scrubbing",
+      "Bi-elliptic crossover 11.94, r_b dependence, Mercury→Neptune",
+      "Rocket equation and required mass ratio"
+    ]
+  },
+  "a11y": "Every input is a labelled native field or select, and the central body is a radio group that works with arrow keys. The burn results are in a polite live region with a text summary, the orbit diagram's title describes the transfer and current mission time, and the mission-time slider has an aria-valuetext. The bi-elliptic comparison is a real table with a written verdict, and the chart has a text title stating the crossover."
+}

@@ -1,0 +1,38 @@
+{
+  "id": "138",
+  "slug": "138-bouquet-builder",
+  "file": "lab/138-bouquet-builder.html",
+  "title": "Bouquet Builder — arrange flowers by the rules florists use",
+  "category": "Generative",
+  "tags": ["svg", "colour-wheel", "seeded-prng", "golden-ratio", "calculator"],
+  "description": "Choose a focal flower, a secondary flower, a filler and greenery from fifteen generic flowers and three greens drawn in SVG, then a colour scheme (monochrome, analogous, complementary or triadic) on a hue wheel and a round, cascade or hand-tied shape. A seeded arrangement follows three florists' rules of thumb: odd-number groups, the tallest bloom standing 1.618 vase-heights above the rim, and colours placed by the wheel. A stems and cost table with editable prices, optional spares and suggested cut lengths comes with it.",
+  "prompt": "Build a bouquet builder. I pick a focal, a secondary and a filler flower plus greenery from an illustrated set of about 15 generic flowers drawn in SVG, choose a colour scheme (monochrome, analogous, complementary or triadic) from a hue wheel, and choose a shape: round, cascade or hand-tied. Generate a seeded arrangement using odd-number grouping and a golden-ratio height rule, and explain those as florists' rules of thumb, not laws. Add a stems and cost calculator with editable prices. The spec should check that the hue relationships hold for the generated flowers (complementary = 180° apart within a tolerance, and so on), the odd grouping, the height ratio, the stem-count maths and determinism.",
+  "qa": {
+    "methodology": [
+      "Hue oracle from the rendered SVG: the test reads each bloom's computed fill (rgb), converts it to a hue with its own RGB-to-HSL code, and checks it lies within 10° of a hue the scheme allows, worked out in the test from the slider's base hue: base ± 180 for complementary, ± 30 for analogous, + 120 and + 240 for triadic. Every scheme hue must be used, at two to four base hues each.",
+      "Odd grouping: 1,440 generated role groups (3 sizes × 3 shapes × 40 seeds × 4 roles) must all be odd and at least 3, and the stems on the stage are also counted from the DOM for each size and compared with the cost table.",
+      "Golden ratio measured on screen: (vase top − highest bloom top) ÷ vase height, from getBoundingClientRect and getBBox, must be φ to two decimals for all three shapes, and a cascade must trail below the rim.",
+      "Cost maths in cents: typed prices × counted stems per row and in the total, then again with spares (n + ⌈n/10⌉), and the aria-live summary must quote the same total.",
+      "Determinism: generate({seed: 7}) equals the page's state, a reload reproduces the SVG byte for byte, four other seeds give four different layouts, and Rearrange writes the seed to the URL."
+    ],
+    "risks": [
+      "8-bit rounding shifts hues slightly, most for pale, low-chroma colours; the page keeps saturation at 55% or more and adds at most ±6° of deliberate jitter, so the test's 10° tolerance has room.",
+      "Rotated greenery would inflate its bounding box and fake a taller arrangement; the invisible hit circle sits outside the rotation so the measured top is the real one.",
+      "Money in floating point: totals are kept in integer cents.",
+      "The rules are conventions. The page says so, and the height rule is applied exactly so it can be tested."
+    ],
+    "playwright": "getComputedStyle inside evaluate turns the SVG's hsl() fills into rgb, which let the colour checks work on what's drawn rather than on the page's own hue numbers. Screen-space geometry came from getBoundingClientRect for the blooms and getBBox with getScreenCTM for the vase path, so the ratio is independent of how the SVG is scaled on each device. The hue-wheel test failed on its first run: page.mouse.click at boundingBox coordinates clicked off-screen because the wheel was below the fold. locator.click({ position }) scrolls it into view first, and that works on the touch project too. Radio cards use visually hidden native inputs, so check() and ArrowRight test real keyboard behaviour.",
+    "coverage": [
+      "Complementary hues at four base hues",
+      "Analogous, triadic, monochrome lightness; greenery stays green",
+      "Odd counts: 1,440 groups plus DOM counts per size",
+      "φ height ratio on screen for round, cascade, hand-tied",
+      "Editable prices, spares, totals in cents",
+      "Seeded determinism, reload, Rearrange + URL",
+      "15 flowers + 3 greens, picker redraws, arrow keys",
+      "Hue-wheel clicks at 90° and 180°, slider keys",
+      "Cut lengths follow vase height"
+    ]
+  },
+  "a11y": "The flower pickers, schemes and shapes are native radio groups (arrow keys work) styled as cards, with visible focus rings. The base hue is a labelled range input, and clicking the wheel is only a shortcut. The arrangement SVG has an aria-label listing the counts, flowers, scheme and height ratio, and an aria-live summary reports each regeneration and the total cost. Price inputs are labelled per flower."
+}

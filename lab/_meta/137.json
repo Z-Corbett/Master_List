@@ -1,0 +1,37 @@
+{
+  "id": "137",
+  "slug": "137-fair-isle",
+  "file": "lab/137-fair-isle.html",
+  "title": "Fair Isle Chart — generative stranded colourwork",
+  "category": "Generative",
+  "tags": ["knitting", "canvas", "seeded-prng", "run-length", "colourwork"],
+  "description": "A seeded generator for Fair Isle knitting charts: seeding stitches, peerie bands, and a big OXO or eight-pointed star band, shaded row by row but never with more than two colours in a round. Every motif repeat divides the stitch count, so the pattern closes at the seam. The chart reads right to left from row 1 at the bottom, as you knit in the round, and a knitted preview draws each stitch as a V. Floats longer than your limit (default 5) are outlined and listed, counting runs that wrap round the seam, and a rough yarn estimate is given per colour.",
+  "prompt": "Make a Fair Isle chart generator. Seeded charts built from peerie bands, OXO motifs, stars and seeding, with the Fair Isle rule of no more than two colours in any row, and every motif repeat has to divide the stitch count. Show the chart (explain that you read it right to left, from the bottom, like knitting in the round) and a knitted preview where each stitch is a V. Warn about floats: any run of one colour longer than a maximum I set (default 5 stitches). Add a rough yarn-usage estimate per colour. The spec should check the two-colour rule across many seeds, that the repeats divide the width, the float detection against an independent run-length scan written in the test, and determinism.",
+  "qa": {
+    "methodology": [
+      "Invariant sweep: the two-colours-per-row rule is checked on more than 20,000 generated rows (150 seeds at 72 stitches in every palette, plus other widths, including 44 and 100, whose divisors are awkward).",
+      "Repeat check: for 35 seed and width combinations, every band's repeat must divide the width, and every row of the band must actually be periodic with that repeat, which catches a motif that's drawn wider than its declared repeat.",
+      "Float oracle: the test has its own circular run-length scan (a run that crosses the seam counts once, one-colour rows never float), compared with the page for five seed, width and limit combinations. A hand-built round pins the seam case. The boundary is checked in the UI: a limit equal to the longest run gives no warnings, one less flags exactly the runs of that length.",
+      "Pixels, not just data: every chart cell not outlined as a float is sampled from the canvas and must be the colour of stitch i in row r at the mirrored position (stitch 1 on the right, row 1 at the bottom). A guard test confirms the chart isn't symmetric, so a flipped drawing would fail. The knitted preview is sampled on the left leg of the V.",
+      "Yarn arithmetic is recomputed from the cells (stitches knitted, stitches carried behind) with the stated rule of 3.5 stitch widths per stitch plus one per float, and a gauge change must scale it by 28/20."
+    ],
+    "risks": [
+      "Circular runs: knitting in the round joins the last stitch to the first, so a linear scan would under-report floats at the seam. The page and the test both treat rows as circular.",
+      "Stitch widths that have no divisor in the preferred motif sizes (e.g. 116) fall back to smaller motifs; the band list says what was chosen.",
+      "The yarn rule is a rough knitter's rule of thumb, not a measurement, and is labelled that way on the page.",
+      "Canvas sampling depends on cells landing on whole device pixels; the cell size is an integer and samples are taken at cell centres, away from grid lines."
+    ],
+    "playwright": "Most of the heavy checking runs in one page.evaluate call that returns plain data, with a single expect on a list of problems. My first version asserted cell by cell from Node, thousands of expect calls over the wire, and it timed out on the loaded machine, so both sweep tests now gather problems in bulk. getImageData through evaluate is what lets the orientation test check the drawing itself rather than trusting the model. Two earlier failures were in my tests: getByLabel('Palette') also matched the swatch list's aria-label, so it's now exact, and the float-limit input capped at 12 when seed 7's longest run is 14. The page now accepts up to 24. Keyboard entry uses focus, type and Tab, which behaves the same on the touch project.",
+    "coverage": [
+      "≤ 2 colours per row across 20,000+ rows",
+      "Repeats divide the width; rows periodic by repeat",
+      "Floats vs independent circular scan, seam case, strict limit",
+      "Determinism, ?seed=, New pattern, palette swap keeps structure",
+      "Chart orientation from canvas pixels; asymmetry guard",
+      "Knitted V preview colours and stitch count",
+      "Yarn estimate formula and gauge scaling",
+      "Labelled inputs, width snapping, aria-live status"
+    ]
+  },
+  "a11y": "Every setting is a labelled native input or select, and the status line is an aria-live region that reports the seed, size, band count and number of long floats. Both canvases have aria-labels describing size and reading direction, the bands are listed as text with their rows and repeats, and each long float is listed by row and stitch range, so nothing depends on seeing the chart."
+}

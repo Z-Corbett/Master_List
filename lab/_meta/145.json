@@ -1,0 +1,37 @@
+{
+  "id": "145",
+  "slug": "145-stockyards-drive",
+  "file": "lab/145-stockyards-drive.html",
+  "title": "Stockyards Drive — herd longhorns down the street",
+  "category": "Games",
+  "tags": ["canvas", "boids", "fixed-timestep", "seeded-prng", "game-physics"],
+  "description": "A top-down herding game inspired by the longhorn drives in the Fort Worth Stockyards. You ride a cowhand (tap, drag, arrow keys or WASD) behind a seeded herd of fourteen longhorns. Each steer follows boids rules (separation, alignment and cohesion) and shies away from your horse inside a flight zone. Push them down the brick street into the pens before the two-minute clock runs out; steers that run to the back of a side alley are strays. Score, strays and timer, on a fixed 1/60 s simulation.",
+  "prompt": "Make a top-down herding game inspired by the cattle drives in the Fort Worth Stockyards. Don't state schedule times or use any official branding. The player moves a cowhand with the pointer, touch or the keyboard, and the longhorns follow boids rules (separation, alignment, cohesion) plus flee-from-rider, with seeded spawns. The goal is to guide the herd down the brick street to the pens without scattering them into side alleys. Include a score and a timer. Use a fixed-timestep simulation with a manual step hook for tests, like 079 Prairie Pinball's __pinball.manual/frames. The spec should check the boids rules individually (e.g. a lone steer with a rider approaching moves away; two overlapping steers separate), determinism per seed, the pen-counting logic and game over.",
+  "qa": {
+    "methodology": [
+      "Each boids rule is tested alone in a sandbox (__drive.lab) that runs the page's own step function with just one rule switched on: a steer moves straight away from an approaching rider, with a push that matches (1 − d/R)·k along the exact unit vector for a 30-40-50 triangle; overlapping steers separate with their midpoint fixed; east- and south-bound neighbours converge on a shared 45° heading; neighbours within sight close up and those beyond it don't.",
+      "Determinism: spawns are compared across seeds, and a whole scripted drive (real key presses between manual frame batches) is run twice from a reload and must match to the last float, frame 570 for frame 570.",
+      "Pens and alleys: a steer placed through the gate is penned exactly once (score +100); one pushed down the south alley by the rider becomes a stray (−25); a steer shoved at a building front stays on the street while one at an alley mouth goes in.",
+      "Game over both ways: the last steer accounted for ends the drive with 5 points per whole second left, checked against the formula; the clock reaching 120 s ends it with no bonus. The results card, focus hand-off and the frozen simulation after the end are checked too.",
+      "The real loop is checked under page.clock (2 s of fake time ≈ 120 fixed steps) and manual mode is shown to freeze it; tap-to-ride and the fixed 150 px/s keyboard speed are checked through real input."
+    ],
+    "risks": [
+      "Boids are chaotic: a tiny change in order of updates would change every trajectory. All forces are computed before anyone moves, so herd order doesn't matter and the determinism test is exact rather than approximate.",
+      "Alley detection is the fiddliest logic: a steer must cross the wall line inside a gap to enter, and stays walled in by that gap until it comes back out. A wrong comparison would let steers walk through buildings.",
+      "Wander noise uses its own seeded stream, so it can't leak into spawns; the sandbox turns it off so rule tests are exact.",
+      "Mobile play relies on tap-and-drag; the canvas has touch-action: none so dragging steers the rider instead of scrolling the page."
+    ],
+    "playwright": "The manual step hook did most of the work: switching manual mode on before pressing Start means frame 0 is really frame 0, so keyboard.down(), a batch of frames(), and keyboard.up() give exactly the same drive every time on both projects, with no clock at all. page.clock is used once, to show the real requestAnimationFrame loop advances in whole 1/60 s steps and stops in manual mode. Two first-run failures were in my tests, not the page: my alignment check expected each steer's own heading to be exactly 45° after 1.5 s, when only their combined heading is fixed (the page was right); and I expected a rider galloping straight through the herd to push it 100 px east, but a fast rider splits the herd around him, so the assertion now asks for a modest push. click() with a position on the canvas works as a tap on the Pixel 7 project too, so one test covers pointer riding.",
+    "coverage": [
+      "Flight zone: direction, falloff formula, no effect outside the zone",
+      "Separation, alignment, cohesion, each in isolation",
+      "Seeded spawns and a fully deterministic scripted drive",
+      "Walls vs alley mouths",
+      "Pen counting, strays, score",
+      "Game over: all accounted for (time bonus) and time up",
+      "Real loop under page.clock, manual freeze",
+      "Tap-to-ride and keyboard speed, street bounds"
+    ]
+  },
+  "a11y": "The game is fully playable from the keyboard (arrow keys or WASD), and Start moves focus to the street canvas. Touch players can tap or drag, or hold the on-screen direction pad. Pens, strays and the end of the drive are announced in a polite live region, the canvas's aria-label keeps a running count, and the results card focuses its replay button."
+}

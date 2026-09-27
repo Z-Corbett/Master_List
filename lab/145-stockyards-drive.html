@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stockyards Drive — herd longhorns down the street</title>
+<meta name="description" content="A top-down herding game inspired by the cattle drives in the Fort Worth Stockyards. Ride a cowhand behind a seeded herd of longhorns that follow boids rules (separation, alignment, cohesion) and shy away from the rider. Push them down the brick street into the pens before the clock runs out, without scattering them into the side alleys.">
+<style>
+  :root {
+    --sky: #f3e3c3;
+    --dust: #e7cfa0;
+    --leather: #6e3b1f;
+    --saddle: #8f4f27;
+    --brick: #a4452c;
+    --ink: #2b1a10;
+    --muted: #6b5238;
+    --paper: #fbf3e2;
+    --rope: #c99a4e;
+    --teal: #1f6f6a;
+    --red: #b3261e;
+    --serif: "Rockwell", "Georgia", "Times New Roman", serif;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--sky); color: var(--ink); font: 15px/1.5 var(--sans); overflow-x: hidden;
+    background-image: repeating-linear-gradient(90deg, rgba(110,59,31,.05) 0 2px, transparent 2px 22px); }
+  :focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; background: var(--leather); color: var(--paper); text-decoration: none; font: 700 13px/1 var(--sans); padding: 8px 12px; border-radius: 4px; box-shadow: 0 2px 0 var(--ink); }
+  a.back:hover { background: var(--ink); }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 58px 16px 40px; }
+  header { text-align: center; }
+  .poster { display: inline-block; border: 3px double var(--leather); padding: 10px 18px 12px; background: var(--paper); max-width: 100%; }
+  .eyebrow { margin: 0; font: 700 12px/1.3 var(--sans); letter-spacing: .3em; text-transform: uppercase; color: var(--brick); overflow-wrap: anywhere; }
+  h1 { margin: 4px 0 0; font: 700 clamp(34px, 7vw, 64px)/1 var(--serif); letter-spacing: .02em; color: var(--leather); overflow-wrap: anywhere; }
+  .lede { margin: 12px auto 0; max-width: 66ch; color: var(--muted); }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 300px); gap: 18px; margin-top: 18px; align-items: start; }
+  .stage { position: relative; min-width: 0; background: var(--paper); border: 2px solid var(--leather); border-radius: 6px; padding: 10px; }
+  .hud { display: flex; flex-wrap: wrap; gap: 4px 16px; justify-content: space-between; font: 700 14px/1.3 var(--serif); margin-bottom: 8px; }
+  .hud b { color: var(--brick); font-variant-numeric: tabular-nums; }
+  canvas { display: block; width: 100%; height: auto; border-radius: 4px; background: #c9b089; touch-action: none; cursor: crosshair; }
+  .overlay { position: absolute; inset: 10px; display: grid; place-items: center; background: rgba(43,26,16,.28); border-radius: 4px; text-align: center; padding: 14px; }
+  .overlay > div { background: var(--paper); border: 3px double var(--leather); border-radius: 4px; padding: 14px 18px; max-width: 420px; box-shadow: 0 6px 18px rgba(43,26,16,.3); }
+  .overlay h2 { margin: 0 0 6px; font: 700 28px/1.1 var(--serif); color: var(--leather); }
+  .overlay p { margin: 4px 0; }
+  .btn { min-height: 42px; padding: 9px 18px; border-radius: 4px; border: 2px solid var(--leather); background: var(--leather); color: var(--paper); font: 700 15px/1 var(--sans); cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--leather); }
+  .panel { background: var(--paper); border: 2px solid var(--leather); border-radius: 6px; padding: 14px 16px; min-width: 0; }
+  .panel + .panel { margin-top: 14px; }
+  .panel h2 { margin: 0 0 8px; font: 700 18px/1.2 var(--serif); color: var(--leather); }
+  .note { font-size: 13px; color: var(--muted); margin: 8px 0 0; overflow-wrap: anywhere; }
+  ul.rules { margin: 6px 0 0; padding-left: 18px; font-size: 14px; }
+  ul.rules li { margin-bottom: 4px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .pad { display: grid; grid-template-columns: repeat(3, 52px); grid-template-rows: repeat(2, 44px); gap: 6px; justify-content: center; margin-top: 10px; }
+  .pad button { border: 2px solid var(--leather); background: var(--dust); color: var(--ink); border-radius: 4px; font: 700 18px/1 var(--sans); cursor: pointer; touch-action: none; }
+  .pad .u { grid-column: 2; }
+  .pad .l { grid-column: 1; grid-row: 2; } .pad .d { grid-column: 2; grid-row: 2; } .pad .r { grid-column: 3; grid-row: 2; }
+  kbd { font: 12px/1 Consolas, monospace; background: var(--dust); border: 1px solid var(--leather); border-bottom-width: 2px; padding: 2px 5px; border-radius: 3px; }
+  #status { min-height: 1.5em; font-weight: 600; color: var(--leather); }
+  footer { margin-top: 24px; text-align: center; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+  @media (max-width: 860px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <div class="poster">
+      <p class="eyebrow">A little game inspired by Fort Worth's cattle drives</p>
+      <h1>Stockyards Drive</h1>
+    </div>
+    <p class="lede">In the Fort Worth Stockyards, a small herd of Texas longhorns is walked down the brick street as a nod to the city's cattle-trail past. This is a make-believe version: you're the cowhand at the back. The steers shy away from your horse and stick together like a flock, so ride steady, keep them off the side alleys, and ease them into the pens at the east end.</p>
+  </header>
+
+  <div class="layout">
+    <div class="stage">
+      <div class="hud">
+        <span>Score <b id="score" data-testid="score">0</b></span>
+        <span>Penned <b id="penned" data-testid="penned">0</b>/<b id="total">0</b></span>
+        <span>Strays <b id="lost" data-testid="lost">0</b></span>
+        <span>Time <b id="time" data-testid="time">2:00</b></span>
+      </div>
+      <canvas id="street" data-testid="street" width="960" height="540" tabindex="0" role="img" aria-label="Top-down view of the brick street, the herd and the pens"></canvas>
+      <div class="overlay" id="ready" data-testid="ready">
+        <div>
+          <h2>Head 'em east</h2>
+          <p>Tap or drag on the street to ride there, or use <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd> / <kbd>WASD</kbd>.</p>
+          <p style="margin-bottom:12px">The pens are on the right. The alleys are dead losses.</p>
+          <button type="button" class="btn" id="start" data-testid="start">Open the gate</button>
+        </div>
+      </div>
+      <div class="overlay" id="over" data-testid="over" hidden>
+        <div>
+          <h2 id="overTitle">Drive's over</h2>
+          <p id="overLine" data-testid="over-line"></p>
+          <p>Final score <b id="finalScore" data-testid="final-score">0</b></p>
+          <p style="margin-top:12px"><button type="button" class="btn" id="again" data-testid="again">Ride again</button></p>
+        </div>
+      </div>
+      <div class="pad" aria-label="Ride controls">
+        <button type="button" class="u" data-dir="0,-1" aria-label="Ride north">↑</button>
+        <button type="button" class="l" data-dir="-1,0" aria-label="Ride west">←</button>
+        <button type="button" class="d" data-dir="0,1" aria-label="Ride south">↓</button>
+        <button type="button" class="r" data-dir="1,0" aria-label="Ride east">→</button>
+      </div>
+      <p class="note" id="status" data-testid="status" role="status" aria-live="polite"></p>
+    </div>
+
+    <div>
+      <section class="panel" aria-labelledby="h-how">
+        <h2 id="h-how">How the herd thinks</h2>
+        <ul class="rules">
+          <li><b>Separation:</b> a steer steps away from any neighbour closer than a body length.</li>
+          <li><b>Alignment:</b> it matches the average heading of the steers around it.</li>
+          <li><b>Cohesion:</b> it drifts toward the middle of its neighbours.</li>
+          <li><b>Flight zone:</b> inside about 120 px of your horse it moves away from you, harder the closer you are.</li>
+        </ul>
+        <p class="note">Push from straight behind and the herd flows; ride in too close and they split. A steer that reaches the back of an alley is a stray.</p>
+      </section>
+      <section class="panel" aria-labelledby="h-score">
+        <h2 id="h-score">Scoring</h2>
+        <p style="margin:0">+100 for each steer penned, −25 for each stray. Finish before the two-minute clock runs out and every whole second left is worth 5 more.</p>
+        <div class="row" style="margin-top:10px">
+          <span class="note" style="margin:0">Herd <b id="seedTxt" data-testid="seed">seed</b></span>
+          <button type="button" class="btn ghost" id="reseed" data-testid="reseed" style="min-height:32px;padding:4px 10px;font-size:13px">New herd</button>
+        </div>
+      </section>
+    </div>
+  </div>
+  <footer>Built by Zac Corbett · a fixed-timestep boids simulation on canvas · not affiliated with anyone in the Stockyards · add <code>?seed=</code> for a repeatable herd</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  let SEED = (parseInt(params.get('seed'), 10) >>> 0) || 1849;
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+  // ---------- the street ----------
+  const W = 960, H = 540, TOP = 170, BOT = 370, PEN_X = 870;
+  const GAPS = { top: [[330, 390], [610, 660]], bot: [[470, 530]] };
+  const ALLEY_DEPTH = 110;                      // past this far into an alley a steer is lost
+  const DT = 1 / 60, TIME = 120, N = 14;
+  const P = { R: 70, SEP: 26, MAXV: 90, FLEE_R: 120, W: { sep: 260, ali: 1.2, coh: 0.9, flee: 420 }, DRAG: 1.5, WANDER: 10, RIDER_V: 150 };
+  const ALL = { sep: true, ali: true, coh: true, flee: true, wander: true };
+
+  // ---------- boids: pure functions, shared by the game and the test sandbox ----------
+  function forces(i, herd, rider, rules) {
+    const s = herd[i];
+    let sx = 0, sy = 0, ax = 0, ay = 0, cx = 0, cy = 0, n = 0;
+    for (let j = 0; j < herd.length; j++) {
+      if (j === i || herd[j].status !== 'street') continue;
+      const o = herd[j];
+      let dx = s.x - o.x, dy = s.y - o.y, d = Math.hypot(dx, dy);
+      if (d >= P.R) continue;
+      n++; ax += o.vx; ay += o.vy; cx += o.x; cy += o.y;
+      if (d < P.SEP) {
+        if (d < 1e-6) { const a = (i < j ? 1 : -1) * 0.7 + i; dx = Math.cos(a); dy = Math.sin(a); d = 1; }
+        const push = (P.SEP - d) / P.SEP;
+        sx += (dx / d) * push; sy += (dy / d) * push;
+      }
+    }
+    const f = { sep: [0, 0], ali: [0, 0], coh: [0, 0], flee: [0, 0] };
+    if (rules.sep) f.sep = [sx * P.W.sep, sy * P.W.sep];
+    if (n && rules.ali) f.ali = [(ax / n - s.vx) * P.W.ali, (ay / n - s.vy) * P.W.ali];
+    if (n && rules.coh) f.coh = [(cx / n - s.x) * P.W.coh, (cy / n - s.y) * P.W.coh];
+    if (rider && rules.flee) {
+      const dx = s.x - rider.x, dy = s.y - rider.y, d = Math.hypot(dx, dy);
+      if (d < P.FLEE_R && d > 1e-6) { const k = (1 - d / P.FLEE_R) * P.W.flee; f.flee = [(dx / d) * k, (dy / d) * k]; }
+    }
+    return f;
+  }
+
+  function inGap(list, x) { for (let k = 0; k < list.length; k++) if (x > list[k][0] + 6 && x < list[k][1] - 6) return k; return -1; }
+  function constrain(s, prevY) {
+    if (s.x < 12) { s.x = 12; s.vx = Math.abs(s.vx) * 0.3; }
+    if (s.alley) {                                                   // already in an alley: its walls hold the steer
+      const g = GAPS[s.alley.side][s.alley.k];
+      if (s.x < g[0] + 6) { s.x = g[0] + 6; s.vx = 0; }
+      if (s.x > g[1] - 6) { s.x = g[1] - 6; s.vx = 0; }
+      if (s.alley.side === 'top' && s.y >= TOP || s.alley.side === 'bot' && s.y <= BOT) s.alley = null;
+    }
+    if (!s.alley) {
+      if (s.y < TOP) {
+        const k = prevY >= TOP ? inGap(GAPS.top, s.x) : -1;
+        if (k >= 0) s.alley = { side: 'top', k }; else { s.y = TOP; s.vy = Math.max(0, s.vy); }
+      } else if (s.y > BOT) {
+        const k = prevY <= BOT ? inGap(GAPS.bot, s.x) : -1;
+        if (k >= 0) s.alley = { side: 'bot', k }; else { s.y = BOT; s.vy = Math.min(0, s.vy); }
+      }
+    }
+  }
+  function integrate(s, a, dt) {
+    s.vx += a[0] * dt; s.vy += a[1] * dt;
+    const drag = Math.exp(-P.DRAG * dt); s.vx *= drag; s.vy *= drag;
+    const sp = Math.hypot(s.vx, s.vy);
+    if (sp > P.MAXV) { s.vx *= P.MAXV / sp; s.vy *= P.MAXV / sp; }
+    const py = s.y;
+    s.x += s.vx * dt; s.y += s.vy * dt;
+    constrain(s, py);
+  }
+  /** One fixed step for the whole herd: every force is computed before anyone moves, so the order of the steers doesn't matter. */
+  function stepHerd(herd, rider, rules, rng) {
+    const acc = herd.map((s, i) => {
+      if (s.status !== 'street') return null;
+      const f = forces(i, herd, rider, rules);
+      const a = [f.sep[0] + f.ali[0] + f.coh[0] + f.flee[0], f.sep[1] + f.ali[1] + f.coh[1] + f.flee[1]];
+      if (rules.wander && rng) { a[0] += (rng() - 0.5) * 2 * P.WANDER; a[1] += (rng() - 0.5) * 2 * P.WANDER; }
+      return a;
+    });
+    herd.forEach((s, i) => { if (acc[i]) integrate(s, acc[i], DT); });
+  }
+
+  function spawn(seed) {
+    const r = mulberry32(seed), herd = [];
+    let guard = 0;
+    while (herd.length < N && guard++ < 5000) {
+      const x = 70 + r() * 200, y = TOP + 22 + r() * (BOT - TOP - 44);
+      if (herd.every((o) => Math.hypot(o.x - x, o.y - y) > P.SEP + 4)) herd.push({ id: herd.length, x, y, vx: 0, vy: 0, status: 'street', alley: null, horn: 0.8 + r() * 0.5, coat: Math.floor(r() * 4) });
+    }
+    return herd;
+  }
+
+  // ---------- game state ----------
+  let S;
+  const keys = new Set();
+  let target = null;
+  function fresh() {
+    return { mode: 'ready', seed: SEED, t: 0, frame: 0, herd: spawn(SEED), rider: { x: 30, y: (TOP + BOT) / 2, vx: 0, vy: 0 }, penned: 0, lost: 0, score: 0, bonus: 0, reason: null, rng: mulberry32(SEED ^ 0x5eed), events: [] };
+  }
+  function scoreOf() { return 100 * S.penned - 25 * S.lost + S.bonus; }
+
+  function moveRider(dt) {
+    const r = S.rider;
+    let ix = 0, iy = 0;
+    if (keys.has('L')) ix -= 1; if (keys.has('R')) ix += 1; if (keys.has('U')) iy -= 1; if (keys.has('D')) iy += 1;
+    if (ix || iy) { target = null; const m = Math.hypot(ix, iy); r.vx = ix / m * P.RIDER_V; r.vy = iy / m * P.RIDER_V; }
+    else if (target) {
+      const dx = target.x - r.x, dy = target.y - r.y, d = Math.hypot(dx, dy);
+      if (d < P.RIDER_V * dt) { r.x = target.x; r.y = target.y; r.vx = r.vy = 0; target = null; }
+      else { r.vx = dx / d * P.RIDER_V; r.vy = dy / d * P.RIDER_V; }
+    } else { r.vx = r.vy = 0; }
+    r.x = Math.min(W - 10, Math.max(10, r.x + r.vx * dt));
+    r.y = Math.min(BOT - 8, Math.max(TOP + 8, r.y + r.vy * dt));
+  }
+
+  function tick() {
+    if (S.mode !== 'play') return;
+    moveRider(DT);
+    stepHerd(S.herd, S.rider, ALL, S.rng);
+    for (const s of S.herd) {
+      if (s.status !== 'street') continue;
+      if (s.x >= PEN_X && !s.alley) {
+        s.status = 'penned'; S.penned++;
+        const slot = S.penned - 1;
+        Object.assign(s, { vx: 0, vy: 0, x: PEN_X + 22 + (slot % 3) * 26, y: TOP + 24 + Math.floor(slot / 3) * 36 });
+        S.events.push({ t: S.t, kind: 'penned', id: s.id });
+        say(`${S.penned} head in the pens.`);
+      } else if (s.alley && (s.y < TOP - ALLEY_DEPTH || s.y > BOT + ALLEY_DEPTH)) {
+        s.status = 'lost'; S.lost++; s.vx = s.vy = 0;
+        S.events.push({ t: S.t, kind: 'lost', id: s.id });
+        say(`A steer bolted down the ${s.alley.side === 'top' ? 'north' : 'south'} alley.`);
+      }
+    }
+    S.frame++;
+    S.t = S.frame * DT;
+    if (S.penned + S.lost === S.herd.length) end('done');
+    else if (S.t >= TIME - 1e-9) end('time');
+    S.score = scoreOf();
+  }
+
+  function end(reason) {
+    S.mode = 'over'; S.reason = reason;
+    const left = Math.max(0, TIME - S.t);
+    S.bonus = reason === 'done' ? 5 * Math.floor(left + 1e-9) : 0;
+    S.score = scoreOf();
+    const onStreet = S.herd.length - S.penned - S.lost;
+    $('overTitle').textContent = reason === 'done' ? (S.lost ? 'Drive complete' : 'Clean drive!') : "Time's up";
+    $('overLine').textContent = `${S.penned} penned, ${S.lost} strays${onStreet ? `, ${onStreet} still on the street` : ''}${S.bonus ? ` · time bonus ${S.bonus}` : ''}.`;
+    $('finalScore').textContent = S.score;
+    $('over').hidden = false;
+    $('again').focus({ preventScroll: true });
+    say(`Drive over: ${$('overLine').textContent} Score ${S.score}.`);
+    hud();
+  }
+
+  function start() {
+    S = fresh(); S.mode = 'play'; target = null; keys.clear();
+    $('ready').hidden = true; $('over').hidden = true;
+    cv.focus({ preventScroll: true });
+    say(`The gate's open: ${S.herd.length} head on the street.`);
+    hud(); draw();
+  }
+  function reset() { S = fresh(); target = null; $('ready').hidden = false; $('over').hidden = true; $('seedTxt').textContent = `seed ${SEED}`; hud(); draw(); }
+
+  const say = (t) => { $('status').textContent = t; };
+  let hudKey = '';
+  function hud() {
+    const left = Math.max(0, Math.ceil(TIME - S.t - 1e-9));
+    const k = `${S.score}|${S.penned}|${S.lost}|${left}`;
+    if (k === hudKey) return; hudKey = k;
+    $('score').textContent = S.score; $('penned').textContent = S.penned; $('lost').textContent = S.lost; $('total').textContent = S.herd.length;
+    $('time').textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+    cv.setAttribute('aria-label', `The street: ${S.penned} of ${S.herd.length} steers penned, ${S.lost} strays, ${S.herd.length - S.penned - S.lost} on the street. Rider at ${Math.round(S.rider.x)}, ${Math.round(S.rider.y)}.`);
+  }
+
+  // ---------- drawing ----------
+  const cv = $('street'), ctx = cv.getContext('2d');
+  const COATS = ['#8a4b25', '#d8c3a0', '#5a3a26', '#b0703d'];
+  function draw() {
+    ctx.setTransform(cv.width / W, 0, 0, cv.height / H, 0, 0);
+    // dirt lots and buildings
+    ctx.fillStyle = '#c9b089'; ctx.fillRect(0, 0, W, H);
+    const blocks = (y0, y1, gaps) => {
+      let x = 0;
+      const edges = [...gaps, [PEN_X, W]];
+      for (const g of edges) {
+        if (g[0] > x) {
+          ctx.fillStyle = '#7b4a2c'; ctx.fillRect(x + 4, y0, g[0] - x - 8, y1 - y0);
+          ctx.fillStyle = '#5b341e';
+          for (let wx = x + 18; wx < g[0] - 24; wx += 34) ctx.fillRect(wx, y0 === 0 ? y1 - 40 : y0 + 18, 16, 20);
+          ctx.fillStyle = '#e7cfa0'; ctx.fillRect(x + 4, y0 === 0 ? y1 - 8 : y0, g[0] - x - 8, 8);   // boardwalk
+        }
+        x = g[1];
+      }
+    };
+    blocks(0, TOP, GAPS.top); blocks(BOT, H, GAPS.bot);
+    // alleys
+    ctx.fillStyle = '#b89a6f';
+    for (const g of GAPS.top) ctx.fillRect(g[0], TOP - ALLEY_DEPTH - 20, g[1] - g[0], ALLEY_DEPTH + 20);
+    for (const g of GAPS.bot) ctx.fillRect(g[0], BOT, g[1] - g[0], ALLEY_DEPTH + 20);
+    // brick street
+    ctx.fillStyle = '#a4452c'; ctx.fillRect(0, TOP, PEN_X, BOT - TOP);
+    ctx.strokeStyle = 'rgba(60,20,10,.28)'; ctx.lineWidth = 1;
+    for (let y = TOP, row = 0; y < BOT; y += 12, row++) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(PEN_X, y); ctx.stroke();
+      for (let x = (row % 2) * 14; x < PEN_X; x += 28) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 12); ctx.stroke(); }
+    }
+    // pens
+    ctx.fillStyle = '#d9c08f'; ctx.fillRect(PEN_X, TOP - 30, W - PEN_X, BOT - TOP + 60);
+    ctx.strokeStyle = '#6e3b1f'; ctx.lineWidth = 4;
+    ctx.strokeRect(PEN_X + 4, TOP - 26, W - PEN_X - 10, BOT - TOP + 52);
+    ctx.lineWidth = 2; for (let y = TOP - 26; y < BOT + 26; y += 60) { ctx.beginPath(); ctx.moveTo(PEN_X + 4, y); ctx.lineTo(W - 6, y); ctx.stroke(); }
+    ctx.fillStyle = '#fbf3e2'; ctx.font = '700 15px Rockwell, Georgia, serif'; ctx.textAlign = 'center';
+    ctx.save(); ctx.translate(PEN_X - 14, (TOP + BOT) / 2); ctx.rotate(-Math.PI / 2); ctx.fillText('PENS  ▸', 0, 0); ctx.restore();
+    ctx.fillStyle = '#fbf3e2'; ctx.font = '700 13px "Segoe UI", Arial';
+    for (const g of GAPS.top) ctx.fillText('ALLEY', (g[0] + g[1]) / 2, TOP - ALLEY_DEPTH + 4);
+    for (const g of GAPS.bot) ctx.fillText('ALLEY', (g[0] + g[1]) / 2, BOT + ALLEY_DEPTH);
+    // herd
+    for (const s of S.herd) if (s.status !== 'lost') steer(s);
+    // rider
+    const r = S.rider;
+    ctx.save(); ctx.translate(r.x, r.y);
+    const ang = (r.vx || r.vy) ? Math.atan2(r.vy, r.vx) : 0; ctx.rotate(ang);
+    ctx.fillStyle = 'rgba(31,111,106,.12)'; ctx.beginPath(); ctx.arc(0, 0, P.FLEE_R, 0, 7); ctx.fill();
+    ctx.fillStyle = '#3b2415'; ctx.beginPath(); ctx.ellipse(0, 0, 18, 8, 0, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(18, 0, 7, 5, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#1f6f6a'; ctx.beginPath(); ctx.arc(-2, 0, 7, 0, 7); ctx.fill();
+    ctx.fillStyle = '#e7cfa0'; ctx.beginPath(); ctx.ellipse(-2, 0, 10, 10, 0, 0, 7); ctx.globalAlpha = .9; ctx.stroke(); ctx.globalAlpha = 1;
+    ctx.restore();
+    if (target) { ctx.strokeStyle = '#1f6f6a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(target.x, target.y, 8, 0, 7); ctx.stroke(); }
+  }
+  function steer(s) {
+    ctx.save(); ctx.translate(s.x, s.y);
+    const sp = Math.hypot(s.vx, s.vy); ctx.rotate(sp > 2 ? Math.atan2(s.vy, s.vx) : 0);
+    ctx.fillStyle = COATS[s.coat]; ctx.beginPath(); ctx.ellipse(0, 0, 13, 7, 0, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(13, 0, 5, 4.5, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#f3e3c3'; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
+    const h = 12 * s.horn;
+    ctx.beginPath(); ctx.moveTo(14, -2); ctx.quadraticCurveTo(15, -h, 20, -h - 2); ctx.moveTo(14, 2); ctx.quadraticCurveTo(15, h, 20, h + 2); ctx.stroke();
+    ctx.restore();
+  }
+
+  // ---------- loop ----------
+  let manual = false, last = null, acc = 0;
+  function frame(now) {
+    const dt = last === null ? 0 : Math.min(0.1, Math.max(0, (now - last) / 1000)); last = now;
+    if (!manual && S.mode === 'play') { acc += dt; let n = 0; while (acc >= DT - 1e-9 && n < 12) { tick(); acc -= DT; n++; } if (n === 12) acc = 0; }
+    hud(); draw();
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- input ----------
+  const KEYMAP = { ArrowLeft: 'L', a: 'L', A: 'L', ArrowRight: 'R', d: 'R', D: 'R', ArrowUp: 'U', w: 'U', W: 'U', ArrowDown: 'D', s: 'D', S: 'D' };
+  document.addEventListener('keydown', (e) => {
+    const k = KEYMAP[e.key]; if (!k || S.mode !== 'play' || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.target && /^(SELECT|INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+    e.preventDefault(); keys.add(k);
+  });
+  document.addEventListener('keyup', (e) => { const k = KEYMAP[e.key]; if (k) keys.delete(k); });
+  addEventListener('blur', () => keys.clear());
+  function toWorld(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height }; }
+  let dragging = false;
+  cv.addEventListener('pointerdown', (e) => { if (S.mode !== 'play') return; dragging = true; target = toWorld(e); try { cv.setPointerCapture(e.pointerId); } catch (err) { /* synthetic */ } e.preventDefault(); });
+  cv.addEventListener('pointermove', (e) => { if (dragging && S.mode === 'play') target = toWorld(e); });
+  const up = () => { dragging = false; };
+  cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  document.querySelectorAll('.pad button').forEach((b) => {
+    const k = { '0,-1': 'U', '-1,0': 'L', '0,1': 'D', '1,0': 'R' }[b.dataset.dir];
+    b.addEventListener('pointerdown', (e) => { if (S.mode === 'play') keys.add(k); try { b.setPointerCapture(e.pointerId); } catch (err) { /* synthetic */ } });
+    const off = () => keys.delete(k);
+    b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('pointerleave', off);
+  });
+  $('start').addEventListener('click', start);
+  $('again').addEventListener('click', start);
+  $('reseed').addEventListener('click', () => {
+    SEED = (Math.floor(Math.random() * 1e6) + 1) >>> 0;
+    try { const u = new URL(location.href); u.searchParams.set('seed', SEED); history.replaceState(null, '', u); } catch (e) { /* ignore */ }
+    reset(); say(`New herd, seed ${SEED}.`);
+  });
+
+  // ---------- test hook ----------
+  const snap = (h) => h.map(({ id, x, y, vx, vy, status, alley }) => ({ id, x, y, vx, vy, status, alley: alley ? alley.side : null }));
+  window.__drive = {
+    get state() {
+      return { mode: S.mode, seed: SEED, t: S.t, frame: S.frame, timeLeft: Math.max(0, TIME - S.t), score: S.score, bonus: S.bonus, penned: S.penned, lost: S.lost, reason: S.reason,
+        rider: { ...S.rider }, target: target && { ...target }, herd: snap(S.herd), events: S.events.slice() };
+    },
+    consts: { W, H, TOP, BOT, PEN_X, GAPS, ALLEY_DEPTH, DT, TIME, N, P: JSON.parse(JSON.stringify(P)) },
+    manual(on) { manual = on !== false; acc = 0; return manual; },
+    frames(n) { for (let i = 0; i < n && S.mode === 'play'; i++) tick(); hud(); draw(); return this.state; },
+    start() { start(); return this.state; },
+    spawn: (seed) => snap(spawn(seed)),
+    place(i, x, y, vx = 0, vy = 0) { Object.assign(S.herd[i], { x, y, vx, vy, alley: null }); return this.state; },
+    rider(x, y) { Object.assign(S.rider, { x, y, vx: 0, vy: 0 }); target = null; return this.state; },
+    set(o) { Object.assign(S, o); return this.state; },
+    /** Sandbox: run the same boids step on a hand-made herd, with a chosen set of rules and an optional rider moving at a constant velocity. */
+    lab(herdIn, opts = {}) {
+      const rules = { sep: false, ali: false, coh: false, flee: false, wander: false, ...(opts.rules || {}) };
+      const herd = herdIn.map((s, i) => ({ id: i, vx: 0, vy: 0, status: 'street', alley: null, ...s }));
+      const rider = opts.rider ? { ...opts.rider } : null;
+      const out = [snap(herd)];
+      for (let k = 0; k < (opts.steps ?? 1); k++) {
+        if (rider) { rider.x += (rider.vx || 0) * DT; rider.y += (rider.vy || 0) * DT; }
+        stepHerd(herd, rider, rules, null);
+        out.push(snap(herd));
+      }
+      return { trace: out, forces: herd.map((s, i) => forces(i, herd, rider, rules)), rider };
+    },
+  };
+
+  reset();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

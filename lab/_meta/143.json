@@ -1,0 +1,36 @@
+{
+  "id": "143",
+  "slug": "143-crawfish-boil",
+  "file": "lab/143-crawfish-boil.html",
+  "title": "Crawfish Boil Planner — Viet-Cajun, Houston style",
+  "category": "Tools",
+  "tags": ["planner", "unit-conversion", "timers", "page-clock", "food"],
+  "description": "Plan a Houston-style Viet-Cajun crawfish boil. Enter the guests and their appetite (the 3–5 lb per person rule of thumb), and the page rounds the live crawfish up to whole sacks of roughly 30–40 lb (or 5-lb steps for small boils), sizes the batches for your pot, scales the boil seasoning and a lemongrass garlic-butter sauce by spice level, and builds a boil, kill-the-heat and soak timeline with countdown timers. The shopping list switches between US and metric units, and a food-safety note says to cook only live crawfish.",
+  "prompt": "Build a crawfish boil planner in the Houston Viet-Cajun style, described modestly. Scale by guests and appetite using the common 3–5 lb of live crawfish per person rule of thumb, and label it as one. Plan the pot size, seasoning, corn, potatoes and sausage, and a garlic butter sauce (lemongrass, garlic, butter, Cajun spice) with spice levels. Make a timeline (bring to a boil, boil, kill the heat, soak) with countdown timers that page.clock can drive, a shopping list with unit conversions, and a food-safety note: only cook live crawfish and discard dead ones before cooking. Tests should check the scaling math, rounding to purchasable units (sacks of roughly 30–40 lb, labelled as approximate), the timer sequence and the unit conversions.",
+  "qa": {
+    "methodology": [
+      "Planning oracle: the spec re-implements the rules the page states in its text (guests × lb each; 5-lb steps up to 20 lb, then whole ~35 lb sacks) and checks nine guest and appetite combinations, including the edges at exactly 20 lb (by the pound) and 36 lb (a second sack), and that purchases never round down.",
+      "Batches, sides and spice: batches for 60, 80 and 100 qt pots are checked for 105 lb, water is half the pot, sides scale per guest, and each spice level's seasoning, chili and soak time are checked against hand-worked numbers for 70 lb.",
+      "Conversions: the metric list is compared with exact factors (1 lb = 0.45359237 kg, 1 US gal = 3.785411784 L, 1 tbsp = 14.78676478 mL, a stick of butter = 113.398 g), e.g. 70 lb = 31.75 kg, 10 gal = 37.85 L and 14 sticks = 1,588 g, then switched back to US.",
+      "Timers under page.clock: every step's remaining time is exact to the millisecond, the transition log must equal the cumulative step lengths (0, 25, 35, 39, 41, 61 min), pause freezes the countdown for 10 faked minutes, Next step skips, and one clock jump across two steps must chain both deadlines.",
+      "Content: the food-safety note must say to cook only live crawfish and to discard dead ones before cooking, and the rule of thumb is labelled as such."
+    ],
+    "risks": [
+      "Every quantity is a planning estimate (per-batch pot capacity, seasoning per 10 lb, sauce ratios). The page labels them, but the tests can only check that the page follows its own stated rules, not that the rules are the best ones.",
+      "Sack weight really varies (about 30–40 lb). The plan assumes 35 lb, so a light sack could leave a big crowd a few pounds short.",
+      "The 25-minute 'bring to a boil' step depends on the burner and water volume; it is an estimate, and the page says so.",
+      "The timer relies on the tab staying alive. Browsers throttle background timers, so a countdown in a hidden tab may update late, although deadlines are absolute and it catches up."
+    ],
+    "playwright": "page.clock with pauseAt makes the countdowns exact, so the spec asserts remaining times to the millisecond rather than 'about'. The first version used runFor to advance a whole 61-minute boil, and it timed out: runFor fires every 250 ms tick along the way, which is about 15,000 callbacks on a loaded machine. Switching the long jumps to fastForward, which fires due timers once, fixed that and also made the test stricter, because the page now has to chain deadlines from its own record rather than count ticks. The cumulative-time check was also wrong on its first run (it added minutes to milliseconds), a spec bug rather than a page bug. The __boil.plan hook made edge cases like exactly 20 lb cheap to check without driving the form.",
+    "coverage": [
+      "Default plan: 40 lb, 2 approximate sacks, 3 batches, 7 lb seasoning",
+      "Nine guest × appetite cases, by-the-pound vs sack edges",
+      "Pot sizes, water, sides per guest",
+      "Spice levels: seasoning, chili, soak; sauce quantities",
+      "Metric and US shopping list conversions",
+      "Timer sequence, drift-free deadlines, pause, skip, reset, no-sides timeline",
+      "Food-safety note; keyboard and live summary"
+    ]
+  },
+  "a11y": "Guests is a labelled number field, and appetite, spice and sides are native radio and checkbox groups inside fieldsets with legends, so arrow keys work. The plan summary is a polite live region, timer step changes are announced assertively, the current step carries aria-current, and the food-safety note has role=note. The unit switch is a pair of toggle buttons with aria-pressed."
+}

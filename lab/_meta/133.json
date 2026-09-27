@@ -1,0 +1,38 @@
+{
+  "id": "133",
+  "slug": "133-nail-studio",
+  "file": "lab/133-nail-studio.html",
+  "title": "Nail Studio — find a polish that suits you",
+  "category": "Tools",
+  "tags": ["canvas", "cielab", "ciede2000", "file-upload", "localstorage"],
+  "description": "Upload a photo of your hand, or pick one of six drawn demo hands, and tap your skin to sample it. The page averages a 7 × 7 patch, converts it to CIELAB, and reports the Individual Typology Angle and a warm, neutral or cool undertone read from the b*/a* balance, with an honest note that it is a colour heuristic that lighting will shift. Drop polish ovals onto your nails in cream, shimmer or matte from forty invented shades, and a friendly studio review scores each pick on contrast (CIEDE2000), undertone harmony and occasion, then suggests three to five shades to try. Looks save to a local gallery. Photos never leave the device.",
+  "prompt": "Build Nail Studio: I upload a photo of my hand, or use a canvas-drawn demo hand in several skin tones, and tap my skin to sample it. Average a small patch, convert it to CIELAB, and compute the Individual Typology Angle and a warm, cool or neutral undertone from the b*/a* balance, and be honest that it's a colour heuristic that lighting changes. Let me tap or drag ellipses onto my nails to preview polish over the photo with cream, shimmer and matte finishes. Then give me a friendly written studio review that scores each shade I chose on contrast with my skin (ΔE2000), undertone harmony and occasion, and suggests three to five shades from a palette of about forty invented names, no real brands. Keep the tone positive: every skin tone gets great options, never rank skin, and no flattering or unflattering language about skin. \"Submit your look\" saves to a local gallery with delete. Photos must never be uploaded. The spec should check the Lab conversion and ΔE2000 against the Sharma 2005 test pairs, undertone on synthetic swatches of known colour, that the review changes sensibly with contrast, the upload flow with setInputFiles, gallery save and delete, and that no network requests are made.",
+  "qa": {
+    "methodology": [
+      "Published references: CIEDE2000 is checked against fourteen of the Sharma, Wu and Dalal (2005) test pairs to four decimals, in both argument orders, including the hue-wrap and near-achromatic pairs. The sRGB → CIELAB conversion is checked against the tabulated values for the three primaries, white and mid grey.",
+      "Independent oracle: the spec carries its own sRGB → Lab conversion, ITA formula and Chardon group thresholds. Every one of the six demo hands is sampled through the UI, and the page's L*, ITA, group and undertone must match the test's numbers.",
+      "Synthetic photos: the test draws stripes of known colour on a canvas, turns them into a PNG buffer and uploads it with setInputFiles. Tapping each stripe must give the undertone the test expects from the stated hue-angle rule (≥ 60° warm, ≤ 50° cool), and a network listener proves the upload, sampling and gallery save make no requests.",
+      "Contrast behaviour: four picks from a pale nude to a near-black must climb through the contrast bands on the lightest demo hand and reverse on the deepest, and each displayed ΔE₀₀ must equal ΔE2000 of the stored skin and shade Lab values.",
+      "Tone and storage: all forty reviews for all six tones are scanned for unkind words, the suggestions must number three to five and span at least three contrast levels, and the look book is saved, reloaded, deleted and cleared. A stubbed setItem that always throws proves the quota message."
+    ],
+    "risks": [
+      "The undertone is a hue-angle threshold on one sampled patch. Warm lamps, camera white balance or a shadow will change it, and the page says so beside the numbers rather than hiding it.",
+      "Canvas coordinates: taps are mapped from CSS pixels to canvas pixels. A wrong scale would sample the wrong spot on a phone, so the sampling and nail tests click through the real, scaled canvas on both projects.",
+      "Tone of voice: the review is generated from templates, so a new template could slip in negative wording about skin. The banned-words scan covers every shade on every demo tone, not just the ones on screen.",
+      "localStorage quota: looks are small JPEG thumbnails (under 60 kB each in the test), and when a save fails the page drops the oldest looks or explains that storage is full."
+    ],
+    "playwright": "setInputFiles with an in-memory buffer made the photo path testable without a fixture file: page.evaluate draws a PNG of known colours and returns its data URL, which becomes the upload. That made the undertone checks exact rather than approximate. page.on('request') after load proves the privacy claim for the whole upload-and-save flow, and addInitScript replaces Storage.prototype.setItem to simulate a full quota. The canvas is read through a __nails.pixel() hook that renders without the selection outline, so the matte-finish test can demand the exact polish RGB at the nail centre. Everything passed on the first run, so the spec didn't catch a page bug. The drag check with page.mouse also works on the Pixel 7 project, because Chromium's touch emulation still accepts mouse input.",
+    "coverage": [
+      "CIEDE2000 vs 14 Sharma pairs, sRGB → Lab reference values",
+      "Six demo hands: Lab, ITA, Chardon group, undertone",
+      "Upload via setInputFiles, sampling, zero network requests",
+      "Undertone on warm, neutral and cool synthetic swatches",
+      "Review contrast bands and their reversal on a deep tone",
+      "Positive-language scan, 3–5 suggestions, Try it",
+      "Nail placement, drag, arrow keys, finishes, auto-place",
+      "Keyboard crosshair sampling",
+      "Look book save, reload, delete, clear; quota message"
+    ]
+  },
+  "a11y": "Every control is a native button, radio or file input with a label, and the demo tones and shades are toggle buttons with aria-pressed and a name. The photo is a focusable canvas: the arrow keys move a crosshair and Enter samples or places a nail, and a selected nail can be moved, resized, rotated and deleted from the keyboard. The sample readout, review and status lines are aria-live. The privacy note is tied to the file input with aria-describedby, and deleting a look returns focus to the Submit button."
+}

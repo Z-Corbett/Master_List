@@ -1,0 +1,39 @@
+{
+  "id": "148",
+  "slug": "148-zilker-kites",
+  "file": "lab/148-zilker-kites.html",
+  "title": "Zilker Kites — design a kite and fly it",
+  "category": "Generative",
+  "tags": ["svg", "physics-sim", "seeded-prng", "force-balance", "downloads"],
+  "description": "Design a kite (diamond, delta, a 2.5D box kite or a sled) with seeded sail patterns and colours, a tail and a bridle point, then fly it in a simple 2D model inspired by Austin's long-running spring kite festival at Zilker Park. Lift, drag, weight and line tension balance on a 30 m line in a seeded, gusty wind; the bridle sets the sail's angle to the line, and a longer tail damps the pitch wobble, shown on a stability meter. The page lists the model's simplifications plainly. Export the design as SVG.",
+  "prompt": "Make Zilker Kites, inspired by Austin's long-running kite festival at Zilker Park; mention it modestly. Design a kite: shape (diamond, delta, box drawn in 2.5D, sled), sail panels with a generative pattern and colours, a tail length and a bridle point. Then fly it in a simple 2D model where the kite is balanced by lift, drag, weight and line tension in a seeded gusty wind, and a longer tail adds stability (damping of oscillation). Show a stability meter, and explain the model's simplifications honestly. The spec should check force-balance sanity (with no wind the kite falls; stronger steady wind gives a higher line angle, monotonic), that a longer tail reduces oscillation amplitude in a fixed-seed gust, pattern determinism per seed, and the SVG export.",
+  "qa": {
+    "methodology": [
+      "No wind: the kite only ever goes down, never faster than free fall under the page's own integrator (g·dt²·n(n+1)/2 after n steps), close to ½gt² in the first tenth of a second, and it ends on the grass with no tension. The live page agrees, down to the '0.0 m' height readout.",
+      "Monotonic climb: for all four shapes, steady winds from 6 to 14 m/s give strictly increasing line angles, always below 90°, with the line taut; a 2 m/s breeze leaves the heavy box kite on the ground.",
+      "Force balance: after a minute of steady wind the returned force vectors must sum to under 1% of the aerodynamic force, lift must be perpendicular to drag, the tension must point straight back down the line with the reported magnitude, and the resultant of aerodynamic force and weight must lie along the line (the textbook condition for a kite at rest).",
+      "Tail damping, fixed seed 7 and 35% gusts: the pitch wobble's RMS falls strictly as the tail goes 0, 1, 2, 4, 6 m, and the peak with a 6 m tail is under a third of the bare kite's. In the live flight the stability meter reads at least 20 points higher with a 6 m tail than with none. The trade-off is checked too: in a steady wind the long tail flies slightly lower.",
+      "Designs and export: the same seed gives the same design and identical SVG across reloads, 40 seeds give 40 designs covering all six patterns, and each shape's exported SVG parses cleanly with one patterned panel per sail panel, every fill resolving to a <pattern>, and a bow every half metre of tail."
+    ],
+    "risks": [
+      "The model is deliberately simple (2D, flat-plate coefficients, a made-up wobble spring), so the tests check trends and physical consistency, not real-world numbers, and the page says so.",
+      "The line is a hard constraint applied by projecting the kite back onto a 30 m circle; a mistake there could stretch the line or make it push. A gusty minute checks |r| ≤ 30 m and tension ≥ 0 throughout.",
+      "The bridle's effect isn't monotonic in reality or in the model (too far back and the kite flies flat and low), so the page doesn't claim it is; the spec checks only the direction it does claim: nose-ward means a higher angle of attack and more pull.",
+      "Comparing tails only means something in identical weather. The gusts are a seeded sum of sines, and the spec checks that the same seed repeats a run exactly and another seed doesn't."
+    ],
+    "playwright": "Most assertions run the model offline through __kite.simulate(), which does a minute of flight in a few milliseconds inside the page, so the spec can sweep four shapes × nine winds without any waiting. The live loop is covered separately with page.clock: fake time grounds the kite in no wind, relaunches it when the wind returns, and the Pause button freezes it. fill() on the range inputs fires the same input events as dragging, on both projects. Two first-run failures taught me something. My free-fall bound of ½gt² failed by 6%, because the page's semi-implicit Euler step falls a touch faster than the exact solution; the test now uses the integrator's own discrete free-fall bound. And my claim that a longer tail also steadies the line angle wasn't true for this seed, since the gusts in wind speed swing the angle whatever the tail does. I dropped that claim and kept the one the model supports: the tail damps the pitch wobble.",
+    "coverage": [
+      "No wind: falls, free-fall bound, ends grounded (model and live page)",
+      "Monotonic line angle vs wind for all four shapes",
+      "Force balance, perpendicular lift, tension along the line",
+      "Tail length vs wobble in fixed-seed gusts; tail drag trade-off",
+      "Stability meter in live flight",
+      "Line never stretches, tension never negative",
+      "Bridle angle formula, angle of attack and pull",
+      "Seeded designs and identical SVG across reloads",
+      "SVG export per shape: well-formed, panels, patterns, bows",
+      "Live loop on page.clock: ground, relaunch, pause"
+    ]
+  },
+  "a11y": "All design and flight controls are labelled native selects, sliders and buttons, and each slider shows its value in an <output>. The kite SVG's aria-label describes the shape, pattern, colours, tail and bridle. The stability meter is a role=meter with a numeric value and a word (steady, wobbly or on the grass), the canvas's aria-label reports angle, height and stability, and launches, landings and pauses are announced in a live region. Nothing requires precise dragging: the flight runs by itself."
+}

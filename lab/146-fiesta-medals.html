@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fiesta Medal Maker — design a San Antonio Fiesta medal</title>
+<meta name="description" content="Design a seeded Fiesta-style medal, inspired by San Antonio's tradition of collecting and trading Fiesta medals: pick a shape (round, shield, star, heart or a simple Texas outline), a striped ribbon in bright Fiesta colours, lettering set on a circular path, an icon, and bling. Pin medals to a collection sash saved in your browser, trade with a seeded vendor, and export as SVG or PNG.">
+<style>
+  :root {
+    --pink: #e6197e;
+    --teal: #10a39b;
+    --yellow: #ffd23f;
+    --orange: #ff7a1a;
+    --purple: #6b2f94;
+    --ink: #24122e;
+    --muted: #5f4a6b;
+    --paper: #fff8ec;
+    --card: #ffffff;
+    --line: #ecd9f2;
+    --display: "Rockwell", "Georgia", serif;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--paper); color: var(--ink); font: 15px/1.5 var(--sans); overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--purple); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; background: var(--purple); color: #fff; text-decoration: none; font: 700 13px/1 var(--sans); padding: 8px 12px; border-radius: 999px; }
+  a.back:hover { background: var(--pink); }
+  .picado { height: 46px; background:
+      radial-gradient(circle at 50% 30%, var(--paper) 5px, transparent 6px) 0 0 / 48px 46px,
+      linear-gradient(90deg, var(--pink) 0 25%, var(--yellow) 25% 50%, var(--teal) 50% 75%, var(--orange) 75%) 0 0 / 192px 46px;
+    -webkit-mask: linear-gradient(#000 0 0) top / 100% 36px no-repeat, conic-gradient(from 135deg at 50% 100%, #000 90deg, transparent 0) 0 36px / 24px 10px repeat-x;
+            mask: linear-gradient(#000 0 0) top / 100% 36px no-repeat, conic-gradient(from 135deg at 50% 100%, #000 90deg, transparent 0) 0 36px / 24px 10px repeat-x; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 18px 16px 40px; }
+  header { text-align: center; }
+  .eyebrow { margin: 0; font: 700 12px/1.3 var(--sans); letter-spacing: .26em; text-transform: uppercase; color: var(--pink); overflow-wrap: anywhere; }
+  h1 { margin: 4px 0 0; font: 700 clamp(32px, 7vw, 60px)/1.05 var(--display); color: var(--purple); overflow-wrap: anywhere; }
+  .lede { margin: 10px auto 0; max-width: 68ch; color: var(--muted); }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 360px); gap: 18px; margin-top: 18px; align-items: start; }
+  .card { background: var(--card); border: 2px solid var(--line); border-radius: 16px; padding: 14px 16px; min-width: 0; }
+  .card + .card { margin-top: 14px; }
+  .card h2 { margin: 0 0 10px; font: 700 19px/1.2 var(--display); color: var(--purple); }
+  .stagebox { display: grid; place-items: center; background: repeating-conic-gradient(from 0deg at 50% 38%, #fff3d6 0 10deg, #ffe9f3 10deg 20deg); border-radius: 12px; padding: 10px; }
+  #medal { width: min(100%, 340px); height: auto; display: block; }
+  .field { margin-bottom: 10px; min-width: 0; }
+  .field label, .lbl { display: block; font: 700 12px/1.3 var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+  select, input[type=text] { width: 100%; max-width: 100%; font: 15px var(--sans); padding: 8px 10px; border-radius: 10px; border: 2px solid var(--line); background: #fff; color: var(--ink); }
+  fieldset { border: 2px solid var(--line); border-radius: 12px; padding: 8px 12px; margin: 0 0 10px; min-width: 0; }
+  legend { font: 700 12px/1.3 var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 0 4px; }
+  .checks { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+  .checks label { display: inline-flex; gap: 6px; align-items: center; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .btn { min-height: 40px; padding: 8px 14px; border-radius: 999px; border: 2px solid var(--purple); background: var(--purple); color: #fff; font: 700 14px/1 var(--sans); cursor: pointer; }
+  .btn.pink { background: var(--pink); border-color: var(--pink); }
+  .btn.ghost { background: #fff; color: var(--purple); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .stripes { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
+  .stripes span { width: 22px; height: 22px; border-radius: 6px; border: 1px solid rgba(0,0,0,.15); }
+  .note { font-size: 13px; color: var(--muted); margin: 8px 0 0; overflow-wrap: anywhere; }
+  .sash { position: relative; margin-top: 8px; padding: 12px; border-radius: 12px; background: linear-gradient(100deg, #b3124f, #e6197e 40%, #b3124f); min-height: 120px; }
+  .sash ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+  .sash li { background: rgba(255,255,255,.12); border-radius: 10px; padding: 4px; display: flex; flex-direction: column; align-items: center; width: 84px; }
+  .sash li svg { width: 72px; height: auto; }
+  .sash li button { font: 700 11px/1 var(--sans); border: 0; border-radius: 999px; padding: 4px 8px; background: #fff; color: var(--pink); cursor: pointer; margin-top: 2px; }
+  .sash .empty { color: #ffe3f0; margin: 0; }
+  .vendor { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 6px; }
+  .vendor label { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px; border: 2px solid var(--line); border-radius: 12px; cursor: pointer; text-align: center; font-size: 12px; min-width: 0; }
+  .vendor label:has(input:checked) { border-color: var(--pink); background: #fff0f7; }
+  .vendor svg { width: 100%; max-width: 80px; height: auto; }
+  .values { font-size: 13px; margin: 6px 0 0; padding-left: 18px; color: var(--muted); }
+  #status { min-height: 1.4em; font-weight: 600; color: var(--purple); }
+  footer { margin-top: 24px; text-align: center; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+  .spin { transform-box: view-box; transform-origin: 150px 262px; animation: spin 6s linear infinite; }
+  .paused .spin { animation-play-state: paused; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+  @media (max-width: 880px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="picado" aria-hidden="true"></div>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Inspired by San Antonio's Fiesta</p>
+    <h1>Fiesta Medal Maker</h1>
+    <p class="lede">Fiesta is San Antonio's big spring celebration, and one of its best-loved customs is the Fiesta medal: a pin on a bright ribbon, made by schools, clubs, businesses and neighbours. People wear dozens of them on sashes, hats and vests, and swap them with friends and strangers. Design your own here, pin it to your sash, and try your luck with a vendor.</p>
+  </header>
+
+  <div class="layout">
+    <div>
+      <section class="card" aria-labelledby="h-medal">
+        <h2 id="h-medal">Your medal</h2>
+        <div class="stagebox" id="stage" data-testid="stage"></div>
+        <div class="row" style="margin-top:10px;justify-content:center">
+          <button type="button" class="btn pink" id="pin" data-testid="pin">Pin to my sash</button>
+          <button type="button" class="btn ghost" id="exportSvg" data-testid="export-svg">Download SVG</button>
+          <button type="button" class="btn ghost" id="exportPng" data-testid="export-png">Download PNG</button>
+          <button type="button" class="btn ghost" id="spinToggle" data-testid="spin-toggle" aria-pressed="false">Pause spinner</button>
+        </div>
+        <p class="note" id="status" data-testid="status" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="card" aria-labelledby="h-sash">
+        <h2 id="h-sash">My sash <span class="note" style="font:inherit;font-size:14px">(<b id="sashCount" data-testid="sash-count">0</b> of 12)</span></h2>
+        <div class="sash"><ol id="sash" data-testid="sash" aria-label="Medals on my sash"></ol><p class="empty" id="sashEmpty">No medals yet. Pin one!</p></div>
+        <p class="note">Your sash is saved only in this browser's localStorage. Nothing is uploaded. Remove a medal with its button.</p>
+      </section>
+    </div>
+
+    <div>
+      <section class="card" aria-labelledby="h-design">
+        <h2 id="h-design">Design</h2>
+        <div class="field"><label for="shape">Shape</label>
+          <select id="shape" data-testid="shape"><option value="round">Round</option><option value="shield">Shield</option><option value="star">Star</option><option value="heart">Heart</option><option value="texas">Texas (simple outline)</option></select></div>
+        <div class="field"><label for="text">Lettering (around the top)</label>
+          <input type="text" id="text" data-testid="text" maxlength="28" autocomplete="off"></div>
+        <div class="field"><label for="icon">Icon</label>
+          <select id="icon" data-testid="icon"><option value="papel">Papel picado</option><option value="cascarones">Cascarones</option><option value="guitar">Guitar</option><option value="flowers">Paper flowers</option></select></div>
+        <div class="field"><span class="lbl" id="ribbonLbl">Ribbon</span>
+          <div class="stripes" id="stripes" data-testid="stripes" role="img" aria-labelledby="ribbonLbl"></div>
+          <button type="button" class="btn ghost" id="ribbon" data-testid="ribbon" style="margin-top:8px;min-height:32px;font-size:13px">Shuffle ribbon</button></div>
+        <fieldset><legend>Bling</legend>
+          <div class="checks">
+            <label><input type="checkbox" id="stones" data-testid="stones"> Rhinestones</label>
+            <label><input type="checkbox" id="dangles" data-testid="dangles"> Dangles</label>
+            <label><input type="checkbox" id="spinner" data-testid="spinner"> Spinner</label>
+          </div>
+        </fieldset>
+        <div class="row"><button type="button" class="btn" id="reseed" data-testid="reseed">Surprise me</button><span class="note" style="margin:0">Design <b id="seedTxt" data-testid="seed">seed</b></span></div>
+      </section>
+
+      <section class="card" aria-labelledby="h-trade">
+        <h2 id="h-trade">Trade with a vendor</h2>
+        <p style="margin:0">A friendly vendor has three medals on her table. She'll swap if yours is worth at least as much as hers, give or take a point.</p>
+        <div class="vendor" id="vendor" data-testid="vendor" role="radiogroup" aria-label="Vendor's medals"></div>
+        <div class="field" style="margin-top:10px"><label for="offer">Your medal to offer</label><select id="offer" data-testid="offer"></select></div>
+        <div class="row"><button type="button" class="btn pink" id="trade" data-testid="trade">Offer trade</button><button type="button" class="btn ghost" id="nextVendor" data-testid="next-vendor">Next vendor</button></div>
+        <p class="note" id="tradeMsg" data-testid="trade-msg" aria-live="polite"></p>
+        <details><summary class="note" style="display:list-item">How medals are valued</summary>
+          <ul class="values">
+            <li>Shape: round 1, shield 2, heart 3, star 3, Texas 5</li>
+            <li>Icon: guitar 2, the others 1</li>
+            <li>Rhinestones +2, dangles +2, spinner +3</li>
+          </ul>
+        </details>
+      </section>
+    </div>
+  </div>
+  <footer>Built by Zac Corbett · an inline-SVG generator with textPath lettering · not affiliated with any official Fiesta organisation · add <code>?seed=</code> for a repeatable medal</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  let SEED = (parseInt(params.get('seed'), 10) >>> 0) || 2026;
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const pick = (r, a) => a[Math.floor(r() * a.length)];
+
+  // ---------- design vocabulary ----------
+  const PALETTE = { pink: '#e6197e', turquoise: '#10a39b', yellow: '#ffd23f', orange: '#ff7a1a', purple: '#6b2f94', lime: '#8cc63f', red: '#e0282e', blue: '#2659c9' };
+  const SHAPES = ['round', 'shield', 'star', 'heart', 'texas'];
+  const ICONS = ['papel', 'cascarones', 'guitar', 'flowers'];
+  const TEXTS = ['¡VIVA FIESTA!', 'SAN ANTONIO', 'CONFETTI CREW', 'MY FIRST MEDAL', 'CASCARÓN KING', 'CONFETTI EVERYWHERE', 'DOS AMIGOS', 'RIVER CITY', 'SASH GOALS', 'ABUELA APPROVED'];
+  const VALUE = { shape: { round: 1, shield: 2, heart: 3, star: 3, texas: 5 }, icon: { guitar: 2, papel: 1, cascarones: 1, flowers: 1 }, stones: 2, dangles: 2, spinner: 3 };
+  const CX = 150, CY = 262, DISC = 64, TEXT_R = 51, ARC_LIMIT = 250;   // degrees of arc the lettering may use
+
+  function design(seed, opts = {}) {
+    const r = mulberry32(seed);
+    const names = Object.keys(PALETTE);
+    const n = 3 + Math.floor(r() * 3);
+    const stripes = [];
+    while (stripes.length < n) { const c = pick(r, names); if (stripes[stripes.length - 1] !== c) stripes.push(c); }
+    const d = {
+      seed, shape: pick(r, SHAPES), stripes, text: pick(r, TEXTS), icon: pick(r, ICONS),
+      face: pick(r, ['#fff4d6', '#ffffff', '#fde2ef', '#d9f5f2']), rim: pick(r, ['#d4a017', '#b8b8c8', '#c47b2b']),
+      stones: r() < 0.5, dangles: r() < 0.4, spinner: r() < 0.3,
+    };
+    if (opts.prize) { d.spinner = true; d.dangles = true; }
+    return d;
+  }
+  const value = (d) => VALUE.shape[d.shape] + VALUE.icon[d.icon] + (d.stones ? VALUE.stones : 0) + (d.dangles ? VALUE.dangles : 0) + (d.spinner ? VALUE.spinner : 0);
+  const tradeOk = (mine, theirs) => value(mine) >= value(theirs) - 1;
+
+  // ---------- outlines (polygons, so symmetry can be checked point by point) ----------
+  const mirrorHalf = (half) => {
+    // half: points on the right, from top centre (x = CX) clockwise to bottom centre; mirror to close the shape
+    const left = half.slice(1, -1).reverse().map(([x, y]) => [2 * CX - x, y]);
+    return half.concat(left);
+  };
+  function outline(shape) {
+    const pts = [];
+    if (shape === 'round') { const R = 100; for (let k = 0; k < 72; k++) { const a = -Math.PI / 2 + k * Math.PI * 2 / 72; pts.push([CX + R * Math.cos(a), CY + R * Math.sin(a)]); } return pts; }
+    if (shape === 'star') { const R = 118, r = 76; for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, rr = k % 2 ? r : R; pts.push([CX + rr * Math.cos(a), CY + rr * Math.sin(a)]); } return pts; }
+    if (shape === 'heart') {
+      const s = 7.5, k = 4.5;
+      for (let i = 0; i < 80; i++) { const t = i * Math.PI * 2 / 80; const x = 16 * Math.sin(t) ** 3, y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t); pts.push([CX + x * s, CY - (y + k) * s]); }
+      return pts;
+    }
+    if (shape === 'shield') {
+      return mirrorHalf([[CX, CY - 104], [CX + 30, CY - 94], [CX + 62, CY - 104], [CX + 96, CY - 90], [CX + 98, CY - 20], [CX + 90, CY + 30], [CX + 70, CY + 70], [CX + 40, CY + 98], [CX, CY + 118]]);
+    }
+    // Texas, simplified from a handful of longitude/latitude points and projected with cos(31°) for the east-west scale
+    const LL = [[-103.04, 36.5], [-100.0, 36.5], [-100.0, 34.56], [-98.6, 34.15], [-97.2, 33.85], [-95.6, 33.9], [-94.04, 33.55], [-94.04, 31.99], [-93.75, 30.3], [-93.84, 29.7],
+      [-94.7, 29.35], [-95.3, 28.9], [-96.5, 28.3], [-97.3, 27.6], [-97.4, 26.9], [-97.15, 25.95], [-97.6, 26.0], [-98.3, 26.2], [-99.1, 26.5], [-99.5, 27.5], [-100.3, 28.3],
+      [-100.7, 29.1], [-101.4, 29.77], [-102.4, 29.8], [-102.7, 29.7], [-103.1, 29.0], [-103.8, 29.3], [-104.5, 29.8], [-104.7, 30.4], [-105.5, 31.1], [-106.5, 31.75], [-106.62, 32.0], [-103.06, 32.0]];
+    const k = Math.cos(31 * Math.PI / 180), s = 21;
+    const xs = LL.map(([lo]) => lo * k), ys = LL.map(([, la]) => -la);
+    const mx = (Math.min(...xs) + Math.max(...xs)) / 2, my = (Math.min(...ys) + Math.max(...ys)) / 2;
+    return LL.map(([lo, la]) => [CX + (lo * k - mx) * s + 8, CY + (-la - my) * s + 6]);
+  }
+  const pathD = (pts) => 'M' + pts.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join('L') + 'Z';
+  const stonePts = (n = 16) => Array.from({ length: n }, (_, k) => { const a = -Math.PI / 2 + k * Math.PI * 2 / n; return [CX + (DISC + 1) * Math.cos(a), CY + (DISC + 1) * Math.sin(a)]; });
+  /** The lowest point of the outline straight below x: where a dangle's ring hooks on. */
+  function bottomAt(pts, x) {
+    let best = -Infinity;
+    for (let i = 0; i < pts.length; i++) {
+      const [x1, y1] = pts[i], [x2, y2] = pts[(i + 1) % pts.length];
+      if ((x1 - x) * (x2 - x) > 0 || x1 === x2) continue;
+      best = Math.max(best, y1 + (y2 - y1) * (x - x1) / (x2 - x1));
+    }
+    return best;
+  }
+  function danglePts(shape) {
+    const pts = outline(shape);
+    return [-40, 0, 40].map((dx) => [CX + dx, bottomAt(pts, CX + dx) + 16]);
+  }
+
+  // ---------- icons ----------
+  function icon(kind, d, id) {
+    const c = d.stripes.map((n) => PALETTE[n]);
+    const col = (i) => c[i % c.length];
+    if (kind === 'papel') {
+      let s = `<path d="M108,236 Q150,250 192,236" fill="none" stroke="#5f4a6b" stroke-width="1.5"/>`;
+      [[114, 239], [136, 243], [158, 243], [180, 239]].forEach(([x, y], i) => {
+        s += `<path d="M${x - 9},${y} h18 v22 l-4.5,-4 l-4.5,4 l-4.5,-4 l-4.5,4 z" fill="${col(i)}"/><circle cx="${x}" cy="${y + 8}" r="2.6" fill="${d.face}"/><circle cx="${x - 5}" cy="${y + 13}" r="1.6" fill="${d.face}"/><circle cx="${x + 5}" cy="${y + 13}" r="1.6" fill="${d.face}"/>`;
+      });
+      return s + `<text x="150" y="292" text-anchor="middle" font-family="Georgia,serif" font-size="12" font-weight="700" fill="#24122e">2026</text>`;
+    }
+    if (kind === 'cascarones') {
+      let s = '';
+      [[126, 272, -12], [150, 264, 0], [174, 272, 12]].forEach(([x, y, rot], i) => {
+        s += `<g transform="rotate(${rot} ${x} ${y})"><ellipse cx="${x}" cy="${y}" rx="13" ry="17" fill="${col(i)}"/><path d="M${x - 12},${y - 2} l4,-5 l4,5 l4,-5 l4,5 l4,-5 l4,5" fill="none" stroke="#fff" stroke-width="2"/><circle cx="${x - 4}" cy="${y + 8}" r="2" fill="#fff"/><circle cx="${x + 5}" cy="${y + 7}" r="2" fill="#fff"/></g>`;
+      });
+      return s;
+    }
+    if (kind === 'guitar') {
+      return `<g transform="rotate(-28 150 268)"><rect x="146" y="206" width="8" height="46" rx="2" fill="#6b3d1e"/><rect x="143" y="198" width="14" height="12" rx="3" fill="#3b2415"/>`
+        + `<circle cx="150" cy="264" r="17" fill="${col(0)}"/><circle cx="150" cy="288" r="21" fill="${col(0)}"/><circle cx="150" cy="276" r="7" fill="#24122e"/><rect x="143" y="294" width="14" height="4" fill="#24122e"/>`
+        + `<path d="M148,206 V296 M152,206 V296" stroke="#f5f0e6" stroke-width=".7"/></g>`;
+    }
+    let s = '';
+    [[150, 262, 20, 0], [124, 282, 12, 1], [176, 282, 12, 2]].forEach(([x, y, r, i]) => {
+      for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; s += `<circle cx="${(x + r * 0.62 * Math.cos(a)).toFixed(2)}" cy="${(y + r * 0.62 * Math.sin(a)).toFixed(2)}" r="${(r * 0.45).toFixed(2)}" fill="${col(i)}"/>`; }
+      s += `<circle cx="${x}" cy="${y}" r="${(r * 0.35).toFixed(2)}" fill="#ffd23f" stroke="#24122e" stroke-width=".8"/>`;
+    });
+    return s;
+  }
+
+  // ---------- rendering ----------
+  let uid = 0;
+  function escapeXml(s) { return String(s).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[ch])); }
+  /** The whole medal as an SVG string. fontSize is supplied after measuring (see fitText). */
+  function svg(d, { id = 'm' + (++uid), fontSize = 15, label = true } = {}) {
+    const cols = d.stripes.map((n) => PALETTE[n]);
+    const RW = 120, RX = CX - RW / 2, sw = RW / cols.length;
+    let rib = '';
+    cols.forEach((c, i) => { rib += `<rect x="${(RX + i * sw).toFixed(2)}" y="18" width="${(sw + 0.4).toFixed(2)}" height="150" fill="${c}"/>`; });
+    const tp = `M${CX},${CY + TEXT_R} A${TEXT_R},${TEXT_R} 0 1 1 ${CX},${CY - TEXT_R} A${TEXT_R},${TEXT_R} 0 1 1 ${CX},${CY + TEXT_R}`;
+    const shape = outline(d.shape);
+    let bling = '';
+    if (d.spinner) {
+      let seg = '';
+      for (let k = 0; k < 12; k++) { const a0 = k * Math.PI / 6, a1 = a0 + Math.PI / 6, r = 30; seg += `<path d="M${CX},${CY} L${(CX + r * Math.cos(a0)).toFixed(2)},${(CY + r * Math.sin(a0)).toFixed(2)} A${r},${r} 0 0 1 ${(CX + r * Math.cos(a1)).toFixed(2)},${(CY + r * Math.sin(a1)).toFixed(2)}Z" fill="${cols[k % cols.length]}" opacity=".55"/>`; }
+      bling += `<g class="spin" data-part="spinner">${seg}</g>`;
+    }
+    let stones = '';
+    if (d.stones) stones = `<g data-part="stones">${stonePts().map(([x, y]) => `<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="4" fill="#e8f4ff" stroke="#9fb7d9" stroke-width="1"/><circle cx="${(x - 1.2).toFixed(2)}" cy="${(y - 1.2).toFixed(2)}" r="1.2" fill="#fff"/>`).join('')}</g>`;
+    let dangles = '';
+    if (d.dangles) dangles = `<g data-part="dangles">${danglePts(d.shape).map(([x, y], i) => `<line x1="${x}" y1="${(y - 18).toFixed(2)}" x2="${x}" y2="${y.toFixed(2)}" stroke="${d.rim}" stroke-width="1.5"/><path d="M${x},${y.toFixed(2)} l7,9 l-7,9 l-7,-9z" fill="${cols[i % cols.length]}" stroke="${d.rim}"/>`).join('')}</g>`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 420" width="300" height="420"${label ? ` role="img" aria-label="${escapeXml(describe(d))}"` : ' aria-hidden="true"'}>`
+      + `<defs><path id="${id}-tp" d="${tp}"/></defs>`
+      + `<rect x="${RX - 6}" y="6" width="${RW + 12}" height="16" rx="4" fill="${d.rim}"/>${rib}`
+      + `<path d="M${RX},150 L${CX},176 L${RX + RW},150 V170 H${RX} Z" fill="rgba(0,0,0,.18)"/>`
+      + dangles
+      + `<path data-part="body" d="${pathD(shape)}" fill="${d.rim}" stroke="#24122e" stroke-width="2" stroke-linejoin="round"/>`
+      + `<path d="${pathD(shape.map(([x, y]) => [CX + (x - CX) * 0.9, CY + (y - CY) * 0.9]))}" fill="${cols[0]}" opacity=".9"/>`
+      + `<circle cx="${CX}" cy="${CY}" r="${DISC}" fill="${d.face}" stroke="${d.rim}" stroke-width="4"/>`
+      + bling + stones
+      + `<g data-part="icon">${icon(d.icon, d, id)}</g>`
+      + `<text data-part="lettering" font-family="'Arial Black','Segoe UI',Arial,sans-serif" font-weight="900" font-size="${fontSize.toFixed(2)}" fill="#24122e" letter-spacing=".5"><textPath href="#${id}-tp" startOffset="50%" text-anchor="middle">${escapeXml(d.text || ' ')}</textPath></text>`
+      + `</svg>`;
+  }
+  const NAMES = { round: 'round', shield: 'shield', star: 'star', heart: 'heart', texas: 'Texas-shaped' };
+  const ICON_NAMES = { papel: 'papel picado', cascarones: 'cascarones', guitar: 'a guitar', flowers: 'paper flowers' };
+  function describe(d) {
+    const b = [d.stones && 'rhinestones', d.dangles && 'dangles', d.spinner && 'a spinner'].filter(Boolean);
+    return `A ${NAMES[d.shape]} medal on a ${d.stripes.join(', ')} ribbon, lettered “${d.text}”, with ${ICON_NAMES[d.icon]}${b.length ? ' and ' + b.join(', ') : ''}.`;
+  }
+
+  // ---------- page state ----------
+  const S = { seed: SEED, design: design(SEED), fontSize: 15, sash: [], vendorRound: 0, vendor: [], choice: 0, lastTrade: null };
+  const KEY = 'fiesta-sash-v1', MAX = 12;
+  function loadSash() { try { const v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v.filter((d) => d && SHAPES.includes(d.shape)) : []; } catch (e) { return []; } }
+  function saveSash() { try { localStorage.setItem(KEY, JSON.stringify(S.sash)); return true; } catch (e) { say('Your browser would not save the sash (storage is full or blocked). It will last until you leave.'); return false; } }
+
+  /** Shrink the lettering until it fits ARC_LIMIT degrees of the text circle, measured by the browser. */
+  function fitText(textEl) {
+    const limit = TEXT_R * ARC_LIMIT * Math.PI / 180;
+    let fs = 15;
+    for (let i = 0; i < 4; i++) {
+      textEl.setAttribute('font-size', fs.toFixed(2));
+      const L = textEl.getComputedTextLength();
+      if (L <= limit || !L) break;
+      fs = Math.max(6, fs * (limit / L) * 0.98);
+    }
+    return fs;
+  }
+  function render() {
+    const d = S.design;
+    $('stage').innerHTML = svg(d, { id: 'main' });
+    const t = $('stage').querySelector('text[data-part=lettering]');
+    S.fontSize = fitText(t);
+    $('stripes').innerHTML = d.stripes.map((n) => `<span style="background:${PALETTE[n]}" title="${n}"></span>`).join('');
+    $('stripes').setAttribute('aria-label', `Ribbon stripes: ${d.stripes.join(', ')}`);
+    $('shape').value = d.shape; $('icon').value = d.icon;
+    if ($('text').value !== d.text) $('text').value = d.text;
+    $('stones').checked = d.stones; $('dangles').checked = d.dangles; $('spinner').checked = d.spinner;
+    $('seedTxt').textContent = `seed ${S.seed}`;
+  }
+  function exportString() { return svg(S.design, { id: 'medal', fontSize: S.fontSize }); }
+
+  function renderSash() {
+    $('sash').innerHTML = S.sash.map((d, i) => `<li data-testid="sash-medal">${svg(d, { id: 'sash' + i, fontSize: 13, label: false })}<button type="button" data-del="${i}" aria-label="Remove medal ${i + 1}: ${escapeXml(d.text)}">Remove</button></li>`).join('');
+    $('sashEmpty').hidden = S.sash.length > 0;
+    $('sashCount').textContent = S.sash.length;
+    $('offer').innerHTML = S.sash.length ? S.sash.map((d, i) => `<option value="${i}">${i + 1}. ${escapeXml(d.text)} (${NAMES[d.shape]}, worth ${value(d)})</option>`).join('') : '<option value="">Pin a medal to your sash first</option>';
+    $('offer').disabled = !S.sash.length; $('trade').disabled = !S.sash.length;
+    $('pin').disabled = S.sash.length >= MAX;
+  }
+  function vendorStock(seed, round) {
+    const base = (Math.imul(seed, 31) + round * 977 + 5) >>> 0;
+    return [design(base + 1), design(base + 2), design(base + 3, { prize: true })];
+  }
+  function renderVendor() {
+    $('vendor').innerHTML = S.vendor.map((d, i) => `<label data-testid="vendor-medal"><input type="radio" name="vend" value="${i}"${i === S.choice ? ' checked' : ''}>${svg(d, { id: 'v' + i, fontSize: 13, label: false })}<span>${escapeXml(d.text)}<br>worth ${value(d)}</span></label>`).join('');
+  }
+
+  function setDesign(d, msg) { S.design = d; render(); if (msg) say(msg); }
+  const say = (m) => { $('status').textContent = m; };
+
+  // ---------- events ----------
+  $('shape').addEventListener('change', () => setDesign({ ...S.design, shape: $('shape').value }));
+  $('icon').addEventListener('change', () => setDesign({ ...S.design, icon: $('icon').value }));
+  $('text').addEventListener('input', () => setDesign({ ...S.design, text: $('text').value }));
+  for (const k of ['stones', 'dangles', 'spinner']) $(k).addEventListener('change', () => setDesign({ ...S.design, [k]: $(k).checked }));
+  $('ribbon').addEventListener('click', () => {
+    const r = mulberry32((S.design.seed ^ Date.now()) >>> 0), names = Object.keys(PALETTE), n = 3 + Math.floor(r() * 3), st = [];
+    while (st.length < n) { const c = pick(r, names); if (st[st.length - 1] !== c) st.push(c); }
+    setDesign({ ...S.design, stripes: st }, `New ribbon: ${st.join(', ')}.`);
+  });
+  $('reseed').addEventListener('click', () => {
+    S.seed = SEED = (Math.floor(Math.random() * 1e6) + 1) >>> 0;
+    try { const u = new URL(location.href); u.searchParams.set('seed', SEED); history.replaceState(null, '', u); } catch (e) { /* ignore */ }
+    setDesign(design(SEED), `New design, seed ${SEED}.`);
+  });
+  $('pin').addEventListener('click', () => {
+    if (S.sash.length >= MAX) { say('Your sash is full. Remove one first.'); return; }
+    S.sash.push(JSON.parse(JSON.stringify(S.design)));
+    saveSash(); renderSash();
+    say(`Pinned “${S.design.text}” to your sash (${S.sash.length} of ${MAX}).`);
+  });
+  $('sash').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-del]'); if (!b) return;
+    const i = +b.dataset.del, gone = S.sash.splice(i, 1)[0];
+    saveSash(); renderSash();
+    say(`Removed “${gone.text}” from your sash.`);
+    const next = $('sash').querySelector(`button[data-del="${Math.min(i, S.sash.length - 1)}"]`);
+    (next || $('pin')).focus({ preventScroll: true });
+  });
+  $('vendor').addEventListener('change', (e) => { if (e.target.name === 'vend') S.choice = +e.target.value; });
+  $('trade').addEventListener('click', () => {
+    const mi = +$('offer').value, mine = S.sash[mi], theirs = S.vendor[S.choice];
+    if (!mine || !theirs) return;
+    const ok = tradeOk(mine, theirs);
+    S.lastTrade = { mine: value(mine), theirs: value(theirs), ok, offered: mi, wanted: S.choice };
+    if (ok) {
+      S.sash[mi] = theirs; S.vendor[S.choice] = mine;
+      saveSash(); renderSash(); renderVendor();
+      $('tradeMsg').textContent = `¡Trato hecho! Your “${mine.text}” (worth ${value(mine)}) for her “${theirs.text}” (worth ${value(theirs)}).`;
+    } else {
+      $('tradeMsg').textContent = `She smiles and shakes her head: her “${theirs.text}” is worth ${value(theirs)}, yours only ${value(mine)}.`;
+    }
+  });
+  $('nextVendor').addEventListener('click', () => { S.vendorRound++; S.vendor = vendorStock(S.seed, S.vendorRound); S.choice = 0; renderVendor(); $('tradeMsg').textContent = 'A new vendor sets out her table.'; });
+  $('spinToggle').addEventListener('click', () => {
+    const p = $('stage').classList.toggle('paused');
+    $('spinToggle').setAttribute('aria-pressed', p); $('spinToggle').textContent = p ? 'Resume spinner' : 'Pause spinner';
+  });
+  function download(blob, name) {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+  $('exportSvg').addEventListener('click', () => { download(new Blob([exportString()], { type: 'image/svg+xml' }), `fiesta-medal-${S.seed}.svg`); say(`Saved fiesta-medal-${S.seed}.svg.`); });
+  $('exportPng').addEventListener('click', () => {
+    const url = URL.createObjectURL(new Blob([exportString()], { type: 'image/svg+xml' }));
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas'); c.width = 600; c.height = 840;
+      const x = c.getContext('2d'); x.drawImage(img, 0, 0, 600, 840); URL.revokeObjectURL(url);
+      try { c.toBlob((b) => { if (b) { download(b, `fiesta-medal-${S.seed}.png`); say(`Saved fiesta-medal-${S.seed}.png.`); } else say('PNG export failed; the SVG download still works.'); }, 'image/png'); }
+      catch (e) { say('PNG export is blocked in this browser; the SVG download still works.'); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); say('PNG export failed; the SVG download still works.'); };
+    img.src = url;
+  });
+
+  // ---------- test hook ----------
+  window.__fiesta = {
+    get state() { return JSON.parse(JSON.stringify({ seed: S.seed, design: S.design, fontSize: S.fontSize, sash: S.sash, vendor: S.vendor, choice: S.choice, lastTrade: S.lastTrade, values: { design: value(S.design), vendor: S.vendor.map(value), sash: S.sash.map(value) } })); },
+    consts: { CX, CY, DISC, TEXT_R, ARC_LIMIT, VALUE, PALETTE, SHAPES, ICONS, MAX },
+    design: (seed) => design(seed),
+    outline: (shape) => outline(shape),
+    stones: () => stonePts(),
+    dangles: (shape) => danglePts(shape),
+    value, tradeOk,
+    vendorStock,
+    svgString: () => exportString(),
+    /** Where the browser actually laid out each letter of the lettering (start and end points, in SVG units). */
+    layout() {
+      const t = $('stage').querySelector('text[data-part=lettering]'), n = t.getNumberOfChars(), out = [];
+      for (let i = 0; i < n; i++) { const a = t.getStartPositionOfChar(i), b = t.getEndPositionOfChar(i); out.push({ ch: (S.design.text || ' ')[i], start: [a.x, a.y], end: [b.x, b.y], rot: t.getRotationOfChar(i) }); }
+      return { chars: out, length: t.getComputedTextLength(), fontSize: S.fontSize, centre: [CX, CY], r: TEXT_R };
+    },
+  };
+
+  S.sash = loadSash();
+  S.vendor = vendorStock(S.seed, 0);
+  render(); renderSash(); renderVendor();
+})();
+</script>
+</body>
+</html>

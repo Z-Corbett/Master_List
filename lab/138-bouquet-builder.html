@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bouquet Builder — arrange flowers by the rules florists use</title>
+<meta name="description" content="Pick a focal flower, a secondary flower, a filler and greenery from fifteen illustrated flowers, choose a colour scheme from a hue wheel and a round, cascade or hand-tied shape, and get a seeded arrangement that follows florists' rules of thumb: odd-number groups and a golden-ratio height. Includes a stem and cost calculator with editable prices.">
+<style>
+  :root {
+    --kraft: #e9dcc6;
+    --kraft-2: #d8c5a5;
+    --paper: #fbf7f0;
+    --leaf: #2f4a33;
+    --leaf-2: #4d6d45;
+    --blush: #e7b5ae;
+    --rose: #a8434f;
+    --ink: #2a2622;
+    --muted: #6d6358;
+    --serif: "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+    --sans: "Gill Sans", "Gill Sans MT", "Segoe UI", Calibri, system-ui, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--kraft); color: var(--ink); font: 15px/1.55 var(--sans); overflow-x: hidden;
+    background-image: radial-gradient(rgba(120,90,50,.08) 1px, transparent 1.2px); background-size: 5px 5px; }
+  :focus-visible { outline: 3px solid var(--rose); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: var(--paper); background: var(--leaf); text-decoration: none; font: 600 13px/1 var(--sans); padding: 9px 13px; border-radius: 0 12px 0 12px; }
+  a.back:hover { background: var(--rose); }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 60px 16px 36px; }
+  header { text-align: center; margin-bottom: 18px; }
+  .eyebrow { margin: 0; font: 600 12px/1.3 var(--sans); letter-spacing: .3em; text-transform: uppercase; color: var(--leaf-2); }
+  h1 { font: italic 400 clamp(40px, 7vw, 72px)/1 var(--serif); margin: 6px 0; color: var(--leaf); }
+  h1 b { font-style: normal; font-weight: 400; color: var(--rose); }
+  .lede { margin: 0 auto; max-width: 66ch; color: #4d463e; overflow-wrap: anywhere; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 20px; align-items: start; }
+  .card { background: var(--paper); border-radius: 3px; padding: 14px 16px; min-width: 0; box-shadow: 0 1px 0 var(--kraft-2), 0 16px 34px -22px rgba(60,40,20,.6); }
+  .card + .card { margin-top: 16px; }
+  h2 { font: 400 25px/1.2 var(--serif); margin: 0 0 8px; color: var(--leaf); }
+  fieldset { border: 0; padding: 0; margin: 0 0 12px; min-width: 0; }
+  legend { font: 600 12px/1.3 var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 5px; padding: 0; }
+  .picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; }
+  .pick { position: relative; min-width: 0; }
+  .pick input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+  .pick span { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px; border: 1px solid var(--kraft-2); border-radius: 8px; background: #fff; font-size: 12px; line-height: 1.2; text-align: center; overflow-wrap: anywhere; }
+  .pick svg { width: 44px; height: 44px; }
+  .pick input:checked + span { border: 2px solid var(--leaf); background: #eef3e8; padding: 5px 3px; }
+  .pick input:focus-visible + span { outline: 3px solid var(--rose); outline-offset: 2px; }
+  .seg { display: flex; flex-wrap: wrap; gap: 6px; }
+  .seg label { position: relative; min-width: 0; }
+  .seg input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+  .seg span { display: inline-block; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--leaf-2); color: var(--leaf); font-size: 14px; background: #fff; }
+  .seg input:checked + span { background: var(--leaf); color: var(--paper); }
+  .seg input:focus-visible + span { outline: 3px solid var(--rose); outline-offset: 2px; }
+  .hue { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px; align-items: center; }
+  .hue svg { width: 120px; height: 120px; cursor: crosshair; touch-action: none; }
+  .field { min-width: 0; margin-bottom: 8px; }
+  .field label { display: block; font: 600 12px/1.3 var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+  input[type=range] { width: 100%; accent-color: var(--leaf); }
+  input[type=number], select { width: 100%; max-width: 100%; min-width: 0; font: 15px var(--sans); padding: 7px 9px; border: 1px solid var(--kraft-2); border-radius: 4px; background: #fff; color: var(--ink); }
+  .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+  .btn { min-height: 40px; padding: 8px 16px; border-radius: 999px; border: 0; background: var(--rose); color: #fff; font: 600 14px/1 var(--sans); cursor: pointer; }
+  .btn:hover { background: #8c3440; }
+  #stage { display: block; width: 100%; height: auto; background: linear-gradient(#fdfaf4, #f3eadb); border-radius: 3px; }
+  .summary { font-size: 14px; margin: 8px 0 0; overflow-wrap: anywhere; }
+  .rules { margin: 0; padding-left: 18px; font-size: 14px; }
+  .rules li { margin-bottom: 6px; overflow-wrap: anywhere; }
+  .tablewrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 5px 6px; border-bottom: 1px solid var(--kraft); text-align: right; vertical-align: middle; }
+  th:first-child, td:first-child { text-align: left; }
+  th { font: 600 11px/1.3 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  td input[type=number] { width: 76px; padding: 5px 6px; text-align: right; }
+  tfoot td { font-weight: 700; border-bottom: 0; font-size: 16px; }
+  .chk { display: flex; gap: 8px; align-items: center; font-size: 14px; margin: 8px 0 0; }
+  .note { font-size: 13px; color: var(--muted); margin: 8px 0 0; overflow-wrap: anywhere; }
+  footer { margin-top: 24px; text-align: center; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+  @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } .stagecol { order: -1; } }
+  @media (max-width: 440px) { .hue { grid-template-columns: minmax(0, 1fr); } .two { grid-template-columns: minmax(0, 1fr); } td input[type=number] { width: 64px; } th, td { padding: 4px 3px; } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">The florist's bench</p>
+    <h1>Bouquet <b>Builder</b></h1>
+    <p class="lede">Choose the flowers, a colour scheme and a shape. The arrangement is generated from a seed, using three rules of thumb florists teach: work in odd numbers, let the flowers stand about 1.6 times the height of the vase, and pick colours by their places on the colour wheel.</p>
+  </header>
+
+  <div class="layout">
+    <div>
+      <section class="card" aria-labelledby="h-flowers">
+        <h2 id="h-flowers">Flowers</h2>
+        <fieldset><legend>Focal flower</legend><div class="picks" id="pick-focal" data-testid="pick-focal"></div></fieldset>
+        <fieldset><legend>Secondary flower</legend><div class="picks" id="pick-secondary" data-testid="pick-secondary"></div></fieldset>
+        <fieldset><legend>Filler</legend><div class="picks" id="pick-filler" data-testid="pick-filler"></div></fieldset>
+        <fieldset><legend>Greenery</legend><div class="picks" id="pick-greenery" data-testid="pick-greenery"></div></fieldset>
+      </section>
+
+      <section class="card" aria-labelledby="h-colour">
+        <h2 id="h-colour">Colour &amp; shape</h2>
+        <fieldset><legend>Colour scheme</legend>
+          <div class="seg" id="schemes" data-testid="schemes">
+            <label><input type="radio" name="scheme" value="monochrome"><span>Monochrome</span></label>
+            <label><input type="radio" name="scheme" value="analogous"><span>Analogous</span></label>
+            <label><input type="radio" name="scheme" value="complementary" checked><span>Complementary</span></label>
+            <label><input type="radio" name="scheme" value="triadic"><span>Triadic</span></label>
+          </div>
+        </fieldset>
+        <div class="hue">
+          <svg id="wheel" data-testid="wheel" viewBox="-60 -60 120 120" role="img" aria-label="Hue wheel"></svg>
+          <div>
+            <div class="field"><label for="hue">Base hue: <span id="hueTxt" data-testid="hue-text">0°</span></label>
+              <input id="hue" data-testid="hue" type="range" min="0" max="359" step="1" value="340"></div>
+            <p class="note" id="schemeNote" data-testid="scheme-note"></p>
+          </div>
+        </div>
+        <fieldset style="margin-top:10px"><legend>Shape</legend>
+          <div class="seg" id="shapes" data-testid="shapes">
+            <label><input type="radio" name="shape" value="round" checked><span>Round</span></label>
+            <label><input type="radio" name="shape" value="cascade"><span>Cascade</span></label>
+            <label><input type="radio" name="shape" value="hand-tied"><span>Hand-tied</span></label>
+          </div>
+        </fieldset>
+        <div class="two">
+          <div class="field"><label for="size">Size</label>
+            <select id="size" data-testid="size"><option value="small">Small</option><option value="medium" selected>Medium</option><option value="large">Large</option></select></div>
+          <div class="field"><label for="vase">Vase height (cm)</label>
+            <input id="vase" data-testid="vase" type="number" min="8" max="60" step="1" value="20" inputmode="numeric"></div>
+        </div>
+        <div class="two">
+          <div class="field"><label for="seed">Seed</label>
+            <input id="seed" data-testid="seed" type="number" min="1" max="999999" step="1" value="1" inputmode="numeric"></div>
+          <div class="field" style="display:flex;align-items:flex-end"><button type="button" class="btn" id="rearrange" data-testid="rearrange">Rearrange</button></div>
+        </div>
+      </section>
+    </div>
+
+    <div class="stagecol">
+      <section class="card" aria-labelledby="h-arr">
+        <h2 id="h-arr">Your arrangement</h2>
+        <svg id="stage" data-testid="stage" viewBox="0 0 440 540" role="img" aria-label="Arrangement"></svg>
+        <p class="summary" id="summary" data-testid="summary" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="card" aria-labelledby="h-cost">
+        <h2 id="h-cost">Stems &amp; cost</h2>
+        <div class="tablewrap">
+          <table data-testid="cost"><thead><tr><th scope="col">Flower</th><th scope="col">In design</th><th scope="col">Buy</th><th scope="col">Price / stem</th><th scope="col">Cost</th></tr></thead>
+            <tbody id="costBody"></tbody>
+            <tfoot><tr><td colspan="4">Total</td><td id="total" data-testid="total">$0.00</td></tr></tfoot></table>
+        </div>
+        <label class="chk"><input type="checkbox" id="spares" data-testid="spares"> Buy spares: one extra stem per ten, rounded up, for breakage</label>
+        <p class="note" id="cuts" data-testid="cuts"></p>
+        <p class="note">Prices are placeholders. Type what your market or wholesaler charges and the totals update.</p>
+      </section>
+
+      <section class="card" aria-labelledby="h-rules">
+        <h2 id="h-rules">The rules of thumb</h2>
+        <ul class="rules">
+          <li><b>Odd numbers.</b> Groups of three, five or seven read as natural and keep the eye moving; even groups tend to pair off and look staged. Every flower here comes in an odd count. It's a convention, not a law.</li>
+          <li><b>The golden ratio for height.</b> A common guide is that the arrangement should stand about 1.5 to 2 times the height of its vase. This builder uses φ ≈ 1.618 exactly: the tallest bloom sits 1.618 vase-heights above the rim.</li>
+          <li><b>Colour wheel schemes.</b> Monochrome keeps one hue and varies its lightness; analogous uses neighbours 30° either side; complementary pairs hues 180° apart; triadic spaces three hues 120° apart. Greenery stays green and isn't counted in the scheme.</li>
+          <li><b>Roles.</b> The focal flower is the largest and draws the eye first; secondary flowers support it; fillers and greenery soften the gaps.</li>
+        </ul>
+      </section>
+    </div>
+  </div>
+  <footer>Built by Zac Corbett · generic flowers drawn in SVG · add <code>?seed=</code> for a repeatable arrangement</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const PHI = (1 + Math.sqrt(5)) / 2;
+  const f1 = (n) => Math.round(n * 10) / 10;
+  const ring = (n, fn) => Array.from({ length: n }, (_, i) => fn(i, (i / n) * 360)).join('');
+
+  // ---------- the flowers: each drawn inside a circle of radius R around 0,0 ----------
+  // c.fill is the scheme colour (class bloom-fill marks the element that carries it)
+  const FL = [
+    { id: 'rose', name: 'Rose', role: 'focal', size: 1, price: 3.00, draw: (R, c) => `<circle class="bloom-fill" r="${R}" fill="${c.fill}"/><circle r="${f1(R * .72)}" fill="${c.light}"/><path d="M0 ${f1(-R * .15)} a${f1(R * .2)} ${f1(R * .2)} 0 1 1 ${f1(R * .3)} ${f1(R * .12)} a${f1(R * .4)} ${f1(R * .4)} 0 1 1 ${f1(-R * .62)} ${f1(-R * .2)} a${f1(R * .62)} ${f1(R * .6)} 0 1 1 ${f1(R * .95)} ${f1(-R * .28)}" fill="none" stroke="${c.dark}" stroke-width="${f1(R * .07)}" stroke-linecap="round"/>` },
+    { id: 'peony', name: 'Peony', role: 'focal', size: 1.1, price: 6.50, draw: (R, c) => ring(9, (i, a) => `<circle transform="rotate(${a}) translate(${f1(R * .56)} 0)" r="${f1(R * .44)}" fill="${i ? c.fill : c.fill}" ${i ? '' : 'class="bloom-fill"'} stroke="${c.dark}" stroke-width="${f1(R * .03)}"/>`) + ring(7, (i, a) => `<circle transform="rotate(${a + 20}) translate(${f1(R * .28)} 0)" r="${f1(R * .3)}" fill="${c.light}" stroke="${c.fill}" stroke-width="${f1(R * .04)}"/>`) + `<circle r="${f1(R * .16)}" fill="${c.fill}"/>` },
+    { id: 'dahlia', name: 'Dahlia', role: 'focal', size: 1, price: 4.25, draw: (R, c) => `<circle r="${f1(R * .5)}" fill="${c.dark}"/>` + ring(16, (i, a) => `<ellipse ${i ? '' : 'class="bloom-fill"'} transform="rotate(${a}) translate(0 ${f1(-R * .62)})" rx="${f1(R * .15)}" ry="${f1(R * .38)}" fill="${c.fill}" stroke="${c.dark}" stroke-width="${f1(R * .025)}"/>`) + ring(10, (i, a) => `<ellipse transform="rotate(${a + 18}) translate(0 ${f1(-R * .33)})" rx="${f1(R * .12)}" ry="${f1(R * .25)}" fill="${c.light}"/>`) + `<circle r="${f1(R * .13)}" fill="${c.dark}"/>` },
+    { id: 'lily', name: 'Lily', role: 'focal', size: 1.05, price: 3.75, draw: (R, c) => ring(6, (i, a) => `<path ${i ? '' : 'class="bloom-fill"'} transform="rotate(${a})" d="M0 0 C${f1(R * .32)} ${f1(-R * .3)} ${f1(R * .22)} ${f1(-R * .8)} 0 ${-R} C${f1(-R * .22)} ${f1(-R * .8)} ${f1(-R * .32)} ${f1(-R * .3)} 0 0Z" fill="${c.fill}" stroke="${c.dark}" stroke-width="${f1(R * .03)}"/>`) + ring(6, (i, a) => `<line transform="rotate(${a + 30})" y2="${f1(-R * .45)}" stroke="#6b5a2a" stroke-width="${f1(R * .03)}"/><circle transform="rotate(${a + 30}) translate(0 ${f1(-R * .47)})" r="${f1(R * .05)}" fill="#8a4b1c"/>`) },
+    { id: 'sunflower', name: 'Sunflower', role: 'focal', size: 1.05, price: 2.75, draw: (R, c) => ring(20, (i, a) => `<ellipse ${i ? '' : 'class="bloom-fill"'} transform="rotate(${a}) translate(0 ${f1(-R * .68)})" rx="${f1(R * .12)}" ry="${f1(R * .32)}" fill="${c.fill}"/>`) + `<circle r="${f1(R * .5)}" fill="#4a2f17"/>` + ring(12, (i, a) => `<circle transform="rotate(${a}) translate(${f1(R * .3)} 0)" r="${f1(R * .04)}" fill="#7a5226"/>`) },
+    { id: 'hydrangea', name: 'Hydrangea', role: 'focal', size: 1.15, price: 5.50, draw: (R, c) => `<circle r="${f1(R * .96)}" fill="${c.dark}" opacity=".35"/>` + [[0, 0], [.45, 0], [-.45, 0], [.22, .4], [-.22, .4], [.22, -.4], [-.22, -.4], [.62, .36], [-.62, .36], [.62, -.36], [-.62, -.36], [0, .72], [0, -.72]].map(([x, y], i) => `<g transform="translate(${f1(x * R)} ${f1(y * R)}) rotate(${i * 23})">` + ring(4, (k, a) => `<ellipse ${i || k ? '' : 'class="bloom-fill"'} transform="rotate(${a}) translate(0 ${f1(-R * .1)})" rx="${f1(R * .08)}" ry="${f1(R * .11)}" fill="${c.fill}"/>`) + `<circle r="${f1(R * .03)}" fill="${c.light}"/></g>`).join('') },
+    { id: 'gerbera', name: 'Gerbera', role: 'focal', size: .95, price: 1.75, draw: (R, c) => ring(24, (i, a) => `<ellipse ${i ? '' : 'class="bloom-fill"'} transform="rotate(${a}) translate(0 ${f1(-R * .63)})" rx="${f1(R * .07)}" ry="${f1(R * .37)}" fill="${c.fill}"/>`) + `<circle r="${f1(R * .3)}" fill="#3a2a1a"/><circle r="${f1(R * .18)}" fill="#6a8a3a"/>` },
+    { id: 'ranunculus', name: 'Ranunculus', role: 'secondary', size: .7, price: 2.50, draw: (R, c) => `<circle class="bloom-fill" r="${R}" fill="${c.fill}" stroke="${c.dark}" stroke-width="${f1(R * .04)}"/>` + [.8, .62, .45, .3].map((k, i) => `<circle r="${f1(R * k)}" fill="${i % 2 ? c.fill : c.light}" stroke="${c.dark}" stroke-width="${f1(R * .035)}"/>`).join('') + `<circle r="${f1(R * .12)}" fill="#5f7a3a"/>` },
+    { id: 'tulip', name: 'Tulip', role: 'secondary', size: .7, price: 1.25, draw: (R, c) => `<circle r="${R}" fill="none"/><path class="bloom-fill" d="M${f1(-R * .62)} ${f1(-R * .55)} Q${f1(-R * .8)} ${f1(R * .6)} 0 ${f1(R * .78)} Q${f1(R * .8)} ${f1(R * .6)} ${f1(R * .62)} ${f1(-R * .55)} L${f1(R * .3)} ${f1(-R * .15)} L0 ${f1(-R * .7)} L${f1(-R * .3)} ${f1(-R * .15)}Z" fill="${c.fill}" stroke="${c.dark}" stroke-width="${f1(R * .04)}"/><path d="M0 ${f1(-R * .7)} Q${f1(R * .12)} ${f1(R * .1)} 0 ${f1(R * .78)}" fill="none" stroke="${c.dark}" stroke-width="${f1(R * .04)}"/>` },
+    { id: 'carnation', name: 'Carnation', role: 'secondary', size: .7, price: 1.00, draw: (R, c) => { const zig = (r1, r2, n) => Array.from({ length: n * 2 }, (_, i) => { const a = i / (n * 2) * Math.PI * 2, r = i % 2 ? r2 : r1; return `${f1(Math.cos(a) * r)},${f1(Math.sin(a) * r)}`; }).join(' '); return `<polygon class="bloom-fill" points="${zig(R, R * .82, 22)}" fill="${c.fill}" stroke="${c.dark}" stroke-width="${f1(R * .03)}"/><polygon points="${zig(R * .7, R * .55, 16)}" fill="${c.light}" stroke="${c.dark}" stroke-width="${f1(R * .03)}"/><polygon points="${zig(R * .38, R * .26, 10)}" fill="${c.fill}"/>`; } },
+    { id: 'anemone', name: 'Anemone', role: 'secondary', size: .75, price: 2.25, draw: (R, c) => ring(6, (i, a) => `<circle ${i ? '' : 'class="bloom-fill"'} transform="rotate(${a}) translate(${f1(R * .56)} 0)" r="${f1(R * .44)}" fill="${c.fill}" stroke="${c.dark}" stroke-width="${f1(R * .03)}"/>`) + `<circle r="${f1(R * .34)}" fill="${c.light}"/><circle r="${f1(R * .22)}" fill="#1e1c24"/>` + ring(14, (i, a) => `<circle transform="rotate(${a}) translate(${f1(R * .28)} 0)" r="${f1(R * .03)}" fill="#1e1c24"/>`) },
+    { id: 'lisianthus', name: 'Lisianthus', role: 'secondary', size: .7, price: 2.00, draw: (R, c) => ring(5, (i, a) => `<ellipse ${i ? '' : 'class="bloom-fill"'} transform="rotate(${a}) translate(${f1(R * .12)} ${f1(-R * .48)}) rotate(20)" rx="${f1(R * .4)}" ry="${f1(R * .5)}" fill="${c.fill}" stroke="${c.dark}" stroke-width="${f1(R * .03)}"/>`) + `<circle r="${f1(R * .22)}" fill="${c.light}"/>` },
+    { id: 'cosmos', name: 'Cosmos', role: 'secondary', size: .7, price: .90, draw: (R, c) => ring(8, (i, a) => `<path ${i ? '' : 'class="bloom-fill"'} transform="rotate(${a})" d="M${f1(-R * .18)} ${f1(-R * .15)} L${f1(-R * .28)} ${f1(-R * .92)} L${f1(-R * .1)} ${f1(-R * .82)} L0 ${f1(-R * .97)} L${f1(R * .1)} ${f1(-R * .82)} L${f1(R * .28)} ${f1(-R * .92)} L${f1(R * .18)} ${f1(-R * .15)}Z" fill="${c.fill}" stroke="${c.dark}" stroke-width="${f1(R * .02)}"/>`) + `<circle r="${f1(R * .2)}" fill="#e2b93b"/>` },
+    { id: 'gypsophila', name: "Baby's breath", role: 'filler', size: .6, price: .80, draw: (R, c) => [[0, 0], [.5, .2], [-.5, .15], [.2, -.55], [-.3, -.5], [.6, -.35], [-.65, -.3], [.1, .6], [-.35, .55], [.45, .6], [.78, .1], [-.8, .05], [0, -.82]].map(([x, y], i) => `<circle ${i ? '' : 'class="bloom-fill"'} cx="${f1(x * R)}" cy="${f1(y * R)}" r="${f1(R * .17)}" fill="${c.fill}" stroke="${c.dark}" stroke-width="${f1(R * .02)}"/>`).join('') },
+    { id: 'waxflower', name: 'Waxflower', role: 'filler', size: .6, price: 1.10, draw: (R, c) => [[0, 0], [.55, .25], [-.55, .2], [.25, -.55], [-.3, -.52], [.1, .62], [-.45, .6], [.62, -.3]].map(([x, y], i) => `<g transform="translate(${f1(x * R)} ${f1(y * R)})">` + ring(5, (k, a) => `<circle ${i || k ? '' : 'class="bloom-fill"'} transform="rotate(${a}) translate(0 ${f1(-R * .13)})" r="${f1(R * .12)}" fill="${c.fill}"/>`) + `<circle r="${f1(R * .06)}" fill="${c.dark}"/></g>`).join('') },
+  ];
+  const GREENS = [
+    { id: 'eucalyptus', name: 'Eucalyptus', role: 'greenery', size: .9, price: 1.50, colour: '#7fa392', draw: (R, c) => `<circle r="${R}" fill="none"/><line y1="${f1(R * .95)}" y2="${f1(-R * .9)}" stroke="#6d7d64" stroke-width="${f1(R * .04)}"/>` + [-.7, -.35, 0, .35, .7].map((y, i) => `<circle cx="${f1((i % 2 ? .3 : -.3) * R)}" cy="${f1(y * R)}" r="${f1(R * .27)}" fill="${c.fill}" stroke="#5d7568" stroke-width="${f1(R * .03)}"/>`).join('') },
+    { id: 'fern', name: 'Fern', role: 'greenery', size: .95, price: .75, colour: '#4f7a3a', draw: (R, c) => `<circle r="${R}" fill="none"/><path d="M0 ${f1(R * .95)} L0 ${f1(-R * .95)}" stroke="${c.fill}" stroke-width="${f1(R * .05)}"/>` + Array.from({ length: 8 }, (_, i) => { const y = R * (.8 - i * .22), w = R * (.8 - i * .09); return `<path d="M0 ${f1(y)} Q${f1(w * .6)} ${f1(y - R * .2)} ${f1(w)} ${f1(y - R * .08)} M0 ${f1(y)} Q${f1(-w * .6)} ${f1(y - R * .2)} ${f1(-w)} ${f1(y - R * .08)}" fill="none" stroke="${c.fill}" stroke-width="${f1(R * .08)}" stroke-linecap="round"/>`; }).join('') },
+    { id: 'ruscus', name: 'Ruscus', role: 'greenery', size: .9, price: 1.00, colour: '#3f6b35', draw: (R, c) => `<circle r="${R}" fill="none"/><line y1="${f1(R * .95)}" y2="${f1(-R * .95)}" stroke="#355a2d" stroke-width="${f1(R * .04)}"/>` + [-.62, -.2, .22, .6].map((y, i) => { const s = i % 2 ? 1 : -1; return `<path d="M0 ${f1(y * R)} Q${f1(s * R * .55)} ${f1(y * R - R * .35)} ${f1(s * R * .62)} ${f1(y * R - R * .05)} Q${f1(s * R * .3)} ${f1(y * R + R * .1)} 0 ${f1(y * R)}Z" fill="${c.fill}"/>`; }).join('') + `<path d="M0 ${-R} Q${f1(R * .22)} ${f1(-R * .7)} 0 ${f1(-R * .5)} Q${f1(-R * .22)} ${f1(-R * .7)} 0 ${-R}Z" fill="${c.fill}"/>` },
+  ];
+  const ALL = FL.concat(GREENS);
+  const byId = Object.fromEntries(ALL.map((f) => [f.id, f]));
+
+  const SCHEMES = {
+    monochrome: { offsets: [0], note: 'One hue at three lightnesses: deep focal flowers, mid secondary, pale filler.' },
+    analogous: { offsets: [0, 30, -30], note: 'The base hue with its neighbours 30° either side on the wheel.' },
+    complementary: { offsets: [0, 180], note: 'Two hues 180° apart, opposite on the wheel: the strongest contrast.' },
+    triadic: { offsets: [0, 120, 240], note: 'Three hues spaced evenly, 120° apart.' },
+  };
+  const COUNTS = { small: { focal: 3, secondary: 5, filler: 3, greenery: 5 }, medium: { focal: 5, secondary: 7, filler: 5, greenery: 7 }, large: { focal: 7, secondary: 9, filler: 7, greenery: 9 } };
+  const ROLE_TONE = { focal: { s: 70, l: 50 }, secondary: { s: 62, l: 62 }, filler: { s: 55, l: 80 } };
+  const mod360 = (h) => ((h % 360) + 360) % 360;
+  const hsl = (h, s, l) => `hsl(${f1(h)}, ${s}%, ${l}%)`;
+
+  function schemeHues(scheme, base) { return SCHEMES[scheme].offsets.map((o) => mod360(base + o)); }
+  function roleHue(scheme, base, role) {
+    const hs = schemeHues(scheme, base);
+    const idx = { focal: 0, secondary: 1, filler: 2 }[role] % hs.length;
+    return hs[idx];
+  }
+
+  // ---------- layout ----------
+  const VW = 440, VH_PX = 170, RIM = 540 - 12 - VH_PX, CX = 220, VASE_W = 128;
+  const APEX = RIM - PHI * VH_PX; // the tallest bloom's top edge
+
+  function generate(o) {
+    const r = mulberry32((o.seed >>> 0) || 1);
+    const counts = { ...COUNTS[o.size] };
+    // a little seeded variety, always odd: sometimes two more secondaries or greens
+    if (r() < 0.5) counts.secondary += 2;
+    if (r() < 0.5) counts.greenery += 2;
+    const A = APEX - 0; // absolute y of apex
+    const H = RIM - APEX; // height of the dome above the rim
+    const Wd = o.shape === 'hand-tied' ? 175 : o.shape === 'cascade' ? 140 : 160;
+    const heads = [];
+    const surface = (x) => { // y of the envelope top at x (dome), never above the apex
+      const k = Math.min(1, Math.abs(x) / Wd);
+      const sh = o.shape === 'hand-tied' ? Math.pow(1 - k * k, 0.8) * 0.96 : Math.sqrt(1 - k * k);
+      return RIM - H * sh;
+    };
+    const place = (role, flower, idx, n) => {
+      const def = byId[flower];
+      const R = Math.round((role === 'greenery' ? 34 : 38 * def.size) * (o.size === 'small' ? 0.95 : o.size === 'large' ? 0.85 : 0.9));
+      let best = null, bestD = -Infinity;
+      const tail = o.shape === 'cascade' && role !== 'focal' && idx % 2 === 1;
+      const tries = 18;
+      for (let t = 0; t < tries; t++) {
+        let x, y;
+        if (role === 'focal' && idx === 0) { x = 0; y = APEX + R; t = tries; }
+        else if (tail) { // trail down over the front right of the vase
+          const u = r();
+          x = 40 + u * (Wd + 10) + (r() - .5) * 26;
+          y = RIM - H * 0.45 + u * (H * 0.45 + VH_PX * 0.55) + (r() - .5) * 20;
+        } else {
+          const spread = role === 'focal' ? .55 : role === 'greenery' ? 1 : .85;
+          x = (r() * 2 - 1) * Wd * spread;
+          if (role === 'greenery') x = (r() < .5 ? -1 : 1) * Wd * (.55 + r() * .45);
+          const top = surface(x);
+          const depth = role === 'focal' ? r() * .35 : role === 'greenery' ? .45 + r() * .5 : .1 + r() * .55;
+          y = top + R + depth * (RIM - top - R) * 0.9;
+        }
+        const lim = VW / 2 - R - 4;
+        x = Math.max(-lim, Math.min(lim, x));
+        if (y - R < APEX) y = APEX + R;              // nothing rises above the golden-ratio line
+        const d = heads.length ? Math.min(...heads.map((h) => Math.hypot(h.cx - CX - x, h.cy - y) - (h.R + R) * .55)) : 1e9;
+        if (d > bestD) { bestD = d; best = { x, y }; }
+      }
+      heads.push({ role, flower, R, cx: CX + best.x, cy: best.y, top: best.y - R });
+      return heads[heads.length - 1];
+    };
+    const stems = [];
+    for (const role of ['focal', 'secondary', 'filler', 'greenery']) {
+      const flower = o.picks[role];
+      for (let i = 0; i < counts[role]; i++) {
+        const h = place(role, flower, i, counts[role]);
+        if (role === 'greenery') { h.colour = byId[flower].colour; h.hue = null; }
+        else {
+          const base = roleHue(o.scheme, o.baseHue, role);
+          const jitter = (r() - .5) * 12;                // ±6° of natural variation
+          const tone = ROLE_TONE[role];
+          const l = o.scheme === 'monochrome' ? tone.l + (r() - .5) * 6 : tone.l + (r() - .5) * 8;
+          h.hue = mod360(base + jitter); h.s = tone.s; h.l = Math.round(l);
+          h.colour = hsl(h.hue, h.s, h.l);
+        }
+        // stems run to a binding point just above the rim; the cut length adds the vase depth
+        const bx = CX + (h.cx - CX) * .08, by = RIM - 6;
+        h.stemPx = Math.hypot(h.cx - bx, h.cy + h.R * .4 - by);
+        h.tilt = Math.atan2(h.cx - bx, by - h.cy) * 180 / Math.PI;
+        stems.push(h);
+      }
+    }
+    const minTop = Math.min(...stems.map((s) => s.top));
+    return { seed: o.seed, counts, stems, rim: RIM, vaseHeightPx: VH_PX, apex: APEX, ratio: (RIM - minTop) / VH_PX, schemeHues: schemeHues(o.scheme, o.baseHue) };
+  }
+
+  // ---------- state ----------
+  const S = {
+    seed: (parseInt(params.get('seed'), 10) >>> 0) || 1,
+    picks: { focal: 'peony', secondary: 'ranunculus', filler: 'gypsophila', greenery: 'eucalyptus' },
+    scheme: 'complementary', baseHue: 340, shape: 'round', size: 'medium', vaseCm: 20, spares: false,
+    prices: Object.fromEntries(ALL.map((f) => [f.id, f.price])),
+  };
+  let arr = null, cost = null;
+
+  function colours(fill) { return { fill, dark: 'rgba(40,20,20,.35)', light: 'rgba(255,255,255,.35)' }; }
+  function thumb(def) {
+    const hue = { focal: 340, secondary: 20, filler: 300, greenery: 0 }[def.role];
+    const fill = def.role === 'greenery' ? def.colour : hsl(hue, ROLE_TONE[def.role].s, ROLE_TONE[def.role].l);
+    return `<svg viewBox="-24 -24 48 48" aria-hidden="true">${def.draw(22, colours(fill))}</svg>`;
+  }
+  function buildPickers() {
+    for (const role of ['focal', 'secondary', 'filler', 'greenery']) {
+      const list = ALL.filter((f) => f.role === role);
+      $('pick-' + role).innerHTML = list.map((f) => `<label class="pick"><input type="radio" name="p-${role}" value="${f.id}" ${S.picks[role] === f.id ? 'checked' : ''} data-testid="pick-${f.id}"><span>${thumb(f)}${f.name}</span></label>`).join('');
+      $('pick-' + role).addEventListener('change', (e) => { S.picks[role] = e.target.value; render(true); });
+    }
+  }
+
+  function drawWheel() {
+    const segs = Array.from({ length: 36 }, (_, i) => {
+      const a0 = (i * 10 - 90 - 5) * Math.PI / 180, a1 = (i * 10 - 90 + 5.5) * Math.PI / 180;
+      const p = (a, rr) => `${f1(Math.cos(a) * rr)} ${f1(Math.sin(a) * rr)}`;
+      return `<path d="M${p(a0, 30)} L${p(a0, 56)} A56 56 0 0 1 ${p(a1, 56)} L${p(a1, 30)} A30 30 0 0 0 ${p(a0, 30)}Z" fill="hsl(${i * 10}, 70%, 55%)"/>`;
+    }).join('');
+    const marks = arr.schemeHues.map((h, i) => { const a = (h - 90) * Math.PI / 180; return `<line x1="0" y1="0" x2="${f1(Math.cos(a) * 43)}" y2="${f1(Math.sin(a) * 43)}" stroke="#2a2622" stroke-width="1.5"/><circle cx="${f1(Math.cos(a) * 43)}" cy="${f1(Math.sin(a) * 43)}" r="${i ? 6 : 8}" fill="hsl(${f1(h)}, 70%, 55%)" stroke="#fff" stroke-width="2.5"/>`; }).join('');
+    $('wheel').innerHTML = segs + `<circle r="29" fill="#fbf7f0"/>` + marks + `<circle r="4" fill="#2a2622"/>`;
+    $('wheel').setAttribute('aria-label', `Hue wheel with ${S.scheme} scheme hues at ${arr.schemeHues.map((h) => Math.round(h) + '°').join(', ')}`);
+  }
+
+  function drawStage() {
+    const top = arr.apex;
+    const vase = `<g class="vase"><path class="vase-body" data-testid="vase-body" d="M${CX - VASE_W / 2} ${RIM} L${CX + VASE_W / 2} ${RIM} L${CX + VASE_W / 2 - 16} ${RIM + VH_PX} L${CX - VASE_W / 2 + 16} ${RIM + VH_PX}Z" fill="rgba(170,200,205,.35)" stroke="rgba(90,120,130,.7)" stroke-width="2"/><rect x="${CX - VASE_W / 2 + 6}" y="${RIM + VH_PX * .45}" width="${VASE_W - 12 - 11}" height="${VH_PX * .5}" fill="rgba(140,180,190,.25)"/></g>`;
+    const stemLines = arr.stems.map((s) => { const bx = CX + (s.cx - CX) * .08; return `<path d="M${f1(s.cx)} ${f1(s.cy)} Q${f1(bx)} ${f1(RIM - 20)} ${f1(CX + (CX - s.cx) * .06)} ${f1(RIM + VH_PX - 8)}" fill="none" stroke="#5c7a45" stroke-width="2.2"/>`; }).join('');
+    const guide = `<g aria-hidden="true"><line x1="10" x2="430" y1="${f1(top)}" y2="${f1(top)}" stroke="#a8434f" stroke-dasharray="4 5" stroke-width="1"/><text x="12" y="${f1(top - 5)}" font-size="11" fill="#a8434f" font-family="Gill Sans, Segoe UI, sans-serif">φ × vase height above the rim</text><line x1="10" x2="430" y1="${RIM}" y2="${RIM}" stroke="#6d6358" stroke-dasharray="2 5" stroke-width="1"/></g>`;
+    const order = ['greenery', 'filler', 'secondary', 'focal'];
+    const heads = arr.stems.map((s, i) => ({ s, i })).sort((a, b) => order.indexOf(a.s.role) - order.indexOf(b.s.role) || a.s.cy - b.s.cy).map(({ s, i }) => {
+      const def = byId[s.flower];
+      const rot = s.role === 'greenery' ? s.tilt : 0;
+      return `<g class="stem head" data-i="${i}" data-role="${s.role}" data-flower="${s.flower}" transform="translate(${f1(s.cx)} ${f1(s.cy)})"><circle class="hit" r="${s.R}" fill="transparent"/><g transform="rotate(${f1(rot)})">${def.draw(s.R, colours(s.colour))}</g></g>`;
+    }).join('');
+    const ribbon = S.shape === 'hand-tied' ? `<path d="M${CX - 18} ${RIM - 10} q18 8 36 0 l-4 10 q-14 -6 -28 0Z" fill="#a8434f"/><path d="M${CX} ${RIM - 6} l-14 26 M${CX} ${RIM - 6} l12 28" stroke="#a8434f" stroke-width="3"/>` : '';
+    $('stage').innerHTML = `<rect width="${VW}" height="540" fill="transparent"/>${guide}${stemLines}${vase}${heads}${ribbon}`;
+    const nm = (role) => byId[S.picks[role]].name.toLowerCase();
+    $('stage').setAttribute('aria-label', `A ${S.shape} arrangement of ${arr.counts.focal} ${nm('focal')}, ${arr.counts.secondary} ${nm('secondary')}, ${arr.counts.filler} ${nm('filler')} and ${arr.counts.greenery} ${nm('greenery')} stems in a ${S.scheme} scheme, standing ${arr.ratio.toFixed(3)} times the vase height above the rim.`);
+  }
+
+  const cents = (p) => Math.round(p * 100);
+  const money = (c) => '$' + (c / 100).toFixed(2);
+  function computeCost() {
+    const rows = ['focal', 'secondary', 'filler', 'greenery'].map((role) => {
+      const id = S.picks[role], n = arr.counts[role];
+      const buy = n + (S.spares ? Math.ceil(n / 10) : 0);
+      return { role, id, name: byId[id].name, stems: n, buy, price: S.prices[id], cents: buy * cents(S.prices[id]) };
+    });
+    return { rows, total: rows.reduce((a, r) => a + r.cents, 0) };
+  }
+  function renderCost() {
+    cost = computeCost();
+    $('costBody').innerHTML = cost.rows.map((r) => `<tr data-role="${r.role}"><td>${r.name} <small style="color:#6d6358">(${r.role})</small></td><td data-testid="n-${r.role}">${r.stems}</td><td data-testid="buy-${r.role}">${r.buy}</td><td><input type="number" min="0" max="999" step="0.05" value="${r.price.toFixed(2)}" data-testid="price-${r.role}" aria-label="Price per stem of ${r.name}" data-id="${r.id}"></td><td data-testid="sub-${r.role}">${money(r.cents)}</td></tr>`).join('');
+    $('total').textContent = money(cost.total);
+    const pxPerCm = VH_PX / S.vaseCm;
+    const cm = arr.stems.map((s) => s.stemPx / pxPerCm + S.vaseCm * 0.95);
+    $('cuts').textContent = `Cut stems to between ${Math.round(Math.min(...cm))} and ${Math.round(Math.max(...cm))} cm for a ${S.vaseCm} cm vase: the flowers stand about ${Math.round(PHI * S.vaseCm)} cm above the rim.`;
+  }
+  $('costBody').addEventListener('input', (e) => {
+    const el = e.target; if (!el.dataset.id) return;
+    const v = parseFloat(el.value); if (!Number.isFinite(v) || v < 0) return;
+    S.prices[el.dataset.id] = v;
+    cost = computeCost();
+    const r = cost.rows.find((x) => x.id === el.dataset.id);
+    cost.rows.filter((x) => x.id === el.dataset.id).forEach((x) => { const td = document.querySelector(`[data-testid=sub-${x.role}]`); if (td) td.textContent = money(x.cents); });
+    $('total').textContent = money(cost.total);
+    void r;
+  });
+
+  function render(announce) {
+    arr = generate({ seed: S.seed, picks: S.picks, scheme: S.scheme, baseHue: S.baseHue, shape: S.shape, size: S.size });
+    $('hueTxt').textContent = S.baseHue + '°';
+    $('schemeNote').textContent = SCHEMES[S.scheme].note;
+    drawWheel(); drawStage(); renderCost();
+    const total = arr.stems.length;
+    if (announce) $('summary').textContent = `${total} stems: ${arr.counts.focal} focal, ${arr.counts.secondary} secondary, ${arr.counts.filler} filler, ${arr.counts.greenery} greenery. ${S.shape[0].toUpperCase() + S.shape.slice(1)}, ${S.scheme}, seed ${S.seed}. Total ${money(cost.total)}.`;
+  }
+
+  // ---------- controls ----------
+  document.querySelectorAll('input[name=scheme]').forEach((el) => el.addEventListener('change', () => { S.scheme = el.value; render(true); }));
+  document.querySelectorAll('input[name=shape]').forEach((el) => el.addEventListener('change', () => { S.shape = el.value; render(true); }));
+  $('size').addEventListener('change', () => { S.size = $('size').value; render(true); });
+  $('hue').addEventListener('input', () => { S.baseHue = parseInt($('hue').value, 10) || 0; render(false); });
+  $('hue').addEventListener('change', () => render(true));
+  $('vase').addEventListener('change', () => { const v = parseInt($('vase').value, 10); if (v >= 8 && v <= 60) S.vaseCm = v; $('vase').value = S.vaseCm; renderCost(); });
+  $('spares').addEventListener('change', () => { S.spares = $('spares').checked; renderCost(); render(true); });
+  $('seed').addEventListener('change', () => { const v = parseInt($('seed').value, 10); if (v >= 1) { S.seed = v; writeUrl(); } $('seed').value = S.seed; render(true); });
+  $('rearrange').addEventListener('click', () => { S.seed = 1 + Math.floor(Math.random() * 99999); $('seed').value = S.seed; writeUrl(); render(true); });
+  function writeUrl() { try { const u = new URL(location.href); u.searchParams.set('seed', S.seed); history.replaceState(null, '', u); } catch (e) { /* ignore */ } }
+  function wheelPick(e) {
+    const b = $('wheel').getBoundingClientRect();
+    const x = e.clientX - (b.left + b.width / 2), y = e.clientY - (b.top + b.height / 2);
+    if (Math.hypot(x, y) < b.width * 0.2) return;
+    S.baseHue = Math.round(mod360(Math.atan2(y, x) * 180 / Math.PI + 90)) % 360;
+    $('hue').value = S.baseHue; render(true);
+  }
+  $('wheel').addEventListener('pointerdown', wheelPick);
+
+  $('seed').value = S.seed;
+  $('hue').value = S.baseHue;
+  buildPickers();
+  render(true);
+
+  window.__bouquet = {
+    get state() { return JSON.parse(JSON.stringify({ seed: S.seed, picks: S.picks, scheme: S.scheme, baseHue: S.baseHue, shape: S.shape, size: S.size, vaseCm: S.vaseCm, spares: S.spares, prices: S.prices, arrangement: arr, cost })); },
+    generate: (o) => JSON.parse(JSON.stringify(generate({ seed: 1, picks: S.picks, scheme: 'complementary', baseHue: 340, shape: 'round', size: 'medium', ...o }))),
+    flowers: ALL.map((f) => ({ id: f.id, name: f.name, role: f.role })),
+    PHI,
+  };
+})();
+</script>
+</body>
+</html>

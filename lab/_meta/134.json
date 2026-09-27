@@ -1,0 +1,38 @@
+{
+  "id": "134",
+  "slug": "134-coloring-pages",
+  "file": "lab/134-coloring-pages.html",
+  "title": "Coloring Pages — generate, color, print",
+  "category": "Generative",
+  "tags": ["canvas", "flood-fill", "sobel", "print-css", "seeded-prng", "file-upload"],
+  "description": "Seeded line-art coloring pages: mandalas with 6- to 16-fold symmetry, a Texas wildflower meadow of bluebonnets, Indian paintbrush and black-eyed Susans, zentangle-style pattern tiles, and simple animals built from shapes. A photo mode turns an uploaded or demo picture into a page with greyscale, a Gaussian blur, Sobel edges, a threshold and speck cleanup. Color it in the page with a scanline flood fill, 24 crayons, undo and redo, then print just the page or download a PNG. Photos stay on the device.",
+  "prompt": "Make a coloring page generator. Seeded line art: mandalas with n-fold symmetry, a Texas wildflower meadow, geometric zentangle-style fills, and simple animals built from shapes. Add a photo-to-coloring-page mode that runs a greyscale blur, Sobel edges, thresholding and a line cleanup on an uploaded or demo image, and never uploads the photo. Let me color in the page with a scanline flood fill, a palette, and undo and redo, with print-only CSS that prints just the page, and a PNG download. The spec should check the flood fill stays inside closed regions by counting pixels on a known synthetic image, undo and redo, mandala rotational symmetry from the state hook's shape data, Sobel output on a synthetic step edge, and the print CSS with page.emulateMedia.",
+  "qa": {
+    "methodology": [
+      "Pixel-exact fills: the test draws two hollow rectangles with 4 px walls into a PNG and uploads it in line-art mode. The line mask must hold exactly 200² − 192² + 200·300 − 192·292 pixels, a fill inside must colour exactly 192² pixels, and a fill outside exactly 850 · 1100 − 200² − 200·300.",
+      "Analytical Sobel oracle: on an 8 × 6 step image the magnitude must be 4 · 255 = 1020 on the two columns either side of the step and zero everywhere else, and the same transposed. Through the real upload pipeline, one [1 2 1]/4 blur pass gives 0, 63.75, 191.25, 255 across the step, so the traced columns must be 423–426 at threshold 80 and only 424–425 at 300, with bold lines adding one column each side.",
+      "Symmetry from data: the mandala's shape list is read from __color.state, and every motif rotated by 360°/n about the centre must land on another motif of the same kind within 10⁻⁶ px. The check runs at 6, 8, 12 and 16 folds, and the remaining shapes must be centred rings.",
+      "History: two fills, two undos back to all-white, two redos, Ctrl+Z and Ctrl+Y, and a new fill that clears the redo stack. A tap on a line or on a region that is already that colour must not record anything.",
+      "Output: page.emulateMedia({ media: 'print' }) must hide every control and leave the sheet at full width with the 850 : 1100 ratio, and the download must be a real PNG whose IHDR says 850 × 1100."
+    ],
+    "risks": [
+      "Anti-aliasing: canvas strokes are soft-edged, which would leave grey halos that a fill can't reach. The generator binarises its own drawing into a hard line mask, and the fill only compares against that mask.",
+      "Photo tracing is only as good as the picture: low-contrast boundaries fall under the threshold. The page says so and exposes blur, threshold, speck size and line weight.",
+      "Memory: undo keeps the changed pixel indices of each fill rather than whole-canvas snapshots, and is capped at 60 steps. A big background fill still stores close to a million indices.",
+      "Print layout depends on the browser's print engine. The test checks the CSS in print emulation, not a real printed page."
+    ],
+    "playwright": "setInputFiles with a buffer drawn in the page gave the fill and Sobel tests a known image, so every assertion is an exact count or column list rather than a snapshot. page.emulateMedia made the print stylesheet testable in a normal run, and waitForEvent('download') plus createReadStream let the test read the PNG header. The state hook exposes the mandala shapes and the line mask as numbers, so symmetry is checked on geometry, not pixels. A screenshot during development showed the demo picture's hills and sun going missing at the first default threshold (140); I lowered it to 80 and gave the demo stronger luminance contrast. The first spec run failed only on a lower bound I had guessed for the demo's line count, which I then loosened.",
+    "coverage": [
+      "Flood fill inside/outside two closed boxes, exact counts, zero requests",
+      "Undo, redo, keyboard shortcuts, redo cleared, no-op fills",
+      "Mandala n-fold symmetry at 6, 8, 12, 16 and seed determinism",
+      "Sobel on vertical and horizontal step edges; flat-image blur",
+      "Photo pipeline columns vs blur, threshold and line weight; demo picture",
+      "Print media hides controls, sheet at full width",
+      "PNG download name and IHDR size",
+      "All styles draw, URL keeps style and seed, reload reproduces the page",
+      "Keyboard ring and Enter-to-fill; clear colors"
+    ]
+  },
+  "a11y": "Styles and crayons are toggle buttons with aria-pressed and names, and every photo setting is a labelled native control. The privacy note is tied to the file input. The sheet is a focusable canvas with a visible ring cursor: the arrow keys move it (Shift for big steps) and Enter fills, and Ctrl+Z and Ctrl+Y undo and redo. Fills, errors and tracing results are announced in an aria-live status. When Undo or Redo becomes disabled while focused, focus moves back to the sheet."
+}

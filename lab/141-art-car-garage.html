@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Art Car Garage — design a rolling sculpture</title>
+<meta name="description" content="Design a rolling sculpture, inspired by Houston's long-running Art Car Parade: pick a sedan, pickup, bug or school bus, stack seeded decoration layers (paint, mosaic tiles, bottle caps, a flame job, googly eyes, horns, fins and a giant armadillo), reorder, lock and reroll them, roll it past a skyline in parade mode, and export a PNG.">
+<style>
+  :root {
+    --peg: #d2ab74; --peg-2: #b98f58; --ink: #231a12; --muted: #5d4a36; --teal: #13a89e; --pink: #ff3e8a; --sun: #ffd23f; --paper: #fff8ea; --line: #a7824f;
+    --display: "Arial Black", "Impact", "Haettenschweiler", "Segoe UI Black", system-ui, sans-serif;
+    --sans: "Verdana", "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--peg); color: var(--ink); font: 14px/1.5 var(--sans); overflow-x: hidden; min-height: 100vh;
+    background-image: radial-gradient(circle, var(--peg-2) 0 2.5px, transparent 3px); background-size: 26px 26px; }
+  [hidden] { display: none !important; }
+  :focus-visible { outline: 3px solid #1d4fd6; outline-offset: 2px; }
+  a.back { position: fixed; top: 12px; left: 12px; z-index: 30; color: #fff; background: var(--ink); text-decoration: none; font: 700 13px/1 var(--sans); padding: 8px 12px; border-radius: 3px; border: 2px solid var(--sun); }
+  a.back:hover { background: var(--pink); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 60px 16px 40px; }
+  header { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: end; justify-content: space-between; }
+  h1 { font: 400 clamp(30px, 7vw, 60px)/.95 var(--display); margin: 0; color: var(--pink); text-shadow: 3px 3px 0 var(--ink), 6px 6px 0 var(--sun); letter-spacing: .01em; overflow-wrap: anywhere; min-width: 0; }
+  header p { margin: 0; max-width: 56ch; background: var(--paper); padding: 8px 12px; border: 2px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); min-width: 0; }
+  .shop { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 16px; margin-top: 18px; }
+  @media (max-width: 900px) { .shop { grid-template-columns: minmax(0, 1fr); } }
+  .panel { background: var(--paper); border: 3px solid var(--ink); box-shadow: 6px 6px 0 var(--ink); padding: 12px; min-width: 0; }
+  h2 { font: 400 18px/1.2 var(--display); margin: 0 0 10px; letter-spacing: .03em; }
+  canvas { display: block; width: 100%; height: auto; background: #3a3530; border: 3px solid var(--ink); border-radius: 4px; }
+  .cars { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 0 0 10px; border: 0; padding: 0; min-width: 0; }
+  .cars legend { font: 700 12px var(--sans); margin-bottom: 4px; }
+  .cars label { display: flex; align-items: center; justify-content: center; gap: 4px; text-align: center; border: 2px solid var(--ink); background: #fff; padding: 8px 4px; font: 700 12px/1.2 var(--sans); cursor: pointer; min-height: 44px; min-width: 0; overflow-wrap: anywhere; }
+  .cars label:has(input:checked) { background: var(--teal); color: #fff; }
+  .cars input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .cars label:has(input:focus-visible) { outline: 3px solid #1d4fd6; outline-offset: 2px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+  button { font: 700 13px var(--sans); border: 2px solid var(--ink); background: var(--sun); color: var(--ink); padding: 8px 12px; min-height: 40px; cursor: pointer; box-shadow: 3px 3px 0 var(--ink); border-radius: 2px; }
+  button:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+  button.pink { background: var(--pink); color: #fff; }
+  button.teal { background: var(--teal); color: #fff; }
+  button:disabled { opacity: .45; cursor: default; box-shadow: none; }
+  button[aria-pressed=true].tog { background: var(--ink); color: #fff; }
+  .seed { font: 12px ui-monospace, Menlo, Consolas, monospace; color: var(--muted); }
+  ol.stack { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  ol.stack li { border: 2px solid var(--ink); background: #fff; padding: 6px; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 4px 8px; align-items: center; }
+  ol.stack li.locked { background: #eee6d6; }
+  ol.stack li.hiddenL .nm { text-decoration: line-through; color: var(--muted); }
+  .sw { width: 22px; height: 22px; border: 2px solid var(--ink); border-radius: 50%; }
+  .nm { font: 700 13px var(--sans); overflow-wrap: anywhere; min-width: 0; }
+  .nm small { display: block; font: 11px ui-monospace, Menlo, Consolas, monospace; color: var(--muted); }
+  .acts { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; }
+  .acts button { min-height: 36px; padding: 4px 8px; font-size: 12px; box-shadow: 2px 2px 0 var(--ink); }
+  .hint { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+  .status { font: 700 13px var(--sans); min-height: 1.5em; margin-top: 8px; overflow-wrap: anywhere; }
+  footer { font-size: 12px; text-align: center; margin-top: 26px; color: var(--ink); }
+  footer span { background: var(--paper); padding: 4px 8px; border: 1px solid var(--ink); display: inline-block; max-width: 100%; }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <h1>Art Car<br>Garage</h1>
+    <p>Houston's long-running Art Car Parade turns everyday cars into rolling sculpture. This garage is a small tribute, inspired by that tradition and not affiliated with it: pick a car, stack decoration layers, and take it for a spin past the skyline.</p>
+  </header>
+
+  <div class="shop">
+    <div class="panel">
+      <fieldset class="cars">
+        <legend>Start from</legend>
+        <label><input type="radio" name="car" value="sedan" data-testid="car-sedan" checked>Sedan</label>
+        <label><input type="radio" name="car" value="pickup" data-testid="car-pickup">Pickup</label>
+        <label><input type="radio" name="car" value="bug" data-testid="car-bug">Bug-style</label>
+        <label><input type="radio" name="car" value="bus" data-testid="car-bus">School bus</label>
+      </fieldset>
+      <canvas id="cv" width="960" height="540" role="img" aria-label="Art car" data-testid="canvas"></canvas>
+      <div class="bar">
+        <button type="button" class="pink" id="parade" aria-pressed="false" data-testid="parade">Start the parade</button>
+        <button type="button" id="rerollAll" data-testid="reroll-all">Reroll unlocked layers</button>
+        <button type="button" id="newSeed" data-testid="new-seed">New car seed</button>
+        <button type="button" class="teal" id="export" data-testid="export">Export PNG</button>
+        <span class="seed" id="seedTxt" data-testid="seed"></span>
+      </div>
+      <div class="status" id="status" role="status" aria-live="polite" data-testid="status"></div>
+    </div>
+
+    <div class="panel">
+      <h2 id="h-stack">Layer stack</h2>
+      <ol class="stack" id="stack" aria-labelledby="h-stack" data-testid="stack"></ol>
+      <p class="hint">Top of the list is painted last, so it sits on top. Lock a layer to keep it when you reroll. Paint, tiles, caps and flames stay on the bodywork; eyes and sculpture can stick out.</p>
+    </div>
+  </div>
+  <footer><span>Built by Zac Corbett · canvas drawing, no images · add <code>?seed=</code> for a repeatable car · inspired by Houston's art car tradition, no affiliation</span></footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = s => document.querySelector(s);
+  const W = 960, H = 540, PARADE_MS = 8000, CONFETTI = 150;
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const params = new URLSearchParams(location.search);
+  let seed = (parseInt(params.get('seed'), 10) >>> 0) || 88;
+
+  // ---------- cars: silhouettes as SVG path data ----------
+  const CARS = {
+    sedan: { name: 'sedan', body: 'M110 410 L110 340 Q112 312 150 305 L300 290 L372 222 Q388 208 420 208 L590 208 Q622 208 640 224 L720 290 L825 302 Q858 308 858 340 L858 410 Z',
+      windows: 'M388 290 L430 228 L500 228 L500 290 Z M515 290 L515 228 L585 228 Q610 228 622 242 L668 290 Z', wheels: [[250, 410, 52], [715, 410, 52]], roof: [420, 590, 208], box: [110, 208, 858, 410], rear: [110, 305] },
+    pickup: { name: 'pickup', body: 'M100 410 L100 320 L430 320 L430 230 Q430 212 450 212 L590 212 Q612 212 628 232 L690 305 L830 315 Q862 320 862 350 L862 410 Z',
+      windows: 'M455 300 L455 236 L585 236 Q600 236 610 250 L650 300 Z', wheels: [[230, 410, 54], [730, 410, 54]], roof: [450, 590, 212], box: [100, 212, 862, 410], rear: [100, 320] },
+    bug: { name: 'bug-style car', body: 'M140 410 Q130 330 210 300 Q300 180 470 175 Q650 180 740 300 Q830 330 820 410 Z',
+      windows: 'M330 290 Q380 215 465 208 L465 290 Z M485 290 L485 208 Q580 215 625 290 Z', wheels: [[270, 410, 50], [690, 410, 50]], roof: [400, 540, 176], box: [135, 175, 830, 410], rear: [150, 330] },
+    bus: { name: 'school bus', body: 'M70 410 L70 200 Q70 170 100 170 L800 170 Q830 170 840 200 L880 300 Q890 320 890 345 L890 410 Z',
+      windows: 'M110 200 h70 v70 h-70 Z M205 200 h70 v70 h-70 Z M300 200 h70 v70 h-70 Z M395 200 h70 v70 h-70 Z M490 200 h70 v70 h-70 Z M585 200 h70 v70 h-70 Z M690 200 h90 v70 h-90 Z M800 200 L830 200 L862 290 L800 290 Z',
+      wheels: [[200, 410, 50], [740, 410, 50]], roof: [120, 780, 170], box: [70, 170, 890, 410], rear: [70, 200] },
+  };
+  const LAYERS = [
+    { kind: 'paint', name: 'Paint job', sw: '#13a89e' },
+    { kind: 'mosaic', name: 'Mosaic tiles', sw: '#4b7bec' },
+    { kind: 'caps', name: 'Bottle caps', sw: '#c0c0c0' },
+    { kind: 'flames', name: 'Flame job', sw: '#ff7a1a' },
+    { kind: 'eyes', name: 'Googly eyes', sw: '#ffffff' },
+    { kind: 'addons', name: 'Sculpture add-ons', sw: '#8d6e63' },
+  ];
+  const PAL = ['#ff3e8a', '#13a89e', '#ffd23f', '#4b7bec', '#7d3cff', '#ff7a1a', '#2ecc71', '#e84118', '#00a8ff', '#f8a5c2', '#1e272e', '#f5f6fa'];
+
+  const probe = document.createElement('canvas').getContext('2d');
+  const pathCache = {};
+  function paths(car) {
+    if (!pathCache[car]) { const c = CARS[car]; const surf = new Path2D(c.body); surf.addPath(new Path2D(c.windows)); pathCache[car] = { body: new Path2D(c.body), win: new Path2D(c.windows), surf }; }
+    return pathCache[car];
+  }
+  const onSurface = (car, x, y) => { const p = paths(car); return probe.isPointInPath(p.body, x, y) && !probe.isPointInPath(p.win, x, y); };
+
+  // ---------- generators: (car, layer seed) -> plain data ----------
+  const pick = (r, a) => a[Math.floor(r() * a.length)];
+  const round = x => Math.round(x * 10) / 10;
+  const GEN = {
+    paint(car, r) {
+      const base = pick(r, PAL); let alt = pick(r, PAL); if (alt === base) alt = '#1e272e';
+      return { base, alt, pattern: pick(r, ['solid', 'stripes', 'dots', 'checker', 'zigzag']), size: 18 + Math.floor(r() * 26), tilt: round(r() * 40 - 20) };
+    },
+    mosaic(car, r) {
+      const [x0, y0, x1, y1] = CARS[car].box, s = 14 + Math.floor(r() * 9), cols = [pick(r, PAL), pick(r, PAL), pick(r, PAL), pick(r, PAL)];
+      const band = [y0 + (y1 - y0) * (0.2 + r() * 0.3), y0 + (y1 - y0) * (0.65 + r() * 0.35)];
+      const tiles = [];
+      for (let y = band[0]; y < band[1]; y += s) for (let x = x0; x < x1; x += s) { if (r() < 0.12) continue; if (onSurface(car, x + s / 2, y + s / 2)) tiles.push({ x: round(x), y: round(y), c: cols[Math.floor(r() * 4)] }); }
+      return { size: s, tiles };
+    },
+    caps(car, r) {
+      const [x0, y0, x1, y1] = CARS[car].box, n = 25 + Math.floor(r() * 40), caps = [];
+      for (let k = 0; k < n * 4 && caps.length < n; k++) {
+        const x = x0 + r() * (x1 - x0), y = y0 + r() * (y1 - y0), rr = 9 + r() * 5, c = pick(r, ['#c0392b', '#d4ac0d', '#bdc3c7', '#1e8449', '#2e86c1', '#f5f6fa']);
+        if (onSurface(car, x, y)) caps.push({ x: round(x), y: round(y), r: round(rr), c });
+      }
+      return { caps };
+    },
+    flames(car, r) {
+      const c = CARS[car], front = c.box[2], n = 5 + Math.floor(r() * 4), tongues = [];
+      for (let i = 0; i < n; i++) tongues.push({ y: round(c.box[3] - 18 - i * (80 / n) - r() * 10), len: round(160 + r() * 260), w: round(14 + r() * 14) });
+      return { front, tongues, hot: pick(r, [['#ffd23f', '#ff7a1a', '#e84118'], ['#9ff3ff', '#00a8ff', '#5f27cd'], ['#fffa65', '#32ff7e', '#18a05e']]) };
+    },
+    eyes(car, r) {
+      const [x0, y0, x1, y1] = CARS[car].box, n = 2 + Math.floor(r() * 6), eyes = [];
+      for (let k = 0; k < 300 && eyes.length < n; k++) {
+        const rr = 14 + r() * 22, x = x0 + rr + r() * (x1 - x0 - 2 * rr), y = y0 + rr + r() * (y1 - y0 - 2 * rr - 40);
+        if (!probe.isPointInPath(paths(car).body, x, y)) continue;
+        if (eyes.some(e => Math.hypot(e.x - x, e.y - y) < e.r + rr + 4)) continue;
+        const a = r() * Math.PI * 2;
+        eyes.push({ x: round(x), y: round(y), r: round(rr), px: round(Math.cos(a) * rr * 0.45), py: round(Math.sin(a) * rr * 0.45) });
+      }
+      return { eyes };
+    },
+    addons(car, r) {
+      const c = CARS[car], [rx0, rx1, ry] = c.roof, kinds = ['horns', 'fins', 'armadillo'];
+      const first = pick(r, kinds), items = [];
+      const chosen = r() < 0.5 ? [first] : [first, pick(r, kinds.filter(k => k !== first))];
+      for (const k of chosen) {
+        if (k === 'armadillo') items.push({ kind: k, x: round(rx0 + (rx1 - rx0) * (0.35 + r() * 0.3)), y: ry, s: round(0.8 + r() * 0.5), c: pick(r, ['#8d6e63', '#b0a18f', '#f8a5c2', '#7d3cff']) });
+        if (k === 'horns') items.push({ kind: k, x: round(c.box[2] - 120 - r() * 60), y: round(ry + (c.box[3] - ry) * 0.35), span: round(120 + r() * 120), c: pick(r, ['#f3e5c8', '#fdfcdc', '#d9c49b']) });
+        if (k === 'fins') items.push({ kind: k, x: c.rear[0], y: c.rear[1], h: round(60 + r() * 60), c: pick(r, PAL) });
+      }
+      return { items };
+    },
+  };
+
+  // ---------- painters ----------
+  function drawPaint(g, d) {
+    g.fillStyle = d.base; g.fillRect(0, 0, W, H); g.fillStyle = d.alt; g.strokeStyle = d.alt;
+    g.save(); g.translate(W / 2, H / 2); g.rotate(d.tilt * Math.PI / 180); g.translate(-W, -H);
+    const s = d.size;
+    if (d.pattern === 'stripes') for (let x = 0; x < 2 * W; x += s * 2) g.fillRect(x, 0, s, 2 * H);
+    else if (d.pattern === 'dots') for (let y = 0; y < 2 * H; y += s * 1.6) for (let x = 0; x < 2 * W; x += s * 1.6) { g.beginPath(); g.arc(x, y, s / 2.5, 0, 7); g.fill(); }
+    else if (d.pattern === 'checker') for (let y = 0; y < 2 * H; y += s) for (let x = 0; x < 2 * W; x += s) if (((x + y) / s) % 2 === 0) g.fillRect(x, y, s, s);
+    else if (d.pattern === 'zigzag') { g.lineWidth = s / 3; for (let y = 0; y < 2 * H; y += s * 1.5) { g.beginPath(); for (let x = 0; x <= 2 * W; x += s) g.lineTo(x, y + ((x / s) % 2 ? s / 2 : 0)); g.stroke(); } }
+    g.restore();
+  }
+  function drawMosaic(g, d) { g.lineWidth = 1.5; g.strokeStyle = '#2d2a26'; for (const t of d.tiles) { g.fillStyle = t.c; g.fillRect(t.x, t.y, d.size, d.size); g.strokeRect(t.x + .75, t.y + .75, d.size - 1.5, d.size - 1.5); } }
+  function drawCaps(g, d) {
+    for (const c of d.caps) {
+      g.beginPath();
+      for (let i = 0; i <= 42; i++) { const a = i / 42 * Math.PI * 2, rr = i % 2 ? c.r : c.r * 0.86; g.lineTo(c.x + Math.cos(a) * rr, c.y + Math.sin(a) * rr); }
+      g.fillStyle = c.c; g.fill(); g.strokeStyle = 'rgba(0,0,0,.45)'; g.lineWidth = 1; g.stroke();
+      g.beginPath(); g.arc(c.x, c.y, c.r * 0.6, 0, 7); g.strokeStyle = 'rgba(255,255,255,.6)'; g.stroke();
+    }
+  }
+  function drawFlames(g, d) {
+    d.hot.slice().reverse().forEach((col, k) => {
+      const sc = 1 - k * 0.28;                     // outer red, inner yellow
+      g.fillStyle = col;
+      for (const t of d.tongues) {
+        const L = t.len * sc, w = t.w * sc, x = d.front + 10;
+        g.beginPath(); g.moveTo(x, t.y - w);
+        g.bezierCurveTo(x - L * 0.4, t.y - w * 1.6, x - L * 0.6, t.y + w * 0.2, x - L, t.y - w * 0.8);
+        g.bezierCurveTo(x - L * 0.7, t.y + w * 0.6, x - L * 0.35, t.y + w * 1.3, x, t.y + w);
+        g.closePath(); g.fill();
+      }
+    });
+  }
+  function drawEyes(g, d) {
+    for (const e of d.eyes) {
+      g.beginPath(); g.arc(e.x, e.y, e.r, 0, 7); g.fillStyle = '#fff'; g.fill(); g.lineWidth = 3; g.strokeStyle = '#111'; g.stroke();
+      g.beginPath(); g.arc(e.x + e.px, e.y + e.py, e.r * 0.45, 0, 7); g.fillStyle = '#111'; g.fill();
+      g.beginPath(); g.arc(e.x + e.px - e.r * 0.15, e.y + e.py - e.r * 0.15, e.r * 0.1, 0, 7); g.fillStyle = '#fff'; g.fill();
+    }
+  }
+  function drawAddons(g, d) {
+    for (const it of d.items) {
+      g.save(); g.lineJoin = 'round'; g.lineCap = 'round';
+      if (it.kind === 'horns') {
+        g.translate(it.x, it.y); const s = it.span;
+        g.fillStyle = '#5d4037'; g.beginPath(); g.ellipse(0, 0, 28, 18, 0, 0, 7); g.fill();
+        for (const dir of [-1, 1]) {
+          g.beginPath(); g.moveTo(dir * 18, -6); g.quadraticCurveTo(dir * s * 0.55, -10, dir * s, -s * 0.45); g.quadraticCurveTo(dir * s * 0.5, 4, dir * 18, 8); g.closePath();
+          g.fillStyle = it.c; g.fill(); g.strokeStyle = '#3e2b1f'; g.lineWidth = 2.5; g.stroke();
+        }
+      } else if (it.kind === 'fins') {
+        g.translate(it.x, it.y);
+        for (const off of [0, 26]) {
+          g.beginPath(); g.moveTo(off + 8, 0); g.lineTo(off - 50, -it.h); g.quadraticCurveTo(off + 30, -it.h * 0.6, off + 110, 0); g.closePath();
+          g.fillStyle = it.c; g.fill(); g.strokeStyle = '#1e272e'; g.lineWidth = 3; g.stroke();
+        }
+      } else if (it.kind === 'armadillo') {
+        g.translate(it.x, it.y); g.scale(it.s, it.s);
+        g.fillStyle = it.c; g.strokeStyle = '#2d2a26'; g.lineWidth = 3;
+        g.beginPath(); g.moveTo(-95, -8); g.quadraticCurveTo(-150, -4, -170, 18); g.quadraticCurveTo(-140, 0, -95, 4); g.fill(); g.stroke();   // tail
+        g.beginPath(); g.moveTo(-100, 0); g.bezierCurveTo(-100, -110, 100, -110, 100, 0); g.closePath(); g.fill(); g.stroke();                 // shell
+        for (let i = -3; i <= 3; i++) { g.beginPath(); g.moveTo(i * 22, -3); g.quadraticCurveTo(i * 26, -60, i * 18, -80 + Math.abs(i) * 10); g.stroke(); }
+        g.beginPath(); g.moveTo(92, -30); g.lineTo(170, -12); g.lineTo(96, 2); g.closePath(); g.fill(); g.stroke();                        // snout
+        g.beginPath(); g.ellipse(102, -44, 9, 20, -0.4, 0, 7); g.fill(); g.stroke();                                                       // ear
+        g.beginPath(); g.arc(120, -22, 4, 0, 7); g.fillStyle = '#111'; g.fill();
+        g.fillStyle = it.c;
+        for (const lx of [-70, -30, 30, 70]) { g.beginPath(); g.rect(lx - 9, -4, 18, 14); g.fill(); g.stroke(); }
+      }
+      g.restore();
+    }
+  }
+  const PAINTERS = { paint: drawPaint, mosaic: drawMosaic, caps: drawCaps, flames: drawFlames, eyes: drawEyes, addons: drawAddons };
+  const CLIPPED = new Set(['paint', 'mosaic', 'caps', 'flames']);
+
+  // ---------- state ----------
+  let car = 'sedan', master, layers, rerolls = 0, renderLog = [];
+  function reset(newSeed) {
+    seed = newSeed; master = mulberry32(seed); rerolls = 0;
+    layers = LAYERS.map((L, i) => ({ id: L.kind, kind: L.kind, name: L.name, sw: L.sw, seed: Math.floor(master() * 2 ** 31), locked: false, visible: true, data: null }));
+  }
+  function generate() { for (const l of layers) l.data = GEN[l.kind](car, mulberry32(l.seed)); }
+
+  // ---------- render ----------
+  const carCanvas = document.createElement('canvas'); carCanvas.width = W; carCanvas.height = H;
+  const garageCanvas = document.createElement('canvas'); garageCanvas.width = W; garageCanvas.height = H;
+  const cv = $('#cv'), vis = cv.getContext('2d');
+  function renderCar() {
+    const g = carCanvas.getContext('2d'), p = paths(car);
+    g.clearRect(0, 0, W, H);
+    g.fillStyle = '#9aa0a6'; g.fill(p.body);                              // primer
+    renderLog = [];
+    for (const l of layers) {
+      if (!l.visible) continue;
+      g.save();
+      if (CLIPPED.has(l.kind)) g.clip(p.surf, 'evenodd');
+      PAINTERS[l.kind](g, l.data);
+      g.restore();
+      renderLog.push(l.id);
+    }
+    g.fillStyle = 'rgba(160, 215, 240, .85)'; g.fill(p.win);                   // glass over everything on the body
+    g.strokeStyle = '#1e1a16'; g.lineWidth = 4; g.stroke(p.body); g.lineWidth = 3; g.stroke(p.win);
+  }
+  function drawWheel(g, x, y, r, a) {
+    g.save(); g.translate(x, y);
+    g.beginPath(); g.arc(0, 0, r, 0, 7); g.fillStyle = '#161412'; g.fill();
+    g.beginPath(); g.arc(0, 0, r * 0.62, 0, 7); g.fillStyle = '#d6d9dc'; g.fill();
+    g.rotate(a); g.strokeStyle = '#ff3e8a'; g.lineWidth = r * 0.12;
+    for (let i = 0; i < 5; i++) { g.rotate(Math.PI * 2 / 5); g.beginPath(); g.moveTo(0, 0); g.lineTo(0, -r * 0.55); g.stroke(); }
+    g.beginPath(); g.arc(0, 0, r * 0.18, 0, 7); g.fillStyle = '#ffd23f'; g.fill();
+    g.restore();
+  }
+  function renderGarage() {
+    const g = garageCanvas.getContext('2d');
+    const wall = g.createLinearGradient(0, 0, 0, 460); wall.addColorStop(0, '#4a4038'); wall.addColorStop(1, '#6b5b4d');
+    g.fillStyle = wall; g.fillRect(0, 0, W, 460);
+    g.fillStyle = 'rgba(0,0,0,.18)'; for (let y = 14; y < 440; y += 26) for (let x = 14; x < W; x += 26) { g.beginPath(); g.arc(x, y, 3, 0, 7); g.fill(); }
+    const glow = g.createRadialGradient(480, 0, 10, 480, 0, 520); glow.addColorStop(0, 'rgba(255,240,200,.45)'); glow.addColorStop(1, 'rgba(255,240,200,0)');
+    g.fillStyle = glow; g.fillRect(0, 0, W, 460);
+    g.fillStyle = '#8c8680'; g.fillRect(0, 460, W, 80);
+    g.fillStyle = 'rgba(0,0,0,.25)'; g.beginPath(); g.ellipse(480, 466, 400, 14, 0, 0, 7); g.fill();
+    g.drawImage(carCanvas, 0, 0);
+    for (const [x, y, r] of CARS[car].wheels) drawWheel(g, x, y, r, 0);
+    g.fillStyle = '#ffd23f'; g.font = '700 18px Verdana, sans-serif'; g.fillText(`ART CAR · ${CARS[car].name.toUpperCase()} · SEED ${seed}`, 20, 30);
+  }
+  function describe() {
+    const bits = layers.filter(l => l.visible).map(l => {
+      const d = l.data;
+      if (l.kind === 'paint') return `${d.pattern} paint`;
+      if (l.kind === 'mosaic') return `${d.tiles.length} mosaic tiles`;
+      if (l.kind === 'caps') return `${d.caps.length} bottle caps`;
+      if (l.kind === 'flames') return `${d.tongues.length} flames`;
+      if (l.kind === 'eyes') return `${d.eyes.length} googly eyes`;
+      return d.items.map(i => (i.kind === 'armadillo' ? 'a giant armadillo' : i.kind)).join(' and ');
+    });
+    return `A ${CARS[car].name} decorated, bottom to top, with ${bits.join(', ')}.`;
+  }
+  function render() {
+    renderCar(); renderGarage();
+    if (!parade.running) { vis.drawImage(garageCanvas, 0, 0); cv.setAttribute('aria-label', describe()); }
+    $('#seedTxt').textContent = `seed ${seed}`;
+    renderStack();
+  }
+
+  // ---------- stack UI ----------
+  function renderStack(focusSel) {
+    const ol = $('#stack'), top = layers.slice().reverse();
+    ol.innerHTML = top.map((l, i) => {
+      const idx = layers.indexOf(l);
+      return `<li class="${l.locked ? 'locked' : ''} ${l.visible ? '' : 'hiddenL'}" data-layer="${l.id}" data-testid="layer-${l.id}">
+        <span class="sw" style="background:${l.sw}" aria-hidden="true"></span>
+        <span class="nm">${l.name}<small>seed ${l.seed}${l.locked ? ' · locked' : ''}</small></span>
+        <span class="acts">
+          <button type="button" data-a="up" aria-label="Move ${l.name} up" ${idx === layers.length - 1 ? 'disabled' : ''} data-testid="up-${l.id}">▲ Up</button>
+          <button type="button" data-a="down" aria-label="Move ${l.name} down" ${idx === 0 ? 'disabled' : ''} data-testid="down-${l.id}">▼ Down</button>
+          <button type="button" class="tog" data-a="lock" aria-pressed="${l.locked}" aria-label="Lock ${l.name}" data-testid="lock-${l.id}">${l.locked ? 'Locked' : 'Lock'}</button>
+          <button type="button" class="tog" data-a="hide" aria-pressed="${!l.visible}" aria-label="Hide ${l.name}" data-testid="hide-${l.id}">${l.visible ? 'Hide' : 'Hidden'}</button>
+          <button type="button" data-a="reroll" aria-label="Reroll ${l.name}" ${l.locked ? 'disabled' : ''} data-testid="reroll-${l.id}">Reroll</button>
+        </span></li>`;
+    }).join('');
+    if (focusSel) { let el = ol.querySelector(focusSel); if (el && el.disabled) el = ol.querySelector(focusSel.replace(/data-a="(up|down)"/, m => m.includes('up') ? 'data-a="down"' : 'data-a="up"')); if (el) el.focus({ preventScroll: true }); }
+  }
+  function say(t) { $('#status').textContent = t; }
+  function newLayerSeed() { rerolls++; return Math.floor(master() * 2 ** 31); }
+  $('#stack').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b || b.disabled) return;
+    const id = b.closest('li').dataset.layer, i = layers.findIndex(l => l.id === id), l = layers[i];
+    const a = b.dataset.a;
+    if (a === 'up' && i < layers.length - 1) { [layers[i], layers[i + 1]] = [layers[i + 1], layers[i]]; say(`${l.name} moved up.`); }
+    else if (a === 'down' && i > 0) { [layers[i], layers[i - 1]] = [layers[i - 1], layers[i]]; say(`${l.name} moved down.`); }
+    else if (a === 'lock') { l.locked = !l.locked; say(`${l.name} ${l.locked ? 'locked' : 'unlocked'}.`); }
+    else if (a === 'hide') { l.visible = !l.visible; say(`${l.name} ${l.visible ? 'shown' : 'hidden'}.`); }
+    else if (a === 'reroll' && !l.locked) { l.seed = newLayerSeed(); l.data = GEN[l.kind](car, mulberry32(l.seed)); say(`${l.name} rerolled.`); }
+    renderCar(); renderGarage(); if (!parade.running) { vis.drawImage(garageCanvas, 0, 0); cv.setAttribute('aria-label', describe()); }
+    renderStack(`li[data-layer="${id}"] button[data-a="${a}"]`);
+  });
+  $('#rerollAll').addEventListener('click', () => {
+    const open = layers.filter(l => !l.locked);
+    for (const l of open) { l.seed = newLayerSeed(); l.data = GEN[l.kind](car, mulberry32(l.seed)); }
+    render(); say(open.length ? `Rerolled ${open.length} unlocked layer${open.length > 1 ? 's' : ''}.` : 'Every layer is locked, so nothing changed.');
+  });
+  $('#newSeed').addEventListener('click', () => {
+    const next = (Math.floor(mulberry32(seed ^ 0x2545F491)() * 1e6) >>> 0) || 1;
+    reset(next); generate(); render();
+    try { const u = new URL(location.href); u.searchParams.set('seed', seed); history.replaceState(null, '', u); } catch (e) {}
+    say(`New car from seed ${seed}.`);
+  });
+  document.querySelectorAll('input[name=car]').forEach(r => r.addEventListener('change', () => { car = r.value; generate(); render(); say(`Now decorating a ${CARS[car].name}. Layer seeds kept.`); }));
+
+  // ---------- parade (performance.now + rAF: page.clock drives it) ----------
+  const parade = { running: false, t0: 0, p: 0, carX: 0, wheelAngle: 0, confetti: 0, raf: 0, pieces: [] };
+  const SCALE = 0.6, CAR_W = W * SCALE, ROAD_Y = 500;
+  const SKYLINE = [[20, 150, 0], [80, 230, 1], [150, 190, 0], [205, 300, 2], [275, 260, 0], [335, 360, 3], [405, 280, 1], [470, 330, 2], [540, 250, 0], [600, 310, 1], [665, 220, 0], [725, 270, 3], [790, 200, 0], [850, 240, 1], [905, 170, 0]];
+  function paradeScene(t) {
+    const g = vis;
+    const sky = g.createLinearGradient(0, 0, 0, ROAD_Y); sky.addColorStop(0, '#2b1055'); sky.addColorStop(0.6, '#d53369'); sky.addColorStop(1, '#ffb347');
+    g.fillStyle = sky; g.fillRect(0, 0, W, H);
+    g.fillStyle = 'rgba(255,240,180,.9)'; g.beginPath(); g.arc(760, 150, 46, 0, 7); g.fill();
+    for (const [x, h, top] of SKYLINE) {                               // generic towers, not any real building
+      const w = 52, y = ROAD_Y - 40 - h;
+      g.fillStyle = '#1c1433'; g.fillRect(x, y, w, h + 40);
+      if (top === 1) { g.beginPath(); g.moveTo(x, y); g.lineTo(x + w / 2, y - 34); g.lineTo(x + w, y); g.fill(); }
+      if (top === 2) { g.fillRect(x + 10, y - 22, w - 20, 22); g.fillRect(x + 20, y - 40, w - 40, 18); }
+      if (top === 3) { g.beginPath(); g.moveTo(x, y); g.lineTo(x + w, y - 26); g.lineTo(x + w, y); g.fill(); }
+      g.fillStyle = 'rgba(255,214,120,.55)';
+      for (let wy = y + 12; wy < ROAD_Y - 50; wy += 18) for (let wx = x + 8; wx < x + w - 8; wx += 12) if (((wx * 7 + wy * 3) % 5) < 2) g.fillRect(wx, wy, 5, 8);
+    }
+    g.fillStyle = '#2d2d34'; g.fillRect(0, ROAD_Y - 40, W, H - ROAD_Y + 40);
+    g.fillStyle = '#ffd23f'; for (let x = -((t / 8) % 80); x < W; x += 80) g.fillRect(x, ROAD_Y + 18, 44, 6);
+    g.fillStyle = '#4a3d63'; for (let x = 6; x < W; x += 22) { g.beginPath(); g.arc(x, ROAD_Y - 44, 9, Math.PI, 0); g.fill(); }   // the crowd along the curb
+  }
+  function paradeState(t) {
+    const p = Math.min(1, t / PARADE_MS);
+    const carX = -CAR_W + p * (W + CAR_W);
+    const r = CARS[car].wheels[0][2] * SCALE;
+    return { p, carX, wheelAngle: (carX + CAR_W) / r };                  // rolling without slipping
+  }
+  function makeConfetti() {
+    const r = mulberry32(seed ^ 0xC0FFEE), cols = ['#ff3e8a', '#ffd23f', '#13a89e', '#4b7bec', '#ffffff', '#7d3cff'];
+    parade.pieces = Array.from({ length: CONFETTI }, () => ({ x: r() * W, delay: r() * PARADE_MS * 0.85, vy: 70 + r() * 110, vx: r() * 40 - 20, spin: r() * 8 - 4, c: pick(r, cols), w: 5 + r() * 6 }));
+  }
+  const reduceMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function paradeFrame() {
+    if (!parade.running) return;
+    const t = performance.now() - parade.t0, s = paradeState(t);
+    Object.assign(parade, s);
+    paradeScene(t);
+    const cy = ROAD_Y - 410 * SCALE - 8;                              // wheel centres at y 410 in the car drawing
+    vis.drawImage(carCanvas, s.carX, cy, CAR_W, H * SCALE);
+    for (const [x, y, rr] of CARS[car].wheels) drawWheel(vis, s.carX + x * SCALE, cy + y * SCALE, rr * SCALE, s.wheelAngle);
+    let n = 0;
+    if (!reduceMotion()) for (const c of parade.pieces) {
+      const dt = (t - c.delay) / 1000; if (dt < 0) continue; n++;
+      const y = -10 + c.vy * dt; if (y > H) continue;
+      vis.save(); vis.translate(c.x + c.vx * dt + Math.sin(dt * 3 + c.x) * 10, y); vis.rotate(c.spin * dt); vis.fillStyle = c.c; vis.fillRect(-c.w / 2, -c.w / 4, c.w, c.w / 2); vis.restore();
+    }
+    parade.confetti = n;
+    if (s.p >= 1) { endParade(true); return; }
+    parade.raf = requestAnimationFrame(paradeFrame);
+  }
+  function startParade() {
+    makeConfetti(); parade.running = true; parade.t0 = performance.now(); Object.assign(parade, paradeState(0), { confetti: 0 });
+    $('#parade').setAttribute('aria-pressed', 'true'); $('#parade').textContent = 'Stop the parade';
+    cv.setAttribute('aria-label', `Parade: your ${CARS[car].name} rolls past a city skyline${reduceMotion() ? '' : ' under falling confetti'}.`);
+    say('The parade is rolling.');
+    paradeFrame();
+  }
+  function endParade(finished) {
+    parade.running = false; cancelAnimationFrame(parade.raf);
+    $('#parade').setAttribute('aria-pressed', 'false'); $('#parade').textContent = 'Start the parade';
+    vis.drawImage(garageCanvas, 0, 0); cv.setAttribute('aria-label', describe());
+    say(finished ? 'Parade complete. Back in the garage.' : 'Parade stopped.');
+  }
+  $('#parade').addEventListener('click', () => (parade.running ? endParade(false) : startParade()));
+
+  // ---------- export ----------
+  $('#export').addEventListener('click', () => {
+    renderGarage();
+    const a = document.createElement('a');
+    a.href = garageCanvas.toDataURL('image/png');
+    a.download = `art-car-${car}-seed-${seed}.png`;
+    document.body.appendChild(a); a.click(); a.remove();
+    say(`Exported art-car-${car}-seed-${seed}.png (960 × 540).`);
+  });
+
+  function hash() {                                                   // FNV-1a over the garage image
+    const d = garageCanvas.getContext('2d').getImageData(0, 0, W, H).data;
+    let h = 0x811c9dc5;
+    for (let i = 0; i < d.length; i += 3) { h ^= d[i]; h = Math.imul(h, 0x01000193); }
+    return (h >>> 0).toString(16);
+  }
+
+  reset(seed); generate(); render();
+  say('Pick a car, then play with the layers.');
+
+  window.__artcar = {
+    get state() {
+      return JSON.parse(JSON.stringify({ seed, car, rerolls, renderLog, order: layers.map(l => l.id),
+        layers: layers.map(l => ({ id: l.id, seed: l.seed, locked: l.locked, visible: l.visible })),
+        parade: { running: parade.running, p: parade.p, carX: parade.carX, wheelAngle: parade.wheelAngle, confetti: parade.confetti } }));
+    },
+    data: id => JSON.parse(JSON.stringify(layers.find(l => l.id === id).data)),
+    generate: (kind, c, s) => JSON.parse(JSON.stringify(GEN[kind](c, mulberry32(s)))),
+    hash, PARADE_MS, CAR_W, W, wheelRadius: () => CARS[car].wheels[0][2] * SCALE,
+  };
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+{
+  "id": "139",
+  "slug": "139-tie-dye",
+  "file": "lab/139-tie-dye.html",
+  "title": "Tie-Dye Studio — fold, bind, dye, reveal",
+  "category": "Generative",
+  "tags": ["canvas", "diffusion", "seeded-prng", "colour-mixing", "download"],
+  "description": "Fold a virtual shirt as a spiral, bullseye, crumple, accordion or shibori-style pole wrap. Each fold is a mapping from the flat fabric to the folded bundle. Dye goes onto the bundle in wedges or spots, soaks in through a few mass-conserving diffusion steps set by an absorbency slider, then the bundle is unfolded onto a canvas shirt. Seeded, with undo, start over and PNG export. The colours mix by multiplying per-channel reflectance in linear light, a Beer–Lambert-style approximation, and the page says plainly what that leaves out.",
+  "prompt": "Make a tie-dye studio. Simulate folds (spiral, bullseye, crumple, accordion and shibori-like stripes) as a mapping from fabric coordinates to a folded space. Dye is applied to the folded bundle in wedges and spots, diffuses for a few blur steps weighted by an absorbency setting, and is then unfolded to reveal the pattern on a canvas shirt shape. Seeded, with undo, and PNG export. Palettes should mix in a subtractive-looking way; explain the approximation honestly. The spec should check that the spiral fold is rotationally structured (colours at the same radius and angle differ by the expected twist), that the bullseye is radially symmetric within tolerance, that diffusion conserves the dye totals (the sum within epsilon), and determinism per seed.",
+  "qa": {
+    "methodology": [
+      "Spiral geometry from the slider, not the model: the test turns '1.25 turns' into radians per unit radius (over the centre-to-corner distance √½) and checks that 48 point pairs rotated by that twist share a colour, while the same pairs without the rotation mostly don't. A 720-sample cross-correlation between two rings then measures the rotation directly; it must equal twist × Δr within 1.5° at 1.25 and 2 turns.",
+      "Bullseye symmetry: 36 angles on each of 7 rings must agree within 2 per channel, while neighbouring rings clearly differ, and the spiral fails the same symmetry test as a control.",
+      "Conservation: for all five folds, both application modes and three absorbencies, the dye total per colour before and after soaking must agree to 1e-9 relative. The diffusion routine is also run directly on an arbitrary field, with periodic and closed edges, to check the sum holds while peaks drop. The stability condition α ≤ ¼ is asserted.",
+      "Mixing: the page's mix() is compared with the test's own linear-light product for six dye combinations; yellow over turquoise must come out green, and adding any dye must never raise a channel.",
+      "Determinism and I/O: two pages running the same actions on seed 7 produce identical canvas data URLs, and seed 8 differs. Undo restores pixel-identical output, Start over gives the bare-fabric colour computed in the test, and the download is parsed as a real PNG (signature and 480×520 in IHDR)."
+    ],
+    "risks": [
+      "Polar folds wrap in angle; the bundle grid is periodic in t and the bilinear sampler wraps too, or a seam would appear at θ = π.",
+      "Explicit diffusion goes unstable above α = ¼; the absorbency slider tops out at 0.22.",
+      "Canvas image smoothing blurs the drawn shirt slightly relative to the computed fabric, so the canvas cross-check samples at fabric-pixel centres, with a tolerance of 14.",
+      "The colour model is three channels, not spectra: some real dye mixes will look different, as the page says."
+    ],
+    "playwright": "Most assertions call window.__tiedye.colourAt(u, v) at exact fabric coordinates computed in the test from polar geometry, so there's no pixel rounding in the geometric checks. A separate test proves the canvas actually shows that function. page.waitForEvent('download') with createReadStream let the export test read the file's bytes and parse the PNG header; it works on both projects. Range inputs are driven by setting the value and dispatching input and change, which is what a real drag ends with. The cross-correlation runs in Node on colours fetched in two batches, so it's cheap. Before any test ran I found I'd named the undo stack `history`, which shadowed window.history and would have broken the reseed button's URL update; I renamed it.",
+    "coverage": [
+      "Spiral pairs: twist-rotated match, untwisted mismatch",
+      "Ring-to-ring rotation via cross-correlation, two twists",
+      "Bullseye radial symmetry, distinct rings; spiral control",
+      "Dye totals conserved: 5 folds × 2 modes × 3 absorbencies; raw diffuse()",
+      "Seeded determinism across pages; reseed writes URL",
+      "Undo, disabled-button focus, Start over = bare fabric",
+      "PNG download: filename, signature, dimensions",
+      "Linear-light filter mix, green from yellow + turquoise, darken-only",
+      "Accordion mirror and period at 8 and 12 pleats",
+      "Canvas matches the model; labels; arrow keys on the fold radios"
+    ]
+  },
+  "a11y": "Folds and application modes are native radio groups with visible focus, and the sliders are labelled range inputs with live output values. Each change is announced in an aria-live status. The shirt canvas has an aria-label naming the fold, dye applications, kit and seed, and a text note describes each fold. When Undo becomes disabled, focus moves to Add dye rather than staying on a disabled button."
+}

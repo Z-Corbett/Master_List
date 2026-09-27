@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pose Coach — ideas for your next phone photo</title>
+<meta name="description" content="Pick how many people, the setting, the vibe and the orientation, and get pose cards with a mannequin figure, tips for hands, chin, weight and angles, and camera tips for height, distance, the rule of thirds and backlight. A camera frame shows a thirds grid and a pose ghost with a self-timer. It suggests poses; it doesn't detect bodies. Favourites, seeded shuffles and a copyable shot list.">
+<style>
+  :root {
+    --paper: #f4f1ea;
+    --sheet: #fffdf7;
+    --ink: #151515;
+    --muted: #666057;
+    --red: #e0332b;
+    --amber: #f0a500;
+    --line: #d9d2c3;
+    --film: #1d1d1b;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+    --sans: "Helvetica Neue", "Segoe UI", Arial, system-ui, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--paper); color: var(--ink); font: 15px/1.5 var(--sans); overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: #fff; background: var(--film); text-decoration: none; font: 600 12px/1 var(--mono); padding: 9px 12px; border-radius: 4px; letter-spacing: .04em; }
+  a.back:hover { background: var(--red); }
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 60px 16px 40px; }
+  .mast { border-top: 6px solid var(--film); border-bottom: 1px solid var(--film); padding: 10px 0 12px; margin-bottom: 16px; display: flex; flex-wrap: wrap; gap: 6px 24px; align-items: end; justify-content: space-between; }
+  .mast h1 { margin: 0; font: 900 clamp(38px, 8vw, 70px)/.95 var(--sans); letter-spacing: -.03em; text-transform: uppercase; }
+  .mast h1 .dot { color: var(--red); }
+  .mast p { margin: 0; font: 12px/1.5 var(--mono); color: var(--muted); max-width: 440px; }
+  .rec { display: inline-flex; align-items: center; gap: 6px; font: 700 12px var(--mono); color: var(--red); letter-spacing: .1em; }
+  .rec::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--red); }
+  .panel { background: var(--sheet); border: 1px solid var(--film); padding: 14px; min-width: 0; }
+  h2 { font: 800 18px/1.2 var(--sans); text-transform: uppercase; letter-spacing: .04em; margin: 0 0 10px; }
+  h3 { font: 700 13px/1.3 var(--sans); margin: 0 0 4px; }
+  p { margin: 0 0 8px; overflow-wrap: anywhere; }
+  .note { font-size: 13px; color: var(--muted); }
+  .filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px 18px; }
+  fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+  legend { font: 700 11px/1.3 var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); padding: 0; margin-bottom: 6px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { position: relative; }
+  .chip input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+  .chip span { display: inline-block; border: 1px solid var(--film); padding: 7px 11px; font: 600 13px/1.1 var(--sans); background: #fff; min-height: 34px; min-width: 34px; text-align: center; }
+  .chip input:checked + span { background: var(--film); color: #fff; }
+  .chip input:focus-visible + span { outline: 3px solid var(--amber); outline-offset: 2px; }
+  .btn { font: 700 13px/1.1 var(--sans); border: 1px solid var(--film); background: #fff; color: var(--ink); padding: 9px 13px; min-height: 40px; cursor: pointer; max-width: 100%; }
+  .btn.dark { background: var(--film); color: #fff; }
+  .btn.red { background: var(--red); border-color: var(--red); color: #fff; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-width: 0; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; justify-content: space-between; margin: 16px 0 10px; }
+  .seed { font: 12px var(--mono); color: var(--muted); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; list-style: none; margin: 0; padding: 0; }
+  .card { background: var(--sheet); border: 1px solid var(--film); display: grid; grid-template-rows: auto 1fr; min-width: 0; }
+  .card .frame { background: var(--film); padding: 8px 8px 4px; position: relative; }
+  .card .frame::before, .card .frame::after { content: ""; position: absolute; left: 0; right: 0; height: 4px; background: repeating-linear-gradient(90deg, transparent 0 6px, #f4f1ea 6px 12px); opacity: .5; }
+  .card .frame::before { top: 2px; } .card .frame::after { bottom: 0; }
+  .card svg.fig { display: block; width: 100%; height: auto; background: #2a2a27; }
+  .card .body { padding: 10px 12px 12px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+  .card h3 { font-size: 18px; margin: 0; }
+  .meta { font: 11px/1.4 var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .tips { display: grid; grid-template-columns: minmax(0, 1fr); gap: 3px; margin: 0; font-size: 13px; }
+  .tips div { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 6px; }
+  .tips dt { font: 700 11px/1.6 var(--mono); text-transform: uppercase; color: var(--red); }
+  .tips dd { margin: 0; min-width: 0; }
+  .tips.cam dt { color: #7a5b00; }
+  .card .acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .fav[aria-pressed="true"] { background: var(--amber); border-color: #9a6a00; }
+  .vibe-note { font: 11px var(--mono); color: #7a5b00; }
+  .two { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; margin-top: 18px; align-items: start; }
+  @media (max-width: 860px) { .two { grid-template-columns: minmax(0, 1fr); } }
+  .stage { position: relative; background: #000; margin: 0 auto; width: 100%; overflow: hidden; }
+  .stage.portrait { aspect-ratio: 3 / 4; max-width: 420px; }
+  .stage.landscape { aspect-ratio: 4 / 3; max-width: 560px; }
+  .stage video, .stage canvas.src { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .third { position: absolute; background: rgba(255,255,255,.75); pointer-events: none; }
+  .third.v { top: 0; bottom: 0; width: 1px; margin-left: -.5px; }
+  .third.h { left: 0; right: 0; height: 1px; margin-top: -.5px; }
+  .ghost { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: .55; }
+  .count { position: absolute; inset: 0; display: grid; place-items: center; font: 900 120px/1 var(--sans); color: #fff; text-shadow: 0 4px 20px rgba(0,0,0,.6); pointer-events: none; }
+  .flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; transition: opacity .3s; }
+  .privacy { font-size: 13px; background: #eef4ea; border-left: 4px solid #3f7a3a; padding: 6px 10px; }
+  .snap img { max-width: 160px; width: 100%; border: 6px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,.25); display: block; }
+  ol.shots, ul.favs { margin: 6px 0 8px; padding-left: 22px; }
+  ol.shots li, ul.favs li { margin: 3px 0; overflow-wrap: anywhere; }
+  .x { border: 0; background: none; color: var(--red); cursor: pointer; font-weight: 700; padding: 2px 6px; }
+  textarea { width: 100%; min-height: 120px; font: 12px/1.5 var(--mono); border: 1px solid var(--line); padding: 8px; background: #fff; color: var(--ink); resize: vertical; }
+  .status { min-height: 1.4em; font: 12px var(--mono); color: var(--red); }
+  footer { margin-top: 24px; text-align: center; color: var(--muted); font: 12px var(--mono); }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header class="mast">
+    <div>
+      <span class="rec">Frame 01</span>
+      <h1>Pose Coach<span class="dot">.</span></h1>
+    </div>
+    <p>Ideas for your next phone photo: poses matched to your group, place and mood, with the camera tips that make them work. It suggests; it doesn't watch. There's no body detection here.</p>
+  </header>
+
+  <section class="panel" aria-labelledby="h-brief">
+    <h2 id="h-brief">The brief</h2>
+    <div class="filters">
+      <fieldset>
+        <legend>People in the shot</legend>
+        <div class="chips" id="f-people" data-testid="people"></div>
+      </fieldset>
+      <fieldset>
+        <legend>Setting</legend>
+        <div class="chips" id="f-setting" data-testid="setting"></div>
+      </fieldset>
+      <fieldset>
+        <legend>Vibe</legend>
+        <div class="chips" id="f-vibe" data-testid="vibe"></div>
+      </fieldset>
+      <fieldset>
+        <legend>Orientation</legend>
+        <div class="chips" id="f-orient" data-testid="orient"></div>
+      </fieldset>
+    </div>
+  </section>
+
+  <div class="bar">
+    <p class="seed" aria-live="polite"><span id="summary" data-testid="summary"></span> · <span id="seedTxt" data-testid="seed"></span></p>
+    <div class="row">
+      <button type="button" class="btn dark" id="shuffle" data-testid="shuffle">⟲ Shuffle</button>
+    </div>
+  </div>
+  <ul class="cards" id="cards" data-testid="cards" aria-live="polite"></ul>
+
+  <div class="two">
+    <section class="panel" aria-labelledby="h-cam">
+      <h2 id="h-cam">Camera frame</h2>
+      <p class="note">A live preview with a rule-of-thirds grid and a ghost of the pose you picked, to line up by eye. <span id="cam-support" data-testid="cam-support"></span></p>
+      <div class="row" style="margin-bottom:8px">
+        <button type="button" class="btn dark" id="cam-start" data-testid="cam-start">Start camera</button>
+        <button type="button" class="btn" id="cam-stop" data-testid="cam-stop" hidden>Stop camera</button>
+        <button type="button" class="btn" id="demo" data-testid="demo">Demo scene</button>
+        <label class="btn" for="file" style="display:inline-flex;align-items:center">Use a photo</label>
+        <input type="file" id="file" accept="image/*" data-testid="file" aria-describedby="privacy" style="position:absolute;width:1px;height:1px;opacity:0">
+      </div>
+      <p class="privacy" id="privacy" data-testid="privacy">🔒 The camera feed and any photo you choose stay on this device. Nothing is recorded or uploaded; snapshots live in this page until you leave or save one yourself.</p>
+      <div class="stage portrait" id="stage" data-testid="stage">
+        <video id="video" playsinline muted hidden data-testid="video"></video>
+        <canvas class="src" id="still" width="600" height="800" data-testid="still" role="img" aria-label="Demo scene"></canvas>
+        <div class="third v" style="left:33.3333%" data-testid="grid-v1"></div>
+        <div class="third v" style="left:66.6667%" data-testid="grid-v2"></div>
+        <div class="third h" style="top:33.3333%" data-testid="grid-h1"></div>
+        <div class="third h" style="top:66.6667%" data-testid="grid-h2"></div>
+        <svg class="ghost" id="ghost" data-testid="ghost" aria-hidden="true" preserveAspectRatio="xMidYMax meet"></svg>
+        <div class="count" id="count" data-testid="countdown" aria-hidden="true"></div>
+        <div class="flash" id="flash"></div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <label class="row" for="timer" style="gap:6px;font-weight:700;font-size:13px">Self-timer
+          <select id="timer" data-testid="timer" style="font:14px var(--sans);padding:6px"><option value="3">3 s</option><option value="5">5 s</option><option value="10" selected>10 s</option></select>
+        </label>
+        <button type="button" class="btn red" id="shoot" data-testid="shoot">● Take photo</button>
+        <button type="button" class="btn" id="cancel" data-testid="cancel" hidden>Cancel</button>
+        <label class="row" style="gap:6px;font-size:13px"><input type="checkbox" id="grid-toggle" checked data-testid="grid-toggle"> Grid</label>
+      </div>
+      <p class="status" id="cam-status" role="status" aria-live="polite" data-testid="cam-status"></p>
+      <div class="row snap" id="snaps" data-testid="snaps"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="h-list">
+      <h2 id="h-list">Shot list</h2>
+      <ol class="shots" id="shots" data-testid="shots"></ol>
+      <div class="row">
+        <button type="button" class="btn dark" id="copy" data-testid="copy">Copy shot list</button>
+        <button type="button" class="btn" id="clear-shots" data-testid="clear-shots">Clear</button>
+      </div>
+      <p class="status" id="copy-status" role="status" aria-live="polite" data-testid="copy-status"></p>
+      <label for="shot-text" class="note">Plain-text preview</label>
+      <textarea id="shot-text" readonly data-testid="shot-text"></textarea>
+      <h2 style="margin-top:16px" id="h-favs">Favourites</h2>
+      <ul class="favs" id="favs" data-testid="favs" aria-labelledby="h-favs"></ul>
+    </section>
+  </div>
+  <footer>Built by Zac Corbett · mannequins drawn in SVG from joint angles · seeded shuffles via <code>?seed=</code> · favourites in localStorage</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+  const SETTINGS = { city: 'City street', nature: 'Nature', beach: 'Beach', wedding: 'Wedding', graduation: 'Graduation', food: 'Food & drink', sports: 'Sports' };
+  const VIBES = { candid: 'Candid', classic: 'Classic', playful: 'Playful', editorial: 'Editorial' };
+  const ALL = Object.keys(SETTINGS);
+  const but = (...x) => ALL.filter((s) => !x.includes(s));
+
+  // body: joint angles in degrees (0 = straight down, +90 = to the right). arm/leg = [upper, lower relative]
+  const BODIES = {
+    stand: { lean: 0, head: 0, la: [-12, 4], ra: [12, -4], ll: [-5, 0], rl: [5, 0] },
+    lean: { lean: -8, head: 6, la: [-10, 0], ra: [45, -115], ll: [4, 0], rl: [-10, 18], dy: 0 },
+    pockets: { lean: 0, head: 0, la: [-18, 32], ra: [18, -32], ll: [-7, 0], rl: [7, 0] },
+    walk: { lean: 3, head: 0, la: [16, 10], ra: [-16, -5], ll: [-20, 12], rl: [18, 4] },
+    jump: { lean: 0, head: 0, la: [-150, -10], ra: [150, 10], ll: [-22, -28], rl: [22, 28], dy: -18 },
+    seated: { lean: -4, head: 0, la: [10, -50], ra: [-5, 60], ll: [85, -85], rl: [75, -80], dy: 22 },
+    toss: { lean: 0, head: -8, la: [-170, 0], ra: [165, 5], ll: [-6, 0], rl: [6, 0] },
+    chin: { lean: 2, head: 6, la: [-14, 20], ra: [25, 145], ll: [-4, 0], rl: [8, 6] },
+    twirl: { lean: 0, head: -6, la: [-100, -10], ra: [100, 10], ll: [-12, 0], rl: [14, 8] },
+    power: { lean: 0, head: 0, la: [-45, 115], ra: [45, -115], ll: [-16, 0], rl: [16, 0] },
+    toast: { lean: 4, head: 0, la: [-12, 20], ra: [140, 35], ll: [-5, 0], rl: [5, 0] },
+    lookdown: { lean: 6, head: 18, la: [18, -60], ra: [-12, 60], ll: [-4, 0], rl: [6, 4] },
+    hold: { lean: 0, head: 0, la: [25, -95], ra: [-25, 95], ll: [-6, 0], rl: [6, 0] },
+    glance: { lean: -4, head: -18, la: [-8, 0], ra: [10, -30], ll: [2, 0], rl: [10, 8] },
+    stride: { lean: 10, head: 0, la: [40, 60], ra: [-45, -70], ll: [-35, 40], rl: [30, 10] },
+    hug: { lean: 0, head: 0, la: [-60, 50], ra: [60, -50], ll: [-5, 0], rl: [5, 0] },
+  };
+  // formation: where figures stand, in a 240 × 160 box. Returns [{x, y, s, body, flip}]
+  function formation(kind, n, body) {
+    const out = [], base = 150;
+    const row = (k, y, s, b, spread = 200) => { const step = k > 1 ? Math.min(46, spread / (k - 1)) : 0, x0 = 120 - step * (k - 1) / 2; for (let i = 0; i < k; i++) out.push({ x: x0 + i * step, y, s, body: b, flip: false }); };
+    if (n === 1) out.push({ x: 120, y: base, s: 1.25, body, flip: false });
+    else if (kind === 'pair-face') { out.push({ x: 100, y: base, s: 1, body, flip: false }, { x: 140, y: base, s: 0.95, body, flip: true }); }
+    else if (kind === 'back') { out.push({ x: 104, y: base, s: 1, body, flip: true }, { x: 136, y: base, s: 1, body, flip: false }); }
+    else if (kind === 'stagger') { const step = Math.min(40, 190 / (n - 1)); for (let i = 0; i < n; i++) out.push({ x: 120 - step * (n - 1) / 2 + i * step, y: base - (i % 2) * 10, s: i % 2 ? 0.9 : 1, body, flip: i >= n / 2 }); }
+    else if (kind === 'v') { const mid = (n - 1) / 2; for (let i = 0; i < n; i++) { const d = Math.abs(i - mid); out.push({ x: 120 + (i - mid) * 34, y: base - d * 10, s: 1 - d * 0.07, body: d < 0.6 ? 'power' : body, flip: i > mid }); } out.sort((a, b) => a.y - b.y); }
+    else if (kind === 'rows') { const back = Math.ceil(n / 2), front = n - back; row(back, base - 26, 0.88, 'stand', 170); row(front, base + 4, 0.9, 'seated', 150); }
+    else if (kind === 'huddle') row(n, base, 1, 'hug', 34 * (n - 1));
+    else if (kind === 'triangle') { out.push({ x: 120, y: base - 22, s: 0.9, body: 'stand', flip: false }); const rest = n - 1; const step = Math.min(44, 180 / Math.max(1, rest - 1)); for (let i = 0; i < rest; i++) out.push({ x: 120 - step * (rest - 1) / 2 + i * step, y: base, s: 1, body, flip: i >= rest / 2 }); }
+    else row(n, base, 1, body);
+    return out;
+  }
+  function mannequin(f, color = '#f4f1ea') {
+    const b = BODIES[f.body] || BODIES.stand, rad = Math.PI / 180;
+    const dir = (deg, len) => [Math.sin(deg * rad) * len, Math.cos(deg * rad) * len];
+    const hip = [0, -50 + (b.dy || 0)], [tx, ty] = dir(180 + b.lean, 36), neck = [hip[0] + tx, hip[1] + ty];
+    const head = [neck[0] + Math.sin((b.lean + b.head) * rad) * 12, neck[1] - Math.cos((b.lean + b.head) * rad) * 12];
+    const limb = (o, [a1, a2], l1, l2) => { const [x1, y1] = dir(a1, l1), p1 = [o[0] + x1, o[1] + y1], [x2, y2] = dir(a1 + a2, l2); return `M${o[0].toFixed(1)} ${o[1].toFixed(1)}L${p1[0].toFixed(1)} ${p1[1].toFixed(1)}L${(p1[0] + x2).toFixed(1)} ${(p1[1] + y2).toFixed(1)}`; };
+    const sh = [neck[0], neck[1] + 4];
+    const d = [`M${hip[0]} ${hip[1]}L${neck[0].toFixed(1)} ${neck[1].toFixed(1)}`, limb(sh, b.la, 20, 19), limb(sh, b.ra, 20, 19), limb(hip, b.ll, 25, 25), limb(hip, b.rl, 25, 25)].join('');
+    return `<g transform="translate(${f.x.toFixed(1)} ${f.y.toFixed(1)}) scale(${(f.flip ? -1 : 1) * f.s} ${f.s})"><path d="${d}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${head[0].toFixed(1)}" cy="${head[1].toFixed(1)}" r="9" fill="${color}"/></g>`;
+  }
+
+  const P = (id, name, min, max, settings, vibes, orient, body, form, why, tips, cam) => ({ id, name, min, max, settings, vibes, orient, body, form, why, tips, cam });
+  const T = (hands, chin, weight, angle) => ({ hands, chin, weight, angle });
+  const POSES = [
+    P('lean', 'The Easy Lean', 1, 1, ['city', 'nature', 'beach', 'graduation', 'wedding'], ['candid', 'classic'], 'portrait', 'lean', 'solo', 'A wall or railing takes the weight, so the body relaxes into a natural S-curve.', T('One hand on the hip or in a pocket; the other hangs loose, fingers soft.', 'Push the chin slightly forward and down to define the jawline.', 'All weight on the leg nearest the wall; cross the other ankle over.', 'Turn the body 30–45° from the camera, face back toward it.'), 'Shoot from chest height; stand back and zoom to 2× so the wall lines stay straight.'),
+    P('walk', 'Walk Toward Me', 1, 1, but('food'), ['candid', 'editorial'], 'portrait', 'walk', 'solo', 'Movement loosens people up, and a mid-stride frame looks unposed.', T('Let the arms swing naturally or touch a jacket lapel.', 'Eyes past the camera or down at the path, then a quick look up.', 'Catch the frame when the front foot lands.', 'Walk on a slight diagonal instead of straight at the lens.'), 'Burst mode, camera at waist height, subject a third of the way in from the edge they walk toward.'),
+    P('glance', 'Over-the-Shoulder Glance', 1, 1, ALL, ['classic', 'editorial'], 'portrait', 'glance', 'solo', 'The twist adds shape and the look back feels like a moment.', T('Hands relaxed at the sides or lightly holding a strap.', 'Lead with the chin over the shoulder, not the whole head.', 'Weight on the back foot, front knee soft.', 'Back three-quarters to the camera, face turned about 60°.'), 'Camera at eye level; focus on the near eye.'),
+    P('seated', 'Seated, Legs Crossed', 1, 1, ['city', 'nature', 'food', 'wedding', 'graduation'], ['classic', 'editorial'], 'either', 'seated', 'solo', 'Sitting is instantly relaxed and fills a landscape frame nicely.', T('Stack the hands on the top knee or rest one on the seat.', 'Lean in slightly toward the camera with the chin forward.', 'Sit toward the front edge so the spine stays long.', 'Angle the knees away and the shoulders back toward the lens.'), 'Get down to their eye level, not above; step back to show the setting.'),
+    P('pockets', 'Hands in Pockets', 1, 1, ['city', 'graduation', 'sports', 'nature'], ['classic', 'candid'], 'portrait', 'pockets', 'solo', 'Gives the hands a job, the most common reason people feel awkward.', T('Thumbs out, or just the fingertips in the pockets.', 'Chin level, a relaxed half smile.', 'Weight on one leg, the other knee bent slightly.', 'A small quarter-turn keeps the shoulders from looking square.'), 'Shoot from mid-torso height for natural proportions.'),
+    P('jump', 'Jump Shot', 1, 1, ['beach', 'nature', 'sports', 'graduation'], ['playful'], 'portrait', 'jump', 'solo', 'Pure energy. Nobody looks stiff in mid-air.', T('Arms up and out, fingers spread.', 'Chin up to the sky, or a big laugh at the lens.', 'Bend the knees on take-off and tuck the feet up.', 'Shoot slightly from below so they seem to fly.'), 'Crouch low, burst mode, and leave headroom at the top of the frame.'),
+    P('toss', 'The Cap Toss', 1, 6, ['graduation'], ['playful'], 'portrait', 'toss', 'row', 'The classic graduation release, caught at the top of the throw.', T('Throw with one hand, the other arm up too.', 'Eyes on the caps, mouths open. It will look joyful.', 'Plant both feet, then rise onto the toes as you throw.', 'Face the camera square-on for once; it\'s a celebration.'), 'Low angle, burst mode; count down out loud so everyone throws together.'),
+    P('diploma', 'Diploma Hold', 1, 1, ['graduation'], ['classic'], 'portrait', 'hold', 'solo', 'A proud, simple portrait with the thing you earned.', T('Hold the diploma cover at chest height, fingers together.', 'Chin slightly down, eyes up at the lens.', 'Weight on the back foot.', 'Turn the body 20° with the diploma toward the camera.'), 'Eye-level camera; if the sun is behind them, tap their face to expose for it.'),
+    P('cheers', 'Cheers!', 1, 6, ['food', 'wedding'], ['playful', 'candid'], 'either', 'toast', 'row', 'Glasses up gives the whole group one shared action.', T('Glasses meet in the middle, at chin height.', 'Look at the glasses or at each other, not the lens.', 'Lean in toward the centre.', 'Shoot across the table at a slight angle.'), 'Camera at table height; a window at the side is ideal light.'),
+    P('laugh', 'Laughing Look-Down', 1, 1, ALL, ['candid'], 'portrait', 'lookdown', 'solo', 'A real laugh, eyes down, reads as unposed every time.', T('Touch the hair or collar, or clasp the hands loosely.', 'Tip the chin down and let the laugh happen.', 'Shift the weight to one hip.', 'Stand slightly side-on.'), 'Keep shooting through the laugh; the second frame is usually the one.'),
+    P('power', 'Power Stance', 1, 1, ['sports', 'city', 'graduation'], ['editorial', 'classic'], 'portrait', 'power', 'solo', 'Confident and strong, great with a jersey or a skyline.', T('Hands on hips or arms folded high.', 'Chin level, a steady look straight down the lens.', 'Feet shoulder-width apart, weight even.', 'Shoot square-on or with a slight low angle.'), 'Low camera, about knee height, makes the subject look tall.'),
+    P('action', 'Action Freeze', 1, 2, ['sports'], ['playful', 'editorial'], 'landscape', 'stride', 'row', 'A mid-move frame looks like real sport, not a team photo.', T('Hands doing the sport: ball, racket, a sprint arm.', 'Eyes on the ball or the target.', 'Full extension, weight on the front foot.', 'Shoot across the motion, not head-on.'), 'Fast shutter: use burst or sport mode in bright light; leave space in front of them.'),
+    P('twirl', 'Wind Twirl', 1, 1, ['beach', 'nature', 'wedding'], ['playful'], 'portrait', 'twirl', 'solo', 'Lets a dress, jacket or hair move with the breeze.', T('Arms out wide, or hold the skirt edge.', 'Head back a little, eyes closed or smiling.', 'Spin on the ball of one foot.', 'Shoot from the side the wind is blowing toward.'), 'Backlight looks magical here: sun behind them, expose for the face.'),
+    P('steps', 'Sitting on the Steps', 1, 1, ['city', 'graduation'], ['candid', 'classic'], 'portrait', 'seated', 'solo', 'Steps add leading lines and make sitting look deliberate.', T('Forearms on the knees, hands loosely linked.', 'Chin toward the camera, shoulders relaxed.', 'Sit one step higher than the feet.', 'Angle the body along the diagonal of the steps.'), 'Shoot from a step below their level.'),
+    P('sip', 'Coffee Sip', 1, 1, ['food', 'city'], ['candid'], 'either', 'chin', 'solo', 'A cup gives the hands something to do and the face a reason to relax.', T('Both hands around the cup, just below the chin.', 'Look over the cup, or out of the window.', 'Lean an elbow on the table.', 'Shoot from across the table, slightly to one side.'), 'Window light from the side; turn off overhead lights if you can.'),
+    P('horizon', 'Horizon Gaze', 1, 1, ['beach', 'nature'], ['editorial', 'candid'], 'landscape', 'glance', 'solo', 'Small figure, big view: tells the story of the place.', T('Hands in pockets or holding a hat.', 'Face turned toward the horizon, in profile.', 'Weight on the back leg.', 'Mostly back to the camera.'), 'Put the horizon on a thirds line, and the person on a vertical third.'),
+    P('forehead', 'Forehead Touch', 2, 2, ['wedding', 'nature', 'beach', 'city'], ['classic'], 'portrait', 'hug', 'pair-face', 'Quiet and close; it works for couples and best friends.', T('One hand on the partner\'s cheek or waist.', 'Chins slightly down, eyes closed.', 'Stand close with the hips turned toward each other.', 'Shoot in profile or a three-quarter view.'), 'Get close and use portrait mode, or step back and zoom for a softer background.'),
+    P('handwalk', 'Hand-in-Hand Walk', 2, 2, but('food'), ['candid'], 'landscape', 'walk', 'row', 'Moving together lets you capture real glances.', T('Hold hands with a relaxed arm between you.', 'Look at each other, not the camera.', 'Walk in step, slow and easy.', 'Walk across the frame or away down a path.'), 'Hip-height camera, burst mode; ask them to talk about something funny.'),
+    P('backs', 'Back to Back', 2, 2, ALL, ['playful', 'editorial'], 'either', 'pockets', 'back', 'Strong shape, easy to do, and it shows off height differences.', T('Arms folded, or hands in pockets.', 'Both turn their heads toward the lens.', 'Lean lightly into each other\'s backs.', 'Shoot square-on to the pair.'), 'Eye-level camera, centred; it\'s a symmetrical pose.'),
+    P('piggy', 'Piggyback', 2, 2, ['beach', 'nature', 'city', 'graduation'], ['playful'], 'portrait', 'hug', 'pair-face', 'Instant laughter and a great height stack.', T('Arms loosely around the shoulders, not the neck.', 'Cheek to cheek near the top.', 'The carrier bends the knees and keeps the back straight.', 'Three-quarter view from the carrier\'s side.'), 'Crouch a little and shoot a burst as they settle.'),
+    P('whisper', 'Whisper & Laugh', 2, 2, ALL, ['candid'], 'either', 'chin', 'pair-face', 'The whisper sets up a genuine reaction.', T('A hand cupped at the ear, or on the shoulder.', 'The listener looks down and away as they laugh.', 'Lean toward each other.', 'Three-quarter view from the listener\'s side.'), 'Keep shooting: the laugh comes a second after the whisper.'),
+    P('dip', 'The Dip', 2, 2, ['wedding'], ['classic', 'playful'], 'landscape', 'lean', 'pair-face', 'Dramatic and romantic; a wedding favourite.', T('One hand supports the back, the other holds the partner\'s hand out.', 'Faces close; eyes on each other.', 'The dipper steps forward and bends the knee.', 'Shoot from the side for the full line.'), 'Low camera, landscape frame, and a burst for the peak of the dip.'),
+    P('table', 'Across the Table', 2, 4, ['food'], ['candid', 'classic'], 'landscape', 'chin', 'row', 'Shared plates and conversation make the photo.', T('Mid-gesture: passing a plate, lifting a fork.', 'Faces toward each other, not the lens.', 'Elbows on the table, leaning in.', 'Shoot from the end of the table.'), 'Table-height camera; move candles or glasses out of the foreground.'),
+    P('stagger', 'Staggered Heights', 3, 6, ALL, ['classic'], 'landscape', 'stand', 'stagger', 'Nobody lines up like a police line-up; faces sit at different levels.', T('Hands on a neighbour\'s shoulder or clasped in front.', 'Chins forward and slightly down, everyone.', 'Tallest at the back or the centre, weight on the back foot.', 'Everyone angles in toward the middle.'), 'Camera at the eye level of the middle of the group; step back and zoom to 2×.'),
+    P('vform', 'The V Formation', 3, 6, ALL, ['editorial'], 'landscape', 'pockets', 'v', 'A confident, album-cover shape with a clear leader.', T('Front person hands on hips; the rest pockets or arms folded.', 'Chins level, serious or smirking.', 'Everyone on their back foot.', 'The wings angle in toward the centre.'), 'Low, centred camera; put the front person\'s eyes on the top third line.'),
+    P('armwalk', 'Arm-in-Arm Walk', 2, 6, but('food'), ['candid'], 'landscape', 'walk', 'row', 'A line of friends walking together feels like an opening scene.', T('Arms linked at the elbow.', 'Talk and laugh with each other.', 'Walk in step, slowly.', 'Walk toward the camera on a slight diagonal.'), 'Walk backwards ahead of them (carefully) or use a long street; burst mode.'),
+    P('huddle', 'Huddle Laugh', 3, 6, ALL, ['candid', 'playful'], 'landscape', 'hug', 'huddle', 'Squeezing in close makes everyone laugh, and that\'s the shot.', T('Arms around the shoulders of the people beside you.', 'Heads tilted in toward the middle.', 'Lean in from the hips.', 'Face the camera as a tight curve.'), 'Get close with the wide lens held at chest height, not overhead.'),
+    P('rows', 'Seated & Standing Rows', 4, 6, ALL, ['classic'], 'landscape', 'stand', 'rows', 'Two tiers fit a bigger group without anyone hiding.', T('Front row: hands on the knees. Back row: hands on the shoulders in front.', 'Chins forward, everyone.', 'Back row stands close behind the gaps.', 'Everyone angles slightly toward the centre.'), 'Camera at the back row\'s chest height, centred.'),
+    P('team', 'Team Bench', 3, 6, ['sports'], ['classic', 'playful'], 'landscape', 'seated', 'row', 'Sitting on the bench or the bleachers is a natural team shot.', T('Balls, rackets or medals on the laps.', 'Chins up, big smiles.', 'Sit up straight on the edge.', 'Slight angle along the bench.'), 'Kneel to the height of their eyes.'),
+    P('jumpall', 'Jump Together', 2, 6, but('food'), ['playful'], 'landscape', 'jump', 'row', 'Everyone mid-air, no one looks posed.', T('Arms up, hands open.', 'Big open-mouthed laughs.', 'Jump on "three", tuck the feet up.', 'A line facing the camera.'), 'Crouch low, burst mode, and try several takes.'),
+    P('leanin', 'Table Lean-In', 2, 6, ['food'], ['candid'], 'landscape', 'chin', 'row', 'Everybody crowding toward the middle of the table feels like a real night out.', T('Glasses or forks mid-air.', 'Look at whoever is telling the story.', 'Lean in on the elbows.', 'Shoot from the head of the table.'), 'Hold the phone up at the same height as their faces; avoid the flash.'),
+    P('leader', 'Look at the Leader', 3, 6, ALL, ['playful', 'editorial'], 'landscape', 'glance', 'stagger', 'Everyone looks at one person, who looks at the lens. Instant story.', T('The leader strikes a pose; the others point or clap.', 'Everyone else turns their chin to the leader.', 'Lean toward the leader.', 'Place the leader on a thirds intersection.'), 'Eye-level camera; take one where they all break into laughter.'),
+    P('triangle', 'Triangle Cluster', 3, 5, ALL, ['editorial', 'classic'], 'portrait', 'pockets', 'triangle', 'Triangles are the most natural shape for small groups.', T('Hands on shoulders or in pockets.', 'Heads at three different heights.', 'The back person stands on a step or on tiptoe.', 'Everyone turns 20° toward the centre.'), 'Camera at the middle person\'s chin height.'),
+    P('lineup', 'Diploma Line-Up', 2, 6, ['graduation'], ['classic'], 'landscape', 'hold', 'row', 'Everyone holds their diploma out: tidy, proud, and easy to repeat.', T('Diplomas at the same chest height.', 'Chins level, smile at the lens.', 'Shoulders touching.', 'Slight inward angle for the people at each end.'), 'Step back and zoom so the ends of the line aren\'t stretched.'),
+  ];
+  const LIGHT = {
+    city: 'Open shade beside a building gives soft, even light.', nature: 'Late-afternoon sun through trees; keep faces out of dappled spots.',
+    beach: 'Backlight at golden hour: sun behind them, tap to expose for their faces.', wedding: 'Put the sun behind the couple and expose for skin; avoid noon sun.',
+    graduation: 'Find open shade near the building so caps don\'t cast shadows over eyes.', 'food': 'Side light from a window; switch off mixed overhead lights.',
+    sports: 'Keep the sun behind you for fast, sharp action shots.',
+  };
+
+  // ---------- selection & deck ----------
+  const clampPeople = (n) => Math.min(6, Math.max(1, n | 0));
+  const state = {
+    people: clampPeople(parseInt(params.get('people'), 10) || 1),
+    setting: SETTINGS[params.get('setting')] ? params.get('setting') : 'city',
+    vibe: VIBES[params.get('vibe')] ? params.get('vibe') : 'candid',
+    orient: params.get('orient') === 'landscape' ? 'landscape' : 'portrait',
+    seed: (parseInt(params.get('seed'), 10) >>> 0) || 135,
+    cards: [], ghost: null, camera: 'off', timer: 10, countdown: 0, snaps: 0, favs: [], shots: [], copied: null,
+  };
+  function matches(p, f) { return f.people >= p.min && f.people <= p.max && p.settings.includes(f.setting); }
+  function deck(f, seed) {
+    const pool = POSES.filter((p) => matches(p, f));
+    const r = mulberry32(seed + f.people * 101 + ALL.indexOf(f.setting) * 7);
+    for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+    // vibe matches first, then orientation fit; the shuffle breaks ties
+    const score = (p) => (p.vibes.includes(f.vibe) ? 2 : 0) + (p.orient === f.orient || p.orient === 'either' ? 1 : 0);
+    const ranked = pool.map((p, i) => ({ p, i })).sort((a, b) => score(b.p) - score(a.p) || a.i - b.i).map((x) => x.p);
+    return ranked.slice(0, 6).map((p) => ({ id: p.id, vibeMatch: p.vibes.includes(f.vibe) }));
+  }
+
+  function figuresSvg(p, n, color, vb = '0 0 240 160') {
+    const figs = formation(p.form, n, p.body).map((f) => mannequin(f, color)).join('');
+    return `<svg class="fig" viewBox="${vb}" xmlns="http://www.w3.org/2000/svg"><line x1="0" y1="152" x2="240" y2="152" stroke="#55544f" stroke-width="2"/>${figs}</svg>`;
+  }
+  const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const byId = Object.fromEntries(POSES.map((p) => [p.id, p]));
+  function orientTip(p) { return state.orient === 'portrait' ? 'Portrait frame: keep feet in the shot, or crop mid-thigh, never at a joint.' : `Landscape frame: leave room on the side ${state.people > 1 ? 'the group faces' : 'they face'}.`; }
+
+  function renderCards() {
+    const f = { people: state.people, setting: state.setting, vibe: state.vibe, orient: state.orient };
+    state.cards = deck(f, state.seed);
+    const ul = $('cards'); ul.innerHTML = '';
+    for (const c of state.cards) {
+      const p = byId[c.id], fav = state.favs.includes(p.id), n = state.people;
+      const li = document.createElement('li'); li.className = 'card'; li.dataset.testid = 'card'; li.dataset.id = p.id;
+      li.innerHTML = `<div class="frame">${figuresSvg(p, n, '#f4f1ea').replace('<svg class="fig"', `<svg class="fig" role="img" aria-label="Mannequin sketch: ${esc(p.name)}, ${n} ${n === 1 ? 'person' : 'people'}"`)}</div>
+        <div class="body">
+          <p class="meta">${p.min === p.max ? p.min : `${p.min}–${p.max}`} ${p.max === 1 ? 'person' : 'people'} · ${p.vibes.map((v) => VIBES[v]).join(' / ')} · ${p.orient}</p>
+          <h3 data-testid="card-name">${esc(p.name)}</h3>
+          ${c.vibeMatch ? '' : `<p class="vibe-note">Not strictly ${VIBES[state.vibe].toLowerCase()}, but it fits your group and setting.</p>`}
+          <p class="note">${esc(p.why)}</p>
+          <dl class="tips"><div><dt>Hands</dt><dd>${esc(p.tips.hands)}</dd></div><div><dt>Chin</dt><dd>${esc(p.tips.chin)}</dd></div><div><dt>Weight</dt><dd>${esc(p.tips.weight)}</dd></div><div><dt>Angles</dt><dd>${esc(p.tips.angle)}</dd></div></dl>
+          <dl class="tips cam"><div><dt>Camera</dt><dd>${esc(p.cam)}</dd></div><div><dt>Light</dt><dd>${esc(LIGHT[state.setting])}</dd></div><div><dt>Frame</dt><dd>${esc(orientTip(p))}</dd></div></dl>
+          <div class="acts">
+            <button type="button" class="btn fav" aria-pressed="${fav}" data-act="fav" data-testid="fav">${fav ? '★ Favourite' : '☆ Favourite'}</button>
+            <button type="button" class="btn" data-act="shot" data-testid="add-shot">+ Shot list</button>
+            <button type="button" class="btn" data-act="ghost" data-testid="use-ghost" aria-pressed="${state.ghost === p.id}">Ghost in camera</button>
+          </div>
+        </div>`;
+      li.querySelector('[data-act="fav"]').addEventListener('click', (e) => toggleFav(p.id, e.currentTarget));
+      li.querySelector('[data-act="shot"]').addEventListener('click', () => addShot(p.id));
+      li.querySelector('[data-act="ghost"]').addEventListener('click', () => { state.ghost = p.id; renderGhost(); document.querySelectorAll('[data-act="ghost"]').forEach((b) => b.setAttribute('aria-pressed', String(b.closest('li').dataset.id === p.id))); say('cam-status', `Ghost: ${p.name}.`); });
+      ul.appendChild(li);
+    }
+    if (!state.ghost || !state.cards.some((c) => c.id === state.ghost)) state.ghost = state.cards[0] ? state.cards[0].id : null;
+    renderGhost();
+    $('summary').textContent = `${state.cards.length} poses for ${state.people} ${state.people === 1 ? 'person' : 'people'} · ${SETTINGS[state.setting]} · ${VIBES[state.vibe]} · ${state.orient}`;
+    $('seedTxt').textContent = `shuffle seed ${state.seed}`;
+    syncUrl();
+  }
+  function syncUrl() { const u = new URL(location.href); u.searchParams.set('people', state.people); u.searchParams.set('setting', state.setting); u.searchParams.set('vibe', state.vibe); u.searchParams.set('orient', state.orient); u.searchParams.set('seed', state.seed); history.replaceState(null, '', u); }
+
+  function chips(el, name, entries, cur, onChange) {
+    el.innerHTML = '';
+    for (const [v, label] of entries) {
+      const l = document.createElement('label'); l.className = 'chip';
+      l.innerHTML = `<input type="radio" name="${name}" value="${v}" data-testid="${name}-${v}"${String(v) === String(cur) ? ' checked' : ''}><span>${label}</span>`;
+      l.querySelector('input').addEventListener('change', (e) => onChange(e.target.value));
+      el.appendChild(l);
+    }
+  }
+  chips($('f-people'), 'people', [1, 2, 3, 4, 5, 6].map((n) => [n, String(n)]), state.people, (v) => { state.people = +v; renderCards(); });
+  chips($('f-setting'), 'setting', Object.entries(SETTINGS), state.setting, (v) => { state.setting = v; renderCards(); });
+  chips($('f-vibe'), 'vibe', Object.entries(VIBES), state.vibe, (v) => { state.vibe = v; renderCards(); });
+  chips($('f-orient'), 'orient', [['portrait', 'Portrait'], ['landscape', 'Landscape']], state.orient, (v) => { state.orient = v; $('stage').className = `stage ${v}`; drawStill(); renderCards(); });
+  $('stage').className = `stage ${state.orient}`;
+  $('shuffle').addEventListener('click', () => { state.seed = 1 + Math.floor(Math.random() * 99999); renderCards(); say('cam-status', ''); });
+
+  // ---------- favourites ----------
+  const FKEY = 'pose-coach.favs';
+  try { state.favs = JSON.parse(localStorage.getItem(FKEY) || '[]').filter((id) => byId[id]); } catch (_) { state.favs = []; }
+  function toggleFav(id, btn) {
+    state.favs = state.favs.includes(id) ? state.favs.filter((f) => f !== id) : [...state.favs, id];
+    try { localStorage.setItem(FKEY, JSON.stringify(state.favs)); } catch (_) { /* private mode: favourites last for this visit */ }
+    if (btn) { const on = state.favs.includes(id); btn.setAttribute('aria-pressed', String(on)); btn.textContent = on ? '★ Favourite' : '☆ Favourite'; }
+    renderFavs();
+  }
+  function renderFavs() {
+    const ul = $('favs'); ul.innerHTML = '';
+    if (!state.favs.length) { ul.innerHTML = '<li class="note" style="list-style:none;margin-left:-22px">Star a pose to keep it here.</li>'; return; }
+    for (const id of state.favs) {
+      const li = document.createElement('li'); li.dataset.testid = 'fav-item'; li.textContent = byId[id].name + ' ';
+      const x = document.createElement('button'); x.type = 'button'; x.className = 'x'; x.textContent = '×'; x.setAttribute('aria-label', `Remove ${byId[id].name} from favourites`);
+      x.addEventListener('click', () => { toggleFav(id); const b = document.querySelector(`li.card[data-id="${id}"] [data-act="fav"]`); if (b) { b.setAttribute('aria-pressed', 'false'); b.textContent = '☆ Favourite'; } $('shuffle').focus(); });
+      li.appendChild(x); ul.appendChild(li);
+    }
+  }
+
+  // ---------- shot list ----------
+  function shotText() {
+    const head = `Pose Coach shot list: ${state.people} ${state.people === 1 ? 'person' : 'people'} · ${SETTINGS[state.setting]} · ${VIBES[state.vibe]} · ${state.orient}`;
+    const lines = state.shots.map((id, i) => { const p = byId[id]; return `${i + 1}. ${p.name}: ${p.tips.hands} Camera: ${p.cam}`; });
+    return [head, ...lines].join('\n');
+  }
+  function addShot(id) { if (!state.shots.includes(id)) state.shots.push(id); renderShots(); say('copy-status', `Added ${byId[id].name}.`); }
+  function renderShots() {
+    const ol = $('shots'); ol.innerHTML = '';
+    state.shots.forEach((id) => {
+      const li = document.createElement('li'); li.dataset.testid = 'shot'; li.textContent = byId[id].name + ' ';
+      const x = document.createElement('button'); x.type = 'button'; x.className = 'x'; x.textContent = '×'; x.setAttribute('aria-label', `Remove ${byId[id].name} from the shot list`);
+      x.addEventListener('click', () => { state.shots = state.shots.filter((s) => s !== id); renderShots(); (state.shots.length ? $('copy') : $('shuffle')).focus(); });
+      li.appendChild(x); ol.appendChild(li);
+    });
+    $('shot-text').value = state.shots.length ? shotText() : '';
+    $('copy').disabled = !state.shots.length;
+  }
+  $('copy').addEventListener('click', async () => {
+    const text = shotText();
+    let ok = false;
+    try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(text); ok = true; } } catch (_) { ok = false; }
+    if (!ok) { const ta = $('shot-text'); ta.value = text; ta.select(); try { ok = document.execCommand('copy'); } catch (_) { ok = false; } }
+    state.copied = ok ? text : null;
+    say('copy-status', ok ? `Copied ${state.shots.length} shot${state.shots.length === 1 ? '' : 's'} to the clipboard.` : 'Could not reach the clipboard; the text is selected in the preview below, ready to copy.');
+  });
+  $('clear-shots').addEventListener('click', () => { state.shots = []; renderShots(); $('copy').disabled = true; $('shuffle').focus(); say('copy-status', 'Shot list cleared.'); });
+
+  // ---------- camera frame ----------
+  const video = $('video'), still = $('still'), sctx = still.getContext('2d');
+  let stream = null, stillSource = null;
+  const hasCamera = !!(navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function');
+  $('cam-support').textContent = hasCamera ? 'Your browser offers a camera; nothing starts until you press Start.' : 'No camera is available here, so the frame uses the demo scene or a photo you choose.';
+  if (!hasCamera) { $('cam-start').disabled = true; state.camera = 'fallback'; }
+  function drawStill() {
+    const land = state.orient === 'landscape';
+    still.width = land ? 800 : 600; still.height = land ? 600 : 800;
+    const w = still.width, h = still.height, g = sctx;
+    if (stillSource) { const s = stillSource, k = Math.max(w / s.width, h / s.height); g.drawImage(s, (w - s.width * k) / 2, (h - s.height * k) / 2, s.width * k, s.height * k); return; }
+    const sky = g.createLinearGradient(0, 0, 0, h); sky.addColorStop(0, '#f6c28b'); sky.addColorStop(0.55, '#f7e3c4'); sky.addColorStop(0.56, '#c9b28f'); sky.addColorStop(1, '#8f7a5c');
+    g.fillStyle = sky; g.fillRect(0, 0, w, h);
+    g.fillStyle = 'rgba(255,240,200,.9)'; g.beginPath(); g.arc(w * 0.72, h * 0.42, w * 0.09, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#6d5a43';
+    for (let i = 0; i < 7; i++) { const bw = w / 9, x = i * bw * 1.35 - 20, bh = h * (0.18 + ((i * 37) % 10) / 40); g.fillRect(x, h * 0.56 - bh, bw, bh); }
+    g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 2; for (let i = 1; i < 6; i++) { g.beginPath(); g.moveTo(w / 2, h * 0.56); g.lineTo(i * w / 6 * 2 - w / 2, h); g.stroke(); }
+  }
+  function renderGhost() {
+    const svg = $('ghost'), p = state.ghost && byId[state.ghost];
+    const land = state.orient === 'landscape';
+    svg.setAttribute('viewBox', land ? '0 0 240 180' : state.people <= 2 ? '60 0 120 160' : '0 -160 240 320');
+    svg.innerHTML = p ? formation(p.form, state.people, p.body).map((f) => mannequin({ ...f, y: f.y + (land ? 16 : 0) }, '#ffffff')).join('') : '';
+  }
+  function setCamMode(m) {
+    state.camera = m;
+    video.hidden = m !== 'live'; still.hidden = m === 'live';
+    $('cam-start').hidden = m === 'live'; $('cam-stop').hidden = m !== 'live';
+  }
+  $('cam-start').addEventListener('click', async () => {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+      video.srcObject = stream; await video.play().catch(() => {});
+      setCamMode('live'); say('cam-status', 'Camera on. Line the people up with the ghost and the thirds grid.');
+      $('cam-stop').focus({ preventScroll: true });
+    } catch (err) { setCamMode('fallback'); say('cam-status', 'The camera could not start (permission denied or no camera). Using the demo scene instead.'); }
+  });
+  function stopCam() { if (stream) stream.getTracks().forEach((t) => t.stop()); stream = null; video.srcObject = null; setCamMode(hasCamera ? 'off' : 'fallback'); }
+  $('cam-stop').addEventListener('click', () => { stopCam(); $('cam-start').focus({ preventScroll: true }); say('cam-status', 'Camera off.'); });
+  $('demo').addEventListener('click', () => { stopCam(); stillSource = null; drawStill(); still.setAttribute('aria-label', 'Demo scene'); say('cam-status', 'Demo scene.'); });
+  async function decode(file) {
+    if (window.createImageBitmap) { try { return await createImageBitmap(file); } catch (_) { /* fall back */ } }
+    const url = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(file); });
+    return await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = url; });
+  }
+  $('file').addEventListener('change', async (e) => {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    try { stillSource = await decode(f); stopCam(); drawStill(); still.setAttribute('aria-label', 'Your photo'); say('cam-status', 'Your photo is in the frame (kept on this device).'); }
+    catch (_) { say('cam-status', 'That file could not be read as an image.'); }
+  });
+  $('grid-toggle').addEventListener('change', (e) => document.querySelectorAll('.third').forEach((t) => { t.hidden = !e.target.checked; }));
+  $('timer').addEventListener('change', () => { state.timer = +$('timer').value; });
+
+  let tick = null;
+  function capture() {
+    const c = document.createElement('canvas');
+    const src = state.camera === 'live' ? video : still;
+    const w = state.camera === 'live' ? (video.videoWidth || 640) : still.width, h = state.camera === 'live' ? (video.videoHeight || 480) : still.height;
+    const k = Math.min(1, 480 / Math.max(w, h));
+    c.width = Math.round(w * k); c.height = Math.round(h * k);
+    c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+    state.snaps++;
+    const url = c.toDataURL('image/jpeg', 0.85);
+    const fig = document.createElement('figure'); fig.style.margin = '0'; fig.dataset.testid = 'snap';
+    fig.innerHTML = `<img alt="Snapshot ${state.snaps}" src="${url}"><figcaption class="note"><a href="${url}" download="pose-coach-${state.snaps}.jpg">Save</a></figcaption>`;
+    $('snaps').prepend(fig);
+    const fl = $('flash'); fl.style.opacity = '0.9'; setTimeout(() => { fl.style.opacity = '0'; }, 120);
+  }
+  function endCountdown() { clearInterval(tick); tick = null; state.countdown = 0; $('count').textContent = ''; $('cancel').hidden = true; $('shoot').disabled = false; $('shoot').focus({ preventScroll: true }); }
+  $('shoot').addEventListener('click', () => {
+    if (tick) return;
+    state.countdown = state.timer; $('count').textContent = String(state.countdown);
+    $('shoot').disabled = true; $('cancel').hidden = false; $('cancel').focus({ preventScroll: true });
+    say('cam-status', `Self-timer: ${state.countdown} seconds.`);
+    tick = setInterval(() => {
+      state.countdown--;
+      if (state.countdown > 0) { $('count').textContent = String(state.countdown); return; }
+      capture(); endCountdown(); say('cam-status', `Snap! Photo ${state.snaps} is below.`);
+    }, 1000);
+  });
+  $('cancel').addEventListener('click', () => { endCountdown(); say('cam-status', 'Timer cancelled.'); });
+
+  function say(id, m) { $(id).textContent = m; }
+
+  drawStill(); renderCards(); renderFavs(); renderShots(); setCamMode(state.camera);
+
+  window.__pose = {
+    get state() { return JSON.parse(JSON.stringify({ ...state, hasCamera })); },
+    poses: POSES.map((p) => ({ id: p.id, name: p.name, min: p.min, max: p.max, settings: p.settings.slice(), vibes: p.vibes.slice(), orient: p.orient })),
+    deck: (f, seed) => deck(f, seed),
+    shotText,
+  };
+})();
+</script>
+</body>
+</html>

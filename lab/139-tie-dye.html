@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tie-Dye Studio — fold, bind, dye, reveal</title>
+<meta name="description" content="Fold a virtual shirt into a spiral, bullseye, crumple, accordion or shibori-style pole wrap, squirt dye onto the folded bundle in wedges or spots, let it soak in, then unfold it to reveal the pattern. Seeded, with undo and PNG export, and an honest note on how the colour mixing is approximated.">
+<style>
+  :root {
+    --bg: #fff8ec;
+    --ink: #1f1a2e;
+    --muted: #625b73;
+    --pink: #ff4f9a;
+    --orange: #ff9a1f;
+    --yellow: #ffd23f;
+    --teal: #19b5a5;
+    --violet: #6c4cf0;
+    --card: #ffffff;
+    --line: #ecdfc9;
+    --round: "Trebuchet MS", "Arial Rounded MT Bold", "Segoe UI", system-ui, sans-serif;
+    --hand: "Segoe Print", "Comic Sans MS", "Bradley Hand", cursive;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--round); overflow-x: hidden;
+    background-image: radial-gradient(circle at 12% 8%, rgba(255,79,154,.16), transparent 30%), radial-gradient(circle at 88% 18%, rgba(25,181,165,.16), transparent 32%), radial-gradient(circle at 60% 100%, rgba(255,210,63,.2), transparent 40%); }
+  :focus-visible { outline: 3px solid var(--violet); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: #fff; background: var(--ink); text-decoration: none; font: 700 13px/1 var(--round); padding: 9px 13px; border-radius: 999px; border: 2px solid var(--yellow); }
+  a.back:hover { background: var(--violet); }
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 60px 16px 36px; }
+  header { margin-bottom: 16px; }
+  h1 { font: 700 clamp(38px, 7vw, 70px)/1 var(--round); margin: 0 0 6px; letter-spacing: -.01em;
+    background: linear-gradient(90deg, var(--pink), var(--orange), var(--yellow), var(--teal), var(--violet)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .tag { font: 20px/1.3 var(--hand); color: var(--muted); margin: 0 0 6px; }
+  .lede { margin: 0; max-width: 68ch; overflow-wrap: anywhere; }
+  .layout { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 18px; align-items: start; }
+  .card { background: var(--card); border: 2px solid var(--ink); border-radius: 16px; padding: 14px 16px; min-width: 0; box-shadow: 5px 5px 0 var(--ink); }
+  .card + .card { margin-top: 18px; }
+  h2 { font: 700 20px/1.2 var(--round); margin: 0 0 8px; display: flex; align-items: center; gap: 8px; }
+  h2 .n { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--yellow); border: 2px solid var(--ink); font-size: 14px; flex: none; }
+  fieldset { border: 0; margin: 0 0 10px; padding: 0; min-width: 0; }
+  legend { font: 700 12px/1.3 var(--round); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 0; margin-bottom: 4px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips label { position: relative; min-width: 0; }
+  .chips input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+  .chips span { display: inline-block; padding: 6px 12px; border: 2px solid var(--ink); border-radius: 999px; font-size: 14px; background: #fff; }
+  .chips input:checked + span { background: var(--ink); color: #fff; }
+  .chips input:focus-visible + span { outline: 3px solid var(--violet); outline-offset: 2px; }
+  .field { margin: 0 0 10px; min-width: 0; }
+  .field label { display: flex; justify-content: space-between; gap: 8px; font: 700 12px/1.3 var(--round); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+  .field output { font-variant-numeric: tabular-nums; color: var(--ink); }
+  input[type=range] { width: 100%; accent-color: var(--violet); }
+  select, input[type=number] { width: 100%; max-width: 100%; min-width: 0; font: 15px var(--round); padding: 7px 9px; border: 2px solid var(--ink); border-radius: 10px; background: #fff; color: var(--ink); }
+  .btns { display: flex; flex-wrap: wrap; gap: 8px; }
+  .btn { min-height: 40px; padding: 8px 14px; border-radius: 12px; border: 2px solid var(--ink); background: var(--pink); color: #fff; font: 700 14px/1 var(--round); cursor: pointer; box-shadow: 3px 3px 0 var(--ink); }
+  .btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+  .btn.alt { background: var(--teal); }
+  .btn.ghost { background: #fff; color: var(--ink); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .stage { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 200px); gap: 14px; align-items: start; }
+  canvas { display: block; max-width: 100%; height: auto; }
+  #shirt { width: 100%; }
+  .bundlebox { text-align: center; font-size: 13px; color: var(--muted); }
+  #bundle { width: 100%; max-width: 200px; margin: 0 auto 4px; border-radius: 12px; }
+  .status { font-size: 14px; margin: 8px 0 0; min-height: 1.5em; overflow-wrap: anywhere; }
+  .note { font-size: 13px; color: var(--muted); margin: 8px 0 0; overflow-wrap: anywhere; }
+  .sw { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .sw i { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--ink); }
+  footer { margin-top: 26px; text-align: center; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+  @media (max-width: 880px) { .layout { grid-template-columns: minmax(0, 1fr); } .stagecol { order: -1; } }
+  @media (max-width: 520px) { .stage { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <h1>Tie-Dye Studio</h1>
+    <p class="tag">fold · bind · dye · reveal</p>
+    <p class="lede">Fold the shirt, squirt dye onto the bundle, let it soak, then open it up. The pattern comes from the fold: each fold here is a mapping from a point on the flat fabric to a point on the folded bundle, so dye placed on the bundle lands in several places at once when you unfold.</p>
+  </header>
+
+  <div class="layout">
+    <div>
+      <section class="card" aria-labelledby="h-fold">
+        <h2 id="h-fold"><span class="n" aria-hidden="true">1</span>Fold &amp; bind</h2>
+        <fieldset><legend>Fold</legend>
+          <div class="chips" id="folds" data-testid="folds">
+            <label><input type="radio" name="fold" value="spiral" checked><span>Spiral</span></label>
+            <label><input type="radio" name="fold" value="bullseye"><span>Bullseye</span></label>
+            <label><input type="radio" name="fold" value="crumple"><span>Crumple</span></label>
+            <label><input type="radio" name="fold" value="accordion"><span>Accordion</span></label>
+            <label><input type="radio" name="fold" value="shibori"><span>Shibori stripes</span></label>
+          </div>
+        </fieldset>
+        <div class="field" id="twistField"><label for="twist">Spiral twist <output id="twistOut" for="twist" data-testid="twist-out">1.25 turns</output></label>
+          <input id="twist" data-testid="twist" type="range" min="0.25" max="3" step="0.25" value="1.25"></div>
+        <div class="field" id="pleatField"><label for="pleats">Pleats <output id="pleatOut" for="pleats" data-testid="pleat-out">8</output></label>
+          <input id="pleats" data-testid="pleats" type="range" min="4" max="16" step="2" value="8"></div>
+        <p class="note" id="foldNote" data-testid="fold-note"></p>
+      </section>
+
+      <section class="card" aria-labelledby="h-dye">
+        <h2 id="h-dye"><span class="n" aria-hidden="true">2</span>Dye</h2>
+        <div class="field"><label for="palette">Dye kit</label>
+          <select id="palette" data-testid="palette">
+            <option value="rainbow" selected>Rainbow: fuchsia, orange, yellow, turquoise, violet</option>
+            <option value="ocean">Ocean: turquoise, blue, lime</option>
+            <option value="sunset">Sunset: fuchsia, orange, yellow</option>
+            <option value="berry">Berry: magenta, purple, blue</option>
+            <option value="indigo">Indigo only</option>
+          </select>
+          <div class="sw" id="swatches" aria-hidden="true"></div></div>
+        <fieldset><legend>Apply as</legend>
+          <div class="chips" data-testid="modes">
+            <label><input type="radio" name="mode" value="wedges" checked><span>Wedges</span></label>
+            <label><input type="radio" name="mode" value="spots"><span>Spots</span></label>
+          </div>
+        </fieldset>
+        <div class="field"><label for="absorb">Soak (absorbency) <output id="absorbOut" for="absorb" data-testid="absorb-out">0.5</output></label>
+          <input id="absorb" data-testid="absorb" type="range" min="0" max="1" step="0.1" value="0.5"></div>
+        <div class="btns">
+          <button type="button" class="btn" id="addDye" data-testid="add-dye">Add dye</button>
+          <button type="button" class="btn ghost" id="undo" data-testid="undo">Undo</button>
+          <button type="button" class="btn ghost" id="reset" data-testid="reset">Start over</button>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="h-mix">
+        <h2 id="h-mix">How the colours mix</h2>
+        <p class="note" style="margin-top:0">Real fibre-reactive dyes absorb light across the whole spectrum and bond with cotton through chemistry this page doesn't model. Here each dye is treated as a filter: the fabric's reflectance in each of the red, green and blue channels (in linear light) is multiplied by the dye's colour raised to the power of how much dye is there, like stacking tinted glass (a Beer–Lambert-style rule). So yellow over turquoise goes green and every extra dye makes the fabric darker, never lighter, the way dyes behave. Three RGB channels can't capture everything, though: some real mixes come out muddier or brighter than this.</p>
+      </section>
+    </div>
+
+    <div class="stagecol">
+      <section class="card" aria-labelledby="h-reveal">
+        <h2 id="h-reveal"><span class="n" aria-hidden="true">3</span>Reveal</h2>
+        <div class="stage">
+          <canvas id="shirt" data-testid="shirt" width="480" height="520" role="img" aria-label="Tie-dyed shirt"></canvas>
+          <div class="bundlebox"><canvas id="bundle" data-testid="bundle" width="200" height="200" role="img" aria-label="The folded bundle with dye"></canvas>The bundle, still folded</div>
+        </div>
+        <p class="status" id="status" data-testid="status" role="status" aria-live="polite"></p>
+        <div class="btns">
+          <button type="button" class="btn alt" id="download" data-testid="download">Download PNG</button>
+          <button type="button" class="btn ghost" id="reseed" data-testid="reseed">New seed</button>
+          <span class="note" style="margin:0;align-self:center">seed <b id="seedTxt" data-testid="seed">1</b></span>
+        </div>
+      </section>
+    </div>
+  </div>
+  <footer>Built by Zac Corbett · canvas, a few steps of diffusion and a lot of imaginary rubber bands · add <code>?seed=</code> for a repeatable shirt</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const TAU = Math.PI * 2, RMAX = Math.SQRT1_2;       // polar folds reach the fabric's corners
+  const N = 160;                                       // fabric resolution
+  const PALETTES = {
+    rainbow: ['#ff2d8a', '#ff8a1c', '#ffd21f', '#12b5b0', '#6a3cf0'],
+    ocean: ['#10b7b0', '#1f5fd6', '#9bd42a'],
+    sunset: ['#ff2d8a', '#ff8a1c', '#ffd21f'],
+    berry: ['#e0268f', '#7b2cc9', '#2448c8'],
+    indigo: ['#27336f'],
+  };
+  const FOLD_NOTES = {
+    spiral: 'Pinch the centre and twist: points at the same angle on the bundle sit further round the shirt the further out they are, so straight wedges of dye open into spiral arms.',
+    bullseye: 'Pull the centre up into a cone and bind it: the pleats bunch together, so every point at the same distance from the centre shares one spot on the bundle, and dye bands become rings.',
+    crumple: 'Scrunch the fabric into a seeded, wrinkled pile. Folds overlap unpredictably, so squirts of dye come out mottled.',
+    accordion: 'Pleat the shirt back and forth like a fan. Each pleat is a mirror image of its neighbour, so the pattern repeats in reflected stripes.',
+    shibori: 'Inspired by arashi shibori: the shirt is wrapped diagonally around a pole and scrunched, so dye on one side of the pole comes out as diagonal stripes.',
+  };
+
+  // ---------- helpers ----------
+  const frac = (x) => x - Math.floor(x);
+  const tri = (x) => { const m = ((x % 2) + 2) % 2; return m <= 1 ? m : 2 - m; };   // accordion fold of the line onto [0, 1]
+  const hexRgb = (h) => { const n = parseInt(h.slice(1), 16); return [n >> 16, n >> 8 & 255, n & 255]; };
+  const toLin = (v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+  const toSrgb = (v) => { v = Math.max(0, Math.min(1, v)); return Math.round(255 * (v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055)); };
+  const FABRIC = [0.93, 0.93, 0.9];                    // off-white cotton, linear reflectance
+  const STRENGTH = 1.25;
+
+  // smooth seeded value noise for the crumple fold
+  function makeNoise(seed) {
+    const r = mulberry32(seed), G = 9, grid = Array.from({ length: G * G }, () => r() * 2 - 1);
+    const at = (i, j) => grid[((j % G) + G) % G * G + ((i % G) + G) % G];
+    const sm = (t) => t * t * (3 - 2 * t);
+    return (x, y) => { x *= G - 1; y *= G - 1; const i = Math.floor(x), j = Math.floor(y), fx = sm(x - i), fy = sm(y - j);
+      return (at(i, j) * (1 - fx) + at(i + 1, j) * fx) * (1 - fy) + (at(i, j + 1) * (1 - fx) + at(i + 1, j + 1) * fx) * fy; };
+  }
+
+  // ---------- the folds: fabric (u, v) in [0,1]² → bundle (s, t) in [0,1]² ----------
+  const POLAR = { spiral: true, bullseye: true };
+  function mapper(st) {
+    const TW = st.twist * TAU, P = st.pleats;
+    if (st.fold === 'spiral') return (u, v) => { const x = u - .5, y = v - .5, s = Math.min(1, Math.hypot(x, y) / RMAX); return [s, frac((Math.atan2(y, x) + TW * s) / TAU)]; };
+    if (st.fold === 'bullseye') return (u, v) => { const x = u - .5, y = v - .5, s = Math.min(1, Math.hypot(x, y) / RMAX); return [s, frac(Math.atan2(y, x) / TAU * P / 2)]; };
+    if (st.fold === 'accordion') return (u, v) => [tri(u * P), v];
+    if (st.fold === 'shibori') { const a = 35 * Math.PI / 180, c = Math.cos(a), sn = Math.sin(a);
+      return (u, v) => { const w = u * c + v * sn, along = -u * sn + v * c; return [tri(w * P * 0.75), tri((along + 1) * 2.5)]; }; }
+    const n1 = makeNoise(st.seed * 7 + 1), n2 = makeNoise(st.seed * 7 + 2);
+    return (u, v) => [tri((u + 0.22 * n1(u, v)) * 3.2), tri((v + 0.22 * n2(u, v)) * 3.2)];
+  }
+
+  // ---------- dye on the bundle ----------
+  function bundleSize(fold) { return POLAR[fold] ? [48, 96] : [64, 64]; }   // [cells along s, cells along t]
+  function applyLayer(st, layer, fields, palette) {
+    const [NS, NT] = bundleSize(st.fold), r = mulberry32(layer.seed);
+    const m = palette.length, polar = POLAR[st.fold];
+    const add = (k, i, j, c) => { fields[k][j * NS + i] += c; };
+    if (layer.mode === 'wedges') {
+      const n = m === 1 ? 4 : m * (m <= 3 ? 2 : 1), gap = 0.14, off = r();
+      for (let j = 0; j < NT; j++) for (let i = 0; i < NS; i++) {
+        const s = (i + .5) / NS, t = (j + .5) / NT;
+        let q;
+        if (st.fold === 'bullseye') q = s * n;                           // bands down the cone
+        else if (polar) q = frac(t + off / n) * n;                     // angular wedges
+        else q = frac(Math.atan2(t - .5, s - .5) / TAU + off / n) * n; // pie slices around the bundle
+        const k = Math.floor(q) % n, f = q - Math.floor(q);
+        if (f < gap / 2 || f > 1 - gap / 2) continue;                   // undyed where the bands bind tight
+        if (m === 1 && k % 2) continue;
+        add(k % m, i, j, 1);
+      }
+    } else {
+      const spots = 7 + Math.floor(r() * 6);
+      for (let q = 0; q < spots; q++) {
+        const cs = r(), ct = r(), rad = 0.07 + r() * 0.09, k = Math.floor(r() * m);
+        for (let j = 0; j < NT; j++) for (let i = 0; i < NS; i++) {
+          const s = (i + .5) / NS, t = (j + .5) / NT;
+          let dt = Math.abs(t - ct); if (polar) dt = Math.min(dt, 1 - dt);
+          const d = Math.hypot(s - cs, dt) / rad;
+          if (d < 1) add(k, i, j, 1.1 * (1 - d * d));
+        }
+      }
+    }
+  }
+
+  /** Explicit diffusion on the bundle grid. Each step moves dye between neighbours by alpha × difference, so what
+   * leaves one cell arrives in the next: the total is conserved. Edges along s are closed; t wraps round for polar folds. */
+  function diffuse(field, NS, NT, alpha, steps, periodicT) {
+    let a = Float64Array.from(field), b = new Float64Array(a.length);
+    for (let k = 0; k < steps; k++) {
+      for (let j = 0; j < NT; j++) for (let i = 0; i < NS; i++) {
+        const c = a[j * NS + i];
+        let flow = 0;
+        if (i > 0) flow += a[j * NS + i - 1] - c;
+        if (i < NS - 1) flow += a[j * NS + i + 1] - c;
+        if (j > 0 || periodicT) flow += a[((j - 1 + NT) % NT) * NS + i] - c;
+        if (j < NT - 1 || periodicT) flow += a[((j + 1) % NT) * NS + i] - c;
+        b[j * NS + i] = c + alpha * flow;
+      }
+      const t = a; a = b; b = t;
+    }
+    return a;
+  }
+  const soak = (absorb) => ({ alpha: 0.06 + 0.16 * absorb, steps: 1 + Math.round(absorb * 7) });
+
+  /** Subtractive-looking mix: multiply linear reflectance by each dye's colour to the power of its amount. */
+  function mix(amounts, palette) {
+    const out = FABRIC.slice();
+    amounts.forEach((c, k) => {
+      if (c <= 0) return;
+      const d = hexRgb(palette[k]).map(toLin), e = Math.min(1.6, c) * STRENGTH;
+      for (let ch = 0; ch < 3; ch++) out[ch] *= Math.max(0.02, d[ch]) ** e;
+    });
+    return out.map(toSrgb);
+  }
+
+  function bilinear(f, NS, NT, s, t, periodicT) {
+    const x = s * NS - .5, y = t * NT - .5;
+    let i0 = Math.floor(x), j0 = Math.floor(y); const fx = x - i0, fy = y - j0;
+    const I = (i) => Math.max(0, Math.min(NS - 1, i));
+    const J = (j) => periodicT ? ((j % NT) + NT) % NT : Math.max(0, Math.min(NT - 1, j));
+    const g = (i, j) => f[J(j) * NS + I(i)];
+    return (g(i0, j0) * (1 - fx) + g(i0 + 1, j0) * fx) * (1 - fy) + (g(i0, j0 + 1) * (1 - fx) + g(i0 + 1, j0 + 1) * fx) * fy;
+  }
+
+  // ---------- compute everything from the state ----------
+  function compute(st) {
+    const palette = PALETTES[st.palette];
+    const [NS, NT] = bundleSize(st.fold), polar = !!POLAR[st.fold];
+    const raw = palette.map(() => new Float64Array(NS * NT));
+    st.layers.forEach((L) => applyLayer(st, L, raw, palette));
+    const { alpha, steps } = soak(st.absorb);
+    const wet = raw.map((f) => diffuse(f, NS, NT, alpha, steps, polar));
+    const sum = (f) => f.reduce((a, b) => a + b, 0);
+    const map = mapper(st);
+    const colourAt = (u, v) => { const [s, t] = map(u, v); return mix(wet.map((f) => bilinear(f, NS, NT, s, t, polar)), palette); };
+    const img = new Uint8ClampedArray(N * N * 4);
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const c = colourAt((x + .5) / N, (y + .5) / N), o = (y * N + x) * 4;
+      img[o] = c[0]; img[o + 1] = c[1]; img[o + 2] = c[2]; img[o + 3] = 255;
+    }
+    return { NS, NT, polar, raw, wet, alpha, steps, colourAt, map, img, palette, totals: { before: raw.map(sum), after: wet.map(sum) } };
+  }
+
+  // ---------- drawing ----------
+  const SHIRT = { x: 40, y: 40, w: 400, h: 440 };      // the fabric square is stretched over this box
+  function shirtPath(g) {
+    const { x, y, w, h } = SHIRT;
+    g.beginPath();
+    g.moveTo(x + w * .36, y); g.quadraticCurveTo(x + w * .5, y + h * .09, x + w * .64, y);
+    g.lineTo(x + w * .86, y + h * .05); g.lineTo(x + w, y + h * .24); g.lineTo(x + w * .86, y + h * .32); g.lineTo(x + w * .79, y + h * .26);
+    g.lineTo(x + w * .8, y + h); g.lineTo(x + w * .2, y + h); g.lineTo(x + w * .21, y + h * .26);
+    g.lineTo(x + w * .14, y + h * .32); g.lineTo(x, y + h * .24); g.lineTo(x + w * .14, y + h * .05); g.closePath();
+  }
+  const off = document.createElement('canvas'); off.width = N; off.height = N;
+  function drawShirt(res) {
+    off.getContext('2d').putImageData(new ImageData(res.img, N, N), 0, 0);
+    const cv = $('shirt'), g = cv.getContext('2d');
+    g.clearRect(0, 0, cv.width, cv.height);
+    g.fillStyle = '#fff8ec'; g.fillRect(0, 0, cv.width, cv.height);
+    g.save(); shirtPath(g); g.clip();
+    g.imageSmoothingEnabled = true;
+    g.drawImage(off, SHIRT.x, SHIRT.y, SHIRT.w, SHIRT.h);
+    g.restore();
+    shirtPath(g); g.lineWidth = 3; g.strokeStyle = '#1f1a2e'; g.stroke();
+    g.beginPath(); g.moveTo(SHIRT.x + SHIRT.w * .36, SHIRT.y); g.quadraticCurveTo(SHIRT.x + SHIRT.w * .5, SHIRT.y + SHIRT.h * .09, SHIRT.x + SHIRT.w * .64, SHIRT.y); g.lineWidth = 6; g.stroke();
+  }
+  function drawBundle(res) {
+    const cv = $('bundle'), g = cv.getContext('2d'), W = cv.width;
+    g.clearRect(0, 0, W, W);
+    const id = g.createImageData(W, W);
+    for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) {
+      let s, t, inside = true;
+      if (res.polar) { const dx = (x + .5) / W - .5, dy = (y + .5) / W - .5; s = Math.hypot(dx, dy) * 2; t = frac(Math.atan2(dy, dx) / TAU); inside = s <= 1; }
+      else { s = (x + .5) / W; t = (y + .5) / W; }
+      const o = (y * W + x) * 4;
+      if (!inside) { id.data[o + 3] = 0; continue; }
+      const c = mix(res.wet.map((f) => bilinear(f, res.NS, res.NT, s, t, res.polar)), res.palette);
+      id.data[o] = c[0]; id.data[o + 1] = c[1]; id.data[o + 2] = c[2]; id.data[o + 3] = 255;
+    }
+    g.putImageData(id, 0, 0);
+  }
+
+  // ---------- state, hist ----------
+  const SEED0 = (parseInt(params.get('seed'), 10) >>> 0) || 1;
+  const initial = (seed) => ({ seed, fold: 'spiral', twist: 1.25, pleats: 8, mode: 'wedges', palette: 'rainbow', absorb: 0.5, layers: [{ mode: 'wedges', seed: seed * 31 + 1 }] });
+  let S = initial(SEED0), hist = [], res = null;
+  const snap = () => JSON.parse(JSON.stringify(S));
+  function change(fn, msg) { hist.push(snap()); if (hist.length > 50) hist.shift(); fn(); render(msg); }
+
+  function syncControls() {
+    document.querySelector(`input[name=fold][value="${S.fold}"]`).checked = true;
+    document.querySelector(`input[name=mode][value="${S.mode}"]`).checked = true;
+    $('twist').value = S.twist; $('twistOut').textContent = `${S.twist} turns`;
+    $('pleats').value = S.pleats; $('pleatOut').textContent = String(S.pleats);
+    $('absorb').value = S.absorb; $('absorbOut').textContent = String(S.absorb);
+    $('palette').value = S.palette;
+    $('twistField').hidden = S.fold !== 'spiral';
+    $('pleatField').hidden = !(S.fold === 'bullseye' || S.fold === 'accordion' || S.fold === 'shibori');
+    $('foldNote').textContent = FOLD_NOTES[S.fold];
+    $('swatches').innerHTML = PALETTES[S.palette].map((c) => `<i style="background:${c}"></i>`).join('');
+    $('seedTxt').textContent = S.seed;
+    $('undo').disabled = hist.length === 0;
+  }
+  function render(msg) {
+    res = compute(S);
+    syncControls(); drawShirt(res); drawBundle(res);
+    const n = S.layers.length;
+    $('shirt').setAttribute('aria-label', `A shirt, ${S.fold} fold, ${n} dye application${n === 1 ? '' : 's'} (${S.layers.map((l) => l.mode).join(', ') || 'none'}) in the ${S.palette} kit, seed ${S.seed}.`);
+    if (msg) $('status').textContent = msg;
+  }
+  const foldName = { spiral: 'Spiral', bullseye: 'Bullseye', crumple: 'Crumple', accordion: 'Accordion', shibori: 'Shibori stripes' };
+
+  document.querySelectorAll('input[name=fold]').forEach((el) => el.addEventListener('change', () => change(() => { S.fold = el.value; }, `${foldName[el.value]} fold. The same dye, on a differently folded bundle.`)));
+  document.querySelectorAll('input[name=mode]').forEach((el) => el.addEventListener('change', () => { S.mode = el.value; syncControls(); $('status').textContent = `Next dye goes on as ${el.value}.`; }));
+  $('twist').addEventListener('change', () => change(() => { S.twist = parseFloat($('twist').value); }, `Twist ${$('twist').value} turns.`));
+  $('twist').addEventListener('input', () => { $('twistOut').textContent = `${$('twist').value} turns`; });
+  $('pleats').addEventListener('change', () => change(() => { S.pleats = parseInt($('pleats').value, 10); }, `${$('pleats').value} pleats.`));
+  $('pleats').addEventListener('input', () => { $('pleatOut').textContent = $('pleats').value; });
+  $('absorb').addEventListener('change', () => change(() => { S.absorb = parseFloat($('absorb').value); }, `Absorbency ${$('absorb').value}: ${soak(parseFloat($('absorb').value)).steps} soak steps.`));
+  $('absorb').addEventListener('input', () => { $('absorbOut').textContent = $('absorb').value; });
+  $('palette').addEventListener('change', () => change(() => { S.palette = $('palette').value; }, `Dye kit: ${$('palette').selectedOptions[0].textContent}.`));
+  $('addDye').addEventListener('click', () => change(() => { S.layers.push({ mode: S.mode, seed: S.seed * 31 + S.layers.length + 1 }); }, `Dye added as ${S.mode}. ${S.layers.length + 1} application${S.layers.length ? 's' : ''} so far.`));
+  $('undo').addEventListener('click', () => {
+    if (!hist.length) return;
+    S = hist.pop();
+    render('Undone.');
+    if ($('undo').disabled) $('addDye').focus({ preventScroll: true });
+  });
+  $('reset').addEventListener('click', () => change(() => { const keep = S.seed; S = initial(keep); S.layers = []; }, 'A clean white shirt. Add some dye.'));
+  $('reseed').addEventListener('click', () => {
+    const seed = 1 + Math.floor(Math.random() * 99999);
+    change(() => { S.seed = seed; S.layers = S.layers.map((l, i) => ({ mode: l.mode, seed: seed * 31 + i + 1 })); }, `New seed ${seed}.`);
+    try { const u = new URL(location.href); u.searchParams.set('seed', seed); window.history.replaceState(null, '', u); } catch (e) { /* ignore */ }
+  });
+  $('download').addEventListener('click', () => {
+    $('shirt').toBlob((blob) => {
+      if (!blob) { $('status').textContent = 'Sorry, this browser could not make a PNG.'; return; }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = `tie-dye-seed-${S.seed}.png`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      $('status').textContent = `Saved tie-dye-seed-${S.seed}.png.`;
+    }, 'image/png');
+  });
+
+  render('');
+
+  window.__tiedye = {
+    get state() { return JSON.parse(JSON.stringify({ ...S, undoDepth: hist.length, alpha: res.alpha, steps: res.steps, grid: [res.NS, res.NT], totals: res.totals, RMAX, N, shirtBox: SHIRT })); },
+    colourAt: (u, v) => res.colourAt(u, v),
+    map: (u, v) => res.map(u, v),
+    diffuse: (arr, NS, NT, alpha, steps, periodic) => Array.from(diffuse(arr, NS, NT, alpha, steps, periodic)),
+    mix: (amounts, palette) => mix(amounts, palette),
+    palettes: PALETTES,
+    FABRIC, STRENGTH,
+  };
+})();
+</script>
+</body>
+</html>

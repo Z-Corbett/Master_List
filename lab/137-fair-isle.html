@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fair Isle Chart — generative stranded colourwork</title>
+<meta name="description" content="Generate seeded Fair Isle knitting charts with peerie bands, OXO motifs, stars and seeding, never more than two colours in a row. Motif repeats always divide the stitch count. See the chart and a knitted preview, get float-length warnings and a rough yarn estimate per colour.">
+<style>
+  :root {
+    --peat: #1d2230;
+    --peat-2: #2a3144;
+    --oat: #f1e9d8;
+    --oat-2: #e2d6bd;
+    --madder: #b3392f;
+    --gold: #d8a441;
+    --moss: #6f8a47;
+    --ink: #202431;
+    --muted: #5d6070;
+    --serif: "Georgia", "Cambria", "Book Antiqua", serif;
+    --sans: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--peat); color: var(--ink); font: 15px/1.55 var(--sans); overflow-x: hidden;
+    background-image: linear-gradient(45deg, rgba(255,255,255,.025) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.025) 75%), linear-gradient(45deg, rgba(255,255,255,.025) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.025) 75%);
+    background-size: 14px 14px; background-position: 0 0, 7px 7px; }
+  :focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; color: var(--peat); background: var(--gold); text-decoration: none; font: 700 13px/1 var(--sans); padding: 8px 12px; border-radius: 4px; box-shadow: 0 2px 0 #8b6620; }
+  a.back:hover { background: var(--oat); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 58px 16px 36px; }
+  header { color: var(--oat); margin-bottom: 16px; }
+  .border { height: 14px; margin: 0 0 12px; background:
+      radial-gradient(circle at 50% 50%, var(--gold) 2px, transparent 2.5px) 0 0/14px 14px,
+      linear-gradient(var(--madder), var(--madder)); border-radius: 2px; }
+  .eyebrow { margin: 0; font: 700 12px/1.3 var(--sans); letter-spacing: .24em; text-transform: uppercase; color: var(--gold); }
+  h1 { font: 400 clamp(38px, 7vw, 68px)/1.02 var(--serif); margin: 6px 0; }
+  h1 span { color: var(--gold); font-style: italic; }
+  .lede { margin: 0; max-width: 70ch; color: #d6cfbf; overflow-wrap: anywhere; }
+  .layout { display: grid; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); gap: 18px; align-items: start; }
+  .card { background: var(--oat); border-radius: 6px; padding: 14px 16px; min-width: 0; border-top: 6px solid var(--madder); box-shadow: 0 14px 30px -18px #000; }
+  .card + .card { margin-top: 16px; }
+  h2 { font: 400 24px/1.2 var(--serif); margin: 0 0 8px; }
+  .field { margin: 0 0 10px; min-width: 0; }
+  .field label, .lab { display: block; font: 700 12px/1.3 var(--sans); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+  input[type=number], select { width: 100%; max-width: 100%; min-width: 0; font: 15px var(--sans); padding: 8px 10px; border: 1px solid #b9ab8e; border-radius: 4px; background: #fffdf8; color: var(--ink); }
+  .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+  .btn { min-height: 40px; padding: 8px 14px; border-radius: 4px; border: 2px solid var(--peat); background: var(--peat); color: var(--oat); font: 700 14px/1 var(--sans); cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--peat); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .swatches { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 0; padding: 0; list-style: none; }
+  .swatches li { display: flex; align-items: center; gap: 5px; font-size: 12px; min-width: 0; }
+  .swatches i { width: 16px; height: 16px; border-radius: 3px; border: 1px solid rgba(0,0,0,.3); flex: none; }
+  .views { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  canvas { display: block; max-width: 100%; }
+  .canvaswrap { background: #fffdf8; border: 1px solid var(--oat-2); border-radius: 4px; padding: 6px; overflow: hidden; }
+  .note { font-size: 13px; color: var(--muted); margin: 8px 0 0; overflow-wrap: anywhere; }
+  .rule { background: #fffdf8; border-left: 4px solid var(--gold); padding: 8px 10px; margin: 8px 0; font-size: 14px; overflow-wrap: anywhere; }
+  ol.bands { margin: 6px 0 0; padding-left: 20px; font-size: 14px; }
+  ol.bands li { overflow-wrap: anywhere; }
+  .warn { color: #8f231b; font-weight: 700; }
+  .ok { color: #3f5f22; font-weight: 700; }
+  ul.floats { margin: 6px 0 0; padding-left: 18px; font-size: 13px; max-height: 180px; overflow: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 5px 6px; border-bottom: 1px solid var(--oat-2); text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  th { font: 700 11px/1.3 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  td i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; border: 1px solid rgba(0,0,0,.3); vertical-align: -1px; margin-right: 5px; }
+  footer { margin-top: 24px; text-align: center; font-size: 13px; color: #b9b2a3; overflow-wrap: anywhere; }
+  footer code { color: var(--gold); }
+  @media (max-width: 860px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <div class="border" aria-hidden="true"></div>
+    <p class="eyebrow">Stranded colourwork · knitted in the round</p>
+    <h1>Fair Isle <span>Chart</span></h1>
+    <p class="lede">A seeded generator for Fair Isle bands: little peerie patterns, big OXO and star bands, and scattered seeding stitches. It keeps the Fair Isle rule of never more than two colours in a round, and every motif repeat divides your stitch count so the pattern closes cleanly at the seam.</p>
+  </header>
+
+  <div class="layout">
+    <div>
+      <section class="card" aria-labelledby="h-set">
+        <h2 id="h-set">Your yoke</h2>
+        <div class="two">
+          <div class="field"><label for="width">Stitches around</label>
+            <input id="width" data-testid="width" type="number" min="40" max="160" step="4" value="72" inputmode="numeric"></div>
+          <div class="field"><label for="maxFloat">Longest float</label>
+            <input id="maxFloat" data-testid="max-float" type="number" min="2" max="24" step="1" value="5" inputmode="numeric"></div>
+        </div>
+        <div class="field"><label for="palette">Palette</label>
+          <select id="palette" data-testid="palette">
+            <option value="shetland" selected>Shetland naturals &amp; madder</option>
+            <option value="harbour">Harbour blues</option>
+            <option value="heather">Heather moor</option>
+            <option value="bonfire">Bonfire night</option>
+          </select></div>
+        <div class="two">
+          <div class="field"><label for="seed">Seed</label>
+            <input id="seed" data-testid="seed" type="number" min="1" max="999999" step="1" value="1" inputmode="numeric"></div>
+          <div class="field"><label for="gauge">Gauge (st / 10 cm)</label>
+            <input id="gauge" data-testid="gauge" type="number" min="16" max="40" step="1" value="28" inputmode="numeric"></div>
+        </div>
+        <div class="row">
+          <button type="button" class="btn" id="reseed" data-testid="reseed">New pattern</button>
+        </div>
+        <ul class="swatches" id="swatches" aria-label="Palette colours"></ul>
+        <p class="note" id="status" data-testid="status" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="card" aria-labelledby="h-bands">
+        <h2 id="h-bands">Bands, bottom to top</h2>
+        <ol class="bands" id="bands" data-testid="bands"></ol>
+      </section>
+
+      <section class="card" aria-labelledby="h-floats">
+        <h2 id="h-floats">Floats</h2>
+        <p id="floatSummary" data-testid="float-summary" aria-live="polite"></p>
+        <ul class="floats" id="floats" data-testid="floats"></ul>
+        <p class="note">A float is the strand of the colour you aren't using, carried across the back. Long floats snag fingers, so knitters catch them down ("trap" them) every few stitches. Knitting in the round, the last stitch of a round sits next to the first, so a run that crosses the seam counts as one float here.</p>
+      </section>
+    </div>
+
+    <div class="views">
+      <section class="card" aria-labelledby="h-chart">
+        <h2 id="h-chart">Chart</h2>
+        <div class="rule" data-testid="reading-rule">Read the chart from the bottom up and <b>from right to left</b>: row 1 is the bottom row, and stitch 1 is on the right. That's the direction your needle travels when you knit in the round, so every round starts at the right-hand edge. Row numbers sit on the right; red outlines mark floats that are too long.</div>
+        <div class="canvaswrap"><canvas id="chart" data-testid="chart" role="img" aria-label="Colourwork chart"></canvas></div>
+      </section>
+      <section class="card" aria-labelledby="h-knit">
+        <h2 id="h-knit">Knitted preview</h2>
+        <div class="canvaswrap" style="background:#e9e2d2"><canvas id="knit" data-testid="knit" role="img" aria-label="Knitted preview"></canvas></div>
+        <p class="note">Each stitch is drawn as the V a knit stitch makes on the right side, a little wider than tall, as at a typical stranded gauge of 28 stitches and 32 rounds to 10 cm.</p>
+      </section>
+      <section class="card" aria-labelledby="h-yarn">
+        <h2 id="h-yarn">Yarn estimate</h2>
+        <table data-testid="yarn"><thead><tr><th scope="col">Colour</th><th scope="col">Stitches</th><th scope="col">Floated</th><th scope="col">Metres</th><th scope="col">Grams</th></tr></thead><tbody id="yarnBody"></tbody></table>
+        <p class="note">For one pass of this chart around the round. A rough rule: each stitch uses about 3.5 times its width in yarn, and each stitch a colour is carried behind adds one more width. Grams assume jumper-weight wool at 105 m per 25 g. Real tension varies, so buy extra.</p>
+      </section>
+    </div>
+  </div>
+  <footer>Built by Zac Corbett · canvas-drawn, seeded with mulberry32 · add <code>?seed=</code> for a repeatable pattern</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+  const PALETTES = {
+    shetland: [['Natural white', '#efe7d4'], ['Fawn', '#c9a978'], ['Gold', '#d9a43b'], ['Madder', '#a8322d'], ['Moorit', '#6b4a33'], ['Shetland black', '#2b2522']],
+    harbour: [['Sea foam', '#e4efe9'], ['Sky', '#9cc3d9'], ['Lichen', '#c8c27a'], ['Teal', '#2f7c83'], ['Indigo', '#27365e'], ['Storm', '#3a3f4a']],
+    heather: [['Oatmeal', '#ece2cf'], ['Heather', '#b995b8'], ['Bracken', '#c07a3e'], ['Moss', '#5f7a3e'], ['Plum', '#5a2d4f'], ['Peat', '#2d2a26']],
+    bonfire: [['Ash', '#eeeae3'], ['Flame', '#f0a23a'], ['Ember', '#d9542b'], ['Crimson', '#8f1f2d'], ['Smoke', '#4c4a55'], ['Night', '#1c1d2b']],
+  };
+  const STITCH_FACTOR = 3.5, FLOAT_FACTOR = 1, M_PER_25G = 105;
+
+  const lum = (hex) => { const n = parseInt(hex.slice(1), 16); const c = [n >> 16, n >> 8 & 255, n & 255].map((v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+  const cdist = (x, c, w) => { const d = Math.abs(x - c) % w; return Math.min(d, w - d); };
+  const divisors = (W, lo, hi) => { const out = []; for (let d = lo; d <= hi; d++) if (W % d === 0) out.push(d); return out; };
+
+  // ---------- motifs: each returns h rows (bottom first) of w booleans; true = pattern colour ----------
+  const MOTIFS = {
+    seeding(w, r) { // scattered single stitches, offset on alternate rows
+      const h = 3 + (r() < 0.5 ? 0 : 2);
+      const rows = [];
+      for (let y = 0; y < h; y++) rows.push(Array.from({ length: w }, (_, x) => y % 2 === 0 && (x + (y % 4 === 2 ? w / 2 : 0)) % w === 0));
+      return { name: 'Seeding', rows };
+    },
+    peerie(w, r) {
+      const kind = ['diamond chain', 'filled diamonds', 'crosses', 'zigzag'][Math.floor(r() * 4)];
+      const h = w <= 4 ? 5 : 7, cy = (h - 1) / 2, cx = w / 2, R = Math.min(cy, Math.floor(w / 2));
+      const rows = [];
+      for (let y = 0; y < h; y++) rows.push(Array.from({ length: w }, (_, x) => {
+        const dx = cdist(x, cx, w), dy = Math.abs(y - cy);
+        if (kind === 'diamond chain') return dx + dy === R;
+        if (kind === 'filled diamonds') return dx + dy <= R - 1;
+        if (kind === 'crosses') return (dx === 0 && dy <= R - 1) || (dy === 0 && dx <= R - 1) || (dx === R && dy === R);
+        return cdist(x, y % w, w) === 0 || cdist(x, (w - y % w) % w, w) === 0; // zigzag
+      }));
+      return { name: 'Peerie · ' + kind, rows };
+    },
+    star(w) { // eight-pointed star, the Norwegian-style "rose" of many Fair Isle yokes
+      const h = w % 2 ? w : w - 1, cy = (h - 1) / 2, cx = w % 2 ? (w - 1) / 2 : w / 2, R = cy;
+      const rows = [];
+      for (let y = 0; y < h; y++) rows.push(Array.from({ length: w }, (_, x) => {
+        const dx = cdist(x, cx, w), dy = Math.abs(y - cy);
+        const d = Math.hypot(dx, dy), th = Math.atan2(dy, dx);
+        const lim = R * (0.5 + 0.5 * Math.abs(Math.cos(4 * th)) ** 3) + 0.2;
+        return d <= lim && !(d < R * 0.22 && d > 0) ;
+      }));
+      return { name: 'Star', rows };
+    },
+    oxo(w) { // an O in one half of the repeat, an X in the other
+      const half = w / 2, h = half % 2 ? half : half + 1, cy = (h - 1) / 2, R = cy - 1;
+      const rows = [];
+      for (let y = 0; y < h; y++) rows.push(Array.from({ length: w }, (_, x) => {
+        if (y === 0 || y === h - 1) return x % 2 === 0;
+        const inO = x < half, cx = inO ? (half - 1) / 2 : half + (half - 1) / 2;
+        const dx = Math.abs(x - cx), dy = Math.abs(y - cy);
+        if (inO) { const oct = Math.max(dx, dy, (dx + dy) * 0.72); return (oct <= R && oct > R - 1.3) || (dx < 0.6 && dy < 0.6); }
+        return dy >= 1 && dx <= R && Math.abs(dx - dy) < 0.8;
+      }));
+      return { name: 'OXO', rows };
+    },
+  };
+  const REPEATS = { seeding: [4, 6, 8, 2, 3], peerie: [4, 6, 8, 10], star: [12, 16, 14, 18, 20, 11, 13, 15, 17, 19, 10], oxo: [16, 20, 24, 12, 14, 18, 22, 26] };
+  function pickRepeat(type, W, r) {
+    const ok = REPEATS[type].filter((d) => W % d === 0);
+    if (!ok.length) return 0;
+    const pref = ok.slice(0, Math.min(2, ok.length));
+    return pref[Math.floor(r() * pref.length)];
+  }
+
+  function generate(seed, W, paletteKey) {
+    const r = mulberry32(seed >>> 0);
+    const pal = PALETTES[paletteKey] || PALETTES.shetland;
+    const order = pal.map((c, i) => i).sort((a, b) => lum(pal[b][1]) - lum(pal[a][1])); // light to dark
+    const lights = order.slice(0, 3), darks = order.slice(3);
+    const darkGround = r() < 0.5;
+    const pick = (arr) => arr[Math.floor(r() * arr.length)];
+    const ground = darkGround ? darks[darks.length - 1] : lights[0];
+    const big = r() < 0.5 ? 'oxo' : 'star';
+    const plan = ['seeding', 'peerie', big, 'peerie', 'seeding'];
+    if (r() < 0.5) plan.splice(2, 0, 'peerie');
+    const rows = [], bands = [];
+    const plain = () => rows.push({ colours: [ground], cells: new Array(W).fill(ground), band: -1 });
+    plain();
+    plan.forEach((type0, bi) => {
+      let type = type0, rep = pickRepeat(type, W, r);
+      if (!rep && (type === 'oxo' || type === 'star')) { type = type === 'oxo' ? 'star' : 'oxo'; rep = pickRepeat(type, W, r); }
+      if (!rep) { type = 'peerie'; rep = pickRepeat(type, W, r); }
+      const m = MOTIFS[type](rep, r);
+      const h = m.rows.length;
+      // shading: the background and pattern colour may change row by row, symmetric about the band's middle
+      const bgPool = type === 'seeding' ? [ground] : (darkGround ? darks : lights);
+      const fgPool = darkGround ? lights : darks;
+      const bgEdge = type === 'seeding' ? ground : pick(bgPool), bgMid = type === 'seeding' ? ground : pick(bgPool);
+      const fgEdge = pick(fgPool), fgMid = r() < 0.7 ? pick(fgPool) : fgEdge;
+      const start = rows.length;
+      for (let y = 0; y < h; y++) {
+        const mid = Math.abs(y - (h - 1) / 2) <= h / 4;
+        const bg = mid ? bgMid : bgEdge, fg = mid ? fgMid : fgEdge;
+        const cells = [];
+        for (let x = 0; x < W; x++) cells.push(m.rows[y][x % rep] ? fg : bg);
+        const colours = [...new Set(cells)];
+        rows.push({ colours, cells, band: bands.length });
+      }
+      bands.push({ type, name: m.name, repeat: rep, height: h, startRow: start + 1, endRow: start + h, repeats: W / rep });
+      plain();
+      if (bi === plan.length - 1) { /* finished */ }
+    });
+    return { seed, width: W, palette: paletteKey, colours: pal.map((c) => ({ name: c[0], hex: c[1] })), rows, bands, ground };
+  }
+
+  // circular run-length scan: in the round, the end of a round joins its start
+  function findFloats(rows, max) {
+    const out = [];
+    rows.forEach((row, ri) => {
+      const cells = row.cells, W = cells.length;
+      if (new Set(cells).size < 2) return;
+      let s = 0; while (cells[s] === cells[(s - 1 + W) % W]) s++;
+      let i = 0;
+      while (i < W) {
+        const start = (s + i) % W, c = cells[start];
+        let len = 0; while (i < W && cells[(s + i) % W] === c) { len++; i++; }
+        if (len > max) out.push({ row: ri + 1, start: start + 1, len, colour: c, floating: row.colours.find((k) => k !== c) });
+      }
+    });
+    return out;
+  }
+
+  function yarn(chart, gauge) {
+    const n = chart.colours.length, knit = new Array(n).fill(0), carried = new Array(n).fill(0);
+    chart.rows.forEach((row) => {
+      row.cells.forEach((c) => { knit[c]++; if (row.colours.length === 2) carried[row.colours[0] === c ? row.colours[1] : row.colours[0]]++; });
+    });
+    const stW = 10 / gauge; // cm
+    return chart.colours.map((c, i) => {
+      const metres = (knit[i] * STITCH_FACTOR + carried[i] * FLOAT_FACTOR) * stW / 100;
+      return { colour: i, name: c.name, hex: c.hex, stitches: knit[i], floated: carried[i], metres, grams: metres / M_PER_25G * 25 };
+    }).filter((y) => y.stitches > 0 || y.floated > 0);
+  }
+
+  // ---------- state ----------
+  const S = { seed: (parseInt(params.get('seed'), 10) >>> 0) || 1, width: 72, maxFloat: 5, palette: 'shetland', gauge: 28 };
+  if (params.get('width')) { const w = parseInt(params.get('width'), 10); if (w >= 40 && w <= 160 && w % 4 === 0) S.width = w; }
+  let chart = null, floats = [], usage = [], geo = {};
+
+  function say(t) { $('status').textContent = t; }
+
+  function drawChart() {
+    const cv = $('chart'), W = chart.width, H = chart.rows.length;
+    const avail = Math.max(200, cv.parentElement.clientWidth - 14);
+    const cell = Math.max(3, Math.min(14, Math.floor(avail / (W + 4))));
+    const labW = cell * 4, labH = 16;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const cw = W * cell + labW, ch = H * cell + labH;
+    cv.width = Math.round(cw * dpr); cv.height = Math.round(ch * dpr);
+    cv.style.width = cw + 'px'; cv.style.height = ch + 'px';
+    const g = cv.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.fillStyle = '#fffdf8'; g.fillRect(0, 0, cw, ch);
+    const cols = chart.colours.map((c) => c.hex);
+    // stitch i (0-based, stitch 1 = i 0) is drawn at column W-1-i; row r (0-based, row 1 = r 0) at the bottom
+    const X = (i) => (W - 1 - i) * cell, Y = (r) => (H - 1 - r) * cell;
+    chart.rows.forEach((row, r) => row.cells.forEach((c, i) => { g.fillStyle = cols[c]; g.fillRect(X(i), Y(r), cell, cell); }));
+    if (cell >= 5) {
+      g.strokeStyle = 'rgba(0,0,0,.14)'; g.lineWidth = 1; g.beginPath();
+      for (let x = 0; x <= W; x++) { g.moveTo(x * cell + .5, 0); g.lineTo(x * cell + .5, H * cell); }
+      for (let y = 0; y <= H; y++) { g.moveTo(0, y * cell + .5); g.lineTo(W * cell, y * cell + .5); }
+      g.stroke();
+    }
+    // repeat boundaries of each band
+    g.strokeStyle = 'rgba(40,30,20,.55)'; g.lineWidth = 1;
+    chart.bands.forEach((b) => { for (let k = 1; k < b.repeats; k++) { const x = X(k * b.repeat - 1); g.beginPath(); g.moveTo(x + .5, Y(b.endRow - 1)); g.lineTo(x + .5, Y(b.startRow - 1) + cell); g.stroke(); } });
+    // floats that are too long
+    g.strokeStyle = '#e0241b'; g.lineWidth = 2;
+    floats.forEach((f) => {
+      for (let k = 0; k < f.len; k++) { const i = (f.start - 1 + k) % W; g.strokeRect(X(i) + 1, Y(f.row - 1) + 1, cell - 2, cell - 2); }
+    });
+    // labels: row numbers on the right, stitch numbers along the bottom counted from the right
+    g.fillStyle = '#5d6070'; g.font = `${Math.max(9, Math.min(12, cell + 2))}px Trebuchet MS, sans-serif`; g.textBaseline = 'middle';
+    for (let r = 0; r < H; r++) if (r === 0 || (r + 1) % 5 === 0) g.fillText(String(r + 1), W * cell + 4, Y(r) + cell / 2);
+    g.textBaseline = 'top'; g.textAlign = 'center';
+    for (let i = 0; i < W; i++) if (i === 0 || (i + 1) % 8 === 0) g.fillText(String(i + 1), X(i) + cell / 2, H * cell + 3);
+    g.textAlign = 'left';
+    geo.chart = { cell, cols: W, rows: H, dpr };
+    cv.setAttribute('aria-label', `Chart, ${W} stitches by ${H} rows, ${chart.bands.length} bands, read right to left from row 1 at the bottom. ${floats.length} floats longer than ${S.maxFloat} stitches are outlined.`);
+  }
+
+  function drawKnit() {
+    const cv = $('knit'), W = chart.width, H = chart.rows.length;
+    const avail = Math.max(200, cv.parentElement.clientWidth - 14);
+    const sw = Math.max(4, Math.min(16, Math.floor(avail / W))), sh = Math.max(3, Math.round(sw * 28 / 32));
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const cw = W * sw, ch = H * sh + sh;
+    cv.width = Math.round(cw * dpr); cv.height = Math.round(ch * dpr);
+    cv.style.width = cw + 'px'; cv.style.height = ch + 'px';
+    const g = cv.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.fillStyle = '#d8cfbd'; g.fillRect(0, 0, cw, ch);
+    const cols = chart.colours.map((c) => c.hex);
+    // the right side of the knitting, seen from the front: stitch 1 is on the right, row 1 at the bottom
+    for (let r = 0; r < H; r++) {
+      for (let i = 0; i < W; i++) {
+        const x = (W - 1 - i) * sw, y = (H - 1 - r) * sh;
+        const c = cols[chart.rows[r].cells[i]];
+        g.fillStyle = c;
+        // a V: two leaning legs meeting at the bottom centre
+        g.beginPath();
+        g.moveTo(x + sw * 0.02, y); g.lineTo(x + sw * 0.46, y + sh * 1.28); g.lineTo(x + sw * 0.5, y + sh * 1.28); g.lineTo(x + sw * 0.5, y + sh * 0.55); g.lineTo(x + sw * 0.2, y - sh * 0.02); g.closePath(); g.fill();
+        g.beginPath();
+        g.moveTo(x + sw * 0.98, y); g.lineTo(x + sw * 0.54, y + sh * 1.28); g.lineTo(x + sw * 0.5, y + sh * 1.28); g.lineTo(x + sw * 0.5, y + sh * 0.55); g.lineTo(x + sw * 0.8, y - sh * 0.02); g.closePath(); g.fill();
+        g.strokeStyle = 'rgba(0,0,0,.18)'; g.lineWidth = 0.6;
+        g.beginPath(); g.moveTo(x + sw * 0.12, y + sh * 0.1); g.lineTo(x + sw * 0.5, y + sh * 1.2); g.lineTo(x + sw * 0.88, y + sh * 0.1); g.stroke();
+      }
+    }
+    geo.knit = { sw, sh, cols: W, rows: H, stitches: W * H, dpr };
+    cv.setAttribute('aria-label', `Knitted preview: ${W * H} V-shaped stitches, ${W} around by ${H} rounds.`);
+  }
+
+  function renderText() {
+    $('swatches').innerHTML = chart.colours.map((c) => `<li><i style="background:${c.hex}"></i>${c.name}</li>`).join('');
+    $('bands').innerHTML = chart.bands.map((b) => `<li data-type="${b.type}">${b.name}: rows ${b.startRow}–${b.endRow}, a ${b.repeat}-stitch repeat worked ${b.repeats} times</li>`).join('');
+    const nm = (i) => chart.colours[i].name;
+    $('floatSummary').innerHTML = floats.length
+      ? `<span class="warn">${floats.length} float${floats.length === 1 ? '' : 's'} longer than ${S.maxFloat} stitches.</span> Trap the carried yarn partway along each.`
+      : `<span class="ok">No float is longer than ${S.maxFloat} stitches.</span>`;
+    $('floats').innerHTML = floats.slice(0, 60).map((f) => `<li>Row ${f.row}, stitches ${f.start}–${(f.start - 1 + f.len - 1) % chart.width + 1}: ${f.len} of ${nm(f.colour)}, carrying ${nm(f.floating)}</li>`).join('') + (floats.length > 60 ? `<li>…and ${floats.length - 60} more</li>` : '');
+    $('yarnBody').innerHTML = usage.map((u) => `<tr data-colour="${u.colour}"><td><i style="background:${u.hex}"></i>${u.name}</td><td>${u.stitches}</td><td>${u.floated}</td><td>${u.metres.toFixed(1)}</td><td>${u.grams.toFixed(1)}</td></tr>`).join('');
+  }
+
+  function render(announce) {
+    chart = generate(S.seed, S.width, S.palette);
+    floats = findFloats(chart.rows, S.maxFloat);
+    usage = yarn(chart, S.gauge);
+    drawChart(); drawKnit(); renderText();
+    if (announce) say(`Seed ${S.seed}: ${chart.width} stitches, ${chart.rows.length} rows, ${chart.bands.length} bands. ${floats.length} long float${floats.length === 1 ? '' : 's'}.`);
+  }
+
+  function syncInputs() { $('seed').value = S.seed; $('width').value = S.width; $('maxFloat').value = S.maxFloat; $('palette').value = S.palette; $('gauge').value = S.gauge; }
+  function writeUrl() { try { const u = new URL(location.href); u.searchParams.set('seed', S.seed); history.replaceState(null, '', u); } catch (e) { /* ignore */ } }
+
+  function readNum(el, lo, hi, step, fallback) {
+    let v = parseInt(el.value, 10);
+    if (!Number.isFinite(v)) return fallback;
+    v = Math.min(hi, Math.max(lo, v));
+    if (step > 1) v = Math.round(v / step) * step;
+    return v;
+  }
+  $('width').addEventListener('change', () => { S.width = readNum($('width'), 40, 160, 4, S.width); syncInputs(); render(true); });
+  $('maxFloat').addEventListener('change', () => { S.maxFloat = readNum($('maxFloat'), 2, 24, 1, S.maxFloat); syncInputs(); render(true); });
+  $('gauge').addEventListener('change', () => { S.gauge = readNum($('gauge'), 16, 40, 1, S.gauge); syncInputs(); render(true); });
+  $('seed').addEventListener('change', () => { S.seed = readNum($('seed'), 1, 999999, 1, S.seed); syncInputs(); writeUrl(); render(true); });
+  $('palette').addEventListener('change', () => { S.palette = $('palette').value; render(true); });
+  $('reseed').addEventListener('click', () => { S.seed = 1 + Math.floor(Math.random() * 99999); syncInputs(); writeUrl(); render(true); });
+  let rt = 0; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { drawChart(); drawKnit(); }, 120); });
+
+  syncInputs(); render(false);
+
+  window.__fair = {
+    get state() { return JSON.parse(JSON.stringify({ seed: S.seed, width: S.width, maxFloat: S.maxFloat, gauge: S.gauge, palette: S.palette, chart, floats, usage, geo, constants: { STITCH_FACTOR, FLOAT_FACTOR, M_PER_25G } })); },
+    generate: (seed, W, pal) => JSON.parse(JSON.stringify(generate(seed, W, pal || 'shetland'))),
+    floats: (seed, W, max) => findFloats(generate(seed, W, 'shetland').rows, max),
+    palettes: Object.keys(PALETTES),
+  };
+})();
+</script>
+</body>
+</html>

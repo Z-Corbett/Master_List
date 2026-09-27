@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zilker Kites — design a kite and fly it</title>
+<meta name="description" content="Design a kite (diamond, delta, a 2.5D box kite or a sled) with seeded sail patterns, a tail and a bridle point, then fly it in a simple 2D model where lift, drag, weight and line tension balance in a gusty, seeded wind. A longer tail damps the wobble; a stability meter shows it. Inspired by Austin's long-running spring kite festival at Zilker Park.">
+<style>
+  :root {
+    --sky: #dff1fb;
+    --sky-2: #bfe3f6;
+    --grass: #7cb35b;
+    --ink: #17324a;
+    --muted: #4c6478;
+    --card: #ffffff;
+    --line: #cfe3ef;
+    --red: #e4483b;
+    --sun: #ffc53d;
+    --blue: #1f6fb2;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --round: "Trebuchet MS", "Segoe UI", Arial, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: linear-gradient(180deg, var(--sky) 0, #f3fafd 420px, #fbfdf7 100%); color: var(--ink); font: 15px/1.5 var(--sans); overflow-x: hidden; }
+  :focus-visible { outline: 3px solid var(--red); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; background: var(--blue); color: #fff; text-decoration: none; font: 700 13px/1 var(--sans); padding: 8px 12px; border-radius: 999px; }
+  a.back:hover { background: var(--red); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 58px 16px 40px; }
+  header { text-align: center; }
+  .eyebrow { margin: 0; font: 700 12px/1.3 var(--sans); letter-spacing: .24em; text-transform: uppercase; color: var(--red); overflow-wrap: anywhere; }
+  h1 { margin: 4px 0 0; font: 700 clamp(34px, 7vw, 62px)/1.05 var(--round); color: var(--blue); overflow-wrap: anywhere; }
+  .lede { margin: 10px auto 0; max-width: 66ch; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: minmax(0, 330px) minmax(0, 1fr); gap: 18px; margin-top: 18px; align-items: start; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; min-width: 0; box-shadow: 0 4px 16px rgba(23,50,74,.06); }
+  .card + .card { margin-top: 14px; }
+  .card h2 { margin: 0 0 10px; font: 700 19px/1.2 var(--round); color: var(--blue); }
+  .designbox { display: grid; place-items: center; background: repeating-linear-gradient(45deg, #f4f9fc 0 10px, #eef6fb 10px 20px); border-radius: 12px; padding: 8px; }
+  #design { width: min(100%, 240px); height: auto; display: block; }
+  .field { margin-bottom: 10px; min-width: 0; }
+  .field label, .lbl { display: flex; justify-content: space-between; gap: 8px; font: 700 12px/1.3 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+  .field output { color: var(--ink); font-variant-numeric: tabular-nums; text-transform: none; letter-spacing: 0; }
+  select, input[type=range] { width: 100%; max-width: 100%; }
+  select { font: 15px var(--sans); padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line); background: #fff; color: var(--ink); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .btn { min-height: 40px; padding: 8px 14px; border-radius: 999px; border: 2px solid var(--blue); background: var(--blue); color: #fff; font: 700 14px/1 var(--sans); cursor: pointer; }
+  .btn.red { background: var(--red); border-color: var(--red); }
+  .btn.ghost { background: #fff; color: var(--blue); }
+  canvas { display: block; width: 100%; height: auto; border-radius: 12px; background: var(--sky-2); }
+  .readouts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+  .readouts div { background: #f3f8fb; border-radius: 10px; padding: 6px 8px; text-align: center; min-width: 0; }
+  .readouts small { display: block; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .readouts b { font: 700 18px/1.2 var(--round); font-variant-numeric: tabular-nums; }
+  .meter { margin-top: 10px; }
+  .bar { height: 14px; border-radius: 7px; background: linear-gradient(90deg, #f1b7b1, #ffe29a 50%, #b8e3a6); position: relative; overflow: hidden; }
+  .bar i { position: absolute; top: -2px; bottom: -2px; width: 4px; background: var(--ink); border-radius: 2px; left: 0; }
+  .note { font-size: 13px; color: var(--muted); margin: 8px 0 0; overflow-wrap: anywhere; }
+  ul.simp { margin: 6px 0 0; padding-left: 18px; font-size: 14px; }
+  ul.simp li { margin-bottom: 4px; }
+  #status { min-height: 1.4em; font-weight: 600; color: var(--blue); }
+  footer { margin-top: 24px; text-align: center; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+  @media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } .readouts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Inspired by a spring afternoon at Zilker Park</p>
+    <h1>Zilker Kites</h1>
+    <p class="lede">Austin has a long-running spring kite festival in Zilker Park, when the big lawn fills with homemade and store-bought kites. Build one here, then take it out in a gusty wind and see whether it climbs, wobbles or sulks on the grass.</p>
+  </header>
+
+  <div class="grid">
+    <div>
+      <section class="card" aria-labelledby="h-design">
+        <h2 id="h-design">Your kite</h2>
+        <div class="designbox" id="designBox" data-testid="design"></div>
+        <div class="field" style="margin-top:10px"><label for="shape">Shape</label>
+          <select id="shape" data-testid="shape"><option value="diamond">Diamond</option><option value="delta">Delta</option><option value="box">Box kite (2.5D)</option><option value="sled">Sled</option></select></div>
+        <div class="field"><label for="pattern">Sail pattern</label>
+          <select id="pattern" data-testid="pattern"><option value="stripes">Stripes</option><option value="chevrons">Chevrons</option><option value="dots">Dots</option><option value="checker">Checker</option><option value="sunburst">Sunburst</option><option value="rings">Rings</option></select></div>
+        <div class="field"><label for="tail">Tail length <output id="tailOut" for="tail" data-testid="tail-out">2.0 m</output></label>
+          <input type="range" id="tail" data-testid="tail" min="0" max="6" step="0.5" value="2"></div>
+        <div class="field"><label for="bridle">Bridle point (from the nose) <output id="bridleOut" for="bridle" data-testid="bridle-out">30%</output></label>
+          <input type="range" id="bridle" data-testid="bridle" min="0.15" max="0.45" step="0.01" value="0.3"></div>
+        <div class="row">
+          <button type="button" class="btn ghost" id="reseed" data-testid="reseed">New colours &amp; pattern</button>
+          <button type="button" class="btn ghost" id="export" data-testid="export">Download SVG</button>
+        </div>
+        <p class="note">Design <b id="seedTxt" data-testid="seed">seed</b></p>
+      </section>
+    </div>
+
+    <div>
+      <section class="card" aria-labelledby="h-fly">
+        <h2 id="h-fly">Fly it</h2>
+        <canvas id="sky" data-testid="sky" width="720" height="400" role="img" aria-label="The kite in flight"></canvas>
+        <div class="readouts" aria-live="off">
+          <div><small>Line angle</small><b id="rPhi" data-testid="phi">0°</b></div>
+          <div><small>Height</small><b id="rH" data-testid="height">0 m</b></div>
+          <div><small>Line tension</small><b id="rT" data-testid="tension">0 N</b></div>
+          <div><small>Angle of attack</small><b id="rA" data-testid="aoa">0°</b></div>
+        </div>
+        <div class="meter">
+          <span class="lbl" id="stabLbl">Stability <output id="stabTxt" data-testid="stability-text">–</output></span>
+          <div class="bar" role="meter" id="stab" data-testid="stability" aria-labelledby="stabLbl" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i id="stabNeedle"></i></div>
+        </div>
+        <div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px">
+          <div class="field"><label for="wind">Wind <output id="windOut" for="wind" data-testid="wind-out">7 m/s</output></label>
+            <input type="range" id="wind" data-testid="wind" min="0" max="14" step="0.5" value="7"></div>
+          <div class="field"><label for="gust">Gustiness <output id="gustOut" for="gust" data-testid="gust-out">25%</output></label>
+            <input type="range" id="gust" data-testid="gust" min="0" max="0.5" step="0.05" value="0.25"></div>
+        </div>
+        <div class="row">
+          <button type="button" class="btn red" id="launch" data-testid="launch">Launch</button>
+          <button type="button" class="btn ghost" id="pause" data-testid="pause" aria-pressed="false">Pause</button>
+        </div>
+        <p class="note" id="status" data-testid="status" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="card" aria-labelledby="h-model">
+        <h2 id="h-model">What the model does, and doesn't</h2>
+        <p style="margin:0">The kite is a point on a straight 30 m line. Each step (1/120 s) it adds up lift and drag from the apparent wind, its weight, and the tail's drag; the line pulls back only when it's taut. The bridle fixes the sail's angle to the line, so as the kite climbs it flattens and the lift eases off: that's why it settles at an angle instead of flying overhead. Moving the bridle point toward the nose sets the sail more face-on (more pull); too far back and it flies flat and low. A small pitch wobble, stirred by the gusts, is damped by the tail: the longer the tail, the stronger the damping, at the price of a little extra drag.</p>
+        <ul class="simp">
+          <li>Two dimensions only: no side-to-side swoops, loops or spins.</li>
+          <li>Flat-plate lift and drag curves, with no real stall.</li>
+          <li>The line is straight and weightless, with no sag.</li>
+          <li>The wobble is a damped spring with made-up stiffness; the tail's damping just grows with its length.</li>
+          <li>The wind is the same at every height, and the gusts are a seeded sum of sine waves.</li>
+        </ul>
+        <p class="note">So it shows the right trends, not real numbers for a real kite.</p>
+      </section>
+    </div>
+  </div>
+  <footer>Built by Zac Corbett · SVG kite designer and a fixed-step flight model on canvas · not affiliated with any festival · add <code>?seed=</code> for a repeatable kite and wind</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  let SEED = (parseInt(params.get('seed'), 10) >>> 0) || 1936;
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const pick = (r, a) => a[Math.floor(r() * a.length)];
+
+  // ---------- flight model ----------
+  const K = { DT: 1 / 120, R: 30, RHO: 1.2, G: 9.81, M: 0.3, TAIL_M: 0.012, TAIL_CDA: 0.008, I: 0.02, STIFF: 0.05, DAMP0: 0.0018, DAMP_TAIL: 0.005, GUST_TQ: 0.006, PHI0: 35 };
+  const SHAPES = { diamond: { A: 0.55, cl: 1.0, cd0: 0.06, m: 1 }, delta: { A: 0.7, cl: 1.15, cd0: 0.05, m: 1.1 }, box: { A: 0.8, cl: 0.8, cd0: 0.12, m: 1.6 }, sled: { A: 0.6, cl: 1.05, cd0: 0.08, m: 0.8 } };
+  const etaOf = (bridle) => (85 - 50 * (bridle - 0.15) / 0.3) * Math.PI / 180;   // sail-to-line angle set by the bridle
+  function gusts(seed) {
+    const r = mulberry32(seed ^ 0x9e3779b9);
+    const sp = [0.08, 0.17, 0.33, 0.61, 1.1].map((f, k) => ({ f: f * (0.85 + r() * 0.3), p: r() * 2 * Math.PI, a: [1, 0.8, 0.6, 0.45, 0.3][k] }));
+    const tq = [0.4, 0.9, 1.6, 2.7].map((f, k) => ({ f: f * (0.85 + r() * 0.3), p: r() * 2 * Math.PI, a: [1, 0.8, 0.6, 0.4][k] }));
+    const rms = (c) => Math.sqrt(c.reduce((s, x) => s + x.a * x.a / 2, 0));
+    const n1 = rms(sp), n2 = rms(tq);
+    const sum = (c, t) => c.reduce((s, x) => s + x.a * Math.sin(2 * Math.PI * x.f * t + x.p), 0);
+    return { speed: (t) => sum(sp, t) / n1, torque: (t) => sum(tq, t) / n2 };
+  }
+  function newFlight() {
+    const phi0 = K.PHI0 * Math.PI / 180;
+    return { t: 0, x: K.R * Math.cos(phi0), y: K.R * Math.sin(phi0), vx: 0, vy: 0, th: 0, w: 0, T: 0, alpha: 0, W: 0, taut: false, grounded: false, forces: null, hist: [] };
+  }
+  /** One fixed step. p = { shape, tail, bridle, wind, gust }, g = gust functions. */
+  function step(s, p, g) {
+    const sh = SHAPES[p.shape], m = K.M * sh.m + K.TAIL_M * p.tail, eta = etaOf(p.bridle);
+    const W = Math.max(0, p.wind * (1 + p.gust * g.speed(s.t)));
+    const ax = W - s.vx, ay = -s.vy, va = Math.hypot(ax, ay);
+    const phi = Math.atan2(s.y, s.x), wa = Math.atan2(ay, ax);
+    const alpha = eta - phi + wa + s.th;
+    const q = 0.5 * K.RHO * va * va;
+    const CL = sh.cl * Math.sin(2 * alpha), CD = sh.cd0 + 1.6 * Math.sin(alpha) ** 2;
+    const f = { lift: [0, 0], drag: [0, 0], tail: [0, 0], weight: [0, -m * K.G], tension: [0, 0] };
+    if (va > 1e-9) {
+      const ux = ax / va, uy = ay / va, L = q * sh.A * CL, D = q * sh.A * CD, Dt = q * K.TAIL_CDA * p.tail;
+      f.lift = [-L * uy, L * ux]; f.drag = [D * ux, D * uy]; f.tail = [Dt * ux, Dt * uy];
+    }
+    const Fx = f.lift[0] + f.drag[0] + f.tail[0] + f.weight[0], Fy = f.lift[1] + f.drag[1] + f.tail[1] + f.weight[1];
+    s.vx += Fx / m * K.DT; s.vy += Fy / m * K.DT;
+    s.x += s.vx * K.DT; s.y += s.vy * K.DT;
+    const r = Math.hypot(s.x, s.y);
+    s.taut = false; s.T = 0;
+    if (r >= K.R) {
+      const ex = s.x / r, ey = s.y / r;
+      s.x = ex * K.R; s.y = ey * K.R;
+      const vr = s.vx * ex + s.vy * ey;
+      if (vr > 0) { s.vx -= vr * ex; s.vy -= vr * ey; }
+      s.T = Math.max(0, Fx * ex + Fy * ey + m * (s.vx * s.vx + s.vy * s.vy) / K.R);
+      f.tension = [-s.T * ex, -s.T * ey];
+      s.taut = true;
+    }
+    s.grounded = false;
+    if (s.y <= 0) { s.y = 0; s.vy = Math.max(0, s.vy); s.vx *= 0.9; s.grounded = true; }
+    const stiff = K.STIFF * q * sh.A, damp = (K.DAMP0 + K.DAMP_TAIL * p.tail) * va;
+    const tq = K.GUST_TQ * p.gust * q * sh.A * g.torque(s.t);
+    s.w += ((-stiff * s.th - damp * s.w + tq) / K.I) * K.DT;
+    if (s.grounded) { s.w *= 0.8; s.th *= 0.9; }
+    s.th += s.w * K.DT;
+    s.t += K.DT;
+    s.alpha = alpha; s.W = W; s.forces = f; s.m = m;
+    s.hist.push(s.th); if (s.hist.length > 240) s.hist.shift();
+  }
+  const stability = (s) => { if (!s.hist.length) return 100; const rms = Math.sqrt(s.hist.reduce((a, x) => a + x * x, 0) / s.hist.length); return Math.round(100 * Math.max(0, Math.min(1, 1 - rms / 0.2))); };
+
+  /** Run the model offline for the tests and for honesty: summary numbers plus a coarse series. */
+  function simulate(p0, seconds, from = 0) {
+    const p = { shape: 'diamond', tail: 2, bridle: 0.3, wind: 7, gust: 0, seed: SEED, ...p0 };
+    const g = gusts(p.seed), s = newFlight(), n = Math.round(seconds / K.DT);
+    const series = []; let k = 0, sp = 0, sp2 = 0, st2 = 0, maxR = 0, minT = Infinity, thMax = 0;
+    for (let i = 0; i < n; i++) {
+      step(s, p, g);
+      const phi = Math.atan2(s.y, s.x) * 180 / Math.PI;
+      maxR = Math.max(maxR, Math.hypot(s.x, s.y)); minT = Math.min(minT, s.T);
+      if (s.t >= from) { k++; sp += phi; sp2 += phi * phi; st2 += s.th * s.th; thMax = Math.max(thMax, Math.abs(s.th)); }
+      if (i % 12 === 11) series.push({ t: +s.t.toFixed(3), phi, y: s.y, th: s.th, T: s.T, grounded: s.grounded });
+    }
+    const mean = k ? sp / k : 0;
+    return { phi: Math.atan2(s.y, s.x) * 180 / Math.PI, y: s.y, x: s.x, vx: s.vx, vy: s.vy, grounded: s.grounded, taut: s.taut, T: s.T, alpha: s.alpha * 180 / Math.PI, m: s.m,
+      forces: s.forces, phiMean: mean, phiStd: k ? Math.sqrt(Math.max(0, sp2 / k - mean * mean)) : 0, thRms: k ? Math.sqrt(st2 / k) : 0, thMax, maxR, minT, stability: stability(s), series };
+  }
+
+  // ---------- kite designs ----------
+  const PALETTES = { festival: ['#e4483b', '#ffc53d', '#1f6fb2', '#27a37a', '#ffffff'], sunset: ['#ff6b35', '#f7c548', '#c1275a', '#5b2a86', '#ffe8d1'], lagoon: ['#0b7a75', '#7bdff2', '#f2b5d4', '#eff7f6', '#1b4965'], candy: ['#ff5d8f', '#ffd6e0', '#8ac926', '#1982c4', '#ffca3a'] };
+  const PATTERNS = ['stripes', 'chevrons', 'dots', 'checker', 'sunburst', 'rings'];
+  function design(seed) {
+    const r = mulberry32(seed);
+    const pal = pick(r, Object.keys(PALETTES));
+    const cols = PALETTES[pal].slice();
+    for (let i = cols.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [cols[i], cols[j]] = [cols[j], cols[i]]; }
+    return { seed, shape: pick(r, ['diamond', 'delta', 'box', 'sled']), pattern: pick(r, PATTERNS), palette: pal, colours: cols, scale: 8 + Math.floor(r() * 10), angle: Math.floor(r() * 4) * 45, tail: 1 + Math.floor(r() * 7) * 0.5, bridle: +(0.26 + r() * 0.08).toFixed(2) };
+  }
+  // panels in a 200 × 280 design space; the spine runs from NOSE to TAIL
+  const GEOM = {
+    diamond: { nose: [100, 12], tail: [100, 232], panels: [[[100, 12], [22, 88], [100, 88]], [[100, 12], [100, 88], [178, 88]], [[22, 88], [100, 232], [100, 88]], [[100, 88], [100, 232], [178, 88]]] },
+    delta: { nose: [100, 14], tail: [100, 176], panels: [[[100, 14], [10, 188], [100, 176]], [[100, 14], [100, 176], [190, 188]], [[100, 60], [92, 176], [100, 214], [108, 176]]] },
+    box: { nose: [92, 14], tail: [92, 236], panels: [[[52, 20], [132, 20], [132, 92], [52, 92]], [[132, 20], [168, 4], [168, 76], [132, 92]], [[52, 164], [132, 164], [132, 236], [52, 236]], [[132, 164], [168, 148], [168, 220], [132, 236]]] },
+    sled: { nose: [100, 20], tail: [100, 232], panels: [[[40, 20], [72, 20], [72, 232], [40, 232], [24, 126]], [[72, 20], [128, 20], [128, 232], [72, 232]], [[128, 20], [160, 20], [176, 126], [160, 232], [128, 232]]] },
+  };
+  const poly = (pts) => 'M' + pts.map((p) => p.join(',')).join('L') + 'Z';
+  function patternDef(id, d, i) {
+    const c = d.colours, a = c[i % c.length], b = c[(i + 2) % c.length], s = d.scale;
+    const rot = `patternTransform="rotate(${(d.angle + i * 90) % 180})"`;
+    switch (d.pattern) {
+      case 'stripes': return `<pattern id="${id}" width="${2 * s}" height="${2 * s}" patternUnits="userSpaceOnUse" ${rot}><rect width="${2 * s}" height="${2 * s}" fill="${a}"/><rect width="${s}" height="${2 * s}" fill="${b}"/></pattern>`;
+      case 'chevrons': return `<pattern id="${id}" width="${2 * s}" height="${s}" patternUnits="userSpaceOnUse"><rect width="${2 * s}" height="${s}" fill="${a}"/><path d="M0,${s} L${s},0 L${2 * s},${s}" fill="none" stroke="${b}" stroke-width="${(s / 3).toFixed(1)}"/></pattern>`;
+      case 'dots': return `<pattern id="${id}" width="${2 * s}" height="${2 * s}" patternUnits="userSpaceOnUse" ${rot}><rect width="${2 * s}" height="${2 * s}" fill="${a}"/><circle cx="${s}" cy="${s}" r="${(s * 0.55).toFixed(1)}" fill="${b}"/></pattern>`;
+      case 'checker': return `<pattern id="${id}" width="${2 * s}" height="${2 * s}" patternUnits="userSpaceOnUse" ${rot}><rect width="${2 * s}" height="${2 * s}" fill="${a}"/><rect width="${s}" height="${s}" fill="${b}"/><rect x="${s}" y="${s}" width="${s}" height="${s}" fill="${b}"/></pattern>`;
+      case 'sunburst': { let rays = ''; for (let k = 0; k < 16; k += 2) { const a0 = k * Math.PI / 8, a1 = (k + 1) * Math.PI / 8; rays += `<path d="M100,110 L${(100 + 300 * Math.cos(a0)).toFixed(1)},${(110 + 300 * Math.sin(a0)).toFixed(1)} L${(100 + 300 * Math.cos(a1)).toFixed(1)},${(110 + 300 * Math.sin(a1)).toFixed(1)}Z" fill="${b}"/>`; }
+        return `<pattern id="${id}" width="200" height="280" patternUnits="userSpaceOnUse"><rect width="200" height="280" fill="${a}"/>${rays}</pattern>`; }
+      default: { let rings = ''; for (let k = 8; k > 0; k--) rings += `<circle cx="100" cy="110" r="${k * s * 1.6}" fill="${k % 2 ? a : b}"/>`; return `<pattern id="${id}" width="200" height="280" patternUnits="userSpaceOnUse">${rings}</pattern>`; }
+    }
+  }
+  let uid = 0;
+  function kiteSVG(d, p, { id = 'k' + (++uid) } = {}) {
+    const G = GEOM[p.shape], defs = [], parts = [];
+    G.panels.forEach((pts, i) => {
+      defs.push(patternDef(`${id}-p${i}`, d, i));
+      const side = p.shape === 'box' && i % 2 === 1;
+      parts.push(`<path data-panel="${i}" d="${poly(pts)}" fill="url(#${id}-p${i})" stroke="#17324a" stroke-width="2" stroke-linejoin="round"/>` + (side ? `<path d="${poly(pts)}" fill="#000" opacity=".22"/>` : ''));
+    });
+    let frame = '';
+    if (p.shape === 'box') frame = '<path d="M52,92 V164 M132,92 V164 M168,76 V148" stroke="#6b4b2a" stroke-width="4"/>';
+    else if (p.shape === 'sled') frame = '<path d="M72,20 V232 M128,20 V232" stroke="#6b4b2a" stroke-width="3"/><ellipse cx="100" cy="176" rx="16" ry="10" fill="#eef6fb" stroke="#17324a" stroke-width="2"/>';
+    else frame = `<path d="M${G.nose.join(',')} L${G.tail.join(',')}${p.shape === 'diamond' ? ' M22,88 L178,88' : ' M40,120 L160,120'}" stroke="#6b4b2a" stroke-width="3"/>`;
+    // bridle: towing point at the chosen fraction of the spine, with two legs to the spine
+    const by = G.nose[1] + (G.tail[1] - G.nose[1]) * p.bridle, bx = G.nose[0] - 34;
+    const bridle = `<g data-part="bridle"><path d="M${G.nose[0]},${G.nose[1] + 8} L${bx},${by.toFixed(1)} L${G.nose[0]},${(G.tail[1] - 30).toFixed(1)}" fill="none" stroke="#17324a" stroke-width="1.2" stroke-dasharray="3 2"/><circle data-bridle-y="${by.toFixed(1)}" cx="${bx}" cy="${by.toFixed(1)}" r="5" fill="#ffc53d" stroke="#17324a" stroke-width="1.5"/></g>`;
+    // tail: a wavy ribbon, 12 px per metre in the drawing, with a bow every half metre
+    const len = p.tail * 12, n = Math.round(p.tail * 2);
+    let tail = '';
+    if (p.tail > 0) {
+      let dd = `M${G.tail.join(',')}`;
+      for (let y = 4; y <= len; y += 4) dd += ` L${(G.tail[0] + 6 * Math.sin(y / 9)).toFixed(1)},${(G.tail[1] + y).toFixed(1)}`;
+      let bows = '';
+      for (let k = 1; k <= n; k++) { const y = G.tail[1] + (k * len) / n, x = G.tail[0] + 6 * Math.sin(((k * len) / n) / 9); bows += `<path data-bow="${k}" d="M${x.toFixed(1)},${y.toFixed(1)} l-8,-4 v8 z M${x.toFixed(1)},${y.toFixed(1)} l8,-4 v8 z" fill="${d.colours[k % d.colours.length]}" stroke="#17324a" stroke-width=".8"/>`; }
+      tail = `<g data-part="tail"><path d="${dd}" fill="none" stroke="#17324a" stroke-width="1.5"/>${bows}</g>`;
+    }
+    const H = Math.max(280, G.tail[1] + len + 16);
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 ${H}" width="200" height="${H}" role="img" aria-label="${p.shape} kite with a ${d.pattern} pattern in ${d.palette} colours, a ${p.tail} m tail and the bridle point ${Math.round(p.bridle * 100)}% down the spine"><defs>${defs.join('')}</defs>${tail}${parts.join('')}${frame}${bridle}</svg>`;
+  }
+
+  // ---------- page state ----------
+  let D = design(SEED);
+  const P = { shape: D.shape, pattern: D.pattern, tail: D.tail, bridle: D.bridle, wind: 7, gust: 0.25 };
+  let F = newFlight(), G = gusts(SEED), paused = false, manual = false;
+
+  const kiteParams = () => ({ shape: P.shape, tail: P.tail, bridle: P.bridle, wind: P.wind, gust: P.gust });
+  function renderDesign() {
+    const d = { ...D, pattern: P.pattern };
+    $('designBox').innerHTML = kiteSVG(d, P, { id: 'kite' });
+    $('shape').value = P.shape; $('pattern').value = P.pattern;
+    $('tail').value = P.tail; $('tailOut').textContent = `${P.tail.toFixed(1)} m`;
+    $('bridle').value = P.bridle; $('bridleOut').textContent = `${Math.round(P.bridle * 100)}%`;
+    $('seedTxt').textContent = `seed ${SEED} · ${D.palette}`;
+  }
+  const exportString = () => kiteSVG({ ...D, pattern: P.pattern }, P, { id: 'kite' });
+
+  function launch() {
+    F = newFlight(); G = gusts(SEED); paused = false;
+    $('pause').setAttribute('aria-pressed', 'false'); $('pause').textContent = 'Pause';
+    say(P.wind === 0 ? 'No wind at all: it can only fall.' : `Launched into a ${P.wind} m/s wind.`);
+  }
+  let lastState = '';
+  function physics() {
+    step(F, kiteParams(), G);
+    const st = F.grounded ? 'ground' : 'air';
+    if (st !== lastState) { lastState = st; if (F.t > 0.05) say(st === 'ground' ? 'The kite is on the ground.' : 'Up it goes!'); }
+  }
+  const say = (m) => { $('status').textContent = m; };
+  function readouts() {
+    const phi = Math.atan2(F.y, F.x) * 180 / Math.PI, stab = stability(F);
+    $('rPhi').textContent = `${phi.toFixed(0)}°`; $('rH').textContent = `${F.y.toFixed(1)} m`; $('rT').textContent = `${F.T.toFixed(1)} N`; $('rA').textContent = `${(F.alpha * 180 / Math.PI).toFixed(0)}°`;
+    $('stab').setAttribute('aria-valuenow', stab); $('stab').setAttribute('aria-valuetext', `${stab} out of 100`);
+    $('stabNeedle').style.left = `calc(${stab}% - 2px)`;
+    $('stabTxt').textContent = F.grounded ? 'on the grass' : stab >= 80 ? `${stab} · steady` : stab >= 50 ? `${stab} · wobbly` : `${stab} · all over the place`;
+    cv.setAttribute('aria-label', `The kite ${F.grounded ? 'is on the ground' : `flies at ${phi.toFixed(0)} degrees, ${F.y.toFixed(0)} metres up`}, stability ${stab} of 100.`);
+  }
+
+  // ---------- flight drawing ----------
+  const cv = $('sky'), ctx = cv.getContext('2d'), VW = 720, VH = 400, S = 9.5, OX = 70, OY = 360;
+  const clouds = (() => { const r = mulberry32(SEED + 11); return Array.from({ length: 5 }, () => ({ x: r() * VW, y: 30 + r() * 140, s: 0.6 + r() * 0.8 })); })();
+  function draw() {
+    ctx.setTransform(cv.width / VW, 0, 0, cv.height / VH, 0, 0);
+    const sky = ctx.createLinearGradient(0, 0, 0, VH); sky.addColorStop(0, '#9fd4f2'); sky.addColorStop(1, '#e3f4fb');
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, VW, VH);
+    ctx.fillStyle = 'rgba(255,255,255,.85)';
+    for (const c of clouds) { const x = ((c.x + F.t * (4 + P.wind * 1.5) * c.s) % (VW + 120)) - 60; ctx.beginPath(); ctx.ellipse(x, c.y, 40 * c.s, 14 * c.s, 0, 0, 7); ctx.ellipse(x + 22 * c.s, c.y - 8 * c.s, 24 * c.s, 12 * c.s, 0, 0, 7); ctx.fill(); }
+    // hill and lawn
+    ctx.fillStyle = '#8cc56a'; ctx.beginPath(); ctx.moveTo(0, OY - 10); ctx.quadraticCurveTo(VW * 0.45, OY - 60, VW, OY - 20); ctx.lineTo(VW, VH); ctx.lineTo(0, VH); ctx.fill();
+    ctx.fillStyle = '#6fa94e'; ctx.fillRect(0, OY, VW, VH - OY);
+    // wind arrow
+    ctx.fillStyle = '#17324a'; ctx.font = '600 13px "Segoe UI", Arial'; ctx.textAlign = 'left';
+    ctx.fillText(`wind ${F.W.toFixed(1)} m/s →`, VW - 150, 22);
+    // flyer
+    ctx.fillStyle = '#17324a'; ctx.beginPath(); ctx.arc(OX - 8, OY - 34, 6, 0, 7); ctx.fill(); ctx.fillRect(OX - 11, OY - 28, 6, 20); ctx.fillRect(OX - 12, OY - 8, 3, 8); ctx.fillRect(OX - 7, OY - 8, 3, 8);
+    const kx = OX + F.x * S, ky = OY - F.y * S;
+    // line
+    ctx.strokeStyle = F.taut ? '#17324a' : 'rgba(23,50,74,.5)'; ctx.lineWidth = 1.2; ctx.setLineDash(F.taut ? [] : [4, 4]);
+    ctx.beginPath(); ctx.moveTo(OX, OY - 22); ctx.lineTo(kx, ky); ctx.stroke(); ctx.setLineDash([]);
+    // kite: spine inclined at the sail angle, nose upwind
+    const a = etaOf(P.bridle) - Math.atan2(F.y, F.x) + F.th;
+    const nx = -Math.cos(a), ny = -Math.sin(a), size = P.shape === 'box' ? 30 : 26;
+    const tailX = kx - nx * size * 0.6, tailY = ky - ny * size * 0.6;
+    if (P.tail > 0) {
+      ctx.strokeStyle = D.colours[0]; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(tailX, tailY);
+      const Ltail = P.tail * S * 1.4;
+      for (let s = 4; s <= Ltail; s += 4) { const wig = Math.sin(s / 7 - F.t * 8) * (2 + 30 * Math.abs(F.w) * s / Ltail); ctx.lineTo(tailX + s * 0.85, tailY + s * 0.5 + wig); }
+      ctx.stroke();
+    }
+    ctx.save(); ctx.translate(kx, ky); ctx.rotate(Math.atan2(ny, nx) + Math.PI / 2);
+    ctx.fillStyle = D.colours[0]; ctx.strokeStyle = '#17324a'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    if (P.shape === 'diamond') { ctx.moveTo(0, -size); ctx.lineTo(size * 0.7, -size * 0.3); ctx.lineTo(0, size * 0.8); ctx.lineTo(-size * 0.7, -size * 0.3); }
+    else if (P.shape === 'delta') { ctx.moveTo(0, -size); ctx.lineTo(size, size * 0.6); ctx.lineTo(0, size * 0.45); ctx.lineTo(-size, size * 0.6); }
+    else if (P.shape === 'box') { ctx.rect(-size * 0.4, -size, size * 0.8, size * 0.6); ctx.rect(-size * 0.4, size * 0.3, size * 0.8, size * 0.6); }
+    else { ctx.moveTo(-size * 0.5, -size); ctx.lineTo(size * 0.5, -size); ctx.lineTo(size * 0.65, 0); ctx.lineTo(size * 0.5, size); ctx.lineTo(-size * 0.5, size); ctx.lineTo(-size * 0.65, 0); }
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = D.colours[1]; ctx.globalAlpha = 0.8; ctx.fillRect(-size * 0.12, -size * 0.8, size * 0.24, size * 1.4); ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  // ---------- loop ----------
+  let last = null, acc = 0;
+  function frame(now) {
+    const dt = last === null ? 0 : Math.min(0.1, Math.max(0, (now - last) / 1000)); last = now;
+    if (!manual && !paused) { acc += dt; let n = 0; while (acc >= K.DT - 1e-9 && n < 24) { physics(); acc -= K.DT; n++; } if (n === 24) acc = 0; }
+    readouts(); draw();
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- controls ----------
+  $('shape').addEventListener('change', () => { P.shape = $('shape').value; renderDesign(); say(`Shape: ${P.shape}. Relaunch to feel the difference, or watch it adjust.`); });
+  $('pattern').addEventListener('change', () => { P.pattern = $('pattern').value; renderDesign(); });
+  $('tail').addEventListener('input', () => { P.tail = +$('tail').value; renderDesign(); });
+  $('bridle').addEventListener('input', () => { P.bridle = +$('bridle').value; renderDesign(); });
+  $('wind').addEventListener('input', () => { P.wind = +$('wind').value; $('windOut').textContent = `${P.wind} m/s`; });
+  $('gust').addEventListener('input', () => { P.gust = +$('gust').value; $('gustOut').textContent = `${Math.round(P.gust * 100)}%`; });
+  $('launch').addEventListener('click', launch);
+  $('pause').addEventListener('click', () => { paused = !paused; $('pause').setAttribute('aria-pressed', paused); $('pause').textContent = paused ? 'Resume' : 'Pause'; say(paused ? 'Paused.' : 'Flying again.'); });
+  $('reseed').addEventListener('click', () => {
+    SEED = (Math.floor(Math.random() * 1e6) + 1) >>> 0;
+    try { const u = new URL(location.href); u.searchParams.set('seed', SEED); history.replaceState(null, '', u); } catch (e) { /* ignore */ }
+    D = design(SEED); P.pattern = D.pattern; renderDesign(); say(`New colours and pattern, seed ${SEED}.`);
+  });
+  $('export').addEventListener('click', () => {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([exportString()], { type: 'image/svg+xml' })); a.download = `zilker-kite-${SEED}.svg`;
+    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    say(`Saved zilker-kite-${SEED}.svg.`);
+  });
+
+  // ---------- test hook ----------
+  const flightState = () => ({ t: F.t, x: F.x, y: F.y, vx: F.vx, vy: F.vy, phi: Math.atan2(F.y, F.x) * 180 / Math.PI, th: F.th, T: F.T, alpha: F.alpha * 180 / Math.PI, W: F.W, taut: F.taut, grounded: F.grounded, stability: stability(F) });
+  window.__kite = {
+    get state() { return JSON.parse(JSON.stringify({ seed: SEED, design: D, params: P, flight: flightState(), paused, manual })); },
+    consts: JSON.parse(JSON.stringify({ K, SHAPES, PATTERNS, GEOM })),
+    design: (seed) => design(seed),
+    simulate: (p, seconds, from) => simulate(p, seconds, from),
+    eta: (b) => etaOf(b) * 180 / Math.PI,
+    svgString: () => exportString(),
+    manual(on) { manual = on !== false; acc = 0; return manual; },
+    frames(n) { for (let i = 0; i < n; i++) physics(); readouts(); draw(); return flightState(); },
+    launch() { launch(); return flightState(); },
+  };
+
+  renderDesign(); readouts(); draw();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

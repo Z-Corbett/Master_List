@@ -1,0 +1,38 @@
+{
+  "id": "146",
+  "slug": "146-fiesta-medals",
+  "file": "lab/146-fiesta-medals.html",
+  "title": "Fiesta Medal Maker — design a San Antonio Fiesta medal",
+  "category": "Generative",
+  "tags": ["svg", "textpath", "seeded-prng", "localstorage", "downloads"],
+  "description": "A generator for Fiesta-style medals, inspired by San Antonio's tradition of collecting and trading Fiesta medals. Each seed gives a shape (round, shield, star, heart or a simple Texas outline), a striped ribbon in bright Fiesta colours, lettering set on a circular SVG textPath, an icon (papel picado, cascarones, a guitar or paper flowers) and bling: rhinestones, dangles and a spinner. Pin medals to a sash saved in localStorage, trade them with a seeded vendor by a published value table, and download any medal as SVG or PNG.",
+  "prompt": "Build a Fiesta Medal Maker. Collecting and trading Fiesta medals is a real, beloved San Antonio tradition; describe it briefly and accurately, with no official branding. Generate seeded medal designs: shape (round, shield, star, heart, a Texas outline drawn simply), a ribbon with colours (the typical bright Fiesta palette), text on a circular path (SVG textPath), icons (papel picado, cascarones, a guitar, flowers), and a bling layer (rhinestones, dangles, a spinner). Add a collection sash that holds my medals in localStorage, and a trade mode against a seeded vendor. Export as SVG and PNG. The spec should check the text-on-path layout via the state hook, symmetry for the symmetric shapes, determinism per seed, sash persistence and deletion, the trade logic and SVG well-formedness.",
+  "qa": {
+    "methodology": [
+      "Text on the path is checked where the browser actually put it: __fiesta.layout() returns getStartPositionOfChar, getEndPositionOfChar and getRotationOfChar for every glyph. The spec checks each point sits on the lettering circle, the glyphs advance clockwise, each is rotated to the tangent (angle + 90°), the run is centred over the top, and the arc it spans matches getComputedTextLength().",
+      "Fit: a 28-character line must shrink below the 15 px default so that it spans no more than the 250° allowed, but not by more than about 15%, and stays centred.",
+      "Symmetry: round, shield, star and heart outlines are checked point by point for a mirror partner about the centre line, both from the generator and from the drawn SVG path (to the 2-decimal rounding). Rhinestones and dangles are mirrored too. The Texas outline must not be symmetric, and its Panhandle must be top-left and its southern tip bottom-right.",
+      "Trade logic: the value table printed on the page is re-typed in the spec, and 30 generated pairs are checked against it and the 'within a point' rule. Then a real trade through the UI: a 14-point Texas medal is accepted and swapped (sash and localStorage both), and a 2-point plain medal is declined.",
+      "Persistence and export: the sash survives reloads, deletion is permanent (and moves focus sensibly), and corrupt storage is ignored. The downloaded SVG is parsed with DOMParser, including lettering with & < and \" in it; the PNG's signature and IHDR size (600 × 840) are read from the bytes."
+    ],
+    "risks": [
+      "textPath layout differs between engines. The tests compare geometry with tolerances of about half a pixel rather than exact coordinates, so they should hold anywhere the SVG text APIs work.",
+      "Duplicate ids: every medal on the page (main, sash, vendor) needs its own textPath id or lettering jumps to the wrong circle. Each render gets a unique prefix.",
+      "localStorage can be full, blocked or hold junk; saves are wrapped in try/catch with a spoken fallback, and loads validate the shape of each stored medal.",
+      "PNG export draws the SVG into a canvas via a blob: URL. If a browser ever tainted that canvas, the page says so and the SVG download still works."
+    ],
+    "playwright": "The best tool here was page.evaluate reaching real SVG text APIs: the layout test asks Chromium where each glyph landed rather than trusting my own maths, and it would catch a wrong sweep flag or a missing text-anchor at once. waitForEvent('download') plus createReadStream let the spec read both exports byte for byte, and the SVG is parsed back in the page with DOMParser as a well-formedness check. getByRole with the delete buttons' accessible names ('Remove medal 1: FIRST ONE') doubles as an accessibility check. selectOption, check and fill drive the design form the same way on desktop and on the Pixel 7 project. Everything passed on the first full run, so this spec hasn't caught a bug yet; its job is to catch regressions.",
+    "coverage": [
+      "Seeded designs, vocabulary, reseed URL",
+      "Mirror symmetry of four shapes, drawn and generated; Texas orientation",
+      "Lettering on the circle: radius, order, tangent rotation, centring, arc length",
+      "Long lettering shrinks to fit",
+      "Shape, icon and bling controls, aria-label",
+      "Sash: persist, reload, delete, corrupt storage",
+      "Value table and trade rule over 30 pairs",
+      "UI trades: accepted swap and declined offer",
+      "SVG export well-formed with escaped text; PNG export bytes"
+    ]
+  },
+  "a11y": "Every control is a labelled native select, text field, checkbox or button. The medal SVG has an aria-label that describes it in words (shape, ribbon colours, lettering, icon and bling), and the ribbon swatches are labelled with their colour names. Pins, trades and exports are announced in live regions. Each sash medal has a named Remove button, and focus moves to the next medal (or the Pin button) after a deletion. The spinner respects prefers-reduced-motion and can be paused."
+}
