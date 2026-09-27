@@ -108,9 +108,9 @@ test.describe('060 Marfa Lights', () => {
     await expect(page.getByTestId('binocs')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByTestId('hint')).toBeVisible();
     await expect(page.getByTestId('night')).toBeFocused();
-    await page.waitForTimeout(200);
-    const corner = await page.evaluate(() => (window as any).__marfa.pixel(3, 3));
-    expect(corner).toEqual([0, 0, 0]);
+    // the vignette appears on the next painted frame; poll for it rather than sleeping
+    const corner = () => page.evaluate(() => (window as any).__marfa.pixel(3, 3));
+    await expect.poll(corner).toEqual([0, 0, 0]);
     const a0 = (await state(page)).aim;
     await page.keyboard.press('ArrowRight');
     await page.keyboard.press('ArrowUp');
@@ -124,8 +124,7 @@ test.describe('060 Marfa Lights', () => {
     await page.getByTestId('night').press('Escape');
     await expect(page.getByTestId('binocs')).toHaveAttribute('aria-pressed', 'false');
     await expect(page.getByTestId('hint')).toBeHidden();
-    await page.waitForTimeout(200);
-    expect(await page.evaluate(() => (window as any).__marfa.pixel(3, 3))).not.toEqual([0, 0, 0]);
+    await expect.poll(corner).not.toEqual([0, 0, 0]);
   });
 
   test('time-lapse runs an hour every ten seconds; trails and wind toggle', async ({ page }) => {

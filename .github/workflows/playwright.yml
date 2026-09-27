@@ -11,17 +11,19 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
+# Runners are pinned rather than ubuntu-latest, so an OS image change can't silently break Playwright's system deps.
 jobs:
   # Cheap consistency checks, run once.
   checks:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22
-      - run: npm install --no-audit --no-fund
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
       - run: node scripts/build-data.mjs
       - name: Fail if data/projects.js is stale
         run: git diff --exit-code data/projects.js
@@ -34,21 +36,33 @@ jobs:
 
   # The full suite, split into parallel shards so CI time stays flat as the Lab grows.
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         shard: [1, 2, 3, 4]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22
-      - run: npm install --no-audit --no-fund
-      - run: npx playwright install --with-deps chromium
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      # Browsers are cached per Playwright version; the OS packages they need are installed either way.
+      - id: pw
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - id: pw-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
       - run: npx playwright test --shard=${{ matrix.shard }}/4
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
           name: playwright-report-${{ matrix.shard }}
@@ -59,7 +73,7 @@ jobs:
   deploy:
     needs: [checks, test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -69,10 +83,11 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/checkout@v7
+      - uses: actions/configure-pages@v6
+      # Deploys go through Actions, so Jekyll never runs and dropping dotfiles (.nojekyll) is harmless.
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: .
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
