@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>High Five — climb the Dallas interchange</title>
+<meta name="description" content="A pseudo-3D driving game on a five-level stack interchange inspired by Dallas's High Five. Read the overhead signs, get into the right lanes before each split and climb from the frontage road to the top connector, weaving round pickups and 18-wheelers. Take the wrong ramp and you loop back around. Seeded routes and traffic with ?seed=.">
+<style>
+  :root {
+    --concrete: #e9e6df;
+    --concrete-2: #d3cec3;
+    --ink: #17191c;
+    --sign: #0b6b3a;
+    --sign-2: #07522c;
+    --shield: #1f4e9c;
+    --alert: #e0a100;
+    --red: #c43a31;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --hwy: "Arial Narrow", "Roboto Condensed", "Segoe UI", Arial, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--concrete); color: var(--ink); font: 15px/1.55 var(--sans); overflow-x: hidden; min-height: 100vh;
+    background-image: repeating-linear-gradient(-45deg, rgba(0,0,0,.025) 0 10px, transparent 10px 20px); }
+  :focus-visible { outline: 3px solid var(--alert); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; text-decoration: none; font: 700 13px/1 var(--hwy); letter-spacing: .02em;
+    color: #fff; background: var(--sign); border: 2px solid #fff; box-shadow: 0 0 0 2px var(--sign); border-radius: 7px; padding: 7px 11px; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 58px 16px 36px; }
+  header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 24px; align-items: end; margin-bottom: 14px; }
+  .kicker { margin: 0; font: 700 12px/1.3 var(--hwy); letter-spacing: .24em; text-transform: uppercase; color: var(--red); }
+  h1 { margin: 2px 0 6px; font: 800 clamp(40px, 7vw, 76px)/.9 var(--hwy); letter-spacing: -.01em; color: var(--sign-2); text-transform: uppercase; }
+  h1 span { color: var(--shield); }
+  .lede { margin: 0; max-width: 60ch; color: #41464c; }
+  .hud { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .plate { background: var(--sign); color: #fff; border-radius: 8px; border: 2px solid #fff; box-shadow: 0 0 0 2px var(--sign); padding: 4px 12px 5px; min-width: 84px; text-align: center; font-family: var(--hwy); }
+  .plate small { display: block; font-size: 10px; letter-spacing: .18em; text-transform: uppercase; opacity: .85; }
+  .plate b { display: block; font-size: 22px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .route { display: flex; gap: 10px; align-items: center; background: #fff; border: 2px solid var(--ink); border-radius: 10px; padding: 8px 12px; margin-bottom: 12px; font: 600 15px/1.3 var(--sans); min-width: 0; }
+  .route .pin { flex: 0 0 auto; font: 800 12px/1 var(--hwy); letter-spacing: .1em; text-transform: uppercase; background: var(--shield); color: #fff; border-radius: 6px; padding: 6px 8px; }
+  .route span:last-child { min-width: 0; overflow-wrap: anywhere; }
+  .stage { position: relative; border-radius: 12px; overflow: hidden; background: #6ea6d6; box-shadow: 0 0 0 4px var(--ink), 0 16px 36px rgba(20,20,20,.3); }
+  canvas { display: block; width: 100%; height: auto; aspect-ratio: 960 / 540; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .overlay { position: absolute; inset: 0; display: grid; place-items: center; padding: 14px; background: rgba(23,25,28,.4); }
+  .card { background: #fff; border: 3px solid var(--ink); border-radius: 12px; padding: 16px 20px; max-width: 400px; width: 100%; text-align: center; box-shadow: 6px 6px 0 var(--sign); }
+  .card h2 { margin: 0 0 4px; font: 800 28px/1.05 var(--hwy); color: var(--sign-2); text-transform: uppercase; }
+  .card p { margin: 4px 0 10px; font-size: 14px; }
+  .card .big { font: 800 38px/1 var(--hwy); color: var(--shield); font-variant-numeric: tabular-nums; }
+  .btn { font: 700 16px/1 var(--hwy); letter-spacing: .03em; min-height: 48px; padding: 10px 16px; border-radius: 10px; border: 3px solid var(--ink); cursor: pointer;
+    background: var(--sign); color: #fff; box-shadow: 0 3px 0 var(--ink); max-width: 100%; }
+  .btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
+  .btn.ghost { background: #fff; color: var(--ink); }
+  .btn.brake { background: var(--red); }
+  .btn[aria-pressed="true"] { background: var(--ink); color: #fff; }
+  .pad { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr); gap: 10px; margin-top: 14px; }
+  .pad .btn { min-height: 58px; font-size: 18px; min-width: 0; padding: 8px; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .status { min-height: 1.5em; margin: 10px 2px 0; font-weight: 600; color: var(--sign-2); }
+  .notes { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 18px; margin-top: 20px; }
+  .panel { background: #fbfaf7; border: 2px solid var(--ink); border-radius: 12px; padding: 14px 16px; min-width: 0; box-shadow: 4px 4px 0 rgba(23,25,28,.85); }
+  .panel h2 { margin: 0 0 8px; font: 800 21px/1.1 var(--hwy); color: var(--sign-2); text-transform: uppercase; }
+  .levels { margin: 0; padding-left: 20px; }
+  .levels li { margin: 3px 0; }
+  .levels li[aria-current="step"] { font-weight: 700; color: var(--shield); }
+  dl.keys { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 12px; margin: 0; font-size: 14px; }
+  dl.keys dt { font-weight: 700; white-space: nowrap; }
+  dl.keys dd { margin: 0; min-width: 0; }
+  kbd { font: 700 12px var(--hwy); background: #fff; border: 1px solid #8a8f93; border-bottom-width: 3px; border-radius: 4px; padding: 0 5px; }
+  .fact { margin: 12px 0 0; font-size: 13px; color: #4f555b; border-top: 1px dashed #aaa497; padding-top: 10px; }
+  footer { margin-top: 24px; text-align: center; font-size: 13px; color: #5b6166; }
+  footer code { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 4px; }
+  @media (max-width: 760px) {
+    header { grid-template-columns: minmax(0, 1fr); }
+    .hud { justify-content: flex-start; }
+    .plate { min-width: 0; flex: 1 1 70px; }
+    .notes { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 600px) {
+    .overlay { position: static; background: var(--sign-2); padding: 12px; }
+    .card { box-shadow: 4px 4px 0 #000; padding: 12px 14px; }
+    .card h2 { font-size: 22px; }
+    .pad { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  }
+  @media (max-width: 420px) {
+    .plate b { font-size: 18px; }
+    dl.keys { grid-template-columns: minmax(0, 1fr); }
+    dl.keys dt { white-space: normal; }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <div>
+      <p class="kicker">LBJ Freeway × Central Expressway · North Dallas</p>
+      <h1>High <span>Five</span></h1>
+      <p class="lede">Five levels of concrete, a commute to make and a GPS that only tells you where, not how. Read the overhead signs, get into the right lanes before each split, and climb from the frontage road to the top connector without missing a ramp.</p>
+    </div>
+    <div class="hud" aria-label="Dashboard">
+      <div class="plate"><small>Speed</small><b id="mph" data-testid="mph">0</b></div>
+      <div class="plate"><small>Level</small><b id="level" data-testid="level">1/5</b></div>
+      <div class="plate"><small>Time</small><b id="time" data-testid="time">0.0</b></div>
+      <div class="plate"><small>Best</small><b id="best" data-testid="best">–</b></div>
+    </div>
+  </header>
+
+  <div class="route" aria-label="Navigation"><span class="pin">GPS</span><span id="route" data-testid="route">Next: —</span></div>
+
+  <div class="stage">
+    <canvas id="cv" width="960" height="540" tabindex="0" data-testid="scene" role="img" aria-label="High Five"></canvas>
+    <div class="overlay" id="readyOv" data-testid="ready">
+      <div class="card"><h2>Morning commute</h2><p>Four splits, five levels. The GPS names the road; the signs say which lanes. Wrong ramp and you loop back around.</p><button class="btn" id="startBtn" data-testid="start">Merge on</button></div>
+    </div>
+    <div class="overlay" id="endOv" data-testid="result" hidden>
+      <div class="card" role="dialog" aria-labelledby="endT" aria-describedby="endP">
+        <h2 id="endT">Made it</h2>
+        <p id="endP" data-testid="result-text"></p>
+        <div class="big" id="endTime" data-testid="result-time">0.0 s</div>
+        <p id="endBest" data-testid="result-best"></p>
+        <button class="btn" id="againBtn" data-testid="again">Drive it again</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="pad">
+    <button class="btn" id="leftBtn" data-testid="left" aria-label="Change lane left">◀ Lane</button>
+    <button class="btn brake" id="brakeBtn" data-testid="brake" aria-pressed="false" aria-label="Brake (hold)">Brake</button>
+    <button class="btn ghost" id="pauseBtn" data-testid="pause" aria-pressed="false">Pause</button>
+    <button class="btn" id="rightBtn" data-testid="right" aria-label="Change lane right">Lane ▶</button>
+  </div>
+  <p class="status" id="status" data-testid="status" role="status" aria-live="polite">Press Merge on to start. Cruise control is on; brake if you need a gap.</p>
+
+  <div class="notes">
+    <section class="panel" aria-labelledby="h-levels">
+      <h2 id="h-levels">The five levels</h2>
+      <ol class="levels" id="levels">
+        <li data-level="1">Frontage road, at grade</li>
+        <li data-level="2">The main lanes</li>
+        <li data-level="3">First connector ramp</li>
+        <li data-level="4">Second connector ramp</li>
+        <li data-level="5">The top connector, about 120 ft up</li>
+      </ol>
+      <p class="fact">The real High Five, where I-635 crosses US-75, opened in 2005 and stacks five levels of roadway. This game borrows its shape and its reputation; the signs and the route are made up.</p>
+    </section>
+    <section class="panel" aria-labelledby="h-keys">
+      <h2 id="h-keys">Controls</h2>
+      <dl class="keys">
+        <dt><kbd>←</kbd> <kbd>→</kbd> / <kbd>A</kbd> <kbd>D</kbd></dt><dd>Change lane. Tap the left or right third of the road on touch.</dd>
+        <dt><kbd>↓</kbd> <kbd>S</kbd> <kbd>Space</kbd></dt><dd>Brake while held (or hold the middle of the road). Cruise control does the rest.</dd>
+        <dt><kbd>P</kbd></dt><dd>Pause or resume.</dd>
+      </dl>
+      <p class="fact">Signs are announced to screen readers as they come into view, with the lanes for each destination.</p>
+    </section>
+  </div>
+  <footer>Built by Zac Corbett · pseudo-3D segments, 120 Hz fixed timestep · add <code>?seed=</code> for a repeatable route and traffic</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const W = 960, H = 540, DT = 1 / 120;
+  const SEG = 200, ROAD_W = 2000, CAM_H = 1000, DRAW = 150, FOV = 100, LEVEL_H = 1400;
+  const CAM_DEPTH = 1 / Math.tan((FOV / 2) * Math.PI / 180), PLAYER_Z = CAM_H * CAM_DEPTH;
+  const MAX_SPEED = 7000, ACCEL = 2600, BRAKE = 7000, LANE_RATE = 3.2, PENALTY = 6;
+  const LANE_X = [-2 / 3, 0, 2 / 3];
+  const params = new URLSearchParams(location.search);
+  const SEED = (parseInt(params.get('seed'), 10) >>> 0) || 2005;
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const BEST_KEY = 'lab176-high-five-best';
+  const $ = (id) => document.getElementById(id);
+  const fin = (v, d = 0) => (Number.isFinite(v) ? v : d);
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const mph = (v) => Math.round(v / 100);
+
+  // ---------- the track ----------
+  const DESTS = ['I-635 EAST · Garland', 'I-635 WEST · Irving', 'US-75 SOUTH · Downtown', 'US-75 NORTH · Plano', 'Coit Rd · exit only', 'Greenville Ave', 'Park Ln', 'Spring Valley Rd'];
+  const rng0 = mulberry32(SEED);
+  const segs = [], splits = [];
+  let lastY = 0;
+  const easeIn = (a, b, p) => a + (b - a) * Math.pow(p, 2);
+  const easeInOut = (a, b, p) => a + (b - a) * ((-Math.cos(p * Math.PI) / 2) + 0.5);
+  function addSeg(curve, y) { const i = segs.length; segs.push({ index: i, curve, p1: { y: lastY, z: i * SEG }, p2: { y, z: (i + 1) * SEG }, dark: Math.floor(i / 3) % 2 }); lastY = y; }
+  function addRoad(enter, hold, leave, curve, dy) {
+    const y0 = lastY, y1 = y0 + dy, n = enter + hold + leave;
+    for (let i = 0; i < enter; i++) addSeg(easeIn(0, curve, i / enter), easeInOut(y0, y1, (i + 1) / n));
+    for (let i = 0; i < hold; i++) addSeg(curve, easeInOut(y0, y1, (enter + i + 1) / n));
+    for (let i = 0; i < leave; i++) addSeg(easeInOut(curve, 0, i / leave), easeInOut(y0, y1, (enter + hold + i + 1) / n));
+  }
+  addRoad(0, 60, 0, 0, 0);
+  const pool = DESTS.slice();
+  for (let s = 0; s < 4; s++) {
+    const bend = (rng0() < 0.5 ? -1 : 1) * (2 + rng0() * 2);
+    addRoad(20, 50, 20, bend, 0);
+    const gantry = segs.length + 15;
+    addRoad(0, 70, 0, 0, 0);
+    const gore = segs.length - 1;
+    const a = pool.splice(Math.floor(rng0() * pool.length), 1)[0], b = pool.splice(Math.floor(rng0() * pool.length), 1)[0];
+    const layout = rng0() < 0.5 ? [[0], [1, 2]] : [[0, 1], [2]];
+    const correct = rng0() < 0.5 ? 'left' : 'right';
+    splits.push({ n: s, gantry, gore, left: { dest: a, lanes: layout[0] }, right: { dest: b, lanes: layout[1] }, correct });
+    const fly = (rng0() < 0.5 ? -1 : 1) * (3 + rng0() * 2.5);
+    addRoad(30, 60, 30, fly, LEVEL_H);
+  }
+  addRoad(0, 60, 0, 0, 0);
+  const FINISH = segs.length - 1;
+  addRoad(0, DRAW + 10, 0, 0, 0);
+  const TRACK_LEN = segs.length * SEG;
+  const findSeg = (z) => segs[Math.max(0, Math.min(segs.length - 1, Math.floor(z / SEG)))];
+  const target = (sp) => sp[sp.correct];
+  const laneWord = (lanes) => lanes.length === 2 ? (lanes[0] === 0 ? 'left two lanes' : 'right two lanes') : lanes[0] === 0 ? 'left lane' : lanes[0] === 2 ? 'right lane' : 'middle lane';
+
+  // ---------- traffic ----------
+  const KINDS = [{ kind: 'sedan', w: 0.34, h: 0.28 }, { kind: 'pickup', w: 0.38, h: 0.34 }, { kind: 'semi', w: 0.44, h: 0.62 }];
+  const COLORS = ['#c43a31', '#f2f2ef', '#1f4e9c', '#2d2f33', '#b9bcc2', '#6d8a3a', '#e0a100'];
+  function makeTraffic() {
+    const r = mulberry32(SEED ^ 0xca75);
+    const cars = [];
+    for (let z = 90 * SEG; z < FINISH * SEG - 20 * SEG; z += (26 + Math.floor(r() * 26)) * SEG) {
+      const k = KINDS[r() < 0.55 ? 0 : r() < 0.7 ? 1 : 2];
+      cars.push({ id: cars.length, z, lane: Math.floor(r() * 3), speed: 2400 + Math.floor(r() * 1800), ...k, color: COLORS[Math.floor(r() * COLORS.length)] });
+    }
+    return cars;
+  }
+
+  // ---------- state ----------
+  let S;
+  const input = { brakeKeys: new Set(), brakeBtn: false, brakePtr: new Set() };
+  function loadBest() { try { const v = parseFloat(localStorage.getItem(BEST_KEY)); return Number.isFinite(v) ? v : null; } catch (e) { return null; } }
+  function reset(mode) {
+    S = { mode, t: 0, frame: 0, pos: 0, speed: 0, lane: 1, x: 0, level: 1, split: 0, penalty: 0, wrong: 0, bumps: 0, cars: makeTraffic(), best: loadBest(),
+      shake: 0, announced: -1, lastSeg: 0, fade: 0, tilt: 0 };
+    input.brakeKeys.clear(); input.brakeBtn = false; input.brakePtr.clear();
+  }
+  const braking = () => input.brakeKeys.size > 0 || input.brakeBtn || input.brakePtr.size > 0;
+  const playerZ = () => S.pos + PLAYER_Z;
+  const laneOf = (x) => (x < -1 / 3 ? 0 : x > 1 / 3 ? 2 : 1);
+  const total = () => S.t + S.penalty;
+
+  function step() {
+    if (S.mode !== 'run') return;
+    S.t += DT; S.frame++;
+    // speed: cruise control up to the limit, brakes when held
+    if (braking()) S.speed = Math.max(0, S.speed - BRAKE * DT);
+    else S.speed = Math.min(MAX_SPEED, S.speed + ACCEL * DT * (1 - 0.5 * S.speed / MAX_SPEED));
+    // lane change slides toward the target lane
+    const tx = LANE_X[S.lane], d = tx - S.x, mv = LANE_RATE * DT;
+    S.x = Math.abs(d) <= mv ? tx : S.x + Math.sign(d) * mv;
+    S.tilt = d;
+    S.pos += S.speed * DT;
+    // traffic moves; bumps into the car ahead
+    for (const c of S.cars) {
+      c.z += c.speed * DT;
+      const gap = c.z - playerZ();
+      if (gap > 0 && gap < 420 && Math.abs(LANE_X[c.lane] - S.x) < 0.42 && S.speed > c.speed) {
+        S.speed = c.speed * 0.7; S.bumps++; S.shake = reduced ? 0 : 0.3;
+        c.z = playerZ() + 440;
+        say(`Bumped a ${c.kind === 'semi' ? '18-wheeler' : c.kind}. Watch the lane ahead.`);
+      }
+    }
+    if (S.shake > 0) S.shake -= DT;
+    if (S.fade > 0) S.fade -= DT;
+    // signs and splits
+    const seg = findSeg(playerZ()).index;
+    const sp = splits[S.split];
+    if (sp) {
+      if (S.announced < S.split && seg >= sp.gantry - 70) {
+        S.announced = S.split;
+        say(`Sign ahead: ${sp.left.dest}, ${laneWord(sp.left.lanes)}. ${sp.right.dest}, ${laneWord(sp.right.lanes)}.`);
+      }
+      if (seg >= sp.gore) {
+        const lane = laneOf(S.x), good = target(sp).lanes.includes(lane);
+        if (good) {
+          S.level++; S.split++;
+          say(`Up to level ${S.level}: ${target(sp).dest}.`);
+          levels(); route();
+        } else {
+          S.wrong++; S.penalty += PENALTY;
+          S.pos = (sp.gantry - 90) * SEG - PLAYER_Z;
+          S.speed = Math.min(S.speed, 4500);
+          S.announced = S.split - 1; S.fade = reduced ? 0 : 0.6;
+          for (const c of S.cars) if (Math.abs(c.z - playerZ()) < 3 * SEG) c.z += 6 * SEG;
+          say(`Wrong ramp: that was ${sp[sp.correct === 'left' ? 'right' : 'left'].dest}. Recalculating… looping back around (+${PENALTY} s).`);
+        }
+      }
+    }
+    if (seg >= FINISH) finish();
+  }
+  function finish() {
+    S.mode = 'over';
+    const tt = +total().toFixed(1);
+    const newBest = S.best === null || tt < S.best;
+    if (newBest) { S.best = tt; try { localStorage.setItem(BEST_KEY, String(tt)); } catch (e) { /* blocked */ } }
+    $('endT').textContent = newBest ? 'Made it · new best' : 'Made it';
+    $('endP').textContent = `Top level reached. ${S.wrong ? `${S.wrong} wrong ramp${S.wrong > 1 ? 's' : ''} (+${S.wrong * PENALTY} s)` : 'No wrong ramps'}, ${S.bumps} bump${S.bumps === 1 ? '' : 's'}.`;
+    $('endTime').textContent = `${tt.toFixed(1)} s`;
+    $('endBest').textContent = `Best commute: ${S.best.toFixed(1)} s`;
+    $('endOv').hidden = false;
+    $('againBtn').focus({ preventScroll: true });
+    say(`Made it to the top in ${tt.toFixed(1)} seconds.`);
+    hud(); draw();
+  }
+
+  // ---------- drawing ----------
+  const cv = $('cv'), ctx = cv.getContext('2d');
+  const skyline = [];
+  { const r = mulberry32(SEED ^ 0x5ca1); let x = 0; while (x < W * 2) { const w = 24 + r() * 46, h = 30 + r() * 120; skyline.push({ x, w, h, lit: r() }); x += w + r() * 10; } }
+  function project(p, camX, camY, camZ, xoff) {
+    const cz = p.z - camZ;
+    const scale = CAM_DEPTH / cz;
+    return { x: Math.round(W / 2 + scale * (xoff - camX) * W / 2), y: Math.round(H / 2 - scale * (p.y - camY) * H / 2), w: Math.round(scale * ROAD_W * W / 2), scale, cz };
+  }
+  function poly(x1, y1, w1, x2, y2, w2, col) { ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x1 - w1, y1); ctx.lineTo(x1 + w1, y1); ctx.lineTo(x2 + w2, y2); ctx.lineTo(x2 - w2, y2); ctx.closePath(); ctx.fill(); }
+  function draw() {
+    const base = findSeg(S.pos), pz = playerZ(), pseg = findSeg(pz);
+    const pct = (pz % SEG) / SEG;
+    const playerY = pseg.p1.y + (pseg.p2.y - pseg.p1.y) * pct;
+    const camY = playerY + CAM_H, camX = S.x * ROAD_W;
+    const elev = playerY / (LEVEL_H * 4);
+    ctx.save();
+    if (S.shake > 0) ctx.translate(fin(Math.sin(S.shake * 80) * 5), 0);
+    // sky
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#3f7fbf'); g.addColorStop(0.55, '#f2c48d'); g.addColorStop(1, '#f7dfb8');
+    ctx.fillStyle = g; ctx.fillRect(-10, 0, W + 20, H);
+    ctx.fillStyle = 'rgba(255,236,190,.9)'; ctx.beginPath(); ctx.arc(760, 150 + elev * 60, 34, 0, 6.283); ctx.fill();
+    // skyline and the ball tower sink as you climb
+    const drift = (S.pos * 0.0015 + base.curve * 0) % W;
+    const hy = H / 2 + 40 + elev * 90;
+    ctx.fillStyle = '#56627a';
+    for (const b of skyline) { const x = ((b.x - drift) % (W * 2) + W * 2) % (W * 2) - 60; if (x > W + 20) continue; ctx.fillRect(x, hy - b.h, b.w, b.h); }
+    const tx = ((520 - drift * 0.6) % (W * 1.5) + W * 1.5) % (W * 1.5) - 100;
+    ctx.fillRect(tx - 5, hy - 170, 10, 170); ctx.beginPath(); ctx.arc(tx, hy - 178, 20, 0, 6.283); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,240,200,.7)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(tx, hy - 178, 20, 0, 6.283); ctx.stroke();
+    // other flyovers of the stack, in the distance
+    ctx.strokeStyle = 'rgba(150,146,138,.9)'; ctx.fillStyle = 'rgba(150,146,138,.9)';
+    for (let k = 0; k < 3; k++) {
+      const yy = hy - 30 - k * 34 + elev * 50 * (k + 1), off = ((k * 330 - drift * (0.8 + k * 0.2)) % (W * 1.6) + W * 1.6) % (W * 1.6) - 300;
+      ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(off, yy + 30); ctx.quadraticCurveTo(off + 260, yy - 40, off + 560, yy + 10); ctx.stroke();
+      for (let p = 0; p < 5; p++) { const px = off + 60 + p * 110; ctx.fillRect(px, yy + 4 - Math.sin(p / 4 * Math.PI) * 30, 6, hy - yy); }
+    }
+    ctx.fillStyle = S.level > 1 ? '#b9ae94' : '#9aa56a';
+    ctx.fillRect(-10, hy, W + 20, H - hy);
+    // road
+    let maxy = H, x = 0, dx = -(base.curve * ((S.pos % SEG) / SEG));
+    const drawn = [];
+    for (let n = 0; n < DRAW; n++) {
+      const seg = segs[base.index + n]; if (!seg) break;
+      const p1 = project(seg.p1, camX, camY, S.pos, -x), p2 = project(seg.p2, camX, camY, S.pos, -x - dx);
+      x += dx; dx += seg.curve;
+      seg.clip = maxy; seg.s1 = p1; seg.s2 = p2;
+      drawn.push(seg);
+      if (p1.cz <= CAM_DEPTH || p2.y >= p1.y || p2.y >= maxy) continue;
+      const elevated = seg.p1.y > 0 || S.level > 1;
+      poly(W / 2, p1.y, W, W / 2, p2.y, W, elevated ? (seg.dark ? '#b3a88f' : '#bbb198') : (seg.dark ? '#8e9a5c' : '#98a464'));
+      const rw1 = p1.w * 1.12, rw2 = p2.w * 1.12;
+      poly(p1.x, p1.y, rw1, p2.x, p2.y, rw2, seg.dark ? '#d9d6ce' : '#a9a59c');           // concrete barriers
+      poly(p1.x, p1.y, p1.w, p2.x, p2.y, p2.w, seg.dark ? '#55585d' : '#5d6065');         // asphalt
+      if (seg.dark) {
+        for (const lx of [-1 / 3, 1 / 3]) {
+          const l1 = p1.w * 0.018, l2 = p2.w * 0.018;
+          poly(p1.x + lx * 2 * p1.w, p1.y, l1, p2.x + lx * 2 * p2.w, p2.y, l2, '#eeeeea');
+        }
+      }
+      // the gore: a solid line between the lane groups, then chevrons
+      const sp = splits.find((q) => seg.index >= q.gore - 45 && seg.index <= q.gore);
+      if (sp) {
+        const bx = sp.left.lanes.length === 1 ? -1 / 3 : 1 / 3;
+        const chevron = seg.index >= sp.gore - 12;
+        const w1 = p1.w * (chevron ? 0.09 : 0.03), w2 = p2.w * (chevron ? 0.09 : 0.03);
+        poly(p1.x + bx * 2 * p1.w, p1.y, w1, p2.x + bx * 2 * p2.w, p2.y, w2, chevron && seg.index % 2 ? '#f2c230' : '#ffffff');
+      }
+      if (seg.index === FINISH) poly(p1.x, p1.y, p1.w, p2.x, p2.y, p2.w, '#f2f2ef');
+      maxy = p2.y;
+    }
+    // sprites far to near: gantries and traffic
+    for (let n = drawn.length - 1; n > 0; n--) {
+      const seg = drawn[n], s1 = seg.s1;
+      if (!s1 || s1.cz <= CAM_DEPTH) continue;
+      for (const sp of splits) if (sp.gantry === seg.index) drawGantry(sp, s1, seg.clip);
+      for (const c of S.cars) {
+        if (findSeg(c.z).index !== seg.index) continue;
+        drawCar(s1.x + LANE_X[c.lane] * s1.w, s1.y, s1.w, c, seg.clip);
+      }
+    }
+    // your car
+    drawPlayer();
+    if (S.fade > 0) { ctx.fillStyle = `rgba(20,20,20,${fin(Math.min(1, S.fade * 1.6))})`; ctx.fillRect(-10, 0, W + 20, H); }
+    if (S.mode === 'paused') { ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(-10, 0, W + 20, H); ctx.fillStyle = '#fff'; ctx.font = '800 44px "Arial Narrow", Arial, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('PAUSED', W / 2, H / 2); }
+    ctx.restore();
+  }
+  function drawGantry(sp, s, clip) {
+    const w = s.w, top = s.y - w * 0.95, x0 = s.x - w * 1.1, x1 = s.x + w * 1.1;
+    if (top > clip) return;
+    ctx.save(); ctx.beginPath(); ctx.rect(-10, 0, W + 20, clip); ctx.clip();
+    ctx.fillStyle = '#6f7277';
+    ctx.fillRect(x0 - w * 0.02, top, w * 0.04, s.y - top); ctx.fillRect(x1 - w * 0.02, top, w * 0.04, s.y - top);
+    ctx.fillRect(x0, top + w * 0.02, x1 - x0, w * 0.03);
+    for (const side of ['left', 'right']) {
+      const g = sp[side], lx0 = LANE_X[g.lanes[0]], lx1 = LANE_X[g.lanes[g.lanes.length - 1]];
+      const cx = s.x + ((lx0 + lx1) / 2) * w, half = w * (g.lanes.length === 2 ? 0.58 : 0.3);
+      const y0 = top - w * 0.34, hh = w * 0.4;
+      ctx.fillStyle = '#0b6b3a'; ctx.fillRect(cx - half, y0, half * 2, hh);
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(1, w * 0.008); ctx.strokeRect(cx - half + w * 0.012, y0 + w * 0.012, half * 2 - w * 0.024, hh - w * 0.024);
+      if (w > 60) {
+        const [road, place] = g.dest.split(' · ');
+        ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+        ctx.font = `800 ${Math.round(w * 0.075)}px "Arial Narrow", Arial, sans-serif`;
+        ctx.fillText(road, cx, y0 + hh * 0.36, half * 1.8);
+        ctx.font = `600 ${Math.round(w * 0.065)}px "Arial Narrow", Arial, sans-serif`;
+        ctx.fillText(place || '', cx, y0 + hh * 0.62, half * 1.8);
+        ctx.font = `800 ${Math.round(w * 0.08)}px Arial, sans-serif`;
+        for (const l of g.lanes) ctx.fillText('↓', s.x + LANE_X[l] * w, y0 + hh * 0.92);
+      }
+    }
+    ctx.restore();
+  }
+  function drawCar(x, y, rw, c, clip) {
+    const w = rw * c.w, h = rw * c.h;
+    if (w < 2 || y - h > clip) return;
+    ctx.save(); ctx.beginPath(); ctx.rect(-10, 0, W + 20, clip); ctx.clip();
+    ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(x - w / 2, y - h * 0.08, w, h * 0.1);
+    if (c.kind === 'semi') {
+      ctx.fillStyle = '#d7d8db'; ctx.fillRect(x - w / 2, y - h, w, h * 0.9);
+      ctx.strokeStyle = '#9a9ca1'; ctx.lineWidth = Math.max(1, w * 0.02); ctx.strokeRect(x - w / 2, y - h, w, h * 0.9);
+      ctx.fillStyle = c.color; ctx.fillRect(x - w / 2, y - h * 0.2, w, h * 0.1);
+    } else {
+      ctx.fillStyle = c.color; ctx.fillRect(x - w / 2, y - h * 0.62, w, h * 0.55);
+      ctx.fillStyle = c.kind === 'pickup' ? c.color : '#2b3440';
+      ctx.fillRect(x - w * 0.36, y - h, w * 0.72, h * 0.4);
+      if (c.kind === 'pickup') { ctx.fillStyle = '#2b3440'; ctx.fillRect(x - w * 0.3, y - h * 0.94, w * 0.6, h * 0.26); }
+    }
+    ctx.fillStyle = '#ff3b30'; ctx.fillRect(x - w * 0.46, y - h * 0.4, w * 0.14, h * 0.1); ctx.fillRect(x + w * 0.32, y - h * 0.4, w * 0.14, h * 0.1);
+    ctx.fillStyle = '#111'; ctx.fillRect(x - w * 0.46, y - h * 0.1, w * 0.18, h * 0.1); ctx.fillRect(x + w * 0.28, y - h * 0.1, w * 0.18, h * 0.1);
+    ctx.restore();
+  }
+  function drawPlayer() {
+    const x = W / 2, y = H - 14, w = 250, h = 124, lean = reduced ? 0 : fin(S.tilt) * 0.25;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(lean);
+    ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(-w / 2 - 4, -6, w + 8, 10);
+    ctx.fillStyle = '#1f4e9c'; ctx.fillRect(-w / 2, -h * 0.62, w, h * 0.56);                        // pickup body
+    ctx.fillStyle = '#16396f'; ctx.fillRect(-w / 2, -h * 0.66, w, h * 0.08);
+    ctx.fillStyle = '#1f4e9c'; ctx.fillRect(-w * 0.34, -h, w * 0.68, h * 0.38);
+    ctx.fillStyle = '#9fc3e6'; ctx.fillRect(-w * 0.28, -h * 0.94, w * 0.56, h * 0.26);
+    ctx.fillStyle = braking() ? '#ff5147' : '#8a1f1a';
+    ctx.fillRect(-w * 0.48, -h * 0.5, w * 0.14, h * 0.14); ctx.fillRect(w * 0.34, -h * 0.5, w * 0.14, h * 0.14);
+    ctx.fillStyle = '#f2f2ef'; ctx.fillRect(-w * 0.14, -h * 0.34, w * 0.28, h * 0.12);
+    ctx.fillStyle = '#1f2328'; ctx.font = '700 10px Arial, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('TX · HI5', 0, -h * 0.245);
+    ctx.fillStyle = '#111'; ctx.fillRect(-w * 0.48, -h * 0.06, w * 0.2, h * 0.1); ctx.fillRect(w * 0.28, -h * 0.06, w * 0.2, h * 0.1);
+    ctx.restore();
+  }
+
+  // ---------- HUD ----------
+  let lastSay = '';
+  function say(m) { if (m !== lastSay) { $('status').textContent = m; lastSay = m; } }
+  let lastHud = '';
+  function hud() {
+    const key = [mph(S.speed), S.level, total().toFixed(1), S.best].join('|');
+    if (key === lastHud) return; lastHud = key;
+    $('mph').textContent = `${mph(S.speed)} mph`;
+    $('level').textContent = `${S.level}/5`;
+    $('time').textContent = total().toFixed(1);
+    $('best').textContent = S.best === null ? '–' : S.best.toFixed(1);
+    const ahead = S.cars.filter((c) => c.z > playerZ() && c.z - playerZ() < 30 * SEG).map((c) => `${c.kind} in the ${['left', 'middle', 'right'][c.lane]} lane`);
+    cv.setAttribute('aria-label', `High Five: level ${S.level} of 5, ${mph(S.speed)} mph in the ${['left', 'middle', 'right'][S.lane]} lane. ${ahead.length ? 'Ahead: ' + ahead.slice(0, 3).join(', ') + '.' : 'Clear road ahead.'}`);
+  }
+  function route() {
+    const sp = splits[S.split];
+    $('route').textContent = sp ? `Next: take ${target(sp).dest} (split ${sp.n + 1} of 4)` : 'Stay on the top connector to the finish.';
+  }
+  function levels() { for (const li of document.querySelectorAll('#levels li')) { if (+li.dataset.level === S.level) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current'); } }
+
+  // ---------- loop ----------
+  let manual = false, acc = 0, last = null;
+  function frame(ts) {
+    requestAnimationFrame(frame);
+    if (last === null) last = ts;
+    let dt = (ts - last) / 1000; last = ts;
+    if (!Number.isFinite(dt) || dt < 0) dt = 0;
+    if (manual) return;
+    acc += Math.min(dt, 0.1);
+    while (acc >= DT) { step(); acc -= DT; }
+    hud(); draw();
+  }
+  function start() {
+    reset('run');
+    lastHud = '';
+    $('readyOv').hidden = true; $('endOv').hidden = true;
+    cv.focus({ preventScroll: true });                // the button that started the run has just been hidden
+    $('pauseBtn').setAttribute('aria-pressed', 'false'); $('pauseBtn').textContent = 'Pause';
+    say(`Merging onto the frontage road. ${splits[0] ? 'The GPS says: ' + target(splits[0]).dest + '.' : ''}`);
+    route(); levels(); hud(); draw();
+  }
+  function togglePause() {
+    if (S.mode === 'run') { S.mode = 'paused'; $('pauseBtn').setAttribute('aria-pressed', 'true'); $('pauseBtn').textContent = 'Resume'; say('Paused.'); }
+    else if (S.mode === 'paused') { S.mode = 'run'; $('pauseBtn').setAttribute('aria-pressed', 'false'); $('pauseBtn').textContent = 'Pause'; say('Back on the road.'); }
+    draw();
+  }
+  function steer(d) {
+    if (S.mode === 'ready' || S.mode === 'over') return;
+    if (S.mode !== 'run') return;
+    const n = Math.max(0, Math.min(2, S.lane + d));
+    if (n !== S.lane) S.lane = n;
+  }
+  function setBrakeBtn(on) { input.brakeBtn = on; $('brakeBtn').setAttribute('aria-pressed', String(on)); }
+
+  // ---------- input ----------
+  $('startBtn').addEventListener('click', start);
+  $('againBtn').addEventListener('click', start);
+  $('pauseBtn').addEventListener('click', togglePause);
+  $('leftBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); steer(-1); });
+  $('rightBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); steer(1); });
+  for (const [id, d] of [['leftBtn', -1], ['rightBtn', 1]]) $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); steer(d); } });
+  $('brakeBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); setBrakeBtn(true); });
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) $('brakeBtn').addEventListener(ev, () => setBrakeBtn(false));
+  $('brakeBtn').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); setBrakeBtn(true); } });
+  $('brakeBtn').addEventListener('keyup', (e) => { if (e.key === 'Enter') setBrakeBtn(false); });
+  cv.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    if (S.mode !== 'run') return;
+    const r = cv.getBoundingClientRect(), fx = (e.clientX - r.left) / r.width;
+    if (fx < 1 / 3) steer(-1); else if (fx > 2 / 3) steer(1); else input.brakePtr.add(e.pointerId);
+  });
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) cv.addEventListener(ev, (e) => input.brakePtr.delete(e.pointerId));
+  const LEFT = ['ArrowLeft', 'a', 'A'], RIGHT = ['ArrowRight', 'd', 'D'], BRAKES = ['ArrowDown', 's', 'S', ' '];
+  addEventListener('keydown', (e) => {
+    const tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'SELECT') return;
+    if (LEFT.includes(e.key)) { e.preventDefault(); if (!e.repeat) steer(-1); }
+    else if (RIGHT.includes(e.key)) { e.preventDefault(); if (!e.repeat) steer(1); }
+    else if (BRAKES.includes(e.key)) {
+      if (tag === 'BUTTON' && e.key === ' ' && S.mode !== 'run') return;   // Space presses the focused button
+      e.preventDefault(); input.brakeKeys.add(e.key.toLowerCase());
+    } else if (e.key === 'p' || e.key === 'P') togglePause();
+  });
+  addEventListener('keyup', (e) => { if (BRAKES.includes(e.key)) input.brakeKeys.delete(e.key.toLowerCase()); });
+  addEventListener('blur', () => { input.brakeKeys.clear(); input.brakePtr.clear(); setBrakeBtn(false); if (S.mode === 'run' && !manual) togglePause(); });
+
+  // ---------- test hook ----------
+  const snap = () => ({
+    mode: S.mode, t: +S.t.toFixed(4), frame: S.frame, pos: S.pos, z: playerZ(), seg: findSeg(playerZ()).index, speed: S.speed, mph: mph(S.speed), lane: S.lane, x: S.x,
+    level: S.level, split: S.split, penalty: S.penalty, wrong: S.wrong, bumps: S.bumps, total: +total().toFixed(4), best: S.best, braking: braking(), seed: SEED, reduced,
+    next: splits[S.split] ? { ...splits[S.split], want: target(splits[S.split]) } : null,
+    cars: S.cars.map((c) => ({ id: c.id, z: c.z, lane: c.lane, speed: c.speed, kind: c.kind })),
+  });
+  window.__five = {
+    get state() { return snap(); },
+    manual(on) { manual = !!on; acc = 0; },
+    frames(n) { for (let i = 0; i < n && S.mode === 'run'; i++) step(); hud(); draw(); return snap(); },
+    /** drive until the player's segment reaches `index` (or the run ends) */
+    toSeg(index, max = 120 * 120) { for (let i = 0; i < max && S.mode === 'run' && findSeg(playerZ()).index < index; i++) step(); hud(); draw(); return snap(); },
+    clearTraffic() { S.cars = []; draw(); return snap(); },
+    /** put one car `ahead` world units in front of the player, in a lane, at a speed */
+    placeCar(lane, ahead, speed = 2000, kind = 'pickup') { const k = KINDS.find((q) => q.kind === kind); S.cars.push({ id: 999, z: playerZ() + ahead, lane, speed, ...k, color: '#c43a31' }); draw(); return snap(); },
+    splits: splits.map((s) => ({ ...s, want: target(s) })), FINISH, SEG, MAX_SPEED, PENALTY, trackLen: TRACK_LEN,
+  };
+
+  reset('ready');
+  route(); levels(); hud(); draw();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

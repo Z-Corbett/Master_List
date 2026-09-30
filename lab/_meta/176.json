@@ -1,0 +1,37 @@
+{
+  "id": "176",
+  "slug": "176-high-five",
+  "file": "lab/176-high-five.html",
+  "title": "High Five — climb the Dallas interchange",
+  "category": "Games",
+  "tags": ["canvas", "pseudo-3d", "fixed-timestep", "seeded-prng", "game"],
+  "description": "A pseudo-3D driving game on a five-level stack interchange inspired by Dallas's High Five. The GPS names the road you need; the overhead signs show which lanes go there. Get into the right lanes before each of four splits to climb from the frontage road to the top connector, weaving round sedans, pickups and 18-wheelers on cruise control. The wrong ramp loops you back around with a six-second penalty, and your best commute time is kept.",
+  "prompt": "Racers and kart games are a staple of the 'Claude one-shot a game' posts. Make one with a DFW twist: an OutRun-style pseudo-3D road through a five-level stack like the High Five in Dallas. The goal isn't racing, it's reading overhead signs and being in the right lanes at each split to climb a level; the wrong ramp sends you round a loop with a time penalty. Seeded route and traffic, a skyline with a ball-topped tower, flyover ramps in the background, keyboard and touch controls, pause, reduced motion, and screen-reader announcements of each sign with its lanes. The spec should drive the car frame by frame.",
+  "qa": {
+    "methodology": [
+      "Route invariants: each of the four splits divides the three lanes between its two signs with no gap or overlap, the gantry comes well before the gore point, the four destinations are distinct, and the same seed gives the same route and the same traffic after 600 frames while other seeds differ.",
+      "Driving arithmetic: cruise control reaches exactly the 7,000 u/s limit (70 mph on the HUD); half a second of brakes removes 3,500 u/s; the Brake button and a held finger in the middle of the road brake too.",
+      "Lanes slide rather than teleport (one frame moves the truck by the lane rate × 1/120 s), settle on the lane centre, and clamp at both barriers, from arrow keys, D, the Lane button and taps on the outer thirds of the road.",
+      "Splits as rules: in a lane under the GPS destination's sign the level goes up and the route moves on; in any other lane the car is rewound before the gantry, the wrong count and a 6 s penalty are added to the time, and the next attempt in the right lane climbs.",
+      "Traffic: a slower pickup in your lane costs speed and is announced, a truck in the next lane doesn't, and the full commute with the right lanes ends at level 5 with the total time shown and saved as the best."
+    ],
+    "risks": [
+      "Pseudo-3D is a projection trick, so the gore and the fork are painted markings rather than real geometry; the rule is decided purely by lane at the gore segment, which is what the spec checks.",
+      "Traffic density is tuned by feel; with seeded traffic some commutes are busier than others. Tests that aren't about traffic clear the road first so they measure one rule at a time.",
+      "A bump nudges the other car ahead so one contact isn't counted many times; the spec checks that the car ends up clear of the truck.",
+      "Signs are only legible on screen from about 40 segments away, so the screen-reader announcement comes earlier, at 70 segments before the gantry."
+    ],
+    "playwright": "The page exposes __five with manual(true) to detach the animation loop, frames(n) to step the 120 Hz simulation and toSeg(i) to drive until the truck reaches a road segment, so a full commute runs in a fraction of a second. clearTraffic() and placeCar() set up traffic scenarios. Steering and braking go through the real inputs: arrow keys, WASD, held keys, pointer events on the on-screen buttons and taps on the canvas's thirds. Reduced motion is checked with page.emulateMedia.",
+    "coverage": [
+      "Seeded route and traffic; lane partitions per split",
+      "Cruise to 70 mph, brake from keys, button and touch",
+      "Lane changes, sliding, clamping, touch thirds",
+      "Correct lanes climb a level; HUD, route and level list update",
+      "Wrong ramp: loop back, penalty, retry",
+      "Traffic bumps in your lane only",
+      "Full commute to level 5, result, best time",
+      "Pause and reduced motion"
+    ]
+  },
+  "a11y": "Lane changes and braking work from the keyboard (arrows, A/D, S, Space), from real on-screen buttons (Brake uses aria-pressed and works when held) and from taps on the road. The GPS line is plain text, each overhead sign is announced in a live region with the lanes for both destinations before it comes into view, and levels, wrong ramps and bumps are announced too. The canvas's aria-label gives the level, speed, your lane and the traffic ahead. The level list marks the current level with aria-current. Focus moves to the road when the start card closes and to Drive it again when the result card opens. Reduced motion removes the lean, the screen shake and the fade on a wrong ramp."
+}

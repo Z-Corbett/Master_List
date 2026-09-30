@@ -1,0 +1,603 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flash Flood Alley — a falling-sand storm defence</title>
+<meta name="description" content="A falling-sand storm game set in Central Texas's Flash Flood Alley. Before the rain comes, dig the debris out of a low-water-crossing culvert and pour sandbags into levees, then watch every drop run downhill as a cellular automaton. Keep the three houses on the terrace dry and send the creek on to the lake. Deterministic with ?seed=.">
+<style>
+  :root {
+    --limestone: #efe6d2;
+    --limestone-2: #e1d3b4;
+    --ink: #1c2328;
+    --creek: #2f6f9f;
+    --creek-dk: #1d4a6c;
+    --storm: #3b4452;
+    --bag: #c49a5a;
+    --warn: #c8431e;
+    --ok: #2c7a4b;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    --cond: "Arial Narrow", "Roboto Condensed", "Segoe UI", Arial, sans-serif;
+    --slab: "Rockwell", "Roboto Slab", Georgia, serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--limestone); color: var(--ink); font: 15px/1.55 var(--sans); overflow-x: hidden; min-height: 100vh;
+    background-image: repeating-linear-gradient(0deg, rgba(120,100,60,.05) 0 2px, transparent 2px 22px), radial-gradient(circle at 85% 0%, rgba(47,111,159,.14), transparent 45%); }
+  :focus-visible { outline: 3px solid var(--warn); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; text-decoration: none; font: 700 13px/1 var(--cond); color: #fff; background: var(--creek-dk);
+    border: 2px solid #fff; box-shadow: 0 0 0 2px var(--creek-dk); border-radius: 7px; padding: 7px 11px; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 58px 16px 36px; }
+  header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 24px; align-items: end; margin-bottom: 14px; }
+  .kicker { margin: 0; font: 700 12px/1.3 var(--cond); letter-spacing: .24em; text-transform: uppercase; color: var(--warn); }
+  h1 { margin: 2px 0 6px; font: 700 clamp(36px, 6.4vw, 66px)/.95 var(--slab); color: var(--creek-dk); }
+  h1 span { color: var(--warn); }
+  .lede { margin: 0; max-width: 60ch; color: #3d4448; }
+  .hud { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .gauge { background: #fff; border: 2px solid var(--ink); border-radius: 8px; padding: 4px 10px 5px; min-width: 88px; text-align: center; box-shadow: 3px 3px 0 var(--ink); }
+  .gauge small { display: block; font: 700 10px/1.2 var(--cond); letter-spacing: .16em; text-transform: uppercase; color: #5a6166; }
+  .gauge b { display: block; font: 700 22px/1.1 var(--cond); font-variant-numeric: tabular-nums; }
+  .stage { position: relative; border-radius: 12px; overflow: hidden; background: #8fb3c9; box-shadow: 0 0 0 4px var(--ink), 0 16px 34px rgba(20,30,40,.3); }
+  canvas { display: block; width: 100%; height: auto; aspect-ratio: 960 / 544; touch-action: none; user-select: none; -webkit-user-select: none; cursor: crosshair; }
+  .overlay { position: absolute; inset: 0; display: grid; place-items: center; padding: 14px; background: rgba(28,35,40,.4); }
+  .card { background: var(--limestone); border: 3px solid var(--ink); border-radius: 12px; padding: 16px 20px; max-width: 400px; width: 100%; text-align: center; box-shadow: 6px 6px 0 var(--ink); }
+  .card h2 { margin: 0 0 4px; font: 700 26px/1.1 var(--slab); color: var(--creek-dk); }
+  .card p { margin: 4px 0 10px; font-size: 14px; }
+  .card .big { font: 700 34px/1 var(--cond); color: var(--warn); font-variant-numeric: tabular-nums; }
+  .card .row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .btn { font: 700 15px/1 var(--cond); letter-spacing: .03em; min-height: 44px; padding: 10px 14px; border-radius: 9px; border: 3px solid var(--ink); cursor: pointer;
+    background: var(--creek); color: #fff; box-shadow: 0 3px 0 var(--ink); max-width: 100%; }
+  .btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
+  .btn.warn { background: var(--warn); }
+  .btn.ghost { background: #fff; color: var(--ink); }
+  .btn[aria-pressed="true"] { background: var(--ink); color: #fff; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; align-items: center; }
+  .toolbar .spacer { flex: 1 1 10px; }
+  .toolbar label { font: 700 13px/1.2 var(--cond); display: flex; gap: 6px; align-items: center; }
+  select { font: 600 15px var(--sans); min-height: 44px; padding: 6px 8px; border: 2px solid var(--ink); border-radius: 8px; background: #fff; max-width: 100%; }
+  .dpad { display: none; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+  .dpad .btn { min-width: 0; padding: 6px; font-size: 18px; }
+  @media (pointer: coarse) { .dpad { display: grid; } }
+  .status { min-height: 1.5em; margin: 10px 2px 0; font-weight: 600; color: var(--creek-dk); }
+  .notes { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 18px; margin-top: 20px; }
+  .panel { background: #fbf7ec; border: 2px solid var(--ink); border-radius: 12px; padding: 14px 16px; min-width: 0; box-shadow: 4px 4px 0 rgba(28,35,40,.85); }
+  .panel h2 { margin: 0 0 8px; font: 700 21px/1.1 var(--slab); color: var(--creek-dk); }
+  .panel ul { margin: 0; padding-left: 18px; }
+  .panel li { margin: 3px 0; }
+  .sw { display: inline-block; width: 12px; height: 12px; border: 1px solid var(--ink); vertical-align: -1px; margin-right: 4px; }
+  dl.keys { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 12px; margin: 0; font-size: 14px; }
+  dl.keys dt { font-weight: 700; white-space: nowrap; }
+  dl.keys dd { margin: 0; min-width: 0; }
+  kbd { font: 700 12px var(--cond); background: #fff; border: 1px solid #8a8f93; border-bottom-width: 3px; border-radius: 4px; padding: 0 5px; }
+  .fact { margin: 12px 0 0; font-size: 13px; color: #4f575c; border-top: 1px dashed #a9a28f; padding-top: 10px; }
+  footer { margin-top: 24px; text-align: center; font-size: 13px; color: #5b6166; }
+  footer code { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 4px; }
+  @media (max-width: 760px) {
+    header { grid-template-columns: minmax(0, 1fr); }
+    .hud { justify-content: flex-start; }
+    .gauge { min-width: 0; flex: 1 1 70px; }
+    .notes { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 600px) {
+    .overlay { position: static; background: var(--creek-dk); padding: 12px; }
+    .card { box-shadow: 4px 4px 0 #000; padding: 12px 14px; }
+    .card h2 { font-size: 21px; }
+    .toolbar .btn { flex: 1 1 40%; }
+    .toolbar label, .toolbar select { flex: 1 1 100%; }
+  }
+  @media (max-width: 420px) {
+    .gauge b { font-size: 18px; }
+    dl.keys { grid-template-columns: minmax(0, 1fr); }
+    dl.keys dt { white-space: normal; }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <div>
+      <p class="kicker">Hill Country creeks · Travis County · storm watch</p>
+      <h1>Flash Flood <span>Alley</span></h1>
+      <p class="lede">A storm is stalled over the hills west of town and the creek is going to come up fast. You have sandbags, a shovel and a few minutes. Every drop of rain is simulated, so wherever you leave a gap, the water will find it.</p>
+    </div>
+    <div class="hud" aria-label="Storm gauges">
+      <div class="gauge"><small>Houses dry</small><b id="dry" data-testid="dry">3/3</b></div>
+      <div class="gauge"><small>Sandbags</small><b id="sandLeft" data-testid="sand-left">0</b></div>
+      <div class="gauge"><small>Shovel</small><b id="digLeft" data-testid="dig-left">0</b></div>
+      <div class="gauge"><small>Storm</small><b id="storm" data-testid="storm">Prep</b></div>
+    </div>
+  </header>
+
+  <div class="stage">
+    <canvas id="cv" width="960" height="544" tabindex="0" data-testid="scene" role="img" aria-label="Flash Flood Alley"></canvas>
+    <div class="overlay" id="doneOv" data-testid="result" hidden>
+      <div class="card" role="dialog" aria-labelledby="doneT" aria-describedby="doneP">
+        <h2 id="doneT">Storm's passed</h2>
+        <p id="doneP" data-testid="result-text">All three houses stayed dry.</p>
+        <div class="big" id="doneScore" data-testid="result-score">0</div>
+        <p id="doneStars" data-testid="result-stars" aria-label="0 of 3 stars">☆☆☆</p>
+        <div class="row">
+          <button class="btn ghost" id="retryBtn" data-testid="retry">Try this creek again</button>
+          <button class="btn" id="nextBtn" data-testid="next">Next creek</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toolbar" role="toolbar" aria-label="Tools">
+    <button class="btn" id="toolSand" data-testid="tool-sand" aria-pressed="true">1 · Sandbags</button>
+    <button class="btn" id="toolDig" data-testid="tool-dig" aria-pressed="false">2 · Shovel</button>
+    <button class="btn warn" id="rainBtn" data-testid="rain">Let it rain</button>
+    <button class="btn ghost" id="pauseBtn" data-testid="pause" aria-pressed="false">Pause</button>
+    <button class="btn ghost" id="resetBtn" data-testid="reset">Reset</button>
+    <span class="spacer"></span>
+    <label for="levelSel">Creek
+      <select id="levelSel" data-testid="level">
+        <option value="0">1 · Shoal Creek</option>
+        <option value="1">2 · Onion Creek</option>
+        <option value="2">3 · Bull Creek</option>
+      </select>
+    </label>
+  </div>
+  <div class="dpad" aria-label="Cursor pad">
+    <button class="btn ghost" data-dir="left" data-testid="pad-left" aria-label="Move cursor left">←</button>
+    <button class="btn ghost" data-dir="up" data-testid="pad-up" aria-label="Move cursor up">↑</button>
+    <button class="btn" data-dir="use" data-testid="pad-use" aria-label="Use tool at cursor">●</button>
+    <button class="btn ghost" data-dir="down" data-testid="pad-down" aria-label="Move cursor down">↓</button>
+    <button class="btn ghost" data-dir="right" data-testid="pad-right" aria-label="Move cursor right">→</button>
+  </div>
+  <p class="status" id="status" data-testid="status" role="status" aria-live="polite">Get ready. Dig out the culvert, build a levee, then press Let it rain.</p>
+
+  <div class="notes">
+    <section class="panel" aria-labelledby="h-how">
+      <h2 id="h-how">How the water moves</h2>
+      <ul>
+        <li><span class="sw" style="background:#3478b8"></span><b>Water</b> falls, slides off slopes and spreads sideways up to three cells a tick, so it always finds the lowest gap.</li>
+        <li><span class="sw" style="background:#c49a5a"></span><b>Sandbags</b> drop straight down and stack into a wall. They are heavier than water, so they sink through it: build before the creek rises.</li>
+        <li><span class="sw" style="background:#6e4f33"></span><b>Debris</b> (branches, trash, a shopping cart) clogs the culvert under the road. The shovel clears it and cuts limestone.</li>
+        <li><span class="sw" style="background:#d9cba8"></span><b>Limestone</b> stays put. The bedrock and the concrete culvert can't be dug.</li>
+        <li>A house floods the moment water touches it. Water that reaches the lake, or spills over the weir, is safe.</li>
+      </ul>
+    </section>
+    <section class="panel" aria-labelledby="h-keys">
+      <h2 id="h-keys">Controls</h2>
+      <dl class="keys">
+        <dt><kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd></dt><dd>Move the cursor (hold <kbd>Shift</kbd> to jump four cells). Focus the scene first.</dd>
+        <dt><kbd>Space</kbd> <kbd>Enter</kbd></dt><dd>Use the tool at the cursor. Or tap and drag on the scene.</dd>
+        <dt><kbd>1</kbd> <kbd>2</kbd></dt><dd>Sandbags or shovel.</dd>
+        <dt><kbd>R</kbd> <kbd>P</kbd></dt><dd>Start the rain, pause or resume.</dd>
+      </dl>
+      <p class="fact">Central Texas is called Flash Flood Alley because thin soils over limestone send heavy rain straight into the creeks. At a flooded low-water crossing the rule is simple: turn around, don't drown.</p>
+    </section>
+  </div>
+  <footer>Built by Zac Corbett · a 120 × 68 cellular automaton at 60 ticks a second · add <code>?seed=</code> for a repeatable storm</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const GW = 120, GH = 68, CS = 8, W = GW * CS, H = GH * CS, DT = 1 / 60;
+  const AIR = 0, ROCK = 1, SAND = 2, WATER = 3, HOUSE = 4, BED = 5, DEBRIS = 6, CONC = 7;
+  const NAMES = ['air', 'rock', 'sand', 'water', 'house', 'bedrock', 'debris', 'concrete'];
+  const params = new URLSearchParams(location.search);
+  const SEED = (parseInt(params.get('seed'), 10) >>> 0) || 1981;
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const $ = (id) => document.getElementById(id);
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const hash2 = (x, y) => { let h = Math.imul(x * 374761393 + y * 668265263, 1274126177); h ^= h >>> 13; return ((Math.imul(h, 1103515245) >>> 0) & 1023) / 1023; };
+
+  // ---------- layout ----------
+  const CREEK = [35, 50], TERRACE = [51, 84], TERRACE_TOP = 50, CREEK_FLOOR = 60, LAKE_X = 85, LAKE_FLOOR = 66;
+  const WEIR = [54, 60];                 // rows open in the right wall: the lake spills downstream here
+  const RAIN_X = [2, 46];
+  const HOUSES = [[62, 46], [69, 46], [76, 46]].map(([x, y]) => ({ x, y, w: 5, h: 4 }));
+  const LEVELS = [
+    { name: 'Shoal Creek', rain: 800, culvertH: 5, debris: 58, sand: 150, dig: 70, rainT: 720 },
+    { name: 'Onion Creek', rain: 1700, culvertH: 4, debris: 62, sand: 220, dig: 80, rainT: 780 },
+    { name: 'Bull Creek', rain: 2400, culvertH: 3, debris: 66, sand: 300, dig: 100, rainT: 840 },
+  ];
+  const SETTLE_T = 600;
+
+  let g = new Uint8Array(GW * GH), stamp = new Int32Array(GW * GH), under = new Uint8Array(GW * GH);   // under: cells that started below ground
+  let S, rng;
+  const idx = (x, y) => y * GW + x;
+  const inb = (x, y) => x >= 0 && y >= 0 && x < GW && y < GH;
+
+  function hillTop(x, ph) {
+    const base = 26 + (x / 34) * 22;
+    return Math.round(base + 1.6 * Math.sin(x * 0.37 + ph[0]) + 1.1 * Math.sin(x * 0.93 + ph[1]));
+  }
+  function topAt(x, ph) {
+    if (x <= 34) return Math.min(52, Math.max(20, hillTop(x, ph)));
+    if (x === 35) return 55;
+    if (x === 36) return 58;
+    if (x <= 49) return CREEK_FLOOR;
+    if (x === 50) return 59;
+    if (x <= TERRACE[1]) return TERRACE_TOP;
+    return LAKE_FLOOR;
+  }
+  function build(level) {
+    const L = LEVELS[level];
+    rng = mulberry32(SEED + level * 7919);
+    const ph = [rng() * 6.28, rng() * 6.28];
+    g.fill(AIR); stamp.fill(0);
+    for (let x = 1; x < GW - 1; x++) { const t = topAt(x, ph); for (let y = t; y < GH - 1; y++) g[idx(x, y)] = ROCK; }
+    for (let x = 0; x < GW; x++) g[idx(x, GH - 1)] = BED;
+    for (let y = 0; y < GH; y++) { g[idx(0, y)] = BED; if (y < WEIR[0] || y > WEIR[1]) g[idx(GW - 1, y)] = BED; }
+    // the culvert: a concrete box through the terrace, its floor level with the creek bed
+    const cTop = CREEK_FLOOR - L.culvertH;
+    for (let x = TERRACE[0]; x <= TERRACE[1]; x++) {
+      g[idx(x, cTop - 1)] = CONC; g[idx(x, CREEK_FLOOR)] = CONC;
+      for (let y = cTop; y < CREEK_FLOOR; y++) g[idx(x, y)] = x <= L.debris ? DEBRIS : AIR;
+    }
+    for (const h of HOUSES) for (let y = h.y; y < h.y + h.h; y++) for (let x = h.x; x < h.x + h.w; x++) g[idx(x, y)] = HOUSE;
+    for (let x = 0; x < GW; x++) { let below = false; for (let y = 0; y < GH; y++) { const m = g[idx(x, y)]; if (m === ROCK || m === CONC || m === BED || m === DEBRIS) below = true; under[idx(x, y)] = below && m !== HOUSE ? 1 : 0; } }
+    S = { level, L, phase: 'prep', tick: 0, stormTick: 0, rainAcc: 0, rained: 0, downstream: 0, sandLeft: L.sand, digLeft: L.dig, sandUsed: 0, dug: 0,
+      houses: HOUSES.map((h) => ({ ...h, flooded: false })), tool: S ? S.tool : 'sand', cursor: S ? S.cursor : { x: 48, y: 40 }, paused: false, ph, flash: 0, sandbox: false };
+    $('pauseBtn').setAttribute('aria-pressed', 'false'); $('pauseBtn').textContent = 'Pause';
+    $('rainBtn').disabled = false;
+  }
+  function sandbox() {
+    g.fill(AIR); stamp.fill(0); under.fill(0);
+    for (let x = 0; x < GW; x++) g[idx(x, GH - 1)] = BED;
+    for (let y = 0; y < GH; y++) { g[idx(0, y)] = BED; g[idx(GW - 1, y)] = BED; }
+    rng = mulberry32(SEED);
+    S = { ...S, phase: 'prep', tick: 0, stormTick: 0, rainAcc: 0, rained: 0, downstream: 0, houses: [], sandLeft: 1e6, digLeft: 1e6, sandbox: true, paused: false };
+  }
+
+  // ---------- the automaton ----------
+  const light = (m) => m === AIR || m === WATER;   // what sand can fall into
+  function moveTo(a, b) { const t = g[b]; g[b] = g[a]; g[a] = t; stamp[b] = S.tick; stamp[a] = S.tick; }
+  function tick() {
+    S.tick++;
+    if (S.phase === 'storm') {
+      S.stormTick++;
+      S.rainAcc += S.L.rain / S.L.rainT;
+      while (S.rainAcc >= 1) {
+        S.rainAcc -= 1;
+        const x = RAIN_X[0] + Math.floor(rng() * (RAIN_X[1] - RAIN_X[0] + 1));
+        if (g[idx(x, 1)] === AIR) { g[idx(x, 1)] = WATER; S.rained++; }
+      }
+      if (S.stormTick >= S.L.rainT) { S.phase = 'settle'; say('The rain has stopped. Now the creek crests.'); }
+    } else if (S.phase === 'settle') {
+      S.stormTick++;
+      if (S.stormTick >= S.L.rainT + SETTLE_T) finish();
+    }
+    const flip = S.tick & 1;
+    for (let y = GH - 2; y >= 0; y--) {
+      for (let i = 0; i < GW; i++) {
+        const x = flip ? i : GW - 1 - i, a = idx(x, y), m = g[a];
+        if ((m !== SAND && m !== WATER) || stamp[a] === S.tick) continue;
+        const below = a + GW;
+        if (m === SAND) {
+          // sandbags drop straight down and stack like bricks; they sink through water
+          if (light(g[below])) moveTo(a, below);
+          continue;
+        }
+        // water
+        if (g[below] === AIR) { moveTo(a, below); continue; }
+        const d = rng() < 0.5 ? -1 : 1;
+        let moved = false;
+        for (const dd of [d, -d]) {
+          const nx = x + dd; if (nx < 0 || nx >= GW) continue;
+          if (g[idx(nx, y + 1)] === AIR && g[idx(nx, y)] === AIR) { moveTo(a, idx(nx, y + 1)); moved = true; break; }
+        }
+        if (moved) continue;
+        for (const dd of [d, -d]) {
+          let far = -1;
+          for (let k = 1; k <= 3; k++) { const nx = x + dd * k; if (nx < 0 || nx >= GW || g[idx(nx, y)] !== AIR) break; far = nx; if (g[idx(nx, y + 1)] === AIR) break; }
+          if (far >= 0) { moveTo(a, idx(far, y)); break; }
+        }
+      }
+    }
+    // the weir: water in the open cells of the right wall goes on downstream
+    if (!S.sandbox) for (let y = WEIR[0]; y <= WEIR[1]; y++) { const a = idx(GW - 1, y); if (g[a] === WATER) { g[a] = AIR; S.downstream++; } }
+    checkHouses();
+    if (S.flash > 0) S.flash -= DT;
+  }
+  function checkHouses() {
+    for (const h of S.houses) {
+      if (h.flooded) continue;
+      let wet = false;
+      for (let y = h.y - 1; y <= h.y + h.h && !wet; y++) for (let x = h.x - 1; x <= h.x + h.w && !wet; x++) {
+        if (inb(x, y) && g[idx(x, y)] === WATER) wet = true;
+      }
+      if (wet) {
+        h.flooded = true;
+        const n = S.houses.indexOf(h) + 1;
+        say(`House ${n} is flooding! ${dryCount()} of 3 still dry.`);
+      }
+    }
+  }
+  const dryCount = () => S.houses.filter((h) => !h.flooded).length;
+  function count(m, x0 = 0, x1 = GW - 1) { let n = 0; for (let y = 0; y < GH; y++) for (let x = x0; x <= x1; x++) if (g[idx(x, y)] === m) n++; return n; }
+  const lakeWater = () => count(WATER, LAKE_X, GW - 1);
+  const safeWater = () => lakeWater() + S.downstream;
+  function score() { return dryCount() * 1000 + safeWater() + (S.sandLeft + S.digLeft) * 2; }
+
+  // ---------- tools ----------
+  const BRUSH = [];
+  for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (dx * dx + dy * dy <= 5) BRUSH.push([dx, dy]);
+  function paint(cx, cy, tool = S.tool) {
+    if (S.phase === 'done' || S.paused) return 0;
+    let n = 0;
+    for (const [dx, dy] of BRUSH) {
+      const x = cx + dx, y = cy + dy;
+      if (x < 1 || x > GW - 2 || y < 1 || y > GH - 2) continue;
+      const a = idx(x, y);
+      if (tool === 'sand') {
+        if (S.sandLeft <= 0) break;
+        if (g[a] === AIR) { g[a] = SAND; S.sandLeft--; S.sandUsed++; n++; }
+      } else {
+        if (S.digLeft <= 0) break;
+        if (g[a] === ROCK || g[a] === DEBRIS || g[a] === SAND) { g[a] = AIR; S.digLeft--; S.dug++; n++; }
+      }
+    }
+    if (n === 0) {
+      if (tool === 'sand' && S.sandLeft <= 0) say('Out of sandbags.');
+      else if (tool === 'dig' && S.digLeft <= 0) say('The shovel crew is worn out.');
+    }
+    hud();
+    return n;
+  }
+  function setTool(t) {
+    S.tool = t;
+    $('toolSand').setAttribute('aria-pressed', String(t === 'sand'));
+    $('toolDig').setAttribute('aria-pressed', String(t === 'dig'));
+    say(t === 'sand' ? 'Sandbags: pour them where you want a levee.' : 'Shovel: clear debris or cut a channel.');
+    draw();
+  }
+  function moveCursor(dx, dy) {
+    S.cursor.x = Math.max(1, Math.min(GW - 2, S.cursor.x + dx));
+    S.cursor.y = Math.max(1, Math.min(GH - 2, S.cursor.y + dy));
+    const m = NAMES[g[idx(S.cursor.x, S.cursor.y)]];
+    cv.setAttribute('aria-label', `Flash Flood Alley. Cursor at column ${S.cursor.x}, row ${S.cursor.y}, over ${m}. ${dryCount()} of 3 houses dry.`);
+    draw();
+  }
+
+  // ---------- game flow ----------
+  function startRain() {
+    if (S.phase !== 'prep' || S.sandbox) return;
+    S.phase = 'storm'; S.stormTick = 0; S.flash = reduced ? 0 : 0.35;
+    // the storm replays exactly from the seed and the grid, however long you spent building
+    S.tick = 0; stamp.fill(-1); rng = mulberry32(SEED + S.level * 7919 + 1);
+    $('rainBtn').disabled = true;
+    // the rain button is now disabled: park focus on the scene so keys keep working
+    cv.focus({ preventScroll: true });
+    say(`The storm breaks over ${S.L.name}.`);
+    hud();
+  }
+  function finish() {
+    S.phase = 'done';
+    const dry = dryCount(), sc = score();
+    $('doneT').textContent = dry === 3 ? 'Everyone stayed dry' : dry === 0 ? 'The creek won this time' : 'Storm\'s passed';
+    $('doneP').textContent = `${dry} of 3 houses dry · ${safeWater()} of ${S.rained} cells of rain reached the lake or went over the weir.`;
+    $('doneScore').textContent = sc.toLocaleString('en-US');
+    $('doneStars').textContent = '★'.repeat(dry) + '☆'.repeat(3 - dry);
+    $('doneStars').setAttribute('aria-label', `${dry} of 3 stars`);
+    $('nextBtn').textContent = S.level < LEVELS.length - 1 ? 'Next creek' : 'Back to Shoal Creek';
+    $('doneOv').hidden = false;
+    $('nextBtn').focus({ preventScroll: true });
+    say(`Storm over. ${dry} of 3 houses dry. Score ${sc}.`);
+    hud();
+  }
+  function load(level) {
+    const hadFocusInOverlay = $('doneOv').contains(document.activeElement);
+    build(level);
+    $('levelSel').value = String(level);
+    $('doneOv').hidden = true;
+    // never leave focus on a button that just disappeared
+    if (hadFocusInOverlay) cv.focus({ preventScroll: true });
+    setTool(S.tool);
+    say(`${S.L.name}: ${S.L.sand} sandbags, ${S.L.dig} shovelfuls. Dig out the culvert and build a levee, then let it rain.`);
+    hud(); draw();
+  }
+  function togglePause() {
+    if (S.phase === 'done') return;
+    S.paused = !S.paused;
+    $('pauseBtn').setAttribute('aria-pressed', String(S.paused));
+    $('pauseBtn').textContent = S.paused ? 'Resume' : 'Pause';
+    say(S.paused ? 'Paused.' : 'Resumed.');
+  }
+
+  // ---------- drawing ----------
+  const cv = $('cv'), ctx = cv.getContext('2d');
+  const off = document.createElement('canvas'); off.width = GW; off.height = GH;
+  const octx = off.getContext('2d'); const img = octx.createImageData(GW, GH);
+  const skyline = [];
+  { const r = mulberry32(SEED ^ 0xa57); let x = 520; while (x < 940) { const w = 18 + r() * 26, h = 30 + r() * 90; skyline.push([x, w, h, r() < 0.15]); x += w + 2 + r() * 6; } }
+  function colorOf(m, x, y) {
+    const n = hash2(x, y);
+    switch (m) {
+      case ROCK: { const band = ((y + Math.floor(n * 2)) >> 2) & 1; const k = band ? 0 : 14; const d = Math.max(0, y - 50) * 1.2; return [217 - k - d, 203 - k - d, 170 - k - d, 255]; }
+      case BED: return [96 + n * 20, 86 + n * 16, 76 + n * 10, 255];
+      case SAND: { const seam = ((x + ((y >> 1) & 1) * 2) % 4 === 0) || (y % 2 === 0 && n > 0.7); return seam ? [150, 114, 62, 255] : [196 + n * 16, 154 + n * 14, 90 + n * 10, 255]; }
+      case WATER: { const s = reduced ? 0 : Math.sin((x + S.tick * 0.15) * 0.8 + y * 0.5) * 10; return [48 + n * 12, 112 + s + n * 16, 184 + s, 235]; }
+      case DEBRIS: return n > 0.6 ? [80, 58, 36, 255] : [112 + n * 30, 82 + n * 20, 52, 255];
+      case CONC: return [168 + n * 12, 168 + n * 12, 164 + n * 10, 255];
+      default: return [0, 0, 0, 0];
+    }
+  }
+  function draw() {
+    const storm = S.phase === 'storm' ? 1 : S.phase === 'settle' ? 0.5 : 0;
+    const sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, storm ? '#4b5566' : '#8ec3e3'); sky.addColorStop(1, storm ? '#8d96a3' : '#e8e0c8');
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+    // distant downtown across the lake
+    ctx.fillStyle = storm ? 'rgba(60,68,80,.55)' : 'rgba(96,118,140,.45)';
+    for (const [x, w, h, spire] of skyline) {
+      ctx.fillRect(x, 400 - h, w, h);
+      if (spire) { ctx.beginPath(); ctx.moveTo(x, 400 - h); ctx.lineTo(x + w / 2, 400 - h - 26); ctx.lineTo(x + w, 400 - h); ctx.fill(); }
+    }
+    // the grid
+    const d = img.data;
+    for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) {
+      const m = g[idx(x, y)], o = (y * GW + x) * 4;
+      if (m === HOUSE) { d[o + 3] = 0; continue; }
+      if (m === AIR && under[y * GW + x]) { const n = hash2(x, y) * 10; d[o] = 58 + n; d[o + 1] = 50 + n; d[o + 2] = 44 + n; d[o + 3] = 255; continue; }
+      const c = colorOf(m, x, y); d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = c[3];
+    }
+    octx.putImageData(img, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(off, 0, 0, W, H);
+    for (const h of S.houses) drawHouse(h);
+    // road sign at the crossing
+    if (!S.sandbox) {
+      const sx = 52 * CS, sy = TERRACE_TOP * CS;
+      ctx.fillStyle = '#6b6b6b'; ctx.fillRect(sx, sy - 44, 3, 44);
+      ctx.fillStyle = '#f2c230'; ctx.save(); ctx.translate(sx + 1, sy - 50); ctx.rotate(Math.PI / 4); ctx.fillRect(-9, -9, 18, 18); ctx.restore();
+      ctx.fillStyle = '#1c2328'; ctx.font = '700 7px Arial, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('FLOOD', sx + 1, sy - 48);
+      // the lake label
+      ctx.fillStyle = 'rgba(255,255,255,.8)'; ctx.font = '700 13px "Arial Narrow", Arial, sans-serif'; ctx.fillText('to the lake →', 100 * CS, 53 * CS);
+    }
+    // clouds and rain
+    if (storm) {
+      ctx.fillStyle = 'rgba(52,58,70,.92)';
+      for (let i = 0; i < 7; i++) { const cx = 20 + i * 58 + (reduced ? 0 : Math.sin(S.tick * 0.01 + i) * 6); ctx.beginPath(); ctx.ellipse(cx, 14, 50, 22, 0, 0, 6.283); ctx.fill(); }
+      if (S.phase === 'storm') {
+        ctx.strokeStyle = 'rgba(200,220,240,.45)'; ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let i = 0; i < (reduced ? 20 : 60); i++) {
+          const x = (RAIN_X[0] * CS) + ((i * 97 + (reduced ? 0 : S.tick * 13)) % ((RAIN_X[1] - RAIN_X[0]) * CS));
+          const y = 30 + ((i * 53 + (reduced ? 0 : S.tick * 22)) % 300);
+          ctx.moveTo(x, y); ctx.lineTo(x - 3, y + 12);
+        }
+        ctx.stroke();
+      }
+    }
+    if (S.flash > 0) { ctx.fillStyle = `rgba(255,255,255,${S.flash})`; ctx.fillRect(0, 0, W, H); }
+    // cursor
+    const c = S.cursor;
+    ctx.strokeStyle = S.tool === 'sand' ? '#ffd27a' : '#ff7a59'; ctx.lineWidth = 2;
+    ctx.strokeRect((c.x - 2) * CS + 1, (c.y - 2) * CS + 1, 5 * CS - 2, 5 * CS - 2);
+    ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.lineWidth = 1;
+    ctx.strokeRect((c.x - 2) * CS - 1, (c.y - 2) * CS - 1, 5 * CS + 2, 5 * CS + 2);
+    if (S.paused) { ctx.fillStyle = 'rgba(28,35,40,.45)'; ctx.fillRect(0, 0, W, H); ctx.fillStyle = '#fff'; ctx.font = '700 36px Georgia, serif'; ctx.textAlign = 'center'; ctx.fillText('Paused', W / 2, H / 2); }
+  }
+  function drawHouse(h) {
+    const x = h.x * CS, y = h.y * CS, w = h.w * CS, hh = h.h * CS;
+    ctx.fillStyle = h.flooded ? '#9fb4c4' : '#f4ecd8'; ctx.fillRect(x, y, w, hh);
+    ctx.strokeStyle = '#1c2328'; ctx.lineWidth = 1.5; ctx.strokeRect(x + .5, y + .5, w - 1, hh - 1);
+    ctx.fillStyle = h.flooded ? '#4d5b66' : '#b8532c';
+    ctx.beginPath(); ctx.moveTo(x - 4, y + 1); ctx.lineTo(x + w / 2, y - 16); ctx.lineTo(x + w + 4, y + 1); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#6b4a2f'; ctx.fillRect(x + w / 2 - 4, y + hh - 14, 8, 14);
+    ctx.fillStyle = h.flooded ? '#2f6f9f' : '#ffd97a'; ctx.fillRect(x + 5, y + 7, 8, 7); ctx.fillRect(x + w - 13, y + 7, 8, 7);
+    if (h.flooded) { ctx.fillStyle = 'rgba(47,111,159,.55)'; ctx.fillRect(x, y + hh - 10, w, 10); }
+  }
+
+  // ---------- HUD ----------
+  let lastSay = '';
+  function say(m) { if (m !== lastSay) { $('status').textContent = m; lastSay = m; } }
+  let lastHud = '';
+  function hud() {
+    const pct = S.phase === 'storm' ? Math.floor((S.stormTick / S.L.rainT) * 100) + '%' : S.phase === 'prep' ? 'Prep' : S.phase === 'settle' ? 'Cresting' : 'Over';
+    const key = [dryCount(), S.sandLeft, S.digLeft, pct].join('|');
+    if (key === lastHud) return; lastHud = key;
+    $('dry').textContent = S.sandbox ? '–' : `${dryCount()}/3`;
+    $('sandLeft').textContent = S.sandbox ? '∞' : String(S.sandLeft);
+    $('digLeft').textContent = S.sandbox ? '∞' : String(S.digLeft);
+    $('storm').textContent = pct;
+  }
+
+  // ---------- loop ----------
+  let manual = false, acc = 0, last = null;
+  function frame(ts) {
+    requestAnimationFrame(frame);
+    if (last === null) last = ts;
+    let dt = (ts - last) / 1000; last = ts;
+    if (!Number.isFinite(dt) || dt < 0) dt = 0;
+    if (manual) return;
+    if (S.paused || S.phase === 'done') { acc = 0; return; }
+    acc += Math.min(dt, 0.1);
+    while (acc >= DT) { tick(); acc -= DT; if (S.phase === 'done') break; }
+    hud(); draw();
+  }
+
+  // ---------- input ----------
+  $('toolSand').addEventListener('click', () => setTool('sand'));
+  $('toolDig').addEventListener('click', () => setTool('dig'));
+  $('rainBtn').addEventListener('click', startRain);
+  $('pauseBtn').addEventListener('click', togglePause);
+  $('resetBtn').addEventListener('click', () => load(S.level));
+  $('retryBtn').addEventListener('click', () => load(S.level));
+  $('nextBtn').addEventListener('click', () => load((S.level + 1) % LEVELS.length));
+  $('levelSel').addEventListener('change', (e) => load(parseInt(e.target.value, 10) || 0));
+  for (const b of document.querySelectorAll('.dpad [data-dir]')) {
+    b.addEventListener('click', () => {
+      const d = b.dataset.dir;
+      if (d === 'use') { paint(S.cursor.x, S.cursor.y); draw(); return; }
+      moveCursor(d === 'left' ? -2 : d === 'right' ? 2 : 0, d === 'up' ? -2 : d === 'down' ? 2 : 0);
+    });
+  }
+  function cellAt(e) {
+    const r = cv.getBoundingClientRect();
+    return { x: Math.floor(((e.clientX - r.left) / r.width) * GW), y: Math.floor(((e.clientY - r.top) / r.height) * GH) };
+  }
+  let drawing = null;
+  cv.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    const c = cellAt(e); drawing = e.pointerId;
+    S.cursor.x = Math.max(1, Math.min(GW - 2, c.x)); S.cursor.y = Math.max(1, Math.min(GH - 2, c.y));
+    paint(S.cursor.x, S.cursor.y); draw();
+  });
+  cv.addEventListener('pointermove', (e) => {
+    if (drawing !== e.pointerId) return;
+    const c = cellAt(e);
+    if (c.x === S.cursor.x && c.y === S.cursor.y) return;
+    S.cursor.x = Math.max(1, Math.min(GW - 2, c.x)); S.cursor.y = Math.max(1, Math.min(GH - 2, c.y));
+    paint(S.cursor.x, S.cursor.y); draw();
+  });
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) cv.addEventListener(ev, (e) => { if (drawing === e.pointerId) drawing = null; });
+  addEventListener('keydown', (e) => {
+    const tag = (e.target && e.target.tagName) || '';
+    if (tag === 'SELECT' || tag === 'INPUT') return;
+    const onScene = e.target === cv || e.target === document.body;
+    const step = e.shiftKey ? 4 : 1;
+    const arrows = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+    if (arrows[e.key] && onScene) { e.preventDefault(); moveCursor(...arrows[e.key]); }
+    else if ((e.key === ' ' || e.key === 'Enter') && onScene) { e.preventDefault(); paint(S.cursor.x, S.cursor.y); draw(); }
+    else if (e.key === '1') setTool('sand');
+    else if (e.key === '2') setTool('dig');
+    else if (e.key === 'p' || e.key === 'P') togglePause();
+    else if (e.key === 'r' || e.key === 'R') startRain();
+  });
+  addEventListener('blur', () => { if (!manual && !S.paused && (S.phase === 'storm' || S.phase === 'settle')) togglePause(); });
+
+  // ---------- test hook ----------
+  const snap = () => ({
+    phase: S.phase, tick: S.tick, stormTick: S.stormTick, level: S.level, name: S.L.name, seed: SEED, tool: S.tool, cursor: { ...S.cursor }, paused: S.paused,
+    sandLeft: S.sandLeft, digLeft: S.digLeft, sandUsed: S.sandUsed, dug: S.dug, rained: S.rained, downstream: S.downstream, lake: lakeWater(), safe: safeWater(),
+    water: count(WATER), sand: count(SAND), debris: count(DEBRIS), houses: S.houses.map((h) => ({ x: h.x, y: h.y, w: h.w, h: h.h, flooded: h.flooded })),
+    dry: dryCount(), score: score(), rainT: S.L.rainT, settleT: SETTLE_T,
+  });
+  window.__flood = {
+    get state() { return snap(); },
+    manual(on) { manual = !!on; acc = 0; },
+    ticks(n) { for (let i = 0; i < n && S.phase !== 'done'; i++) if (!S.paused) tick(); hud(); draw(); return snap(); },
+    /** run the storm to the end (or `max` ticks) */
+    untilDone(max = 5000) { for (let i = 0; i < max && S.phase !== 'done'; i++) tick(); hud(); draw(); return snap(); },
+    cell: (x, y) => NAMES[g[idx(x, y)]],
+    set(x, y, m) { g[idx(x, y)] = NAMES.indexOf(m); draw(); },
+    fill(x0, y0, x1, y1, m) { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) g[idx(x, y)] = NAMES.indexOf(m); draw(); },
+    column(x) { let s = ''; for (let y = 0; y < GH; y++) s += NAMES[g[idx(x, y)]][0]; return s; },
+    /** surface row of the top water cell in each column between x0 and x1 (-1 if none) */
+    surface(x0, x1) { const out = []; for (let x = x0; x <= x1; x++) { let s = -1; for (let y = 0; y < GH; y++) if (g[idx(x, y)] === WATER) { s = y; break; } out.push(s); } return out; },
+    hash() { let h = 2166136261; for (let i = 0; i < g.length; i++) { h ^= g[i]; h = Math.imul(h, 16777619); } return h >>> 0; },
+    sandbox() { sandbox(); hud(); draw(); return snap(); },
+    paint(x, y, tool) { const n = paint(x, y, tool); draw(); return n; },
+    layout: { GW, GH, CS, CREEK, TERRACE, TERRACE_TOP, CREEK_FLOOR, LAKE_X, WEIR, HOUSES, LEVELS },
+  };
+
+  build(0);
+  setTool('sand');
+  lastSay = ''; say('Get ready. Dig out the culvert, build a levee, then press Let it rain.');
+  moveCursor(0, 0);
+  hud(); draw();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

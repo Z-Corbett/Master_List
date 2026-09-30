@@ -1,0 +1,35 @@
+{
+  "id": "174",
+  "slug": "174-botafumeiro",
+  "file": "lab/174-botafumeiro.html",
+  "title": "Botafumeiro — swing the great censer",
+  "category": "Games",
+  "tags": ["canvas", "physics", "rk4", "parametric-pumping", "game"],
+  "description": "A physics game about the great censer of Santiago de Compostela. You lead the tiraboleiros: hold to pull the rope in as the thurible rushes through the bottom of its arc and let it out at the ends, and parametric pumping raises it from a six-degree nudge to over 80°. Hold it high for three swings without letting the rope go slack near the vault, then reverse the rhythm to bring it down gently enough to be caught. The physics is a variable-length pendulum integrated with RK4, and the page explains the pumping term.",
+  "prompt": "Physics toys are a favourite one-shot demo, so make one with a Catholic twist: the Botafumeiro, the giant censer at Santiago de Compostela, which the tiraboleiros swing by pulling a rope rather than pushing it. Model it honestly as a variable-length pendulum (θ″ = −(g/r) sin θ − 2(r′/r) θ′ − cθ′), let the player hold a button to shorten the rope, and make the game three phases: raise it past 80°, hold it high, then bring it down to be caught. Don't let it go over about 88°. Give it a rhythm cue, pause, reduced motion and keyboard and touch controls. The spec should check the physics independently: the small-angle period, energy conservation with the rope held, the large-amplitude period correction, and that pumping at the bottom adds energy while pumping at the ends takes it away.",
+  "qa": {
+    "methodology": [
+      "Pendulum oracles with the rope held: the small-swing period matches 2π√(r/g) to within the expected small-angle correction, energy drifts by less than one part in a million over 60 s with no drag, and a 60° swing's period matches the series T0(1 + θ²/16 + 11θ⁴/3072) to 0.5% with every turning point back at 60°.",
+      "Pumping direction: with the in-at-the-bottom rhythm every turning point is higher than the one a full swing before, passing 80°; with the reverse rhythm every one is lower; drag alone loses far less than deliberate damping.",
+      "Control limits: holding Space shortens the rope at exactly the 2.5 m/s cap (20 m to 19 m in 0.4 s), stops at 16.5 m and returns to 20 m on release; the Pull button and a finger on the nave do the same.",
+      "The full rite as a scenario: raise (easing off near the top), hold six passes above 70°, then damp below 8° to be caught, with the phase list's aria-current, the status messages, the result time and the saved best all checked.",
+      "Failure: pumping flat out passes 88°, ends the rite as 'Too high!', records no best, and the Again button takes focus."
+    ],
+    "risks": [
+      "The model is a point mass on a rope that never goes slack; the real censer is a 53 kg body whose rope can slacken, so the 88° limit stands in for that and the page says so.",
+      "Pumping gain is steep near the top: one more pump at 79° can overshoot to the vault. The spec's scripted player eases off above 72°, as a real team does.",
+      "The clock runs at 1.5× real time by default so a rite fits in about two minutes; a checkbox offers real time, and the spec checks the scale switch.",
+      "RK4 with the rope length changing within a step is only approximately right; the energy test runs with the rope fixed, where RK4's accuracy is known."
+    ],
+    "playwright": "Nothing waits on real time. __censer.simulate() runs the pendulum offline inside the page for the physics oracles, and in the live game manual(true) detaches the animation loop so frames(n) and auto(policy, n, stop) drive it step by step. auto() applies a named rhythm ('pump', 'damp' or 'none') and can stop at the next turning point or phase change, which lets the spec play the whole rite deterministically. The rope is pulled through real input: a held Space key, pointer events on the Pull button, and a pointer held on the canvas.",
+    "coverage": [
+      "Small-angle period, energy conservation, large-amplitude period",
+      "Pump raises, damp lowers, drag alone is slow",
+      "Pull rate cap, rope limits, Space, Pull button, touch",
+      "Full rite: raise, hold, lower, caught, best kept",
+      "Too high: slack rope ends the rite",
+      "Pause, rhythm cue toggle, gentle pace"
+    ]
+  },
+  "a11y": "Pull is a real button with aria-pressed that works by holding it, by holding Space or the down arrow, or by holding a finger anywhere on the nave. The swing angle, speed and time are live readouts, the canvas's aria-label states the phase, angle, speed and rope position, and milestones (30°, 45°, 60°, 70°, the switch to holding and lowering, the result) are announced in a live region. The three phases are an ordered list with aria-current. A rhythm cue can be switched on or off with C, a gentle pace runs the clock in real time, and reduced motion drops the incense smoke and the flicker of the coals."
+}

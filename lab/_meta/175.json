@@ -1,0 +1,36 @@
+{
+  "id": "175",
+  "slug": "175-stack-trace",
+  "file": "lab/175-stack-trace.html",
+  "title": "Stack Trace — a debugging roguelite",
+  "category": "Games",
+  "tags": ["canvas", "roguelite", "procedural-generation", "field-of-view", "seeded-prng"],
+  "description": "A turn-based roguelite where each dungeon floor is one frame of a real-looking stack trace. Start where the error surfaced and walk down the call stack to where the bad value was born, bumping into bugs to squash them: NullPointers that walk straight at you, RaceConditions that move twice on even ticks and freeze on odd ones, MemoryLeaks that allocate a blob every five turns and a Heisenbug that vanishes when you look at it from close by. console.log reveals a frame, a breakpoint freezes every bug and the rubber duck restores your patience. Beat the root cause on the last frame and the fix is committed with a regression test.",
+  "prompt": "Roguelites are one of the most common 'Claude made this in one prompt' games. Make one with a playful QA twist: the dungeon is a stack trace. Each floor is a frame (formatPrice, renderLine and so on), you walk down the stack to the root cause, and the monsters are bug types with behaviour that matches their names: a race condition that moves in bursts, a memory leak that spawns more of itself, a Heisenbug that disappears when observed. Tools are console.log, breakpoints and a rubber duck. Seeded floors, fog of war, keyboard and touch controls, a pause, reduced motion and live announcements. The spec should prove every floor is connected and test each bug's rule in a small arena.",
+  "qa": {
+    "methodology": [
+      "Generator invariants: for every floor of the seed, a breadth-first search over floor tiles reaches the way down (or the root cause on floor 5) and every bug and item; floors 1–4 have an exit and no root cause, floor 5 the reverse. The same seed rebuilds the same map, six seeds give six maps and the three incidents all appear.",
+      "Behaviour oracles in hand-built arenas: a NullPointer steps one square a turn and hits back between your two blows; a RaceCondition's positions over four waits are exactly 9, 7, 7, 5; a MemoryLeak allocates its first blob on the fifth turn, next to itself.",
+      "The Heisenbug teleports at least seven squares away when seen within three, but a breakpoint freezes everything for five turns so it can be walked up to and caught for 50 points and a dropped breakpoint.",
+      "Tool arithmetic: console.log reveals all 384 tiles and wakes every bug, the duck heals 4 up to the maximum, coffee raises the maximum by one, and an empty tool costs no turn.",
+      "The full descent: four exits add 100 each and move aria-current down the call stack, and six blows on the root cause (which hits for 2 on even turns) win with exactly 400 + 200 + 500 + 10 × remaining patience, shown as 1,160 and kept as the best score."
+    ],
+    "risks": [
+      "Room placement is rejection sampling with a fixed number of tries; a very unlucky seed could place few rooms. The connectivity test covers the default seed, and the corridors join every room in sequence, so connectivity doesn't depend on luck.",
+      "Monster movement is greedy, not pathfinding, so bugs can get stuck behind walls. That is deliberate (corners are how you ambush a Heisenbug) but it makes some fights easier than they look.",
+      "Focus management: using up the last rubber duck disables its button while it has focus, which would strand keyboard input. The page moves focus to the board whenever that happens, and the spec clicks the duck and then keeps playing from the keyboard."
+    ],
+    "playwright": "The game is turn-based, so there is nothing to wait for: every key press resolves a whole turn synchronously and the spec reads __trace.state straight after. __trace.peek(f) regenerates any floor without disturbing the run, for the connectivity search, and __trace.arena() replaces the current floor with an open room and exactly the bugs and items a scenario needs. Input goes through real keys (arrows, WASD, vi keys, '.', Space, 1–3, P), the on-screen d-pad and tool buttons, and pointer taps on the canvas relative to the player. One first-run failure was my test's fault, not the page's: the blink counter carries over between arenas, so the second half of the Heisenbug test now expects the one blink from before.",
+    "coverage": [
+      "Seeded floors, BFS connectivity, exits and root cause",
+      "Moving, walls cost no turn, bump attacks, HUD score and log",
+      "RaceCondition burst movement, MemoryLeak spawning",
+      "Heisenbug blink, breakpoint freeze, catch and drop",
+      "console.log, duck, coffee, pickups, empty tools",
+      "Descent through five frames, root cause, win score, best",
+      "Losing, restart focus, touch taps and d-pad",
+      "Pause blocks input, Resume and P"
+    ]
+  },
+  "a11y": "Everything is playable from the keyboard with arrows, WASD or vi keys, and the board is focusable; the d-pad and tool buttons are real buttons for touch and switch users. The canvas's aria-label names the frame, your patience, the bugs in view and whether the exit is visible, every event goes to a visible console log and a polite live region, and the call stack is a list with aria-current on the frame you are in. Focus moves to the board when an overlay closes and to the board if a tool button is disabled under it. Pause shows a card with a focused Resume button. Reduced motion removes the screen shake, the floating damage text and the Heisenbug's flicker."
+}

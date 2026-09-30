@@ -1,0 +1,36 @@
+{
+  "id": "173",
+  "slug": "173-flash-flood-alley",
+  "file": "lab/173-flash-flood-alley.html",
+  "title": "Flash Flood Alley — a falling-sand storm defence",
+  "category": "Games",
+  "tags": ["canvas", "cellular-automaton", "falling-sand", "seeded-prng", "game"],
+  "description": "A falling-sand storm game set in Central Texas's Flash Flood Alley. Every raindrop is a cell in a 120 × 68 automaton: it falls, slides off the limestone and spreads until it finds the lowest gap. Before the storm, dig the debris out of the culvert under a low-water crossing and stack sandbags into a levee, then keep three houses on the terrace dry while the creek runs on to the lake. Three creeks get steadily wetter: Shoal, Onion and Bull.",
+  "prompt": "Make a falling-sand game, the kind people have been one-shotting with Claude, but give it a Texas twist: Central Texas's Flash Flood Alley. Water, sandbags, limestone, debris and bedrock as cell types. The player gets a limited number of sandbags and shovelfuls, prepares before the rain, then watches the storm play out: keep the houses on a terrace dry by clearing a clogged low-water-crossing culvert and building levees. Three creeks of rising difficulty. Keyboard cursor plus tap-and-drag painting, pause, reduced motion. The storm must replay exactly from ?seed=, and the spec should check the automaton's rules (water levels out, nothing is created or destroyed, sandbags stack and sink through water) as well as the level outcomes.",
+  "qa": {
+    "methodology": [
+      "Conservation oracles in a closed sandbox: a 200-cell slab of water dropped in mid-air still has exactly 200 cells after 900 ticks, its surface is flat to within one row across the floor, and no water cell is left resting on air. Sandbags are counted the same way.",
+      "Material rules checked cell by cell: one brush is exactly 21 cells; sandbags land as a column five cells wide with nothing outside x 58–62 and none floating; poured into a pool they sink below the water (the column reads air, water, sandbags, bedrock).",
+      "Level outcomes as scenarios: with no preparation Shoal Creek floods all three houses; a culvert cleared with the keyboard and a finger keeps all three dry; Bull Creek still floods with only the culvert cleared, and stays dry once a 16-row levee is added.",
+      "Scoring arithmetic recomputed in the test: 1000 per dry house, plus every cell that reached the lake or went over the weir, plus 2 per unused sandbag or shovelful, and the result card shows the same number.",
+      "Budgets and hard materials: sandbags and the shovel run out at exactly the level's allowance with the right message, and the culvert's concrete and the bedrock survive the shovel."
+    ],
+    "risks": [
+      "A falling-sand automaton scanned in one direction drifts water sideways; the scan alternates direction each tick and the tie-breaks use the seeded RNG, which the flatness test would catch if broken.",
+      "Real-time frames before the test detaches the loop used to shift the scan parity, so the same storm could end differently. Starting the rain now resets the tick counter, the cell stamps and the RNG, and the hash test proves the replay is exact.",
+      "The difficulty tuning (rain volume, culvert height, budgets) is empirical. The spec pins the intended solutions for one seed; other seeds can be slightly easier or harder.",
+      "The canvas is small on phones, so painting precision suffers; the touch d-pad moves the cursor two cells at a time as a fallback."
+    ],
+    "playwright": "The page exposes __flood: manual(true) detaches the requestAnimationFrame loop, and ticks(n) and untilDone() drive the automaton directly, so a 1,300-tick storm runs in well under a second with no waiting. sandbox() swaps in an empty walled box for the rule tests, and fill(), cell(), column() and surface() let the spec build and read exact grids. Tools are exercised through real input: the 2 key and the arrow keys (with Shift) move the cursor and Space digs, and pointerdown/pointermove on the canvas paints by touch. The first run found a real determinism bug: the same seed gave different storms depending on how many real frames ran before the test took control, which flipped the scan direction. The storm now starts from a clean clock.",
+    "coverage": [
+      "Water conservation, flat surface, nothing floating",
+      "Sandbag stacking, brush size, sinking through water",
+      "Doing nothing floods Shoal Creek; result card, stars, focus",
+      "Keyboard and touch digging clear the culvert; all dry; score formula",
+      "Bull Creek needs culvert plus levee",
+      "Budgets run out; concrete and bedrock can't be dug",
+      "Seeded replay by grid hash; pause freezes ticks and building"
+    ]
+  },
+  "a11y": "The scene is focusable and every tool works from the keyboard: arrows move a visible cursor (its position and the material under it are in the canvas's aria-label), Space or Enter uses the tool, 1 and 2 switch tools with aria-pressed buttons, R starts the rain and P pauses. Flooded houses, phase changes and budget warnings are announced in a live region. When the rain button disables itself focus moves to the scene, and when the result card closes focus returns to the scene rather than a hidden button. Reduced motion stops the water shimmer, drifting clouds, animated rain and lightning flash."
+}

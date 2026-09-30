@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stack Trace — a debugging roguelite</title>
+<meta name="description" content="A turn-based roguelite where every dungeon floor is a frame of a real-looking stack trace. Walk down the call stack from where the error surfaced to its root cause, squashing null pointers, race conditions that move twice, memory leaks that spawn more leaks and a Heisenbug that vanishes when you look at it. Use console.log, breakpoints and a rubber duck. Seeded floors with ?seed=.">
+<style>
+  :root {
+    --bg: #f3f1ec;
+    --ide: #0f141a;
+    --ide-2: #161d26;
+    --line: #2a3441;
+    --text: #1d232a;
+    --muted: #5f6b77;
+    --accent: #2f81f7;
+    --err: #d1242f;
+    --ok: #1a7f37;
+    --warn: #9a6700;
+    --mono: "Cascadia Code", Consolas, "Courier New", monospace;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 15px/1.55 var(--sans); overflow-x: hidden; min-height: 100vh;
+    background-image: linear-gradient(rgba(47,129,247,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(47,129,247,.05) 1px, transparent 1px); background-size: 24px 24px; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; text-decoration: none; font: 700 13px/1 var(--mono); color: #fff; background: var(--ide);
+    border: 2px solid var(--accent); border-radius: 6px; padding: 7px 11px; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 58px 16px 36px; }
+  header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 24px; align-items: end; margin-bottom: 14px; }
+  .kicker { margin: 0; font: 700 12px/1.3 var(--mono); letter-spacing: .08em; color: var(--err); overflow-wrap: anywhere; }
+  h1 { margin: 2px 0 6px; font: 800 clamp(36px, 6.4vw, 66px)/.95 var(--mono); letter-spacing: -.04em; color: var(--ide); }
+  h1 span { color: var(--accent); }
+  .lede { margin: 0; max-width: 62ch; color: #3f4852; }
+  .hud { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .chip { background: var(--ide); color: #e6edf3; border-radius: 8px; padding: 5px 12px 6px; min-width: 84px; text-align: center; border: 1px solid var(--line); }
+  .chip small { display: block; font: 700 10px/1.2 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: #8b949e; }
+  .chip b { display: block; font: 700 20px/1.15 var(--mono); font-variant-numeric: tabular-nums; }
+  .game { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 290px); gap: 14px; align-items: start; }
+  .stage { position: relative; border-radius: 10px; overflow: hidden; background: var(--ide); box-shadow: 0 0 0 3px var(--ide), 0 14px 30px rgba(15,20,26,.3); }
+  canvas { display: block; width: 100%; height: auto; aspect-ratio: 960 / 640; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .overlay { position: absolute; inset: 0; display: grid; place-items: center; padding: 14px; background: rgba(15,20,26,.55); }
+  .card { background: #fff; border: 2px solid var(--ide); border-radius: 10px; padding: 16px 20px; max-width: 420px; width: 100%; text-align: center; box-shadow: 5px 5px 0 var(--accent); }
+  .card h2 { margin: 0 0 4px; font: 800 24px/1.15 var(--mono); color: var(--ide); }
+  .card p { margin: 4px 0 10px; font-size: 14px; }
+  .card code { font: 600 13px var(--mono); background: #eef2f6; padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+  .card .big { font: 800 34px/1 var(--mono); color: var(--accent); font-variant-numeric: tabular-nums; }
+  .btn { font: 700 14px/1 var(--mono); min-height: 44px; padding: 10px 14px; border-radius: 8px; border: 2px solid var(--ide); cursor: pointer;
+    background: var(--accent); color: #fff; box-shadow: 0 3px 0 var(--ide); max-width: 100%; }
+  .btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ide); }
+  .btn.ghost { background: #fff; color: var(--ide); }
+  .btn[aria-pressed="true"] { background: var(--ide); color: #fff; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .controls { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-top: 12px; }
+  .dpad { display: grid; grid-template-columns: repeat(3, minmax(0, 64px)); grid-template-rows: repeat(3, 48px); gap: 6px; justify-content: start; }
+  .dpad .btn { min-width: 0; padding: 4px; font-size: 18px; }
+  .dpad .up { grid-column: 2; grid-row: 1; } .dpad .left { grid-column: 1; grid-row: 2; } .dpad .wait { grid-column: 2; grid-row: 2; font-size: 13px; }
+  .dpad .right { grid-column: 3; grid-row: 2; } .dpad .down { grid-column: 2; grid-row: 3; }
+  .tools { display: flex; flex-wrap: wrap; gap: 8px; align-content: start; }
+  .tools .btn { flex: 1 1 130px; }
+  .side { display: grid; gap: 12px; min-width: 0; }
+  .panel { background: #fff; border: 2px solid var(--ide); border-radius: 10px; padding: 12px 14px; min-width: 0; }
+  .panel h2 { margin: 0 0 8px; font: 800 16px/1.2 var(--mono); color: var(--ide); }
+  .trace { margin: 0; padding: 0; list-style: none; font: 12.5px/1.45 var(--mono); }
+  .trace .err { color: var(--err); font-weight: 700; margin-bottom: 6px; overflow-wrap: anywhere; }
+  .trace li { padding: 3px 6px; border-radius: 4px; color: var(--muted); overflow-wrap: anywhere; }
+  .trace li.done { text-decoration: line-through; opacity: .6; }
+  .trace li[aria-current="step"] { background: #fff4d6; color: var(--text); font-weight: 700; outline: 1px solid #e3b341; }
+  .log { margin: 0; padding: 0; list-style: none; font: 12.5px/1.45 var(--mono); max-height: 180px; overflow: auto; }
+  .log li { padding: 2px 0; border-bottom: 1px dashed #d7dde3; overflow-wrap: anywhere; }
+  .log li:first-child { color: var(--text); font-weight: 700; }
+  .log li:not(:first-child) { color: var(--muted); }
+  .status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .notes { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; margin-top: 18px; }
+  .legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 14px; }
+  .legend b { font-family: var(--mono); }
+  .dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; vertical-align: -1px; margin-right: 6px; border: 1px solid var(--ide); }
+  dl.keys { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 12px; margin: 0; font-size: 14px; }
+  dl.keys dt { font-weight: 700; white-space: nowrap; }
+  dl.keys dd { margin: 0; min-width: 0; }
+  kbd { font: 700 12px var(--mono); background: #fff; border: 1px solid #8c959f; border-bottom-width: 3px; border-radius: 4px; padding: 0 5px; }
+  footer { margin-top: 22px; text-align: center; font-size: 13px; color: var(--muted); }
+  footer code { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 4px; }
+  @media (max-width: 860px) {
+    .game { grid-template-columns: minmax(0, 1fr); }
+    header { grid-template-columns: minmax(0, 1fr); }
+    .hud { justify-content: flex-start; }
+    .chip { min-width: 0; flex: 1 1 70px; }
+    .notes { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 600px) {
+    .overlay { position: static; background: var(--ide); padding: 12px; }
+    .card { box-shadow: 3px 3px 0 var(--accent); padding: 12px 14px; }
+    .controls { grid-template-columns: minmax(0, 1fr); }
+    .dpad { grid-template-columns: repeat(3, minmax(0, 1fr)); justify-content: stretch; }
+  }
+  @media (max-width: 420px) {
+    .chip b { font-size: 17px; }
+    dl.keys { grid-template-columns: minmax(0, 1fr); }
+    dl.keys dt { white-space: normal; }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <div>
+      <p class="kicker" id="errLine" data-testid="error-line">Uncaught TypeError</p>
+      <h1>stack<span>.trace()</span></h1>
+      <p class="lede">Production is on fire and all you have is a stack trace. Each floor of this dungeon is one frame. Walk down the call stack from where the error surfaced to where the bad value was born, squash what crawls out of the code, and fix the root cause before your patience runs out.</p>
+    </div>
+    <div class="hud" aria-label="Debugger status">
+      <div class="chip"><small>Patience</small><b id="hp" data-testid="hp">10/10</b></div>
+      <div class="chip"><small>Frame</small><b id="floor" data-testid="floor">1/5</b></div>
+      <div class="chip"><small>Score</small><b id="score" data-testid="score">0</b></div>
+      <div class="chip"><small>Best</small><b id="best" data-testid="best">0</b></div>
+    </div>
+  </header>
+
+  <div class="game">
+    <div>
+      <div class="stage">
+        <canvas id="cv" width="960" height="640" tabindex="0" data-testid="scene" role="img" aria-label="Stack Trace dungeon"></canvas>
+        <div class="overlay" id="readyOv" data-testid="ready">
+          <div class="card"><h2>Reproduce the bug</h2><p>Arrow keys or WASD to move, bump a bug to squash it. Find <code>↓ caller</code> on each floor to step down the stack.</p><button class="btn" id="startBtn" data-testid="start">Attach debugger</button></div>
+        </div>
+        <div class="overlay" id="endOv" data-testid="end" hidden>
+          <div class="card" role="dialog" aria-labelledby="endT" aria-describedby="endP">
+            <h2 id="endT">Fixed</h2>
+            <p id="endP" data-testid="end-text"></p>
+            <div class="big" id="endScore" data-testid="end-score">0</div>
+            <p id="endBest" data-testid="end-best"></p>
+            <button class="btn" id="againBtn" data-testid="again">New incident</button>
+          </div>
+        </div>
+        <div class="overlay" id="pauseOv" data-testid="paused" hidden>
+          <div class="card"><h2>Paused</h2><p>The bugs are waiting too. They are very patient.</p><button class="btn" id="resumeBtn" data-testid="resume">Resume</button></div>
+        </div>
+      </div>
+      <div class="controls">
+        <div class="dpad" role="group" aria-label="Move">
+          <button class="btn ghost up" data-cmd="up" data-testid="pad-up" aria-label="Move up">↑</button>
+          <button class="btn ghost left" data-cmd="left" data-testid="pad-left" aria-label="Move left">←</button>
+          <button class="btn ghost wait" data-cmd="wait" data-testid="pad-wait" aria-label="Wait a turn">wait</button>
+          <button class="btn ghost right" data-cmd="right" data-testid="pad-right" aria-label="Move right">→</button>
+          <button class="btn ghost down" data-cmd="down" data-testid="pad-down" aria-label="Move down">↓</button>
+        </div>
+        <div class="tools" role="group" aria-label="Debugging tools">
+          <button class="btn" data-cmd="log" id="useLog" data-testid="use-log">1 · console.log ×<span>0</span></button>
+          <button class="btn" data-cmd="bp" id="useBp" data-testid="use-bp">2 · breakpoint ×<span>0</span></button>
+          <button class="btn" data-cmd="duck" id="useDuck" data-testid="use-duck">3 · rubber duck ×<span>0</span></button>
+          <button class="btn ghost" id="pauseBtn" data-testid="pause" aria-pressed="false">Pause</button>
+        </div>
+      </div>
+    </div>
+    <div class="side">
+      <section class="panel" aria-labelledby="h-trace">
+        <h2 id="h-trace">Call stack</h2>
+        <ol class="trace" id="trace" data-testid="trace"></ol>
+      </section>
+      <section class="panel" aria-labelledby="h-log">
+        <h2 id="h-log">Console</h2>
+        <ol class="log" id="log" data-testid="log" aria-label="Recent events, newest first"></ol>
+      </section>
+    </div>
+  </div>
+  <p class="status" id="status" data-testid="status" role="status" aria-live="polite"></p>
+
+  <div class="notes">
+    <section class="panel" aria-labelledby="h-bugs">
+      <h2 id="h-bugs">Known issues</h2>
+      <ul class="legend">
+        <li><span class="dot" style="background:#e5534b"></span><b>NullPointer</b> · walks straight at you. 2 hits.</li>
+        <li><span class="dot" style="background:#d29922"></span><b>RaceCondition</b> · moves two squares on even ticks and freezes on odd ones. Timing is everything.</li>
+        <li><span class="dot" style="background:#a371f7"></span><b>MemoryLeak</b> · slow, but every 5 turns it allocates a little blob. Kill it early.</li>
+        <li><span class="dot" style="background:#58a6ff"></span><b>Heisenbug</b> · harmless, and it vanishes the moment you look at it from close by. Freeze it with a breakpoint, or wait around a corner. Worth 50.</li>
+        <li><span class="dot" style="background:#f85149"></span><b>Root cause</b> · waits in the last frame. 6 hits, hits back hard.</li>
+      </ul>
+    </section>
+    <section class="panel" aria-labelledby="h-keys">
+      <h2 id="h-keys">Controls</h2>
+      <dl class="keys">
+        <dt><kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd> / <kbd>WASD</kbd></dt><dd>Move; walk into a bug to squash it. Tap a side of the board on touch.</dd>
+        <dt><kbd>.</kbd> <kbd>Space</kbd></dt><dd>Wait a turn.</dd>
+        <dt><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></dt><dd>console.log (reveal the frame), breakpoint (freeze every bug for 5 turns), rubber duck (+4 patience).</dd>
+        <dt><kbd>P</kbd></dt><dd>Pause.</dd>
+      </dl>
+    </section>
+  </div>
+  <footer>Built by Zac Corbett · turn-based, no timers · add <code>?seed=</code> for a repeatable incident</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const GW = 24, GH = 16, TS = 40, W = GW * TS, H = GH * TS, FLOORS = 5, FOV = 7, MAX_ENEMIES = 14;
+  const WALL = 0, FLOOR = 1;
+  const params = new URLSearchParams(location.search);
+  const SEED = (parseInt(params.get('seed'), 10) >>> 0) || 404;
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const BEST_KEY = 'lab175-stack-trace-best';
+  const $ = (id) => document.getElementById(id);
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+  const BUGS = {
+    nullref: { name: 'NullPointer', hp: 2, atk: 1, pts: 10, color: '#e5534b', glyph: 'N' },
+    race: { name: 'RaceCondition', hp: 2, atk: 1, pts: 15, color: '#d29922', glyph: 'R' },
+    leak: { name: 'MemoryLeak', hp: 3, atk: 1, pts: 20, color: '#a371f7', glyph: 'L' },
+    blob: { name: 'leaked blob', hp: 1, atk: 1, pts: 2, color: '#8957e5', glyph: '•' },
+    heisen: { name: 'Heisenbug', hp: 1, atk: 0, pts: 50, color: '#58a6ff', glyph: 'H' },
+    root: { name: 'Root cause', hp: 6, atk: 2, pts: 200, color: '#f85149', glyph: '!' },
+  };
+  const ITEMS = { log: 'console.log', bp: 'breakpoint', duck: 'rubber duck', coffee: 'coffee' };
+  const INCIDENTS = [
+    { err: "TypeError: Cannot read properties of undefined (reading 'price')",
+      frames: ['formatPrice (money.js:12)', 'renderLine (cart.js:88)', 'renderCart (cart.js:41)', 'onCheckout (checkout.js:17)', 'loadCart (store.js:203)'],
+      cause: 'loadCart dropped the price when the API renamed it to unit_price.' },
+    { err: 'RangeError: Invalid time value',
+      frames: ['Date.toISOString (<anonymous>)', 'formatDate (dates.js:9)', 'scheduleRow (calendar.js:57)', 'buildWeek (calendar.js:22)', 'parseInvite (invite.js:140)'],
+      cause: 'parseInvite read 03/04 as day/month in a month/day locale.' },
+    { err: 'AssertionError: expected 3 to equal 4',
+      frames: ['expect.toBe (assert.js:77)', 'cart totals (cart.spec.ts:31)', 'sumItems (cart.js:12)', 'applyDiscount (discount.js:44)', 'roundCents (money.js:5)'],
+      cause: 'roundCents floors instead of rounding, so every discount is a cent short.' },
+  ];
+  const INC = INCIDENTS[SEED % INCIDENTS.length];
+
+  let S, map, seen, vis, nextId = 1;
+  const idx = (x, y) => y * GW + x;
+  const inb = (x, y) => x >= 0 && y >= 0 && x < GW && y < GH;
+  const isFloor = (x, y) => inb(x, y) && map[idx(x, y)] === FLOOR;
+  const man = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+  function mkBug(type, x, y) { const b = BUGS[type]; return { id: nextId++, type, x, y, hp: b.hp, awake: false, timer: 0 }; }
+
+  // ---------- floor generation ----------
+  function carveRoom(r) { for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) map[idx(x, y)] = FLOOR; }
+  const centre = (r) => ({ x: r.x + Math.floor(r.w / 2), y: r.y + Math.floor(r.h / 2) });
+  function genFloor(f) {
+    const r = mulberry32(SEED * 31 + f * 977);
+    map = new Uint8Array(GW * GH); seen = new Uint8Array(GW * GH); vis = new Uint8Array(GW * GH);
+    const rooms = [];
+    for (let t = 0; t < 400 && rooms.length < 7; t++) {
+      const w = 4 + Math.floor(r() * 5), h = 3 + Math.floor(r() * 3);
+      const x = 1 + Math.floor(r() * (GW - w - 1)), y = 1 + Math.floor(r() * (GH - h - 1));
+      if (rooms.some((o) => x <= o.x + o.w && x + w >= o.x && y <= o.y + o.h && y + h >= o.y)) continue;
+      rooms.push({ x, y, w, h });
+    }
+    rooms.sort((a, b) => (a.x + a.y * 0.3) - (b.x + b.y * 0.3));
+    for (const rm of rooms) carveRoom(rm);
+    for (let i = 1; i < rooms.length; i++) {
+      const a = centre(rooms[i - 1]), b = centre(rooms[i]);
+      const hFirst = r() < 0.5;
+      const cx = hFirst ? b.x : a.x, cy = hFirst ? a.y : b.y;
+      for (let x = Math.min(a.x, cx); x <= Math.max(a.x, cx); x++) map[idx(x, hFirst ? a.y : cy)] = FLOOR;
+      for (let x = Math.min(cx, b.x); x <= Math.max(cx, b.x); x++) map[idx(x, cy)] = FLOOR;
+      for (let y = Math.min(a.y, cy); y <= Math.max(a.y, cy); y++) map[idx(hFirst ? cx : a.x, y)] = FLOOR;
+      for (let y = Math.min(cy, b.y); y <= Math.max(cy, b.y); y++) map[idx(b.x, y)] = FLOOR;
+    }
+    const start = centre(rooms[0]), goal = centre(rooms[rooms.length - 1]);
+    const enemies = [], items = [];
+    const taken = new Set([idx(start.x, start.y), idx(goal.x, goal.y)]);
+    const spot = () => {
+      for (let t = 0; t < 200; t++) {
+        const rm = rooms[1 + Math.floor(r() * (rooms.length - 1))];
+        const x = rm.x + Math.floor(r() * rm.w), y = rm.y + Math.floor(r() * rm.h);
+        if (!taken.has(idx(x, y)) && man({ x, y }, start) > 4) { taken.add(idx(x, y)); return { x, y }; }
+      }
+      return null;
+    };
+    const table = [['nullref'], ['nullref', 'race'], ['nullref', 'race', 'leak'], ['nullref', 'race', 'leak'], ['nullref', 'race', 'leak']][f - 1];
+    for (let i = 0; i < 2 + f; i++) { const p = spot(); if (p) enemies.push(mkBug(table[Math.floor(r() * table.length)], p.x, p.y)); }
+    if (f >= 2) { const p = spot(); if (p) enemies.push(mkBug('heisen', p.x, p.y)); }
+    if (f === FLOORS) enemies.push(mkBug('root', goal.x, goal.y));
+    const kinds = ['log', 'bp', 'duck'];
+    for (let i = 0; i < 2; i++) { const p = spot(); if (p) items.push({ type: kinds[Math.floor(r() * 3)], ...p }); }
+    if (f === 2 || f === 4) { const p = spot(); if (p) items.push({ type: 'coffee', ...p }); }
+    return { start, exit: f < FLOORS ? goal : null, enemies, items, rooms: rooms.length };
+  }
+  function enterFloor(f) {
+    const fl = genFloor(f);
+    S.floor = f; S.px = fl.start.x; S.py = fl.start.y; S.exit = fl.exit; S.enemies = fl.enemies; S.items = fl.items;
+    S.freeze = 0; S.logged = false; S.rng = mulberry32(SEED * 7 + f);
+    computeFov();
+    trace();
+  }
+
+  // ---------- field of view ----------
+  function los(x0, y0, x1, y1) {
+    let dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1, err = dx + dy;
+    let x = x0, y = y0;
+    while (!(x === x1 && y === y1)) {
+      if (!(x === x0 && y === y0) && map[idx(x, y)] === WALL) return false;
+      const e2 = 2 * err;
+      if (e2 >= dy) { err += dy; x += sx; }
+      if (e2 <= dx) { err += dx; y += sy; }
+    }
+    return true;
+  }
+  function computeFov() {
+    vis.fill(0);
+    for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) {
+      const dx = x - S.px, dy = y - S.py;
+      if (dx * dx + dy * dy <= FOV * FOV && los(S.px, S.py, x, y)) { vis[idx(x, y)] = 1; seen[idx(x, y)] = 1; }
+    }
+    for (const e of S.enemies) if (vis[idx(e.x, e.y)]) e.awake = true;
+  }
+  const visible = (e) => vis[idx(e.x, e.y)] === 1;
+
+  // ---------- rules ----------
+  const enemyAt = (x, y) => S.enemies.find((e) => e.hp > 0 && e.x === x && e.y === y);
+  const occupied = (x, y) => !isFloor(x, y) || (S.px === x && S.py === y) || !!enemyAt(x, y);
+  const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+  function act(cmd) {
+    if (S.mode !== 'play') return false;
+    let used = false;
+    if (DIRS[cmd]) {
+      const [dx, dy] = DIRS[cmd], nx = S.px + dx, ny = S.py + dy, e = enemyAt(nx, ny);
+      if (e) { hit(e); used = true; }
+      else if (isFloor(nx, ny)) {
+        S.px = nx; S.py = ny; S.moves++; used = true;
+        const it = S.items.find((i) => i.x === nx && i.y === ny);
+        if (it) pickup(it);
+        if (S.exit && nx === S.exit.x && ny === S.exit.y) { descend(); return true; }
+      } else { log("That's a wall. Even the linter agrees."); }
+    } else if (cmd === 'wait') { used = true; log('You stare at the code for a turn.'); }
+    else if (cmd === 'log' || cmd === 'bp' || cmd === 'duck') used = useItem(cmd);
+    if (used) endTurn();
+    draw(); hud();
+    return used;
+  }
+  function hit(e) {
+    e.hp -= 1; e.awake = true;
+    const b = BUGS[e.type];
+    if (e.hp <= 0) {
+      S.score += b.pts; S.kills++;
+      log(`Squashed a ${b.name}. +${b.pts}`);
+      fx(e.x, e.y, `+${b.pts}`, '#3fb950');
+      if (e.type === 'heisen') { S.inv.bp++; log('The Heisenbug left a breakpoint behind.'); }
+      if (e.type === 'root') { win(); }
+    } else { log(`You hit the ${b.name}. ${e.hp} to go.`); fx(e.x, e.y, '-1', '#f0f6fc'); }
+    S.enemies = S.enemies.filter((q) => q.hp > 0);
+  }
+  function pickup(it) {
+    S.items = S.items.filter((i) => i !== it);
+    if (it.type === 'coffee') { S.maxHp++; S.hp++; log('Coffee. +1 maximum patience.'); }
+    else { S.inv[it.type]++; log(`Picked up a ${ITEMS[it.type]}.`); }
+    fx(it.x, it.y, ITEMS[it.type], '#e3b341');
+  }
+  function useItem(k) {
+    if (S.inv[k] <= 0) { log(`No ${ITEMS[k]} left.`); return false; }
+    S.inv[k]--;
+    if (k === 'log') { S.logged = true; seen.fill(1); for (const e of S.enemies) e.awake = true; log('console.log everywhere: the whole frame is on screen now.'); }
+    else if (k === 'bp') { S.freeze = 5; log('Breakpoint hit. Every bug is frozen for 5 turns.'); }
+    else { const before = S.hp; S.hp = Math.min(S.maxHp, S.hp + 4); log(`You explain it to the rubber duck. It nods. +${S.hp - before} patience.`); }
+    return true;
+  }
+  function endTurn() {
+    if (S.mode !== 'play') return;
+    S.turn++;
+    computeFov();
+    const frozen = S.freeze > 0;
+    // Heisenbugs vanish when observed from close by
+    if (!frozen) for (const e of S.enemies) {
+      if (e.type !== 'heisen' || !visible(e) || man(e, { x: S.px, y: S.py }) > 3) continue;
+      const spots = [];
+      for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) if (!occupied(x, y) && man({ x, y }, { x: S.px, y: S.py }) >= 7) spots.push({ x, y });
+      if (spots.length) { const p = spots[Math.floor(S.rng() * spots.length)]; e.x = p.x; e.y = p.y; S.blinks++; log('The Heisenbug vanished the moment you looked at it.'); }
+    }
+    if (!frozen) {
+      for (const e of S.enemies.slice()) {
+        if (e.hp <= 0 || !e.awake || S.mode !== 'play') continue;
+        const t = e.type;
+        const steps = t === 'race' ? (S.turn % 2 === 0 ? 2 : 0) : (t === 'leak' || t === 'root') ? (S.turn % 2 === 0 ? 1 : 0) : 1;
+        for (let s = 0; s < steps; s++) {
+          if (man(e, { x: S.px, y: S.py }) === 1 && BUGS[t].atk > 0) { hurt(e); break; }
+          stepToward(e);
+        }
+        if (t === 'leak') {
+          e.timer++;
+          if (e.timer % 5 === 0 && S.enemies.length < MAX_ENEMIES) {
+            for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
+              if (!occupied(e.x + dx, e.y + dy)) { const b = mkBug('blob', e.x + dx, e.y + dy); b.awake = true; S.enemies.push(b); S.leaked++; log('The MemoryLeak allocated another blob.'); break; }
+            }
+          }
+        }
+      }
+    } else {
+      S.freeze--;
+      if (S.freeze === 0) log('Execution resumed. The bugs are moving again.');
+    }
+    computeFov();
+  }
+  function stepToward(e) {
+    const dx = S.px - e.x, dy = S.py - e.y;
+    const opts = Math.abs(dx) >= Math.abs(dy) ? [[Math.sign(dx), 0], [0, Math.sign(dy)]] : [[0, Math.sign(dy)], [Math.sign(dx), 0]];
+    for (const [ox, oy] of opts) {
+      if (ox === 0 && oy === 0) continue;
+      if (!occupied(e.x + ox, e.y + oy)) { e.x += ox; e.y += oy; return true; }
+    }
+    return false;
+  }
+  function hurt(e) {
+    const b = BUGS[e.type];
+    S.hp = Math.max(0, S.hp - b.atk); S.hurt += b.atk;
+    log(`The ${b.name} hits you. -${b.atk} patience.`);
+    fx(S.px, S.py, `-${b.atk}`, '#ff7b72');
+    if (!reduced) S.shake = 8;
+    if (S.hp <= 0) lose(e);
+  }
+  function descend() {
+    S.score += 100;
+    const from = INC.frames[S.floor - 1];
+    enterFloor(S.floor + 1);
+    log(`Stepped into the caller: ${INC.frames[S.floor - 1]}. +100`);
+    say(`Frame ${S.floor} of ${FLOORS}: ${INC.frames[S.floor - 1]}. Left ${from}.`);
+    hud(); draw();
+  }
+  function win() {
+    S.mode = 'won';
+    S.score += 500 + S.hp * 10;
+    finish('Root cause fixed', `${INC.cause} Fixed in commit ${((SEED * 2654435761) >>> 0).toString(16).slice(0, 7)} with a regression test.`);
+  }
+  function lose(e) {
+    S.mode = 'lost';
+    finish('Closed: cannot reproduce', `The ${BUGS[e.type].name} used up the last of your patience on frame ${S.floor}. The ticket goes back in the backlog.`);
+  }
+  function finish(title, text) {
+    const newBest = S.score > S.best;
+    if (newBest) { S.best = S.score; try { localStorage.setItem(BEST_KEY, String(S.best)); } catch (e) { /* blocked */ } }
+    $('endT').textContent = newBest && S.score > 0 ? `${title} · new best` : title;
+    $('endP').textContent = text;
+    $('endScore').textContent = S.score.toLocaleString('en-US');
+    $('endBest').textContent = `Best: ${S.best.toLocaleString('en-US')} · ${S.kills} bugs squashed · ${S.turn} turns`;
+    $('endOv').hidden = false;
+    $('againBtn').focus({ preventScroll: true });
+    say(`${title}. Score ${S.score}.`);
+    hud(); trace(); draw();
+  }
+
+  // ---------- messages ----------
+  function log(m) {
+    S.log.unshift(m); if (S.log.length > 8) S.log.length = 8;
+    const ol = $('log'); ol.textContent = '';
+    for (const l of S.log) { const li = document.createElement('li'); li.textContent = l; ol.appendChild(li); }
+    say(m);
+  }
+  let lastSay = '';
+  function say(m) { $('status').textContent = m === lastSay ? m + ' ' : m; lastSay = m; }
+  function trace() {
+    const ol = $('trace'); ol.textContent = '';
+    const head = document.createElement('li'); head.className = 'err'; head.textContent = INC.err; ol.appendChild(head);
+    INC.frames.forEach((f, i) => {
+      const li = document.createElement('li'); li.textContent = `at ${f}`; li.dataset.testid = `frame-${i + 1}`;
+      if (S.mode === 'won' || i + 1 < S.floor) li.className = 'done';
+      else if (i + 1 === S.floor) li.setAttribute('aria-current', 'step');
+      ol.appendChild(li);
+    });
+  }
+  function hud() {
+    $('hp').textContent = `${S.hp}/${S.maxHp}`;
+    $('floor').textContent = `${S.floor}/${FLOORS}`;
+    $('score').textContent = S.score.toLocaleString('en-US');
+    $('best').textContent = S.best.toLocaleString('en-US');
+    for (const [k, id] of [['log', 'useLog'], ['bp', 'useBp'], ['duck', 'useDuck']]) { $(id).querySelector('span').textContent = S.inv[k]; $(id).disabled = S.inv[k] <= 0 || S.mode !== 'play'; }
+    // a tool button that just ran out is disabled: never leave keyboard focus stranded on it
+    if (document.activeElement && document.activeElement.disabled) cv.focus({ preventScroll: true });
+    const near = S.enemies.filter(visible).map((e) => BUGS[e.type].name);
+    cv.setAttribute('aria-label', `Frame ${S.floor}: ${INC.frames[S.floor - 1]}. Patience ${S.hp} of ${S.maxHp}. ${near.length ? 'In view: ' + near.join(', ') + '.' : 'No bugs in view.'}${S.exit && vis[idx(S.exit.x, S.exit.y)] ? ' The caller exit is in view.' : ''}`);
+  }
+
+  // ---------- drawing ----------
+  const cv = $('cv'), ctx = cv.getContext('2d');
+  const fxList = [];
+  function fx(x, y, text, color) { if (reduced) return; fxList.push({ x, y, text, color, t0: performance.now() }); }
+  const glyphs = '{}();=>constletif[]'.split('');
+  function draw() {
+    ctx.save();
+    if (S.shake > 0) { ctx.translate((S.shake % 2 ? 1 : -1) * S.shake * 0.5, 0); S.shake--; }
+    ctx.fillStyle = '#0b0f14'; ctx.fillRect(-10, -10, W + 20, H + 20);
+    ctx.font = '600 13px Consolas, "Courier New", monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) {
+      const i = idx(x, y), sn = seen[i], v = vis[i];
+      if (!sn) continue;
+      const px = x * TS, py = y * TS;
+      if (map[i] === WALL) {
+        ctx.fillStyle = v ? '#1f2a37' : '#141b24'; ctx.fillRect(px, py, TS, TS);
+        ctx.fillStyle = v ? 'rgba(125,145,170,.35)' : 'rgba(125,145,170,.15)';
+        ctx.fillText(glyphs[(x * 7 + y * 13 + S.floor) % glyphs.length], px + TS / 2, py + TS / 2);
+      } else {
+        ctx.fillStyle = v ? '#16202b' : '#0f151c'; ctx.fillRect(px, py, TS, TS);
+        ctx.strokeStyle = v ? 'rgba(88,166,255,.07)' : 'rgba(88,166,255,.03)'; ctx.strokeRect(px + .5, py + .5, TS - 1, TS - 1);
+      }
+    }
+    // gutter line numbers down the left edge, like an editor
+    ctx.fillStyle = 'rgba(139,148,158,.35)'; ctx.font = '11px Consolas, monospace'; ctx.textAlign = 'right';
+    for (let y = 0; y < GH; y++) ctx.fillText(String(y + 1), 16, y * TS + TS / 2);
+    ctx.textAlign = 'center';
+    // exit
+    if (S.exit && seen[idx(S.exit.x, S.exit.y)]) {
+      const px = S.exit.x * TS, py = S.exit.y * TS;
+      ctx.fillStyle = '#1a7f37'; ctx.fillRect(px + 3, py + 3, TS - 6, TS - 6);
+      ctx.fillStyle = '#e6ffec'; ctx.font = '700 12px Consolas, monospace'; ctx.fillText('↓ caller', px + TS / 2, py + TS / 2, TS - 6);
+    }
+    // items
+    for (const it of S.items) {
+      if (!seen[idx(it.x, it.y)]) continue;
+      const cx = it.x * TS + TS / 2, cy = it.y * TS + TS / 2;
+      if (it.type === 'log') { ctx.fillStyle = '#0d1117'; ctx.fillRect(cx - 14, cy - 10, 28, 20); ctx.strokeStyle = '#3fb950'; ctx.strokeRect(cx - 14, cy - 10, 28, 20); ctx.fillStyle = '#3fb950'; ctx.font = '700 12px Consolas, monospace'; ctx.fillText('>_', cx, cy + 1); }
+      else if (it.type === 'bp') { ctx.fillStyle = '#e5534b'; ctx.beginPath(); ctx.arc(cx, cy, 9, 0, 6.283); ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke(); ctx.lineWidth = 1; }
+      else if (it.type === 'duck') { ctx.fillStyle = '#f2cc60'; ctx.beginPath(); ctx.ellipse(cx, cy + 4, 11, 8, 0, 0, 6.283); ctx.fill(); ctx.beginPath(); ctx.arc(cx + 6, cy - 6, 6, 0, 6.283); ctx.fill(); ctx.fillStyle = '#f0883e'; ctx.fillRect(cx + 11, cy - 6, 6, 3); ctx.fillStyle = '#000'; ctx.fillRect(cx + 7, cy - 8, 2, 2); }
+      else { ctx.fillStyle = '#e6edf3'; ctx.fillRect(cx - 8, cy - 8, 14, 16); ctx.strokeStyle = '#e6edf3'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx + 7, cy, 4, -1.4, 1.4); ctx.stroke(); ctx.lineWidth = 1; ctx.fillStyle = '#8b5a2b'; ctx.fillRect(cx - 6, cy - 6, 10, 4); }
+    }
+    // bugs
+    for (const e of S.enemies) {
+      if (!(visible(e) || S.logged)) continue;
+      drawBug(e);
+    }
+    // the debugger (you)
+    const px = S.px * TS, py = S.py * TS;
+    ctx.fillStyle = '#2f81f7'; ctx.fillRect(px + 6, py + 6, TS - 12, TS - 12);
+    ctx.fillStyle = '#fff'; ctx.fillRect(px + TS / 2 - 2, py + 10, 4, TS - 20); ctx.fillRect(px + TS / 2 - 7, py + 10, 14, 3); ctx.fillRect(px + TS / 2 - 7, py + TS - 13, 14, 3);
+    if (S.freeze > 0) { ctx.fillStyle = 'rgba(229,83,75,.12)'; ctx.fillRect(0, 0, W, H); ctx.fillStyle = '#ff7b72'; ctx.font = '700 16px Consolas, monospace'; ctx.textAlign = 'left'; ctx.fillText(`⏸ paused on breakpoint · ${S.freeze}`, 30, H - 16); ctx.textAlign = 'center'; }
+    // floating text
+    const now = performance.now();
+    for (const f of fxList) {
+      const a = 1 - (now - f.t0) / 700; if (a <= 0) continue;
+      ctx.globalAlpha = a; ctx.fillStyle = f.color; ctx.font = '700 14px Consolas, monospace';
+      ctx.fillText(f.text, f.x * TS + TS / 2, f.y * TS + 6 - (1 - a) * 18);
+    }
+    ctx.globalAlpha = 1;
+    for (let i = fxList.length - 1; i >= 0; i--) if (now - fxList[i].t0 > 700) fxList.splice(i, 1);
+    ctx.restore();
+  }
+  function drawBug(e) {
+    const b = BUGS[e.type], cx = e.x * TS + TS / 2, cy = e.y * TS + TS / 2;
+    const size = e.type === 'root' ? 1.25 : e.type === 'blob' ? 0.6 : 1;
+    ctx.save(); ctx.translate(cx, cy); ctx.scale(size, size);
+    if (e.type === 'heisen' && !reduced) ctx.globalAlpha = 0.55 + 0.35 * Math.sin(performance.now() / 120);
+    ctx.strokeStyle = b.color; ctx.lineWidth = 2;
+    for (const s of [-1, 1]) for (const k of [-6, 0, 6]) { ctx.beginPath(); ctx.moveTo(s * 7, k); ctx.lineTo(s * 14, k + (k === 0 ? 0 : k > 0 ? 4 : -4)); ctx.stroke(); }
+    ctx.fillStyle = b.color; ctx.beginPath(); ctx.ellipse(0, 1, 9, 12, 0, 0, 6.283); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, -12, 5, 0, 6.283); ctx.fill();
+    ctx.fillStyle = '#0b0f14'; ctx.font = '700 12px Consolas, monospace'; ctx.fillText(b.glyph, 0, 2);
+    if (e.type === 'root') { ctx.fillStyle = '#e3b341'; ctx.beginPath(); ctx.moveTo(-7, -17); ctx.lineTo(-7, -23); ctx.lineTo(-3, -19); ctx.lineTo(0, -25); ctx.lineTo(3, -19); ctx.lineTo(7, -23); ctx.lineTo(7, -17); ctx.fill(); }
+    ctx.restore();
+    if (e.hp < BUGS[e.type].hp) { ctx.fillStyle = '#f0f6fc'; ctx.fillRect(e.x * TS + 6, e.y * TS + 2, (TS - 12) * e.hp / BUGS[e.type].hp, 3); }
+  }
+  let animating = false;
+  function animate() { draw(); if (fxList.length || S.shake > 0) requestAnimationFrame(animate); else animating = false; }
+
+  // ---------- game flow ----------
+  function newGame() {
+    nextId = 1;
+    let best = 0; try { best = parseInt(localStorage.getItem(BEST_KEY) || '0', 10) || 0; } catch (e) { /* blocked */ }
+    S = { mode: 'play', floor: 1, turn: 0, hp: 10, maxHp: 10, score: 0, best, kills: 0, moves: 0, hurt: 0, blinks: 0, leaked: 0, inv: { log: 0, bp: 0, duck: 1 },
+      log: [], shake: 0, px: 0, py: 0, exit: null, enemies: [], items: [], freeze: 0, logged: false, rng: null };
+    $('errLine').textContent = 'Uncaught ' + INC.err;
+    enterFloor(1);
+  }
+  function start() {
+    newGame();
+    $('readyOv').hidden = true; $('endOv').hidden = true;
+    cv.focus({ preventScroll: true });            // the overlay button is gone: keys go to the board
+    $('log').textContent = ''; S.log = [];
+    log(`Debugger attached at ${INC.frames[0]}.`);
+    hud(); draw();
+  }
+  function togglePause() {
+    if (S.mode === 'play') { S.mode = 'paused'; $('pauseOv').hidden = false; $('pauseBtn').setAttribute('aria-pressed', 'true'); $('resumeBtn').focus({ preventScroll: true }); say('Paused.'); }
+    else if (S.mode === 'paused') { S.mode = 'play'; $('pauseOv').hidden = true; $('pauseBtn').setAttribute('aria-pressed', 'false'); cv.focus({ preventScroll: true }); say('Resumed.'); }
+    hud();
+  }
+  function run(cmd) {
+    const used = act(cmd);
+    if (!animating && !reduced && (fxList.length || S.shake > 0)) { animating = true; requestAnimationFrame(animate); }
+    return used;
+  }
+
+  // ---------- input ----------
+  $('startBtn').addEventListener('click', start);
+  $('againBtn').addEventListener('click', start);
+  $('pauseBtn').addEventListener('click', togglePause);
+  $('resumeBtn').addEventListener('click', togglePause);
+  for (const b of document.querySelectorAll('[data-cmd]')) b.addEventListener('click', () => { if (S.mode === 'play') run(b.dataset.cmd); });
+  cv.addEventListener('pointerdown', (e) => {
+    if (S.mode !== 'play') return;
+    e.preventDefault();
+    const r = cv.getBoundingClientRect();
+    const tx = ((e.clientX - r.left) / r.width) * GW - (S.px + 0.5), ty = ((e.clientY - r.top) / r.height) * GH - (S.py + 0.5);
+    if (Math.abs(tx) < 0.5 && Math.abs(ty) < 0.5) run('wait');
+    else if (Math.abs(tx) >= Math.abs(ty)) run(tx > 0 ? 'right' : 'left');
+    else run(ty > 0 ? 'down' : 'up');
+  });
+  const KEYS = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', w: 'up', s: 'down', a: 'left', d: 'right', W: 'up', S: 'down', A: 'left', D: 'right',
+    k: 'up', j: 'down', h: 'left', l: 'right', '.': 'wait', ' ': 'wait', '1': 'log', '2': 'bp', '3': 'duck' };
+  addEventListener('keydown', (e) => {
+    const tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'SELECT') return;
+    if (e.key === 'p' || e.key === 'P') { if (S.mode === 'play' || S.mode === 'paused') { e.preventDefault(); togglePause(); } return; }
+    const cmd = KEYS[e.key];
+    if (!cmd || S.mode !== 'play') return;
+    if (tag === 'BUTTON' && (e.key === ' ' || e.key === 'Enter')) return;   // let Space press the focused button
+    e.preventDefault();
+    run(cmd);
+  });
+
+  // ---------- test hook ----------
+  const snap = () => ({
+    mode: S.mode, floor: S.floor, turn: S.turn, hp: S.hp, maxHp: S.maxHp, score: S.score, best: S.best, kills: S.kills, moves: S.moves, blinks: S.blinks, leaked: S.leaked,
+    inv: { ...S.inv }, freeze: S.freeze, logged: S.logged, player: { x: S.px, y: S.py }, exit: S.exit && { ...S.exit }, seed: SEED, incident: INC.err,
+    enemies: S.enemies.map((e) => ({ id: e.id, type: e.type, x: e.x, y: e.y, hp: e.hp, awake: e.awake })), items: S.items.map((i) => ({ ...i })),
+    seenCount: seen.reduce((a, b) => a + b, 0), floorCount: map.reduce((a, b) => a + b, 0), log: S.log.slice(),
+  });
+  window.__trace = {
+    get state() { return snap(); },
+    act: (cmd) => { act(cmd); return snap(); },
+    /** regenerate a floor as the game would (1..5) and return its layout, without disturbing the run */
+    peek(f) { const keep = { map, seen, vis }; const id = nextId; const fl = genFloor(f); const out = { ...fl, map: Array.from(map) }; ({ map, seen, vis } = keep); nextId = id; return out; },
+    /** replace the current floor with an open arena for scenario tests */
+    arena({ w = 16, h = 10, player = [2, 2], enemies = [], items = [], exit = null, walls = [] } = {}) {
+      map = new Uint8Array(GW * GH); seen = new Uint8Array(GW * GH); vis = new Uint8Array(GW * GH);
+      for (let y = 1; y <= h; y++) for (let x = 1; x <= w; x++) map[idx(x, y)] = FLOOR;
+      for (const [x, y] of walls) map[idx(x, y)] = WALL;
+      S.px = player[0]; S.py = player[1];
+      S.enemies = enemies.map(([t, x, y]) => mkBug(t, x, y));
+      S.items = items.map(([type, x, y]) => ({ type, x, y }));
+      S.exit = exit ? { x: exit[0], y: exit[1] } : null; S.freeze = 0; S.logged = false;
+      computeFov(); hud(); draw(); return snap();
+    },
+    set(patch) { Object.assign(S, patch); hud(); draw(); return snap(); },
+    visibleAt: (x, y) => vis[idx(x, y)] === 1,
+    FLOORS, BUGS, GW, GH,
+  };
+
+  newGame(); S.mode = 'ready';
+  trace(); hud(); draw();
+})();
+</script>
+</body>
+</html>

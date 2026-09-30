@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Botafumeiro — swing the great censer</title>
+<meta name="description" content="A physics game about the great thurible of Santiago de Compostela. Lead the tiraboleiros: pull the rope as the censer sweeps through the bottom of its arc and let it out at the ends, and parametric pumping raises it from a nudge to a roaring 80 degrees. Hold it high through the hymn, then bring it gently back down. A variable-length pendulum, integrated with RK4.">
+<style>
+  :root {
+    --stone: #efe7d8;
+    --stone-2: #ddd0b8;
+    --nave: #2a2320;
+    --ink: #1f1a17;
+    --burgundy: #7b1e2b;
+    --burgundy-2: #5a1420;
+    --silver: #c9ccd2;
+    --gold: #c89b3c;
+    --ember: #f07a2a;
+    --serif: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--stone); color: var(--ink); font: 15px/1.55 var(--sans); overflow-x: hidden; min-height: 100vh;
+    background-image: radial-gradient(circle at 50% -10%, rgba(200,155,60,.18), transparent 50%), repeating-linear-gradient(90deg, rgba(90,70,40,.04) 0 1px, transparent 1px 38px); }
+  :focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+  a.back { position: fixed; top: 10px; left: 10px; z-index: 40; text-decoration: none; font: 700 13px/1 var(--sans); color: #fff; background: var(--burgundy);
+    border: 2px solid var(--gold); border-radius: 7px; padding: 7px 11px; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 58px 16px 36px; }
+  header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 24px; align-items: end; margin-bottom: 14px; }
+  .kicker { margin: 0; font: 600 12px/1.3 var(--sans); letter-spacing: .26em; text-transform: uppercase; color: var(--burgundy); }
+  h1 { margin: 2px 0 6px; font: 400 clamp(38px, 6.6vw, 70px)/.95 var(--serif); color: var(--nave); letter-spacing: -.01em; }
+  h1 span { color: var(--burgundy); font-style: italic; }
+  .lede { margin: 0; max-width: 60ch; color: #4a4038; }
+  .hud { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .dial { background: var(--nave); color: #f4ead6; border: 2px solid var(--gold); border-radius: 10px; padding: 5px 12px 6px; min-width: 88px; text-align: center; }
+  .dial small { display: block; font: 600 10px/1.2 var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--gold); }
+  .dial b { display: block; font: 400 24px/1.1 var(--serif); font-variant-numeric: tabular-nums; }
+  .stage { position: relative; border-radius: 14px; overflow: hidden; background: var(--nave); box-shadow: 0 0 0 4px var(--ink), 0 18px 40px rgba(40,25,15,.35); }
+  canvas { display: block; width: 100%; height: auto; aspect-ratio: 960 / 560; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .overlay { position: absolute; inset: 0; display: grid; place-items: center; padding: 14px; background: rgba(20,14,10,.45); }
+  .card { background: var(--stone); border: 3px solid var(--ink); border-radius: 12px; padding: 16px 20px; max-width: 400px; width: 100%; text-align: center; box-shadow: 6px 6px 0 var(--ink); }
+  .card h2 { margin: 0 0 4px; font: 400 28px/1.1 var(--serif); color: var(--burgundy); }
+  .card p { margin: 4px 0 10px; font-size: 14px; }
+  .card .big { font: 400 36px/1 var(--serif); color: var(--nave); font-variant-numeric: tabular-nums; }
+  .btn { font: 700 15px/1 var(--sans); min-height: 46px; padding: 10px 16px; border-radius: 10px; border: 3px solid var(--ink); cursor: pointer;
+    background: var(--burgundy); color: #fff; box-shadow: 0 3px 0 var(--ink); max-width: 100%; }
+  .btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
+  .btn.ghost { background: #fff; color: var(--ink); }
+  .btn[aria-pressed="true"] { background: var(--nave); color: #fff; }
+  .pad { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin-top: 14px; }
+  .pad .btn { min-width: 0; padding: 8px; }
+  .pull { min-height: 64px; font-size: 20px; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .pull.on { background: var(--gold); color: var(--ink); }
+  .status { min-height: 1.5em; margin: 10px 2px 0; font-weight: 600; color: var(--burgundy-2); }
+  .phases { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 0; padding: 0; list-style: none; }
+  .phases li { border: 2px solid var(--ink); border-radius: 999px; padding: 3px 12px; font-size: 13px; font-weight: 600; background: #fff; }
+  .phases li[aria-current="step"] { background: var(--burgundy); color: #fff; }
+  .phases li.done { background: var(--stone-2); text-decoration: line-through; }
+  .notes { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 18px; margin-top: 20px; }
+  .panel { background: #fbf7ee; border: 2px solid var(--ink); border-radius: 12px; padding: 14px 16px; min-width: 0; box-shadow: 4px 4px 0 rgba(31,26,23,.85); }
+  .panel h2 { margin: 0 0 8px; font: 400 23px/1.1 var(--serif); color: var(--burgundy); }
+  .panel p { margin: 6px 0; }
+  .eq { font: italic 16px/1.4 var(--serif); background: #fff; border-left: 4px solid var(--gold); padding: 6px 10px; overflow-wrap: anywhere; }
+  label.check { display: flex; gap: 8px; align-items: center; font-weight: 600; margin-top: 8px; }
+  label.check input { width: 22px; height: 22px; }
+  dl.keys { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 12px; margin: 0; font-size: 14px; }
+  dl.keys dt { font-weight: 700; white-space: nowrap; }
+  dl.keys dd { margin: 0; min-width: 0; }
+  kbd { font: 700 12px var(--sans); background: #fff; border: 1px solid #8b8070; border-bottom-width: 3px; border-radius: 4px; padding: 0 5px; }
+  footer { margin-top: 24px; text-align: center; font-size: 13px; color: #6b5f52; }
+  @media (max-width: 760px) {
+    header { grid-template-columns: minmax(0, 1fr); }
+    .hud { justify-content: flex-start; }
+    .dial { min-width: 0; flex: 1 1 70px; }
+    .notes { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 600px) {
+    .overlay { position: static; background: var(--nave); padding: 12px; }
+    .card { box-shadow: 4px 4px 0 #000; padding: 12px 14px; }
+    .pad { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .pad .pull { grid-column: 1 / -1; }
+  }
+  @media (max-width: 420px) {
+    .dial b { font-size: 20px; }
+    dl.keys { grid-template-columns: minmax(0, 1fr); }
+    dl.keys dt { white-space: normal; }
+  }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html#lab" data-testid="back-link">← Zac's Lab</a>
+<div class="wrap">
+  <header>
+    <div>
+      <p class="kicker">The pilgrim's Mass · the crossing of the transept</p>
+      <h1>Botafumeiro, <span>swung</span></h1>
+      <p class="lede">You lead the eight tiraboleiros. The great censer hangs from the crossing on a long rope, and nobody pushes it: you raise it by pulling the rope in as it rushes through the bottom of its arc and letting it out at the ends. Get the rhythm right and it climbs toward the vault, trailing incense.</p>
+    </div>
+    <div class="hud" aria-label="Swing readings">
+      <div class="dial"><small>Swing</small><b id="amp" data-testid="amp">0°</b></div>
+      <div class="dial"><small>Speed</small><b id="speed" data-testid="speed">0</b></div>
+      <div class="dial"><small>Time</small><b id="time" data-testid="time">0.0 s</b></div>
+      <div class="dial"><small>Best</small><b id="best" data-testid="best">–</b></div>
+    </div>
+  </header>
+
+  <div class="stage">
+    <canvas id="cv" width="960" height="560" data-testid="scene" role="img" aria-label="Botafumeiro: the censer hangs still at the crossing"></canvas>
+    <div class="overlay" id="readyOv" data-testid="ready">
+      <div class="card"><h2>Ready the ropes</h2><p>Raise it past 80°, hold it high for three swings, then bring it down gently so it can be caught.</p><button class="btn" id="startBtn" data-testid="start">Begin</button></div>
+    </div>
+    <div class="overlay" id="overOv" data-testid="result" hidden>
+      <div class="card" role="dialog" aria-labelledby="overT" aria-describedby="overP">
+        <h2 id="overT">Caught</h2>
+        <p id="overP" data-testid="result-text">The censer is caught and set down.</p>
+        <div class="big" id="final" data-testid="final">0.0 s</div>
+        <p id="bestLine" data-testid="best-line"></p>
+        <button class="btn" id="againBtn" data-testid="again">Swing it again</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="pad">
+    <button class="btn pull" id="pullBtn" data-testid="pull" aria-pressed="false" aria-label="Pull the rope (hold)">Pull ⇩ (hold)</button>
+    <button class="btn ghost" id="pauseBtn" data-testid="pause" aria-pressed="false">Pause</button>
+    <button class="btn ghost" id="cueBtn" data-testid="cue" aria-pressed="true">Cue: on</button>
+  </div>
+  <ol class="phases" aria-label="Order of the rite">
+    <li id="ph-raise" data-testid="phase-raise" aria-current="step">1 · Raise past 80°</li>
+    <li id="ph-hold" data-testid="phase-hold">2 · Hold high for 3 swings</li>
+    <li id="ph-lower" data-testid="phase-lower">3 · Lower below 8°</li>
+  </ol>
+  <p class="status" id="status" data-testid="status" role="status" aria-live="polite">Press Begin. The censer is lit.</p>
+
+  <div class="notes">
+    <section class="panel" aria-labelledby="h-phys">
+      <h2 id="h-phys">Why pulling makes it climb</h2>
+      <p>The censer is a pendulum whose rope length <i>r</i> you change. Its angle obeys</p>
+      <p class="eq">θ″ = −(g / r) sin θ − 2 (r′ / r) θ′ − c θ′</p>
+      <p>The middle term is the pump. Pulling in at the bottom, where the censer is fastest, works against the centrifugal pull and adds energy, much as a child on a swing stands up at the bottom. Letting the rope out at the ends, where it barely moves, costs almost nothing. Do the opposite and you take energy out, which is exactly how you bring it down.</p>
+      <p>The physicist Juan Sanmartín worked this out for the Santiago censer in 1984 and called it parametric pumping in the Middle Ages. This page simplifies it: a point mass, a rope that never goes slack below 88°, your pull speed capped at 2.5 m/s, and a little air drag.</p>
+    </section>
+    <section class="panel" aria-labelledby="h-keys">
+      <h2 id="h-keys">Controls</h2>
+      <dl class="keys">
+        <dt><kbd>Space</kbd> <kbd>↓</kbd></dt><dd>Hold to pull the rope in; release to let it out.</dd>
+        <dt>Touch</dt><dd>Hold the Pull button or anywhere on the nave.</dd>
+        <dt><kbd>P</kbd></dt><dd>Pause or resume.</dd>
+        <dt><kbd>C</kbd></dt><dd>Show or hide the rhythm cue (a glow near the bottom of the arc, where you should pull).</dd>
+      </dl>
+      <label class="check"><input type="checkbox" id="slowChk" data-testid="slow"> Gentle pace (the clock runs at 1× instead of 1.5×)</label>
+    </section>
+  </div>
+  <footer>Built by Zac Corbett · RK4 at 240 steps a second · the clock runs 1.5× real time unless you choose the gentle pace</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const W = 960, H = 560, DT = 1 / 240;
+  const G = 9.81, R_LONG = 20, R_SHORT = 16.5, V_PULL = 2.5, DRAG = 0.012;
+  const PIVOT = { x: 480, y: 44 }, PPM = 22;              // pixels per metre
+  const START_DEG = 6, RAISE_DEG = 80, HOLD_MIN = 70, SLACK_DEG = 88, CATCH_DEG = 8, HOLD_TURNS = 6, TIME_LIMIT = 300;
+  const BEST_KEY = 'lab174-botafumeiro-best';
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const $ = (id) => document.getElementById(id);
+  const deg = (r) => r * 180 / Math.PI, rad = (d) => d * Math.PI / 180;
+  const fin = (v, d = 0) => (Number.isFinite(v) ? v : d);
+
+  // ---------- physics (shared by the game and the offline simulator) ----------
+  function accel(th, om, r, rdot, drag) { return -(G / r) * Math.sin(th) - 2 * (rdot / r) * om - drag * om; }
+  /** one RK4 step of (θ, ω) with the rope length moving at a constant rate over the step */
+  function stepBody(b, pulling, dt, drag = DRAG, fixed = false) {
+    const target = pulling ? R_SHORT : R_LONG;
+    const rdot = fixed ? 0 : Math.max(-V_PULL, Math.min(V_PULL, (target - b.r) * 8));
+    const r0 = b.r, r1 = b.r + rdot * dt, rm = (r0 + r1) / 2;
+    const k1t = b.om, k1o = accel(b.th, b.om, r0, rdot, drag);
+    const k2t = b.om + k1o * dt / 2, k2o = accel(b.th + k1t * dt / 2, k2t, rm, rdot, drag);
+    const k3t = b.om + k2o * dt / 2, k3o = accel(b.th + k2t * dt / 2, k3t, rm, rdot, drag);
+    const k4t = b.om + k3o * dt, k4o = accel(b.th + k3t * dt, k4t, r1, rdot, drag);
+    b.th += (k1t + 2 * k2t + 2 * k3t + k4t) * dt / 6;
+    b.om += (k1o + 2 * k2o + 2 * k3o + k4o) * dt / 6;
+    b.r = r1; b.rdot = rdot;
+  }
+  const energy = (b) => 0.5 * b.r * b.r * b.om * b.om + G * b.r * (1 - Math.cos(b.th));   // per unit mass
+  /** the rhythm a good tiraboleiro keeps: in near the bottom, out towards the ends (reverse it to damp) */
+  function policyPull(name, b, amp) {
+    const near = Math.abs(b.th) < Math.max(rad(3), amp * 0.5);
+    if (name === 'pump') return near;
+    if (name === 'damp') return !near;
+    return false;
+  }
+  function simulate(opts = {}) {
+    const b = { th: rad(opts.startDeg ?? START_DEG), om: 0, r: opts.r ?? R_LONG, rdot: 0 };
+    const drag = opts.drag ?? DRAG, policy = opts.policy || 'none', fixed = opts.fixedRope;
+    const n = Math.round((opts.seconds ?? 60) / DT);
+    const turns = [], e0 = energy(b);
+    let amp = Math.abs(b.th), lastOm = 0, crossings = [], maxE = e0, minE = e0;
+    for (let i = 0; i < n; i++) {
+      const prevTh = b.th;
+      stepBody(b, !fixed && policyPull(policy, b, amp), DT, drag, fixed);
+      if (lastOm !== 0 && Math.sign(b.om) !== Math.sign(lastOm)) { amp = Math.abs(b.th); turns.push(+deg(amp).toFixed(3)); }
+      if (prevTh < 0 && b.th >= 0) crossings.push((i + 1) * DT);
+      lastOm = b.om;
+      const e = energy(b); maxE = Math.max(maxE, e); minE = Math.min(minE, e);
+    }
+    return { turns, crossings, e0, maxE, minE, end: { th: deg(b.th), om: b.om, r: b.r } };
+  }
+
+  // ---------- game state ----------
+  let S;
+  const input = { held: false, keys: new Set(), pointers: new Set() };
+  function loadBest() { try { const v = parseFloat(localStorage.getItem(BEST_KEY)); return Number.isFinite(v) ? v : null; } catch (e) { return null; } }
+  function saveBest(v) { try { localStorage.setItem(BEST_KEY, String(v)); } catch (e) { /* storage blocked */ } }
+  function reset(mode) {
+    S = { mode, phase: 'raise', t: 0, frame: 0, body: { th: rad(START_DEG), om: 0, r: R_LONG, rdot: 0 }, amp: rad(START_DEG), maxAmp: rad(START_DEG),
+      turns: 0, holdTurns: 0, pulls: 0, pulling: false, lastOm: 0, result: '', best: loadBest(), smoke: [], cue: S ? S.cue : true, announced: 0 };
+    input.held = false; input.keys.clear(); input.pointers.clear();
+  }
+  const pullWanted = () => input.held || input.keys.size > 0 || input.pointers.size > 0;
+
+  function step() {
+    if (S.mode !== 'run') return;
+    S.t += DT; S.frame++;
+    const want = pullWanted();
+    if (want && !S.pulling) S.pulls++;
+    S.pulling = want;
+    const b = S.body;
+    stepBody(b, want, DT);
+    if (Math.abs(b.th) > rad(SLACK_DEG)) { end('slack'); return; }
+    if (S.lastOm !== 0 && Math.sign(b.om) !== Math.sign(S.lastOm)) turn(Math.abs(b.th));
+    S.lastOm = b.om;
+    if (S.t >= TIME_LIMIT) { end('time'); return; }
+    // incense
+    if (!reduced && S.frame % 6 === 0) {
+      const p = pos();
+      S.smoke.push({ x: p.x, y: p.y - 10, vx: -b.om * b.r * PPM * 0.05 * Math.cos(b.th), vy: -12, life: 3.2, r: 5 });
+    }
+    for (const s of S.smoke) { s.x += s.vx * DT; s.y += s.vy * DT; s.vx *= 0.995; s.r += DT * 7; s.life -= DT; }
+    if (S.frame % 30 === 0) S.smoke = S.smoke.filter((s) => s.life > 0);
+  }
+  function turn(a) {
+    S.turns++; S.amp = a; S.maxAmp = Math.max(S.maxAmp, a);
+    const d = deg(a);
+    if (S.phase === 'raise') {
+      for (const m of [30, 45, 60, 70]) if (d >= m && S.announced < m) { S.announced = m; say(`Up to ${m}°. Keep the rhythm.`); }
+      if (d >= RAISE_DEG) { S.phase = 'hold'; S.holdTurns = 0; say(`${Math.round(d)}°! It sweeps the transept. Now hold it above ${HOLD_MIN}° for three swings.`); phases(); }
+    } else if (S.phase === 'hold') {
+      if (d >= HOLD_MIN) {
+        S.holdTurns++;
+        if (S.holdTurns >= HOLD_TURNS) { S.phase = 'lower'; say('The hymn is ending. Bring it down: pull at the ends, let out at the bottom.'); phases(); }
+        else say(`Holding high: ${S.holdTurns} of ${HOLD_TURNS} passes.`);
+      } else { S.holdTurns = 0; say(`It dropped to ${Math.round(d)}°. Lift it back above ${HOLD_MIN}°.`); }
+    } else if (S.phase === 'lower') {
+      if (d <= CATCH_DEG) { end('caught'); return; }
+    }
+  }
+  function end(why) {
+    S.mode = 'over'; S.result = why;
+    const t = +S.t.toFixed(1);
+    let title, text, newBest = false;
+    if (why === 'caught') {
+      title = 'Caught'; text = `The censer is caught and set down, having reached ${Math.round(deg(S.maxAmp))}°.`;
+      if (S.best === null || t < S.best) { S.best = t; saveBest(t); newBest = true; }
+    } else if (why === 'slack') { title = 'Too high!'; text = `Past ${SLACK_DEG}° the rope goes slack and the censer jerks. Ease off as it nears the vault.`; }
+    else { title = 'The Mass has ended'; text = 'The rite ran out of time before the censer was caught.'; }
+    $('overT').textContent = newBest ? 'Caught, and a new best' : title;
+    $('overP').textContent = text;
+    $('final').textContent = why === 'caught' ? `${t.toFixed(1)} s` : `${Math.round(deg(S.maxAmp))}°`;
+    $('bestLine').textContent = S.best === null ? 'No catch recorded yet.' : `Best rite: ${S.best.toFixed(1)} s`;
+    $('overOv').hidden = false;
+    setPull(false);
+    $('againBtn').focus({ preventScroll: true });
+    say(`${title}. ${text}`);
+    hud(); phases(); draw();
+  }
+  function pos(b = S.body) { return { x: PIVOT.x + Math.sin(b.th) * b.r * PPM, y: PIVOT.y + Math.cos(b.th) * b.r * PPM }; }
+
+  // ---------- drawing ----------
+  const cv = $('cv'), ctx = cv.getContext('2d');
+  function draw() {
+    const b = S.body;
+    // nave
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#1b1512'); g.addColorStop(0.6, '#3a2e27'); g.addColorStop(1, '#55453a');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    // light from the clerestory
+    ctx.fillStyle = 'rgba(255,220,150,.06)';
+    for (const x of [140, 360, 600, 820]) { ctx.beginPath(); ctx.moveTo(x - 20, 60); ctx.lineTo(x + 20, 60); ctx.lineTo(x + 120, H); ctx.lineTo(x - 60, H); ctx.fill(); }
+    // round Romanesque arches of the arcade
+    ctx.strokeStyle = '#6b5a4b'; ctx.lineWidth = 10;
+    for (let i = 0; i < 5; i++) {
+      const cx = 96 + i * 192;
+      ctx.beginPath(); ctx.arc(cx, 330, 78, Math.PI, 0); ctx.stroke();
+      ctx.fillStyle = '#4a3c33'; ctx.fillRect(cx - 96, 330, 18, H - 330); ctx.fillRect(cx + 78, 330, 18, H - 330);
+    }
+    ctx.strokeStyle = '#5a4a3e'; ctx.lineWidth = 6;
+    for (let i = 0; i < 9; i++) { const cx = 53 + i * 107; ctx.beginPath(); ctx.arc(cx, 190, 42, Math.PI, 0); ctx.stroke(); }
+    // the vault
+    ctx.fillStyle = '#241c18'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(W, 0); ctx.lineTo(W, 30); ctx.quadraticCurveTo(W / 2, 90, 0, 30); ctx.fill();
+    // floor and the pilgrims' pews
+    ctx.fillStyle = '#6d5a48'; ctx.fillRect(0, H - 34, W, 34);
+    ctx.fillStyle = '#3f3129';
+    for (let i = 0; i < 12; i++) { const x = 30 + i * 78; if (Math.abs(x + 20 - PIVOT.x) < 70) continue; ctx.fillRect(x, H - 58, 44, 8); ctx.fillRect(x + 4, H - 50, 4, 16); ctx.fillRect(x + 36, H - 50, 4, 16); }
+    // the arc of the swing, with target marks
+    ctx.save(); ctx.translate(PIVOT.x, PIVOT.y);
+    const R = R_LONG * PPM;
+    ctx.strokeStyle = 'rgba(200,155,60,.18)'; ctx.lineWidth = 1; ctx.setLineDash([4, 6]);
+    ctx.beginPath(); ctx.arc(0, 0, R, rad(90 - SLACK_DEG), rad(90 + SLACK_DEG)); ctx.stroke(); ctx.setLineDash([]);
+    const mark = (d, col) => { for (const s of [-1, 1]) { const a = rad(d) * s; ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(Math.sin(a) * (R - 10), Math.cos(a) * (R - 10)); ctx.lineTo(Math.sin(a) * (R + 10), Math.cos(a) * (R + 10)); ctx.stroke(); } };
+    mark(RAISE_DEG, 'rgba(200,155,60,.8)'); mark(HOLD_MIN, 'rgba(200,155,60,.4)'); mark(SLACK_DEG, 'rgba(220,70,50,.8)');
+    // rhythm cue: glow in the pulling zone around the bottom
+    if (S.cue && S.mode !== 'ready') {
+      const z = Math.max(rad(3), S.amp * 0.5), lower = S.phase === 'lower';
+      ctx.strokeStyle = lower ? 'rgba(120,170,255,.25)' : 'rgba(255,200,90,.28)'; ctx.lineWidth = 16;
+      if (!lower) { ctx.beginPath(); ctx.arc(0, 0, R, Math.PI / 2 - z, Math.PI / 2 + z); ctx.stroke(); }
+      else { ctx.beginPath(); ctx.arc(0, 0, R, Math.PI / 2 + z, Math.PI / 2 + S.amp + 0.05); ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, R, Math.PI / 2 - S.amp - 0.05, Math.PI / 2 - z); ctx.stroke(); }
+    }
+    ctx.restore();
+    // smoke
+    for (const s of S.smoke) { ctx.fillStyle = `rgba(230,225,215,${fin(Math.max(0, Math.min(0.22, s.life * 0.08)))})`; ctx.beginPath(); ctx.arc(s.x, s.y, fin(s.r, 1), 0, 6.283); ctx.fill(); }
+    // pulley and the rope to the tiraboleiros on the north pillar
+    const p = pos();
+    ctx.fillStyle = '#8a7a66'; ctx.beginPath(); ctx.arc(PIVOT.x, PIVOT.y, 11, 0, 6.283); ctx.fill();
+    ctx.strokeStyle = '#1d1511'; ctx.lineWidth = 2; ctx.stroke();
+    const teamX = 80, teamY = H - 70, pull = S.pulling ? 1 : 0;
+    ctx.strokeStyle = '#b89a6a'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(PIVOT.x - 10, PIVOT.y); ctx.lineTo(teamX + 40, 70); ctx.lineTo(teamX + 40, teamY - 40 + pull * 6); ctx.stroke();
+    for (let i = 0; i < 8; i++) drawMonk(teamX + (i % 4) * 22 - (i > 3 ? 10 : 0), teamY + (i > 3 ? 20 : 0), pull);
+    // the rope and censer
+    ctx.strokeStyle = '#d6c39a'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(PIVOT.x, PIVOT.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+    drawCenser(p.x, p.y, b.th);
+    // pull indicator
+    ctx.fillStyle = S.pulling ? '#c89b3c' : 'rgba(255,255,255,.18)';
+    ctx.font = '700 15px "Segoe UI", Arial, sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText(S.pulling ? 'PULLING' : 'rope out', W - 18, H - 44);
+    if (S.mode === 'paused') { ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(0, 0, W, H); ctx.fillStyle = '#f4ead6'; ctx.font = '400 40px Georgia, serif'; ctx.textAlign = 'center'; ctx.fillText('Paused', W / 2, H / 2); }
+  }
+  function drawMonk(x, y, pull) {
+    const lean = pull * 0.25;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(-lean);
+    ctx.fillStyle = '#7b1e2b'; ctx.beginPath(); ctx.moveTo(-9, 22); ctx.lineTo(9, 22); ctx.lineTo(6, -8); ctx.lineTo(-6, -8); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#e0bfa0'; ctx.beginPath(); ctx.arc(0, -13, 6, 0, 6.283); ctx.fill();
+    ctx.strokeStyle = '#e0bfa0'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(4, -4); ctx.lineTo(14, -12 - pull * 4); ctx.stroke();
+    ctx.restore();
+  }
+  function drawCenser(x, y, th) {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(-th);
+    // chains to the body
+    ctx.strokeStyle = '#9aa0a8'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-14, 16); ctx.moveTo(0, 0); ctx.lineTo(14, 16); ctx.stroke();
+    // glow of the coals
+    const glow = reduced ? 0.4 : 0.35 + 0.15 * Math.sin(S.t * 9);
+    const rg = ctx.createRadialGradient(0, 30, 2, 0, 30, 34); rg.addColorStop(0, `rgba(255,140,50,${glow})`); rg.addColorStop(1, 'rgba(255,140,50,0)');
+    ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(0, 30, 34, 0, 6.283); ctx.fill();
+    // silver body
+    const sg = ctx.createLinearGradient(-18, 0, 18, 0); sg.addColorStop(0, '#7d828a'); sg.addColorStop(0.45, '#eef0f3'); sg.addColorStop(1, '#8a8f97');
+    ctx.fillStyle = sg; ctx.strokeStyle = '#4b4f55'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(-8, 12); ctx.lineTo(8, 12); ctx.lineTo(16, 20); ctx.lineTo(18, 34); ctx.lineTo(12, 46); ctx.lineTo(-12, 46); ctx.lineTo(-18, 34); ctx.lineTo(-16, 20); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#3a2c20';
+    for (const [dx, dy] of [[-8, 26], [0, 24], [8, 26], [-4, 34], [4, 34]]) { ctx.beginPath(); ctx.arc(dx, dy, 1.8, 0, 6.283); ctx.fill(); }
+    ctx.fillStyle = '#c89b3c'; ctx.fillRect(-12, 40, 24, 3);
+    ctx.fillStyle = '#b3b7bd'; ctx.beginPath(); ctx.moveTo(-6, 46); ctx.lineTo(6, 46); ctx.lineTo(0, 54); ctx.fill();
+    ctx.restore();
+  }
+
+  // ---------- HUD ----------
+  let lastSay = '';
+  function say(m) { if (m !== lastSay) { $('status').textContent = m; lastSay = m; } }
+  let lastHud = '';
+  function hud() {
+    const b = S.body, a = Math.round(deg(S.amp)), v = Math.round(Math.abs(b.om) * b.r * 3.6);
+    const key = [a, v, S.t.toFixed(1), S.best].join('|');
+    if (key === lastHud) return; lastHud = key;
+    $('amp').textContent = `${a}°`;
+    $('speed').textContent = `${v} km/h`;
+    $('time').textContent = `${S.t.toFixed(1)} s`;
+    $('best').textContent = S.best === null ? '–' : `${S.best.toFixed(1)} s`;
+    cv.setAttribute('aria-label', `Botafumeiro: ${S.mode === 'run' ? S.phase : S.mode}. Last swing ${a} degrees, ${v} kilometres an hour, rope ${S.pulling ? 'pulled in' : 'let out'}.`);
+  }
+  function phases() {
+    const order = ['raise', 'hold', 'lower'], cur = S.mode === 'over' && S.result === 'caught' ? 3 : order.indexOf(S.phase);
+    order.forEach((p, i) => {
+      const li = $('ph-' + p);
+      if (i === cur) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current');
+      li.classList.toggle('done', i < cur);
+    });
+  }
+
+  // ---------- loop ----------
+  let manual = false, acc = 0, last = null, scale = 1.5;
+  function frame(ts) {
+    requestAnimationFrame(frame);
+    if (last === null) last = ts;
+    let dt = (ts - last) / 1000; last = ts;
+    if (!Number.isFinite(dt) || dt < 0) dt = 0;
+    if (manual) return;
+    acc += Math.min(dt, 0.1) * scale;
+    while (acc >= DT) { step(); acc -= DT; }
+    hud(); draw();
+  }
+  function start() {
+    reset('run');
+    lastHud = '';
+    $('readyOv').hidden = true; $('overOv').hidden = true;
+    // the Begin / Again button just vanished: give focus to the Pull button so Space keeps working
+    $('pullBtn').focus({ preventScroll: true });
+    $('pauseBtn').setAttribute('aria-pressed', 'false'); $('pauseBtn').textContent = 'Pause';
+    say('The censer is swinging gently. Pull as it passes the bottom, let go at the ends.');
+    phases(); hud(); draw();
+  }
+  function togglePause() {
+    if (S.mode === 'run') { S.mode = 'paused'; $('pauseBtn').setAttribute('aria-pressed', 'true'); $('pauseBtn').textContent = 'Resume'; say('Paused.'); }
+    else if (S.mode === 'paused') { S.mode = 'run'; $('pauseBtn').setAttribute('aria-pressed', 'false'); $('pauseBtn').textContent = 'Pause'; say('Swinging again.'); }
+    draw();
+  }
+  function setPull(on) {
+    input.held = on;
+    $('pullBtn').setAttribute('aria-pressed', String(on));
+    $('pullBtn').classList.toggle('on', on);
+  }
+  function toggleCue() {
+    S.cue = !S.cue;
+    $('cueBtn').setAttribute('aria-pressed', String(S.cue)); $('cueBtn').textContent = S.cue ? 'Cue: on' : 'Cue: off';
+    draw();
+  }
+
+  // ---------- input ----------
+  $('startBtn').addEventListener('click', start);
+  $('againBtn').addEventListener('click', start);
+  $('pauseBtn').addEventListener('click', togglePause);
+  $('cueBtn').addEventListener('click', toggleCue);
+  $('slowChk').addEventListener('change', (e) => { scale = e.target.checked ? 1 : 1.5; say(e.target.checked ? 'Gentle pace: the clock runs in real time.' : 'The clock runs at 1.5×.'); });
+  const pb = $('pullBtn');
+  pb.addEventListener('pointerdown', (e) => { e.preventDefault(); if (S.mode === 'ready' || S.mode === 'over') { start(); return; } setPull(true); });
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) pb.addEventListener(ev, () => setPull(false));
+  pb.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); setPull(true); } });
+  pb.addEventListener('keyup', (e) => { if (e.key === 'Enter') setPull(false); });
+  cv.addEventListener('pointerdown', (e) => { e.preventDefault(); if (S.mode !== 'run') return; input.pointers.add(e.pointerId); });
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) cv.addEventListener(ev, (e) => input.pointers.delete(e.pointerId));
+  const PULL_KEYS = [' ', 'ArrowDown', 's', 'S'];
+  addEventListener('keydown', (e) => {
+    const tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT') return;
+    if (PULL_KEYS.includes(e.key)) {
+      if (tag === 'BUTTON' && e.key === ' ' && e.target.id !== 'pullBtn' && S.mode !== 'run') return;   // let Space press focused buttons
+      e.preventDefault();
+      if (S.mode === 'ready' || S.mode === 'over') { if (!e.repeat) start(); return; }
+      input.keys.add(e.key.toLowerCase());
+    } else if (e.key === 'p' || e.key === 'P') togglePause();
+    else if (e.key === 'c' || e.key === 'C') toggleCue();
+  });
+  addEventListener('keyup', (e) => { if (PULL_KEYS.includes(e.key)) input.keys.delete(e.key.toLowerCase()); });
+  addEventListener('blur', () => { input.keys.clear(); input.pointers.clear(); setPull(false); if (S.mode === 'run' && !manual) togglePause(); });
+
+  // ---------- test hook ----------
+  const snap = () => ({
+    mode: S.mode, phase: S.phase, t: +S.t.toFixed(4), frame: S.frame, th: deg(S.body.th), om: S.body.om, r: S.body.r, rdot: S.body.rdot,
+    amp: deg(S.amp), maxAmp: deg(S.maxAmp), turns: S.turns, holdTurns: S.holdTurns, pulls: S.pulls, pulling: S.pulling, result: S.result, best: S.best,
+    speedKmh: Math.abs(S.body.om) * S.body.r * 3.6, energy: energy(S.body), cue: S.cue, scale,
+  });
+  window.__censer = {
+    get state() { return snap(); },
+    manual(on) { manual = !!on; acc = 0; },
+    frames(n) { for (let i = 0; i < n && S.mode === 'run'; i++) step(); hud(); draw(); return snap(); },
+    /** drive the live game with a named rhythm ('pump', 'damp' or 'none') for up to n steps; stop early at a 'phase' change or the next 'turn' */
+    auto(policy, n, stop = 'phase') {
+      const ph = S.phase, tu = S.turns;
+      for (let i = 0; i < n && S.mode === 'run'; i++) {
+        input.held = policyPull(policy, S.body, S.amp);
+        step();
+        if (stop === 'phase' && S.phase !== ph) break;
+        if (stop === 'turn' && S.turns !== tu) break;
+      }
+      input.held = false; hud(); draw(); return snap();
+    },
+    /** put the censer at a given angle and rope length, at rest (for scenario tests) */
+    set(thDeg, om = 0, r = R_LONG) { S.body.th = rad(thDeg); S.body.om = om; S.body.r = r; S.amp = Math.abs(rad(thDeg)); S.lastOm = 0; draw(); return snap(); },
+    simulate, DT, consts: { G, R_LONG, R_SHORT, V_PULL, DRAG, RAISE_DEG, HOLD_MIN, SLACK_DEG, CATCH_DEG, HOLD_TURNS, TIME_LIMIT, START_DEG },
+  };
+
+  reset('ready');
+  hud(); phases(); draw();
+  $('best').textContent = S.best === null ? '–' : `${S.best.toFixed(1)} s`;
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
