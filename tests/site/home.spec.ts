@@ -272,6 +272,28 @@ test('sitemap.xml is well-formed and lists the homepage and every Lab page', asy
   expect(locs).toEqual([site, ...files.map((f) => site + f)]);
 });
 
+test('start here: five picks with working pages and thumbs, each naming a real service', async ({ page, request }) => {
+  await page.goto('/');
+  // the hero's primary call to action goes to the priced services
+  await page.getByTestId('hero-services').click();
+  await expect(page).toHaveURL(/#services$/);
+  await expect(page.getByTestId('services')).toBeInViewport();
+
+  const picks = page.getByTestId('pick');
+  await expect(picks).toHaveCount(5);
+  const packages = (await page.getByTestId('package').locator('h3').allTextContents()).map((t) => t.trim());
+  for (const pick of await picks.all()) {
+    const href = (await pick.locator('.pick__link').getAttribute('href'))!;
+    if (!href.startsWith('http')) expect((await request.get(`/${href}`)).status(), href).toBe(200);
+    const img = pick.locator('img');
+    await img.scrollIntoViewIfNeeded(); // thumbs are lazy-loaded
+    await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth), { message: href }).toBeGreaterThan(0);
+    // every service label is either a package on the page or the hourly rate
+    const svc = (await pick.locator('.pick__svc a').textContent())!;
+    expect(packages.some((p) => svc.startsWith(p)) || svc.includes('$65/hr'), svc).toBe(true);
+  }
+});
+
 test('homepage has no horizontal scroll', async ({ page }) => {
   await page.goto('/');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
